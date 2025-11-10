@@ -36,24 +36,54 @@ export default function Navigation({ onLogout, onOpenUpload }) {
     <nav className="navigation">
       <div className="container nav-container">
         <Link to="/" className="nav-brand">
-          <img src="/logo.svg" alt="Sapho" className="nav-logo" />
+          <img src="/logo.svg" alt="Sapho" className="nav-logo nav-logo-full" />
+          <img src="/icon-192.png" alt="Sapho" className="nav-logo nav-logo-icon" />
         </Link>
 
         <div className="nav-links">
-          <Link to="/" className={location.pathname === '/' ? 'active' : ''}>
-            Home
+          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span className="nav-link-text">Home</span>
           </Link>
-          <Link to="/library" className={location.pathname === '/library' ? 'active' : ''}>
-            Library
+          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            <span className="nav-link-text">Library</span>
           </Link>
-          <Link to="/series" className={location.pathname === '/series' ? 'active' : ''}>
-            Series
+          <Link to="/series" className={`nav-link ${location.pathname === '/series' ? 'active' : ''}`} title="Series">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+            <span className="nav-link-text">Series</span>
           </Link>
         </div>
 
         <div className="nav-actions">
+          <Link to="/profile" className="icon-button mobile-menu-item" title="Profile">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </Link>
+
           {user?.is_admin && (
             <>
+              <Link to="/settings" className="icon-button mobile-menu-item" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M12 1v6m0 6v6"/>
+                  <path d="m4.93 4.93 4.24 4.24m5.66 5.66 4.24 4.24"/>
+                  <path d="M1 12h6m6 0h6"/>
+                  <path d="m4.93 19.07 4.24-4.24m5.66-5.66 4.24-4.24"/>
+                </svg>
+              </Link>
+
               <button
                 className="icon-button"
                 onClick={onOpenUpload}
@@ -64,18 +94,11 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                   <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
               </button>
-
-              <Link to="/settings" className="icon-button" title="Settings">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </Link>
             </>
           )}
 
           {user && (
-            <div className="user-menu">
+            <div className="user-menu desktop-only">
               <button
                 className="user-button"
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -99,6 +122,15 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                     </svg>
                     Profile
                   </button>
+                  {user?.is_admin && (
+                    <button onClick={() => { navigate('/settings'); setShowUserMenu(false); }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6"/>
+                      </svg>
+                      Settings
+                    </button>
+                  )}
                   <button onClick={() => { onLogout(); setShowUserMenu(false); }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -111,6 +143,18 @@ export default function Navigation({ onLogout, onOpenUpload }) {
               )}
             </div>
           )}
+
+          <button
+            className="icon-button mobile-only"
+            onClick={onLogout}
+            title="Logout"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
         </div>
       </div>
     </nav>
