@@ -46,6 +46,8 @@ function App() {
   const handleLogin = (newToken) => {
     localStorage.setItem('token', newToken)
     setToken(newToken)
+    // Reset URL to home page on login
+    window.history.replaceState(null, '', '/')
   }
 
   const handleLogout = () => {
