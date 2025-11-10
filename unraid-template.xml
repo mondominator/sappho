@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Sapho</Name>
+  <Repository>ghcr.io/global_dynamics/sapho:latest</Repository>
+  <Registry>https://ghcr.io/</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://git.bitstorm.ca/global_dynamics/sapho</Support>
+  <Project>https://git.bitstorm.ca/global_dynamics/sapho</Project>
+  <Overview>Sapho is a modern, self-hosted audiobook server with a beautiful web interface. Features include automatic metadata extraction, series organization, progress tracking, and a mobile-optimized PWA interface.</Overview>
+  <Category>MediaApp:Other MediaServer:Other</Category>
+  <WebUI>http://[IP]:[PORT:3002]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/global_dynamics/sapho/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/global_dynamics/sapho/main/logo.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="WebUI Port" Target="3002" Default="3002" Mode="tcp" Description="Web interface and API port" Type="Port" Display="always" Required="true" Mask="false">3002</Config>
+  <Config Name="App Data" Target="/app/data" Default="/mnt/user/appdata/sapho/data" Mode="rw" Description="Database and application data" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/sapho/data</Config>
+  <Config Name="Audiobooks Library" Target="/app/data/audiobooks" Default="/mnt/user/audiobooks" Mode="rw" Description="Your audiobook library location" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/audiobooks</Config>
+  <Config Name="Watch Directory" Target="/app/data/watch" Default="/mnt/user/audiobooks/watch" Mode="rw" Description="Drop audiobooks here for automatic import" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/audiobooks/watch</Config>
+  <Config Name="Upload Directory" Target="/app/data/uploads" Default="/mnt/user/appdata/sapho/uploads" Mode="rw" Description="Temporary upload storage" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/sapho/uploads</Config>
+  <Config Name="Covers Directory" Target="/app/covers" Default="/mnt/user/appdata/sapho/covers" Mode="rw" Description="Cover image storage" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/sapho/covers</Config>
+  <Config Name="JWT Secret" Target="JWT_SECRET" Default="" Mode="" Description="Secret key for JWT authentication - CHANGE THIS! Generate with: openssl rand -base64 32" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Node Environment" Target="NODE_ENV" Default="production" Mode="" Description="Node.js environment mode" Type="Variable" Display="advanced" Required="false" Mask="false">production</Config>
+  <Config Name="Audiobooks Directory Path" Target="AUDIOBOOKS_DIR" Default="/app/data/audiobooks" Mode="" Description="Internal audiobooks directory path" Type="Variable" Display="advanced" Required="false" Mask="false">/app/data/audiobooks</Config>
+  <Config Name="Watch Directory Path" Target="WATCH_DIR" Default="/app/data/watch" Mode="" Description="Internal watch directory path" Type="Variable" Display="advanced" Required="false" Mask="false">/app/data/watch</Config>
+  <Config Name="Server Port" Target="PORT" Default="3002" Mode="" Description="Internal server port" Type="Variable" Display="advanced" Required="false" Mask="false">3002</Config>
+  <Config Name="Database Path" Target="DATABASE_PATH" Default="/app/data/sapho.db" Mode="" Description="SQLite database file location" Type="Variable" Display="advanced" Required="false" Mask="false">/app/data/sapho.db</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+</Container>
