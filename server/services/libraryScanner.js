@@ -158,7 +158,69 @@ async function scanLibrary() {
   return stats;
 }
 
+/**
+ * Start periodic library scanning
+ */
+let scanInterval = null;
+let isScanning = false;
+
+function startPeriodicScan(intervalMinutes = 5) {
+  // Don't start if already running
+  if (scanInterval) {
+    console.log('Periodic library scan already running');
+    return;
+  }
+
+  const intervalMs = intervalMinutes * 60 * 1000;
+  console.log(`Starting periodic library scan every ${intervalMinutes} minutes`);
+
+  // Run initial scan in background
+  setImmediate(async () => {
+    if (!isScanning) {
+      isScanning = true;
+      try {
+        await scanLibrary();
+      } catch (error) {
+        console.error('Error in initial library scan:', error);
+      } finally {
+        isScanning = false;
+      }
+    }
+  });
+
+  // Set up periodic scanning
+  scanInterval = setInterval(async () => {
+    if (isScanning) {
+      console.log('Library scan already in progress, skipping...');
+      return;
+    }
+
+    isScanning = true;
+    try {
+      console.log('Starting periodic library scan...');
+      await scanLibrary();
+    } catch (error) {
+      console.error('Error in periodic library scan:', error);
+    } finally {
+      isScanning = false;
+    }
+  }, intervalMs);
+}
+
+/**
+ * Stop periodic library scanning
+ */
+function stopPeriodicScan() {
+  if (scanInterval) {
+    clearInterval(scanInterval);
+    scanInterval = null;
+    console.log('Periodic library scan stopped');
+  }
+}
+
 module.exports = {
   scanLibrary,
   importAudiobook,
+  startPeriodicScan,
+  stopPeriodicScan,
 };
