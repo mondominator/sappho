@@ -13,7 +13,7 @@
   <Category>MediaApp:Other MediaServer:Other</Category>
   <WebUI>http://[IP]:[PORT:3002]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/global_dynamics/sapho/main/unraid-template.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/global_dynamics/sapho/main/logo.png</Icon>
+  <Icon>https://raw.githubusercontent.com/global_dynamics/sapho/main/icon-unraid.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
