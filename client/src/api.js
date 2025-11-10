@@ -1,0 +1,119 @@
+import axios from 'axios';
+
+const API_BASE = '/api';
+
+const api = axios.create({
+  baseURL: API_BASE,
+});
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export const login = (username, password) =>
+  api.post('/auth/login', { username, password });
+
+export const register = (username, password, email) =>
+  api.post('/auth/register', { username, password, email });
+
+export const getAudiobooks = (params) =>
+  api.get('/audiobooks', { params });
+
+export const getAudiobook = (id) =>
+  api.get(`/audiobooks/${id}`);
+
+export const deleteAudiobook = (id) =>
+  api.delete(`/audiobooks/${id}`);
+
+export const uploadAudiobook = (file, metadata) => {
+  const formData = new FormData();
+  formData.append('audiobook', file);
+  if (metadata) {
+    Object.keys(metadata).forEach(key => {
+      formData.append(key, metadata[key]);
+    });
+  }
+  return api.post('/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+export const getStreamUrl = (id) => {
+  const token = localStorage.getItem('token');
+  return `${API_BASE}/audiobooks/${id}/stream?token=${encodeURIComponent(token)}`;
+};
+
+export const getDownloadUrl = (id) => {
+  const token = localStorage.getItem('token');
+  return `${API_BASE}/audiobooks/${id}/download?token=${encodeURIComponent(token)}`;
+};
+
+export const getCoverUrl = (id) => {
+  const token = localStorage.getItem('token');
+  return `${API_BASE}/audiobooks/${id}/cover?token=${encodeURIComponent(token)}`;
+};
+
+export const updateProgress = (id, position, completed = 0, state = 'playing', clientInfo = {}) =>
+  api.post(`/audiobooks/${id}/progress`, { position, completed, state, clientInfo });
+
+export const getProgress = (id) =>
+  api.get(`/audiobooks/${id}/progress`);
+
+export const markFinished = (id) =>
+  api.post(`/audiobooks/${id}/progress`, { position: 0, completed: 1, state: 'stopped' });
+
+export const clearProgress = (id) =>
+  api.post(`/audiobooks/${id}/progress`, { position: 0, completed: 0, state: 'stopped' });
+
+export const getSeries = () =>
+  api.get('/audiobooks/meta/series');
+
+export const getAuthors = () =>
+  api.get('/audiobooks/meta/authors');
+
+export const getRecentlyAdded = (limit = 10) =>
+  api.get('/audiobooks/meta/recent', { params: { limit } });
+
+export const getInProgress = (limit = 10) =>
+  api.get('/audiobooks/meta/in-progress', { params: { limit } });
+
+export const getUpNext = (limit = 10) =>
+  api.get('/audiobooks/meta/up-next', { params: { limit } });
+
+// API Keys
+export const getApiKeys = () =>
+  api.get('/api-keys');
+
+export const createApiKey = (name, permissions = 'read', expires_in_days = null) =>
+  api.post('/api-keys', { name, permissions, expires_in_days });
+
+export const updateApiKey = (id, updates) =>
+  api.put(`/api-keys/${id}`, updates);
+
+export const deleteApiKey = (id) =>
+  api.delete(`/api-keys/${id}`);
+
+// Users (admin only)
+export const getUsers = () =>
+  api.get('/users');
+
+export const getUser = (id) =>
+  api.get(`/users/${id}`);
+
+export const createUser = (username, password, email, is_admin) =>
+  api.post('/users', { username, password, email, is_admin });
+
+export const updateUser = (id, updates) =>
+  api.put(`/users/${id}`, updates);
+
+export const deleteUser = (id) =>
+  api.delete(`/users/${id}`);
+
+export default api;

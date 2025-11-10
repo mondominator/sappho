@@ -1,0 +1,162 @@
+.author-detail {
+  padding: 2rem 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.back-button {
+  margin-bottom: 2rem;
+}
+
+.author-header {
+  margin-bottom: 3rem;
+}
+
+.author-name {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.author-stats {
+  display: flex;
+  gap: 2rem;
+  font-size: 1.1rem;
+  color: #9ca3af;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+}
+
+.author-series-list {
+  margin-bottom: 3rem;
+}
+
+.author-series-list h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.series-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.series-chip {
+  padding: 0.5rem 1rem;
+  background: #374151;
+  color: #2dd4bf;
+  border: 1px solid #4b5563;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+}
+
+.series-chip:hover {
+  background: #4b5563;
+  border-color: #2dd4bf;
+  transform: translateY(-2px);
+}
+
+.author-books h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
+}
+
+.audiobook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.audiobook-card {
+  display: flex;
+  flex-direction: column;
+  background: #1f2937;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s;
+  cursor: pointer;
+}
+
+.audiobook-card:hover {
+  transform: translateY(-4px);
+}
+
+.audiobook-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: #374151;
+}
+
+.audiobook-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.audiobook-cover:hover img {
+  transform: scale(1.05);
+}
+
+.audiobook-info {
+  padding: 20px;
+  flex: 1;
+}
+
+.audiobook-title {
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+.audiobook-series {
+  color: #2dd4bf;
+  font-size: 13px;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.audiobook-narrator {
+  color: #6b7280;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.audiobook-duration {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.audiobook-actions {
+  padding: 0 20px 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.audiobook-actions .btn {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .author-name {
+    font-size: 2rem;
+  }
+
+  .author-stats {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .audiobook-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}

@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  sapho:
+    build: .
+    container_name: sapho
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret}
+      - DATABASE_PATH=/app/data/sapho.db
+      - UPLOAD_DIR=/app/data/uploads
+      - WATCH_DIR=/app/data/watch
+      - AUDIOBOOKS_DIR=/app/data/audiobooks
+    restart: unless-stopped

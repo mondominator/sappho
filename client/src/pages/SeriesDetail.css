@@ -1,0 +1,196 @@
+.series-detail-page {
+  padding: 2rem 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.back-button {
+  margin-bottom: 2rem;
+}
+
+.series-detail-header {
+  margin-bottom: 2.5rem;
+}
+
+.series-detail-name {
+  font-size: 2.5rem;
+  margin: 0 0 1rem 0;
+  color: #fff;
+  font-weight: 700;
+}
+
+.series-detail-stats {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  color: #9ca3af;
+  font-size: 1rem;
+}
+
+.series-books-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.25rem;
+  padding: 0.5rem;
+  margin: -0.5rem;
+}
+
+/* Reuse audiobook card styles from Home page */
+.series-books-grid .audiobook-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.series-books-grid .audiobook-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.series-books-grid .audiobook-cover {
+  width: 100%;
+  height: 100%;
+  background: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.series-books-grid .audiobook-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.series-books-grid .audiobook-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.series-books-grid .audiobook-cover-placeholder h3 {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.series-books-grid .progress-bar-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1;
+}
+
+.series-books-grid .progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%);
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.6);
+  transition: width 0.3s ease;
+}
+
+.series-books-grid .series-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(20, 184, 166, 0.9);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 2;
+  backdrop-filter: blur(4px);
+}
+
+.series-books-grid .play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.series-books-grid .audiobook-card:hover .play-overlay {
+  opacity: 1;
+}
+
+.series-books-grid .play-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #2dd4bf;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.4);
+}
+
+.series-books-grid .play-button:hover {
+  background: #14b8a6;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(96, 165, 250, 0.6);
+}
+
+.series-books-grid .play-button::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 18px solid white;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  margin-left: 4px;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 18px;
+  color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+  .series-detail-name {
+    font-size: 2rem;
+  }
+
+  .series-detail-stats {
+    gap: 1rem;
+  }
+
+  .series-books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+}

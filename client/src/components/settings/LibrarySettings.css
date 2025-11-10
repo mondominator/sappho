@@ -1,0 +1,44 @@
+.library-settings {
+  max-width: 800px;
+}
+
+.library-form {
+  background: #1f2937;
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.info-box {
+  background: rgba(96, 165, 250, 0.1);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.info-box h4 {
+  margin: 0 0 0.75rem 0;
+  color: #2dd4bf;
+  font-size: 1rem;
+}
+
+.info-box p {
+  margin: 0 0 1rem 0;
+  color: #d1d5db;
+  line-height: 1.6;
+}
+
+.folder-example {
+  background: #111827;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.folder-example code {
+  color: #9ca3af;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.8;
+  display: block;
+}

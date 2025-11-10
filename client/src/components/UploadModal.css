@@ -1,0 +1,112 @@
+.upload-modal {
+  max-width: 600px;
+  width: 90%;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-button:hover {
+  background: #374151;
+  color: #fff;
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.file-input-container {
+  position: relative;
+}
+
+.file-input-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  border: 2px dashed #4b5563;
+  border-radius: 12px;
+  background: #111827;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.file-input-label:hover {
+  border-color: #2dd4bf;
+  background: #1f2937;
+}
+
+.file-input-label svg {
+  color: #2dd4bf;
+  margin-bottom: 1rem;
+}
+
+.file-label-text {
+  font-size: 1rem;
+  color: #e5e7eb;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.file-label-hint {
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
+.file-info {
+  background: #1f2937;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.file-info-item {
+  color: #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.file-info-item strong {
+  color: #9ca3af;
+  margin-right: 0.5rem;
+}
+
+.error-message {
+  background: #7f1d1d;
+  border: 1px solid #dc2626;
+  color: #fca5a5;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
