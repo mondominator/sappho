@@ -28,11 +28,31 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Sapho server is running' });
 });
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+// Serve static files from the client/dist directory
+const distPath = path.join(__dirname, '../client/dist');
+const indexPath = path.join(distPath, 'index.html');
+
+// Check if built frontend exists
+const fs = require('fs');
+if (fs.existsSync(distPath)) {
+  console.log('Serving static frontend from:', distPath);
+  app.use(express.static(distPath));
+
+  // SPA fallback - serve index.html for all non-API routes
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Frontend not built. Run: npm run build');
+    }
+  });
+} else {
+  console.warn('Frontend dist directory not found. Frontend will not be served.');
+  app.get('*', (req, res) => {
+    res.status(404).json({
+      error: 'Frontend not available',
+      message: 'The frontend has not been built. Please run: cd client && npm run build'
+    });
   });
 }
 
