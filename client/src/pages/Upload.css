@@ -1,0 +1,115 @@
+.upload-page {
+  padding: 30px 20px;
+}
+
+.upload-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.upload-container h1 {
+  font-size: 32px;
+  margin-bottom: 30px;
+}
+
+.upload-form {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 30px;
+  margin-bottom: 30px;
+}
+
+.file-input-container {
+  margin-bottom: 20px;
+}
+
+#file-input {
+  display: none;
+}
+
+.file-input-label {
+  display: block;
+  padding: 40px;
+  border: 2px dashed #374151;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #9ca3af;
+}
+
+.file-input-label:hover {
+  border-color: #14b8a6;
+  color: #14b8a6;
+}
+
+.file-info {
+  background: #0f0f0f;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.file-info p {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #d1d5db;
+}
+
+.file-info p:last-child {
+  margin-bottom: 0;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #0f0f0f;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8a6, #8b5cf6);
+  transition: width 0.3s;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+}
+
+.button-group .btn {
+  flex: 1;
+}
+
+.upload-info {
+  padding: 20px;
+}
+
+.upload-info h3 {
+  margin-bottom: 15px;
+  font-size: 18px;
+}
+
+.upload-info p {
+  margin-bottom: 10px;
+  color: #9ca3af;
+}
+
+.upload-info code {
+  display: block;
+  background: #0f0f0f;
+  padding: 10px;
+  border-radius: 4px;
+  margin: 10px 0;
+  color: #14b8a6;
+  font-family: 'Courier New', monospace;
+}
+
+.upload-info .note {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 15px;
+}

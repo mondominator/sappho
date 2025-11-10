@@ -1,0 +1,24 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Book with sound waves icon -->
+  <g transform="translate(10, 10)">
+    <!-- Book shape -->
+    <rect x="2" y="5" width="20" height="28" rx="2" fill="#14b8a6" opacity="0.2"/>
+    <rect x="0" y="3" width="20" height="28" rx="2" fill="#14b8a6"/>
+    <line x1="10" y1="3" x2="10" y2="31" stroke="#0a0e1a" stroke-width="1.5" opacity="0.3"/>
+
+    <!-- Sound waves emanating from book -->
+    <path d="M 24 12 Q 28 12, 28 16 Q 28 20, 24 20" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    <path d="M 28 10 Q 34 10, 34 16 Q 34 22, 28 22" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7"/>
+    <path d="M 32 8 Q 40 8, 40 16 Q 40 24, 32 24" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.4"/>
+  </g>
+
+  <!-- Sapho text -->
+  <text x="65" y="35" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700" fill="#e0e7f1" letter-spacing="-0.5">
+    Sapho
+  </text>
+
+  <!-- Tagline -->
+  <text x="67" y="48" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="500" fill="#14b8a6" letter-spacing="1">
+    AUDIOBOOK SERVER
+  </text>
+</svg>
