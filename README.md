@@ -50,6 +50,7 @@ services:
 | `PORT` | No | `3002` | Server port |
 | `AUDIOBOOKS_DIR` | No | `/app/data/audiobooks` | Audiobook library path |
 | `WATCH_DIR` | No | `/app/data/watch` | Watch directory for auto-import |
+| `LIBRARY_SCAN_INTERVAL` | No | `5` | Minutes between library rescans for new audiobooks |
 | `DATABASE_PATH` | No | `/app/data/sapho.db` | SQLite database location |
 
 ## Unraid Installation
@@ -131,9 +132,10 @@ cd client && npm run dev
 Sapho can automatically detect and import audiobooks from an existing library:
 
 1. **Mount your existing library** to `/app/data/audiobooks`
-2. **On startup**, Sapho will scan the directory and import all detected audiobook files
-3. **Files are NOT moved or reorganized** - they stay in their original location
-4. **Already imported files are skipped** - safe to restart the container
+2. **Server starts immediately** - library scanning happens in the background
+3. **Periodic rescanning** - automatically detects new audiobooks every 5 minutes (configurable)
+4. **Files are NOT moved or reorganized** - they stay in their original location
+5. **Already imported files are skipped** - safe to restart the container
 
 Example Docker Compose for existing library:
 
@@ -141,17 +143,21 @@ Example Docker Compose for existing library:
 services:
   sapho:
     image: ghcr.io/global_dynamics/sapho:latest
+    environment:
+      - LIBRARY_SCAN_INTERVAL=5  # Scan every 5 minutes (optional)
     volumes:
       - /path/to/your/existing/audiobooks:/app/data/audiobooks:ro  # Read-only mount
       - /path/to/appdata/sapho:/app/data
 ```
 
 The library scanner will:
+- Run in the background on startup (server starts immediately)
 - Recursively scan all subdirectories
+- Rescan periodically to detect new audiobooks
 - Detect supported audio files (M4B, MP3, M4A, FLAC, OGG)
 - Extract metadata from each file
 - Skip files already in the database
-- Log import statistics on startup
+- Log import statistics after each scan
 
 ## Supported Audio Formats
 

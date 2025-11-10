@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const { createDefaultAdmin } = require('./auth');
 const { startFileWatcher } = require('./services/fileWatcher');
-const { scanLibrary } = require('./services/libraryScanner');
+const { startPeriodicScan } = require('./services/libraryScanner');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -63,14 +63,7 @@ async function initialize() {
     // Create default admin user if needed
     await createDefaultAdmin();
 
-    // Scan existing library for audiobooks
-    console.log('Scanning library for existing audiobooks...');
-    await scanLibrary();
-
-    // Start file watcher
-    startFileWatcher();
-
-    // Start server
+    // Start server immediately (don't wait for library scan)
     const server = app.listen(PORT, () => {
       console.log(`Sapho server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -79,6 +72,14 @@ async function initialize() {
     // Initialize WebSocket server for real-time notifications
     const websocketManager = require('./services/websocketManager');
     websocketManager.initialize(server);
+
+    // Start periodic library scanning in background (default: every 5 minutes)
+    // Can be configured with LIBRARY_SCAN_INTERVAL env var (in minutes)
+    const scanInterval = parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5;
+    startPeriodicScan(scanInterval);
+
+    // Start file watcher for watch directory
+    startFileWatcher();
   } catch (error) {
     console.error('Failed to initialize server:', error);
     process.exit(1);
