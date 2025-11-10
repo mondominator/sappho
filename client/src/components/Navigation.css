@@ -34,20 +34,23 @@
   gap: 20px;
 }
 
-.nav-links a {
+.nav-link {
   color: #9ca3af;
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.2s;
+  transition: color 0.2s, background 0.2s;
   padding: 8px 16px;
   border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.nav-links a:hover {
+.nav-link:hover {
   color: #fff;
 }
 
-.nav-links a.active {
+.nav-link.active {
   color: #fff;
   background: #374151;
 }
@@ -147,22 +150,81 @@
   color: #fff;
 }
 
+/* Hide full logo on mobile, show icon */
+.nav-logo-icon {
+  display: none;
+}
+
+.nav-logo-full {
+  display: block;
+}
+
+/* Desktop/mobile visibility helpers */
+.desktop-only {
+  display: flex;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.mobile-menu-item {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  .nav-links {
-    gap: 8px;
+  /* Switch to icon logo on mobile */
+  .nav-logo-full {
+    display: none;
   }
 
-  .nav-links a {
-    padding: 6px 12px;
-    font-size: 14px;
+  .nav-logo-icon {
+    display: block;
+    height: 36px;
+    width: 36px;
+    border-radius: 8px;
+  }
+
+  /* Hide text, show only icons in nav links */
+  .nav-links {
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .nav-link {
+    padding: 10px;
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .nav-link-text {
+    display: none;
+  }
+
+  .nav-link svg {
+    margin: 0;
   }
 
   .nav-actions {
-    gap: 8px;
+    gap: 4px;
   }
 
-  .user-button {
-    padding: 6px 12px;
-    font-size: 13px;
+  /* Hide desktop user menu, show mobile items */
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: flex;
+  }
+
+  .mobile-menu-item {
+    display: flex;
+  }
+
+  .icon-button {
+    width: 44px;
+    height: 44px;
   }
 }
