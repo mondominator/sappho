@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const { createDefaultAdmin } = require('./auth');
 const { startFileWatcher } = require('./services/fileWatcher');
+const { scanLibrary } = require('./services/libraryScanner');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,6 +62,10 @@ async function initialize() {
   try {
     // Create default admin user if needed
     await createDefaultAdmin();
+
+    // Scan existing library for audiobooks
+    console.log('Scanning library for existing audiobooks...');
+    await scanLibrary();
 
     // Start file watcher
     startFileWatcher();

@@ -14,6 +14,7 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 - 🔍 **Search & Filter** - Find audiobooks quickly
 - 👥 **Multi-user Support** - Create accounts for family members
 - 📂 **Watch Directory** - Auto-import audiobooks from a folder
+- 🔄 **Automatic Library Import** - Mount existing libraries and auto-detect audiobooks
 - 🌓 **Modern Dark UI** - Beautiful teal-themed interface
 - 🔄 **Real-time Updates** - WebSocket integration for live updates
 
@@ -116,7 +117,7 @@ cd client && npm run dev
 ```
 /app/data/
 ├── sapho.db              # SQLite database
-├── audiobooks/           # Audiobook library
+├── audiobooks/           # Audiobook library (can mount existing library here)
 │   ├── Author Name/
 │   │   └── Book Title/
 │   │       ├── book.m4b
@@ -124,6 +125,33 @@ cd client && npm run dev
 ├── watch/                # Drop audiobooks here for auto-import
 └── uploads/              # Temporary upload storage
 ```
+
+## Importing Existing Libraries
+
+Sapho can automatically detect and import audiobooks from an existing library:
+
+1. **Mount your existing library** to `/app/data/audiobooks`
+2. **On startup**, Sapho will scan the directory and import all detected audiobook files
+3. **Files are NOT moved or reorganized** - they stay in their original location
+4. **Already imported files are skipped** - safe to restart the container
+
+Example Docker Compose for existing library:
+
+```yaml
+services:
+  sapho:
+    image: ghcr.io/global_dynamics/sapho:latest
+    volumes:
+      - /path/to/your/existing/audiobooks:/app/data/audiobooks:ro  # Read-only mount
+      - /path/to/appdata/sapho:/app/data
+```
+
+The library scanner will:
+- Recursively scan all subdirectories
+- Detect supported audio files (M4B, MP3, M4A, FLAC, OGG)
+- Extract metadata from each file
+- Skip files already in the database
+- Log import statistics on startup
 
 ## Supported Audio Formats
 
