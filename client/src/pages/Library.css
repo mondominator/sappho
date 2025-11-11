@@ -252,7 +252,7 @@
   }
 
   .library-header {
-    margin-top: 60px;
+    margin-top: 80px;
     padding: 0 1rem;
     margin-bottom: 1rem;
   }
@@ -261,13 +261,13 @@
     font-size: 1.125rem;
   }
 
-  .audiobook-grid {
-    padding: 0 0.75rem 1rem;
-    grid-template-columns: repeat(3, 1fr);
+  .library-page .audiobook-grid {
+    padding: 0 0.75rem 5rem;
+    grid-template-columns: repeat(4, 1fr);
     gap: 0.5rem;
   }
 
-  .audiobook-card {
+  .library-page .audiobook-card {
     width: 100%;
     height: auto;
     aspect-ratio: 1;

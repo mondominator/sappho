@@ -254,7 +254,19 @@ async function organizeFile(sourcePath, metadata) {
     counter++;
   }
 
-  fs.renameSync(sourcePath, actualPath);
+  // Use copy + delete instead of rename to handle cross-filesystem moves
+  try {
+    fs.copyFileSync(sourcePath, actualPath);
+    fs.unlinkSync(sourcePath);
+  } catch (error) {
+    // If copy fails, try rename as fallback
+    try {
+      fs.renameSync(sourcePath, actualPath);
+    } catch (renameError) {
+      console.error('Failed to move file:', error, renameError);
+      throw new Error(`Failed to move file: ${error.message}`);
+    }
+  }
 
   // Move cover art to the same directory if it exists
   if (metadata.cover_image && fs.existsSync(metadata.cover_image)) {

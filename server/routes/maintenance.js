@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
+const { scanLibrary } = require('../services/libraryScanner');
 
 // Consolidate multi-file audiobooks
 router.post('/consolidate-multifile', authenticateToken, async (req, res) => {
@@ -198,6 +199,75 @@ router.post('/clear-library', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error clearing library:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Trigger immediate library scan
+router.post('/scan-library', authenticateToken, async (req, res) => {
+  // Only allow admins to run this
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    console.log('Manual library scan triggered');
+    const stats = await scanLibrary();
+    res.json({
+      success: true,
+      message: 'Library scan completed',
+      stats,
+    });
+  } catch (error) {
+    console.error('Error scanning library:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Force rescan - clear and reimport all audiobooks
+router.post('/force-rescan', authenticateToken, async (req, res) => {
+  // Only allow admins to run this
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    console.log('Force rescan: clearing library database...');
+
+    // Delete all audiobook chapters first (due to foreign key constraint)
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM audiobook_chapters', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Delete all playback progress
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM playback_progress', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Delete all audiobooks
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM audiobooks', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    console.log('Library database cleared, starting scan...');
+    const stats = await scanLibrary();
+
+    res.json({
+      success: true,
+      message: 'Library force rescanned successfully',
+      stats,
+    });
+  } catch (error) {
+    console.error('Error in force rescan:', error);
     res.status(500).json({ error: error.message });
   }
 });

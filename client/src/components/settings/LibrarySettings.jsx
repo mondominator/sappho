@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { clearLibrary } from '../../api';
+import { clearLibrary, scanLibrary, forceRescan } from '../../api';
 import './LibrarySettings.css';
 
 export default function LibrarySettings() {
   const [settings, setSettings] = useState({
     libraryPath: '',
-    watchPath: '',
     uploadPath: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [clearing, setClearing] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [rescanning, setRescanning] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -40,7 +40,19 @@ export default function LibrarySettings() {
       await axios.put('/api/settings/library', settings, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('Library settings updated successfully');
+      alert('Library settings updated successfully. Triggering library scan...');
+
+      // Trigger immediate scan after saving settings
+      try {
+        const scanResult = await scanLibrary();
+        const stats = scanResult.data.stats;
+        alert(`Library scan complete!\nImported: ${stats.imported}\nSkipped: ${stats.skipped}\nErrors: ${stats.errors}`);
+        if (stats.imported > 0) {
+          window.location.reload();
+        }
+      } catch (scanError) {
+        console.error('Error triggering scan:', scanError);
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
       alert(error.response?.data?.error || 'Failed to update settings');
@@ -49,25 +61,47 @@ export default function LibrarySettings() {
     }
   };
 
-  const handleClearLibrary = async () => {
-    if (!confirm('Are you sure you want to clear the entire library database? This will remove all audiobook entries and progress. Files will not be deleted and will be reimported on the next scan.')) {
+  const handleScanLibrary = async () => {
+    if (!confirm('Trigger an immediate library scan? This will import any new audiobooks found in the library directory.')) {
       return;
     }
 
-    if (!confirm('This action cannot be undone. Are you absolutely sure?')) {
-      return;
-    }
-
-    setClearing(true);
+    setScanning(true);
     try {
-      await clearLibrary();
-      alert('Library database cleared successfully. Audiobooks will be reimported on the next scan (every 5 minutes).');
+      const result = await scanLibrary();
+      const stats = result.data.stats;
+      alert(`Library scan complete!\nImported: ${stats.imported}\nSkipped: ${stats.skipped}\nErrors: ${stats.errors}`);
+      if (stats.imported > 0) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error scanning library:', error);
+      alert(error.response?.data?.error || 'Failed to scan library');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleForceRescan = async () => {
+    if (!confirm('Force rescan will CLEAR the entire library database and reimport all audiobooks. All playback progress will be lost. Are you sure?')) {
+      return;
+    }
+
+    if (!confirm('This action cannot be undone. Are you absolutely sure you want to force rescan?')) {
+      return;
+    }
+
+    setRescanning(true);
+    try {
+      const result = await forceRescan();
+      const stats = result.data.stats;
+      alert(`Force rescan complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
       window.location.reload();
     } catch (error) {
-      console.error('Error clearing library:', error);
-      alert(error.response?.data?.error || 'Failed to clear library');
+      console.error('Error in force rescan:', error);
+      alert(error.response?.data?.error || 'Failed to force rescan');
     } finally {
-      setClearing(false);
+      setRescanning(false);
     }
   };
 
@@ -81,8 +115,7 @@ export default function LibrarySettings() {
         <div>
           <h2>Library Settings</h2>
           <p className="section-description">
-            Configure where your audiobooks are stored and managed. Books will be organized in an
-            "Author/Book" folder structure.
+            Configure where your audiobooks are stored. The library is automatically scanned every 5 minutes for new books.
           </p>
         </div>
       </div>
@@ -100,24 +133,7 @@ export default function LibrarySettings() {
             required
           />
           <p className="help-text">
-            Main directory where audiobooks are organized in Author/Book folders
-          </p>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="watchPath">Watch Directory</label>
-          <input
-            type="text"
-            id="watchPath"
-            className="input"
-            value={settings.watchPath}
-            onChange={(e) => setSettings({ ...settings, watchPath: e.target.value })}
-            placeholder="/app/data/watch"
-            required
-          />
-          <p className="help-text">
-            Directory to monitor for new audiobook files. Files will be automatically imported and
-            organized.
+            Main directory where audiobooks are stored. Can be organized in Author/Book folders or any structure.
           </p>
         </div>
 
@@ -159,18 +175,39 @@ export default function LibrarySettings() {
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Saving...' : 'Save Settings'}
+            {saving ? 'Saving & Scanning...' : 'Save Settings'}
           </button>
         </div>
       </form>
+
+      <div className="settings-section" style={{ marginTop: '2rem' }}>
+        <div className="section-header">
+          <div>
+            <h2>Library Management</h2>
+            <p className="section-description">
+              Manually trigger a library scan to import new audiobooks immediately, or force rescan to clear and reimport everything.
+            </p>
+          </div>
+        </div>
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleScanLibrary}
+            disabled={scanning}
+          >
+            {scanning ? 'Scanning...' : 'Scan Library Now'}
+          </button>
+        </div>
+      </div>
 
       <div className="settings-section" style={{ marginTop: '2rem', background: '#7f1d1d', borderColor: '#dc2626' }}>
         <div className="section-header">
           <div>
             <h2>Danger Zone</h2>
             <p className="section-description" style={{ color: '#fca5a5' }}>
-              Clear the library database and reimport all audiobooks. This is useful if you have
-              duplicate entries or want to reset the library completely.
+              Force rescan will clear the entire library database and reimport all audiobooks. Use this if you have
+              duplicate entries or corrupted data.
             </p>
           </div>
         </div>
@@ -183,10 +220,10 @@ export default function LibrarySettings() {
         <button
           type="button"
           className="btn btn-danger"
-          onClick={handleClearLibrary}
-          disabled={clearing}
+          onClick={handleForceRescan}
+          disabled={rescanning}
         >
-          {clearing ? 'Clearing Library...' : 'Clear Library Database'}
+          {rescanning ? 'Force Rescanning...' : 'Force Rescan Library'}
         </button>
       </div>
     </div>

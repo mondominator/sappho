@@ -28,7 +28,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
       if (showUserMenu && !event.target.closest('.user-menu')) {
         setShowUserMenu(false);
       }
-      if (showMobileMenu && !event.target.closest('.mobile-menu-container') && !event.target.closest('.hamburger-button')) {
+      if (showMobileMenu && !event.target.closest('.mobile-menu-container') && !event.target.closest('.hamburger-button') && !event.target.closest('.more-button')) {
         setShowMobileMenu(false);
       }
     };
@@ -66,7 +66,16 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
             <span className="nav-link-text">Series</span>
           </Link>
-          <button className="nav-link mobile-only" onClick={() => setShowMobileMenu(!showMobileMenu)} title="More">
+          <button
+            className="nav-link mobile-only more-button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowMobileMenu(!showMobileMenu);
+            }}
+            title="More"
+            type="button"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="1"/>
               <circle cx="12" cy="5" r="1"/>
@@ -147,59 +156,60 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
           </button>
 
-          {/* Mobile menu dropdown */}
-          {showMobileMenu && (
-            <div className="mobile-menu-container mobile-only">
-              <div className="mobile-menu-dropdown">
-                <div className="mobile-menu-header">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                  </svg>
-                  <span>{user?.username}</span>
-                </div>
-
-                <button onClick={() => { navigate('/profile'); setShowMobileMenu(false); }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                  </svg>
-                  <span>Profile</span>
-                </button>
-
-                {user?.is_admin && (
-                  <>
-                    <button onClick={() => { navigate('/settings'); setShowMobileMenu(false); }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M12 1v6m0 6v6"/>
-                      </svg>
-                      <span>Settings</span>
-                    </button>
-
-                    <button onClick={() => { onOpenUpload(); setShowMobileMenu(false); }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                      </svg>
-                      <span>Upload</span>
-                    </button>
-                  </>
-                )}
-
-                <button onClick={() => { onLogout(); setShowMobileMenu(false); }} className="logout-button">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                  </svg>
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Mobile menu dropdown - outside nav-container so it's not hidden */}
+      {showMobileMenu && (
+        <div className="mobile-menu-container mobile-only">
+          <div className="mobile-menu-dropdown">
+            <div className="mobile-menu-header">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span>{user?.username}</span>
+            </div>
+
+            <button onClick={() => { navigate('/profile'); setShowMobileMenu(false); }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span>Profile</span>
+            </button>
+
+            {user?.is_admin && (
+              <>
+                <button onClick={() => { navigate('/settings'); setShowMobileMenu(false); }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M12 1v6m0 6v6"/>
+                  </svg>
+                  <span>Settings</span>
+                </button>
+
+                <button onClick={() => { onOpenUpload(); setShowMobileMenu(false); }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Upload</span>
+                </button>
+              </>
+            )}
+
+            <button onClick={() => { onLogout(); setShowMobileMenu(false); }} className="logout-button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

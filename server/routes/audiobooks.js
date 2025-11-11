@@ -488,7 +488,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
      WHERE a.series IS NOT NULL AND a.series != ''
-     AND a.series_index IS NOT NULL
+     AND (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
      AND EXISTS (
        SELECT 1
        FROM audiobooks a2
@@ -497,10 +497,10 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
        AND p2.completed = 0
        AND p2.position > 0
        AND a2.series = a.series
-       AND a2.series_index < a.series_index
+       AND COALESCE(a2.series_index, a2.series_position, 0) < COALESCE(a.series_index, a.series_position, 0)
      )
      AND (p.position IS NULL OR p.position = 0 OR p.completed = 0)
-     ORDER BY a.series, a.series_index ASC
+     ORDER BY a.series, COALESCE(a.series_index, a.series_position, 0) ASC
      LIMIT ?`,
     [req.user.id, req.user.id, limit],
     (err, audiobooks) => {
