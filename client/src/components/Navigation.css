@@ -231,41 +231,70 @@
 }
 
 @media (max-width: 768px) {
-  /* Switch to icon logo on mobile */
-  .nav-logo-full {
+  /* Move navigation to bottom on mobile */
+  .navigation {
+    top: auto;
+    bottom: 0;
+    border-bottom: none;
+    border-top: 1px solid #2a2a2a;
+    z-index: 1000;
+  }
+
+  .nav-container {
+    padding: 8px 0;
+    justify-content: space-around;
+  }
+
+  /* Hide logo completely on mobile */
+  .nav-brand {
     display: none;
   }
 
-  .nav-logo-icon {
-    display: block;
-    height: 36px;
-    width: 36px;
-    border-radius: 8px;
-  }
-
-  /* Hide text, show only icons in nav links */
+  /* Full width nav links at bottom */
   .nav-links {
-    gap: 4px;
+    width: 100%;
+    gap: 0;
     flex: 1;
-    justify-content: center;
+    justify-content: space-around;
   }
 
   .nav-link {
-    padding: 10px;
-    min-width: 44px;
+    flex-direction: column;
+    padding: 8px 12px;
+    min-width: 60px;
     justify-content: center;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
   }
 
   .nav-link-text {
-    display: none;
+    display: block;
+    font-size: 11px;
   }
 
   .nav-link svg {
     margin: 0;
+    width: 22px;
+    height: 22px;
   }
 
+  /* Style More button like other nav links */
+  .nav-link.mobile-only {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .nav-link.mobile-only:hover {
+    color: #fff;
+  }
+
+  /* Hide desktop actions on mobile */
   .nav-actions {
-    gap: 4px;
+    display: none;
   }
 
   /* Hide desktop user menu, show mobile items */
@@ -274,10 +303,6 @@
   }
 
   .mobile-only {
-    display: flex;
-  }
-
-  .mobile-menu-item {
     display: flex;
   }
 
