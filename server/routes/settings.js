@@ -8,7 +8,6 @@ const { authenticateToken, requireAdmin } = require('../auth');
 router.get('/library', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
     libraryPath: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
-    watchPath: process.env.WATCH_DIR || '/app/data/watch',
     uploadPath: process.env.UPLOAD_DIR || '/app/data/uploads'
   };
   res.json(settings);
@@ -16,14 +15,14 @@ router.get('/library', authenticateToken, requireAdmin, (req, res) => {
 
 // Update library settings
 router.put('/library', authenticateToken, requireAdmin, (req, res) => {
-  const { libraryPath, watchPath, uploadPath } = req.body;
+  const { libraryPath, uploadPath } = req.body;
 
-  if (!libraryPath || !watchPath || !uploadPath) {
+  if (!libraryPath || !uploadPath) {
     return res.status(400).json({ error: 'All paths are required' });
   }
 
   // Validate paths exist or can be created
-  const paths = [libraryPath, watchPath, uploadPath];
+  const paths = [libraryPath, uploadPath];
   for (const dir of paths) {
     try {
       if (!fs.existsSync(dir)) {
@@ -53,17 +52,15 @@ router.put('/library', authenticateToken, requireAdmin, (req, res) => {
   };
 
   envContent = updateEnv(envContent, 'AUDIOBOOKS_DIR', libraryPath);
-  envContent = updateEnv(envContent, 'WATCH_DIR', watchPath);
   envContent = updateEnv(envContent, 'UPLOAD_DIR', uploadPath);
 
   fs.writeFileSync(envPath, envContent);
 
   // Update process.env for current session
   process.env.AUDIOBOOKS_DIR = libraryPath;
-  process.env.WATCH_DIR = watchPath;
   process.env.UPLOAD_DIR = uploadPath;
 
-  res.json({ message: 'Library settings updated successfully. Restart the server to apply changes.' });
+  res.json({ message: 'Library settings updated successfully.' });
 });
 
 module.exports = router;

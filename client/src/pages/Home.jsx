@@ -98,6 +98,15 @@ export default function Home({ onPlay }) {
         </div>
       )}
 
+      {upNext.length > 0 && (
+        <div className="horizontal-section">
+          <h2>Up Next</h2>
+          <div className="horizontal-scroll">
+            {upNext.map(renderBookCard)}
+          </div>
+        </div>
+      )}
+
       {recentlyAdded.length > 0 && (
         <div className="horizontal-section">
           <h2>Recently Added</h2>
@@ -107,7 +116,7 @@ export default function Home({ onPlay }) {
         </div>
       )}
 
-      {inProgress.length === 0 && recentlyAdded.length === 0 && (
+      {inProgress.length === 0 && recentlyAdded.length === 0 && upNext.length === 0 && (
         <div className="empty-state">
           <p>No audiobooks found.</p>
           <p>Upload some audiobooks or drop them in the watch directory!</p>

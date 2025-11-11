@@ -181,7 +181,7 @@
     top: auto;
     bottom: 70px;
     right: 0;
-    left: 0;
+    left: auto;
     padding: 0 1rem;
   }
 }
@@ -192,8 +192,9 @@
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
   min-width: 200px;
+  max-width: 280px;
   overflow: hidden;
-  margin: 0 1rem;
+  margin: 0;
 }
 
 .mobile-menu-header {
@@ -296,10 +297,13 @@
     cursor: pointer;
     color: #9ca3af;
     transition: color 0.2s, background 0.2s;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .nav-link.mobile-only:hover {
+  .nav-link.mobile-only:hover,
+  .nav-link.mobile-only:active {
     color: #fff;
+    background: #374151;
   }
 
   /* Hide desktop actions on mobile */

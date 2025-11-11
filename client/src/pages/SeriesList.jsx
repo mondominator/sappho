@@ -6,16 +6,31 @@ import './SeriesList.css';
 export default function SeriesList() {
   const navigate = useNavigate();
   const [seriesList, setSeriesList] = useState([]);
+  const [filteredSeries, setFilteredSeries] = useState([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadSeries();
   }, []);
 
+  useEffect(() => {
+    if (search.trim()) {
+      setFilteredSeries(
+        seriesList.filter(series =>
+          series.series.toLowerCase().includes(search.toLowerCase())
+        )
+      );
+    } else {
+      setFilteredSeries(seriesList);
+    }
+  }, [search, seriesList]);
+
   const loadSeries = async () => {
     try {
       const response = await getSeries();
       setSeriesList(response.data);
+      setFilteredSeries(response.data);
     } catch (error) {
       console.error('Error loading series:', error);
     } finally {
@@ -29,17 +44,27 @@ export default function SeriesList() {
 
   return (
     <div className="series-list-page container">
-      {seriesList.length === 0 ? (
+      <div className="series-search">
+        <input
+          type="text"
+          className="input search-input"
+          placeholder="Search series..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {filteredSeries.length === 0 ? (
         <div className="empty-state">
           <p>No series found.</p>
         </div>
       ) : (
         <>
           <div className="series-list-header">
-            <h2 className="series-list-count">{seriesList.length} {seriesList.length === 1 ? 'Series' : 'Series'}</h2>
+            <h2 className="series-list-count">{filteredSeries.length} {filteredSeries.length === 1 ? 'Series' : 'Series'}</h2>
           </div>
           <div className="series-grid">
-            {seriesList.map((series) => (
+            {filteredSeries.map((series) => (
             <div
               key={series.series}
               className="series-card"

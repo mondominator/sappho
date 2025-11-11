@@ -72,6 +72,9 @@ export const markFinished = (id) =>
 export const clearProgress = (id) =>
   api.post(`/audiobooks/${id}/progress`, { position: 0, completed: 0, state: 'stopped' });
 
+export const getChapters = (id) =>
+  api.get(`/audiobooks/${id}/chapters`);
+
 export const getSeries = () =>
   api.get('/audiobooks/meta/series');
 
@@ -122,5 +125,11 @@ export const consolidateMultiFile = () =>
 
 export const clearLibrary = () =>
   api.post('/maintenance/clear-library');
+
+export const scanLibrary = () =>
+  api.post('/maintenance/scan-library');
+
+export const forceRescan = () =>
+  api.post('/maintenance/force-rescan');
 
 export default api;

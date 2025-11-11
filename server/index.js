@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { createDefaultAdmin } = require('./auth');
-const { startFileWatcher } = require('./services/fileWatcher');
 const { startPeriodicScan } = require('./services/libraryScanner');
 
 const app = express();
@@ -78,9 +77,6 @@ async function initialize() {
     // Can be configured with LIBRARY_SCAN_INTERVAL env var (in minutes)
     const scanInterval = parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5;
     startPeriodicScan(scanInterval);
-
-    // Start file watcher for watch directory
-    startFileWatcher();
   } catch (error) {
     console.error('Failed to initialize server:', error);
     process.exit(1);
