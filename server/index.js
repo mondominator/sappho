@@ -37,7 +37,26 @@ const indexPath = path.join(distPath, 'index.html');
 const fs = require('fs');
 if (fs.existsSync(distPath)) {
   console.log('Serving static frontend from:', distPath);
-  app.use(express.static(distPath));
+
+  // Serve static files with proper cache control
+  app.use(express.static(distPath, {
+    setHeaders: (res, path) => {
+      // Never cache HTML files
+      if (path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+      // Never cache manifest.json
+      else if (path.endsWith('manifest.json')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+      // Cache assets with hash in filename for 1 year
+      else if (path.match(/\.(js|css)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }
+  }));
 
   // SPA fallback - serve index.html for all non-API routes
   app.get('*', (req, res) => {

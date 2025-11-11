@@ -15,6 +15,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 responses and redirect to login
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Clear local storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('currentAudiobook');
+      localStorage.removeItem('currentProgress');
+      localStorage.removeItem('playerPlaying');
+
+      // Redirect to login by reloading the page (App will detect no token)
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const login = (username, password) =>
   api.post('/auth/login', { username, password });
 

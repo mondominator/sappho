@@ -9,11 +9,11 @@
 
 @media (max-width: 768px) {
   .app {
-    padding-bottom: 200px;
+    padding-bottom: 130px; /* 70px navbar + 60px player */
   }
 
   .main-content {
     padding-top: 0;
-    padding-bottom: 70px;
+    padding-bottom: 0;
   }
 }

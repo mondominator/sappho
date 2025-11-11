@@ -13,6 +13,9 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
+# Install ffmpeg for m4b chapter extraction
+RUN apk add --no-cache ffmpeg
+
 COPY package*.json ./
 RUN npm install --only=production
 
