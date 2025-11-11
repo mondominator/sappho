@@ -49,7 +49,7 @@
 .series-chip {
   padding: 0.5rem 1rem;
   background: #374151;
-  color: #2dd4bf;
+  color: #60a5fa;
   border: 1px solid #4b5563;
   border-radius: 20px;
   cursor: pointer;
@@ -59,7 +59,7 @@
 
 .series-chip:hover {
   background: #4b5563;
-  border-color: #2dd4bf;
+  border-color: #60a5fa;
   transform: translateY(-2px);
 }
 
@@ -119,7 +119,7 @@
 }
 
 .audiobook-series {
-  color: #2dd4bf;
+  color: #60a5fa;
   font-size: 13px;
   margin-bottom: 4px;
   font-weight: 500;

@@ -37,8 +37,8 @@
 }
 
 .tab-button.active {
-  color: #2dd4bf;
-  border-bottom-color: #2dd4bf;
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
 }
 
 .settings-content {
@@ -96,12 +96,12 @@
 }
 
 .btn-primary {
-  background: #2dd4bf;
+  background: #60a5fa;
   color: white;
 }
 
 .btn-primary:hover {
-  background: #14b8a6;
+  background: #3b82f6;
 }
 
 .btn-secondary {
@@ -179,7 +179,7 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #2dd4bf;
+  border-color: #60a5fa;
 }
 
 .modal-actions {
@@ -219,7 +219,7 @@
 .key-display code {
   flex: 1;
   font-family: 'Courier New', monospace;
-  color: #2dd4bf;
+  color: #60a5fa;
   word-break: break-all;
   font-size: 0.875rem;
 }
@@ -271,7 +271,7 @@
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
-  color: #2dd4bf;
+  color: #60a5fa;
   font-size: 0.875rem;
 }
 

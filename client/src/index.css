@@ -52,7 +52,7 @@ body {
 }
 
 .btn-primary {
-  background: #14b8a6;
+  background: #3b82f6;
   color: white;
 }
 
@@ -94,7 +94,7 @@ body {
 
 .input:focus {
   outline: none;
-  border-color: #14b8a6;
+  border-color: #3b82f6;
 }
 
 @media (max-width: 768px) {
@@ -120,7 +120,7 @@ body {
 }
 
 .audiobook-card:hover {
-  border-color: #14b8a6;
+  border-color: #3b82f6;
   transform: translateY(-2px);
 }
 

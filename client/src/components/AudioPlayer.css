@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   background: #1a1a1a;
-  border-top: 1px solid #14b8a6;
+  border-top: 1px solid #3b82f6;
   padding: 20px;
   z-index: 100;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
@@ -66,7 +66,7 @@
 }
 
 .play-btn {
-  background: #14b8a6;
+  background: #3b82f6;
   padding: 10px 40px;
 }
 
@@ -113,7 +113,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #14b8a6;
+  background: #3b82f6;
   cursor: pointer;
 }
 
@@ -122,7 +122,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #14b8a6;
+  background: #3b82f6;
   cursor: pointer;
   border: none;
 }

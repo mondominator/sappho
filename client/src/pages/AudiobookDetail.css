@@ -71,7 +71,7 @@
 
 .cover-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%);
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
   box-shadow: 0 0 16px rgba(20, 184, 166, 0.8);
   transition: width 0.3s ease;
 }
@@ -118,7 +118,7 @@
 
 .author-link,
 .series-link {
-  color: #14b8a6;
+  color: #3b82f6;
   cursor: pointer;
   transition: color 0.2s;
   font-weight: 600;
@@ -126,7 +126,7 @@
 
 .author-link:hover,
 .series-link:hover {
-  color: #2dd4bf;
+  color: #60a5fa;
   text-decoration: underline;
 }
 
@@ -147,7 +147,7 @@
 .progress-label {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #14b8a6;
+  color: #3b82f6;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -155,7 +155,7 @@
 .progress-percentage {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #2dd4bf;
+  color: #60a5fa;
 }
 
 .progress-bar {
@@ -168,7 +168,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%);
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
   transition: width 0.3s ease;
   box-shadow: 0 0 10px rgba(20, 184, 166, 0.5);
 }

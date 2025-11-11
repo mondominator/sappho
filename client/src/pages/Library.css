@@ -22,7 +22,7 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #14b8a6;
+  border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
 }
 
@@ -82,7 +82,7 @@
   position: relative;
   flex-shrink: 0;
   width: 180px;
-  height: 180px;
+  height: 270px;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
@@ -147,7 +147,7 @@
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%);
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
   box-shadow: 0 0 12px rgba(20, 184, 166, 0.6);
   transition: width 0.3s ease;
 }
@@ -174,7 +174,7 @@
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: #2dd4bf;
+  background: #60a5fa;
   border: none;
   cursor: pointer;
   display: flex;
@@ -185,7 +185,7 @@
 }
 
 .play-button:hover {
-  background: #14b8a6;
+  background: #3b82f6;
   transform: scale(1.1);
   box-shadow: 0 6px 16px rgba(96, 165, 250, 0.6);
 }
@@ -233,7 +233,7 @@
 
   .audiobook-card {
     width: 120px;
-    height: 120px;
+    height: 180px;
   }
 
   .audiobook-grid {

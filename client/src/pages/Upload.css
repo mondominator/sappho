@@ -40,8 +40,8 @@
 }
 
 .file-input-label:hover {
-  border-color: #14b8a6;
-  color: #14b8a6;
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .file-info {
@@ -71,7 +71,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #14b8a6, #8b5cf6);
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
   transition: width 0.3s;
 }
 
@@ -104,7 +104,7 @@
   padding: 10px;
   border-radius: 4px;
   margin: 10px 0;
-  color: #14b8a6;
+  color: #3b82f6;
   font-family: 'Courier New', monospace;
 }
 
