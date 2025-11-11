@@ -149,8 +149,40 @@ function initializeDatabase() {
       }
     });
 
+    // Run migrations after core tables are created
+    runMigrations();
+
     console.log('Database initialized');
   });
+}
+
+function runMigrations() {
+  const migrationsDir = path.join(__dirname, 'migrations');
+
+  // Check if migrations directory exists
+  if (!fs.existsSync(migrationsDir)) {
+    console.log('No migrations directory found');
+    return;
+  }
+
+  // Get all migration files
+  const migrationFiles = fs.readdirSync(migrationsDir)
+    .filter(file => file.endsWith('.js'))
+    .sort();
+
+  console.log(`Found ${migrationFiles.length} migration(s)`);
+
+  // Run each migration
+  for (const file of migrationFiles) {
+    const migrationPath = path.join(migrationsDir, file);
+    try {
+      const migration = require(migrationPath);
+      console.log(`Running migration: ${file}`);
+      migration.up(db);
+    } catch (error) {
+      console.error(`Error running migration ${file}:`, error);
+    }
+  }
 }
 
 module.exports = db;

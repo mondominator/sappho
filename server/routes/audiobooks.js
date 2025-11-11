@@ -103,6 +103,20 @@ router.get('/:id', authenticateToken, (req, res) => {
   });
 });
 
+// Get chapters for a multi-file audiobook
+router.get('/:id/chapters', authenticateToken, (req, res) => {
+  db.all(
+    'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
+    [req.params.id],
+    (err, chapters) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(chapters || []);
+    }
+  );
+});
+
 // Stream audiobook
 router.get('/:id/stream', authenticateToken, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
