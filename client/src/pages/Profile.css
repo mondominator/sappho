@@ -39,7 +39,7 @@
   border-radius: 50%;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(20, 184, 166, 0.2);
-  border: 3px solid #14b8a6;
+  border: 3px solid #3b82f6;
 }
 
 .avatar-preview-large img {
@@ -51,7 +51,7 @@
 .avatar-placeholder-large {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,7 +82,7 @@
   background: rgba(20, 184, 166, 0.15);
   border: 1px solid rgba(20, 184, 166, 0.3);
   border-radius: 12px;
-  color: #2dd4bf;
+  color: #60a5fa;
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0;
@@ -135,7 +135,7 @@
 
 .input:focus {
   outline: none;
-  border-color: #14b8a6;
+  border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
 }
 
