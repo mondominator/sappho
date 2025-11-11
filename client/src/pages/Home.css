@@ -196,6 +196,7 @@
 @media (max-width: 768px) {
   .home-page {
     padding: 1rem;
+    padding-top: 1.5rem;
   }
 
   .home-header h1 {
@@ -207,8 +208,8 @@
   }
 
   .audiobook-card {
-    width: 150px;
-    height: 150px;
+    width: 110px;
+    height: 165px;
   }
 
   .play-button {
