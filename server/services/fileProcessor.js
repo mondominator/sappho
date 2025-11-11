@@ -157,8 +157,25 @@ async function extractFileMetadata(filePath) {
       }
     }
 
+    // Fallback: Try to extract series from title if not found in tags
+    const title = common.title || path.basename(filePath, path.extname(filePath));
+    if (!series && title) {
+      // Pattern: "Title: Series Name, Book N" or "Title (Series Name #N)"
+      const seriesMatch = title.match(/:\s*([^,]+),\s*Book\s+(\d+)/i) ||
+                         title.match(/\(([^#]+)#(\d+)\)/i) ||
+                         title.match(/:\s*([^,]+)\s+(\d+)/i);
+
+      if (seriesMatch) {
+        series = seriesMatch[1].trim();
+        const position = parseFloat(seriesMatch[2]);
+        if (!isNaN(position)) {
+          seriesPosition = position;
+        }
+      }
+    }
+
     return {
-      title: common.title || path.basename(filePath, path.extname(filePath)),
+      title: title,
       author: common.artist || common.albumartist || null,
       narrator: narrator,
       description: common.comment ? common.comment.join(' ') : null,
