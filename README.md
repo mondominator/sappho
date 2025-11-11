@@ -71,19 +71,38 @@ services:
    - Default admin credentials will be shown in container logs
    - Change your password immediately
 
-## Mobile Installation
+## Mobile Installation (Progressive Web App)
 
-### iOS
-1. Open Safari and navigate to Sapho
-2. Tap the Share button
-3. Select "Add to Home Screen"
-4. Enjoy the native app experience!
+Sapho is a full-featured Progressive Web App (PWA) that can be installed on your mobile device for a native app experience.
 
-### Android
-1. Open Chrome and navigate to Sapho
-2. Tap the menu (3 dots)
-3. Select "Install app" or "Add to Home Screen"
-4. Launch from your home screen
+### Requirements for Full PWA Installation
+- **HTTPS**: Full PWA functionality requires HTTPS (service workers won't register on HTTP)
+- **For local/HTTP access**: You can still "Add to Home Screen" which creates a bookmark with the app icon
+
+### iOS Installation
+1. Open **Safari** and navigate to Sapho (must use Safari, not Chrome)
+2. Tap the **Share button** (square with arrow pointing up)
+3. Scroll down and select **"Add to Home Screen"**
+4. Tap **"Add"** in the top right
+5. The Sapho icon will appear on your home screen
+
+**Note**: On HTTP (non-HTTPS), iOS will create a web clip (bookmark) rather than a full PWA. The app will still work but won't have offline capabilities.
+
+### Android Installation
+1. Open **Chrome** and navigate to Sapho
+2. Tap the **menu** (3 vertical dots) in the top right
+3. Select **"Install app"** or **"Add to Home Screen"**
+4. Tap **"Install"** in the popup
+5. Launch Sapho from your home screen or app drawer
+
+**Note**: Chrome on Android may show a banner prompting you to install the app automatically.
+
+### PWA Features
+- **Standalone mode**: Opens in its own window without browser UI
+- **Home screen icon**: Launches like a native app
+- **Offline support**: Service worker caches app shell for offline use (requires HTTPS)
+- **Fast loading**: Cached resources load instantly
+- **Native feel**: Optimized mobile interface with proper touch targets
 
 ## Building from Source
 
