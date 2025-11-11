@@ -262,25 +262,31 @@
   }
 
   .audiobook-grid {
-    padding: 0 1rem 1rem;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
+    padding: 0 0.75rem 1rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
   }
 
   .audiobook-card {
     width: 100%;
     height: auto;
     aspect-ratio: 1;
+    border-radius: 6px;
   }
 
   .play-button {
-    width: 50px;
-    height: 50px;
+    width: 40px;
+    height: 40px;
   }
 
   .play-button::after {
-    border-left: 15px solid white;
-    border-top: 10px solid transparent;
-    border-bottom: 10px solid transparent;
+    border-left: 12px solid white;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+  }
+
+  .audiobook-cover-placeholder h3 {
+    font-size: 0.7rem;
+    -webkit-line-clamp: 3;
   }
 }
