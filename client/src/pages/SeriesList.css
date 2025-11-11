@@ -158,6 +158,10 @@
 }
 
 @media (max-width: 768px) {
+  .series-list-page {
+    padding: 1.5rem 1rem 1rem 1rem;
+  }
+
   .series-header {
     font-size: 2rem;
   }
