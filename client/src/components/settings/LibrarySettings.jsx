@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { clearLibrary } from '../../api';
 import './LibrarySettings.css';
 
 export default function LibrarySettings() {
@@ -10,6 +11,7 @@ export default function LibrarySettings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -44,6 +46,28 @@ export default function LibrarySettings() {
       alert(error.response?.data?.error || 'Failed to update settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleClearLibrary = async () => {
+    if (!confirm('Are you sure you want to clear the entire library database? This will remove all audiobook entries and progress. Files will not be deleted and will be reimported on the next scan.')) {
+      return;
+    }
+
+    if (!confirm('This action cannot be undone. Are you absolutely sure?')) {
+      return;
+    }
+
+    setClearing(true);
+    try {
+      await clearLibrary();
+      alert('Library database cleared successfully. Audiobooks will be reimported on the next scan (every 5 minutes).');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error clearing library:', error);
+      alert(error.response?.data?.error || 'Failed to clear library');
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -139,6 +163,32 @@ export default function LibrarySettings() {
           </button>
         </div>
       </form>
+
+      <div className="settings-section" style={{ marginTop: '2rem', background: '#7f1d1d', borderColor: '#dc2626' }}>
+        <div className="section-header">
+          <div>
+            <h2>Danger Zone</h2>
+            <p className="section-description" style={{ color: '#fca5a5' }}>
+              Clear the library database and reimport all audiobooks. This is useful if you have
+              duplicate entries or want to reset the library completely.
+            </p>
+          </div>
+        </div>
+        <div className="warning-box" style={{ background: '#450a0a', borderColor: '#991b1b' }}>
+          <p className="warning-text">
+            Warning: This will delete all audiobook entries and playback progress from the database.
+            Your audio files will not be deleted and will be automatically reimported.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={handleClearLibrary}
+          disabled={clearing}
+        >
+          {clearing ? 'Clearing Library...' : 'Clear Library Database'}
+        </button>
+      </div>
     </div>
   );
 }
