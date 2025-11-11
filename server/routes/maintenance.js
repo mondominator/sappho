@@ -157,4 +157,49 @@ router.post('/consolidate-multifile', authenticateToken, async (req, res) => {
   }
 });
 
+// Clear all audiobooks from database
+router.post('/clear-library', authenticateToken, async (req, res) => {
+  // Only allow admins to run this
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    console.log('Clearing library database...');
+
+    // Delete all audiobook chapters first (due to foreign key constraint)
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM audiobook_chapters', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Delete all playback progress
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM playback_progress', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Delete all audiobooks
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM audiobooks', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    console.log('Library database cleared successfully');
+    res.json({
+      success: true,
+      message: 'Library database cleared. Audiobooks will be reimported on next scan.',
+    });
+  } catch (error) {
+    console.error('Error clearing library:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

@@ -116,4 +116,11 @@ export const updateUser = (id, updates) =>
 export const deleteUser = (id) =>
   api.delete(`/users/${id}`);
 
+// Maintenance (admin only)
+export const consolidateMultiFile = () =>
+  api.post('/maintenance/consolidate-multifile');
+
+export const clearLibrary = () =>
+  api.post('/maintenance/clear-library');
+
 export default api;

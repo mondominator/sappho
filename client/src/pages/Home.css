@@ -208,18 +208,23 @@
   }
 
   .audiobook-card {
-    width: 100px;
-    height: 150px;
+    width: 90px;
+    height: 135px;
   }
 
   .play-button {
-    width: 45px;
-    height: 45px;
+    width: 40px;
+    height: 40px;
   }
 
   .play-button::after {
-    border-left: 14px solid white;
-    border-top: 9px solid transparent;
-    border-bottom: 9px solid transparent;
+    border-left: 12px solid white;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+  }
+
+  .audiobook-cover-placeholder h3 {
+    font-size: 0.7rem;
+    -webkit-line-clamp: 3;
   }
 }
