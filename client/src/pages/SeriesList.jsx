@@ -34,8 +34,12 @@ export default function SeriesList() {
           <p>No series found.</p>
         </div>
       ) : (
-        <div className="series-grid">
-          {seriesList.map((series) => (
+        <>
+          <div className="series-list-header">
+            <h2 className="series-list-count">{seriesList.length} {seriesList.length === 1 ? 'Series' : 'Series'}</h2>
+          </div>
+          <div className="series-grid">
+            {seriesList.map((series) => (
             <div
               key={series.series}
               className="series-card"
@@ -73,7 +77,8 @@ export default function SeriesList() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

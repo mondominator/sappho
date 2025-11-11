@@ -88,9 +88,14 @@ export default function Library({ onPlay }) {
           <p>Upload some audiobooks or drop them in the watch directory!</p>
         </div>
       ) : (
-        <div className="audiobook-grid">
-          {audiobooks.map(renderBookCard)}
-        </div>
+        <>
+          <div className="library-header">
+            <h2 className="library-count">{audiobooks.length} {audiobooks.length === 1 ? 'Book' : 'Books'}</h2>
+          </div>
+          <div className="audiobook-grid">
+            {audiobooks.map(renderBookCard)}
+          </div>
+        </>
       )}
     </div>
   );
