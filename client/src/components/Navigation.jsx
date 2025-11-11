@@ -8,6 +8,66 @@ export default function Navigation({ onLogout, onOpenUpload }) {
   const [user, setUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [castReady, setCastReady] = useState(false);
+
+  // Check for Cast SDK availability
+  useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds
+
+    const checkCastReady = () => {
+      attempts++;
+      console.log(`Cast check attempt ${attempts}, cast available:`, !!window.cast, 'framework:', !!(window.cast?.framework));
+
+      if (window.cast && window.cast.framework) {
+        console.log('Cast SDK is ready!');
+        setCastReady(true);
+        return;
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(checkCastReady, 100);
+      } else {
+        console.error('Cast SDK failed to load after 5 seconds');
+      }
+    };
+
+    window['__onGCastApiAvailable'] = (isAvailable) => {
+      console.log('__onGCastApiAvailable called, available:', isAvailable);
+      if (isAvailable) {
+        setCastReady(true);
+      }
+    };
+
+    // Check if script is loaded
+    console.log('Cast script loaded:', !!document.querySelector('script[src*="cast_sender.js"]'));
+
+    checkCastReady();
+  }, []);
+
+  const handleCastClick = () => {
+    if (!castReady) {
+      alert('Cast is initializing. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      const castContext = window.cast.framework.CastContext.getInstance();
+      castContext.requestSession().then(
+        () => {
+          console.log('Cast session started');
+        },
+        (error) => {
+          if (error !== 'cancel') {
+            console.error('Error starting cast session:', error);
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Error opening cast dialog:', error);
+      alert('Error initializing Cast: ' + error.message);
+    }
+  };
 
   useEffect(() => {
     // Decode JWT to get user info
@@ -66,6 +126,18 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
             <span className="nav-link-text">Series</span>
           </Link>
+          <button
+            className="nav-link mobile-only cast-nav-button"
+            onClick={handleCastClick}
+            title="Cast"
+            type="button"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+              <line x1="2" y1="20" x2="2.01" y2="20"></line>
+            </svg>
+            <span className="nav-link-text">Cast</span>
+          </button>
           <button
             className="nav-link mobile-only more-button"
             onClick={(e) => {

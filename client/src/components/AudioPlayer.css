@@ -6,27 +6,8 @@
   background: #1a1a1a;
   border-top: 1px solid #3b82f6;
   padding: 10px 20px 20px 20px;
-  z-index: 100;
+  z-index: 1001;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
-}
-
-.drag-handle {
-  display: flex;
-  justify-content: center;
-  padding: 5px 0 10px 0;
-  cursor: grab;
-  touch-action: none;
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-}
-
-.drag-handle-bar {
-  width: 40px;
-  height: 4px;
-  background: #4b5563;
-  border-radius: 2px;
 }
 
 .player-info {
@@ -62,6 +43,51 @@
   color: #9ca3af;
 }
 
+.chapter-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 12px;
+  font-size: 13px;
+  color: #93c5fd;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: fit-content;
+}
+
+.chapter-indicator:hover {
+  background: rgba(59, 130, 246, 0.4);
+  border-color: rgba(59, 130, 246, 0.7);
+}
+
+.speaker-icon {
+  font-size: 14px;
+}
+
+.speaker-icon.pulsing {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+.player-mobile-controls {
+  display: none;
+}
+
 .player-controls {
   display: flex;
   justify-content: center;
@@ -78,19 +104,25 @@
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0.7;
 }
 
 .control-btn:hover {
   background: #4b5563;
+  opacity: 1;
 }
 
 .play-btn {
   background: #3b82f6;
   padding: 10px 40px;
+  opacity: 1;
 }
 
 .play-btn:hover {
-  background: #0d9488;
+  background: #2563eb;
+  opacity: 1;
 }
 
 .stop-btn {
@@ -146,6 +178,45 @@
   border: none;
 }
 
+.player-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.cast-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #374151;
+  border: none;
+  color: #e5e7eb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.cast-btn:hover {
+  background: #4b5563;
+  color: #fff;
+}
+
+.cast-control-btn {
+  opacity: 0.7;
+}
+
+.cast-control-btn:hover {
+  opacity: 1;
+}
+
 .btn-close {
   width: 40px;
   height: 40px;
@@ -164,6 +235,22 @@
 .btn-close:hover {
   background: #b91c1c;
   transform: scale(1.1);
+}
+
+.casting-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 12px;
+  font-size: 13px;
+  color: #93c5fd;
+  font-weight: 600;
+  width: fit-content;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .fullscreen-player {
@@ -270,6 +357,41 @@
   margin: 0;
 }
 
+.fullscreen-info .casting-indicator,
+.fullscreen-info .chapter-indicator {
+  margin: 1rem auto 0 auto;
+}
+
+.fullscreen-controls-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.fullscreen-cast-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #374151;
+  border: none;
+  color: #e5e7eb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0.8;
+}
+
+.fullscreen-cast-btn:hover {
+  background: #4b5563;
+  color: #fff;
+  transform: scale(1.05);
+  opacity: 1;
+}
+
 .fullscreen-controls {
   display: flex;
   align-items: center;
@@ -288,20 +410,102 @@
   justify-content: center;
   transition: all 0.2s;
   padding: 1rem;
+  font-size: 32px;
+  line-height: 1;
+  width: 80px;
+  height: 80px;
+  opacity: 0.7;
 }
 
 .fullscreen-control-btn:hover {
   background: #4b5563;
   transform: scale(1.1);
+  opacity: 1;
 }
 
 .fullscreen-play-btn {
   background: #3b82f6;
   padding: 1.5rem;
+  width: 100px;
+  height: 100px;
+  opacity: 1;
 }
 
 .fullscreen-play-btn:hover {
   background: #2563eb;
+  opacity: 1;
+}
+
+.chapter-list-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(5px);
+}
+
+.chapter-list-content {
+  background: #1f2937;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.chapter-list-content h3 {
+  color: #fff;
+  font-size: 1.25rem;
+  margin: 0 0 1rem 0;
+}
+
+.chapter-list-content .chapters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chapter-list-content .chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #374151;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chapter-list-content .chapter-item:hover {
+  background: #4b5563;
+}
+
+.chapter-list-content .chapter-item.active {
+  background: #3b82f6;
+}
+
+.chapter-list-content .chapter-number {
+  font-weight: 600;
+  color: #fff;
+  min-width: 80px;
+}
+
+.chapter-list-content .chapter-title {
+  flex: 1;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+
+.chapter-list-content .chapter-time {
+  color: #9ca3af;
+  font-size: 0.85rem;
 }
 
 .fullscreen-progress {
@@ -409,7 +613,179 @@
   font-size: 0.875rem;
 }
 
+.btn-close-mobile-top {
+  display: none;
+}
+
+@media (min-width: 769px) {
+  /* Disable fullscreen on desktop */
+  .fullscreen-player {
+    display: none !important;
+  }
+
+  .audio-player {
+    cursor: default !important;
+  }
+}
+
 @media (max-width: 768px) {
+  /* Compact mobile player bar */
+  .audio-player {
+    padding: 0 !important;
+    z-index: 1001 !important;
+    bottom: 70px !important;
+    border-bottom: none !important;
+    border-top: none !important;
+    margin: 0 !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3) !important;
+    position: relative;
+  }
+
+  .btn-close-mobile-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #dc2626;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s;
+  }
+
+  .btn-close-mobile-top:active {
+    background: #b91c1c;
+    transform: scale(0.95);
+  }
+
+  .player-info {
+    padding: 8px 10px !important;
+    margin-bottom: 0 !important;
+    gap: 8px;
+  }
+
+  .player-cover {
+    width: 48px;
+    height: 48px;
+  }
+
+  .player-title {
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .player-author {
+    font-size: 11px;
+  }
+
+  .player-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .chapter-indicator {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .player-controls {
+    display: none !important;
+  }
+
+  .player-mobile-controls {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .player-mobile-controls .control-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 14px;
+    opacity: 0.8;
+    flex-shrink: 0;
+    border-radius: 50%;
+  }
+
+  .player-mobile-controls .control-btn:active {
+    opacity: 1;
+    background: #4b5563;
+  }
+
+  .player-mobile-controls .play-btn {
+    width: 40px;
+    height: 40px;
+    opacity: 1;
+  }
+
+  .player-mobile-controls .cast-btn-mobile,
+  .player-mobile-controls .btn-close-mobile {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .player-mobile-controls .btn-close-mobile {
+    position: relative;
+    top: -2px;
+  }
+
+  .player-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .progress-slider {
+    height: 3px;
+    margin: 0;
+  }
+
+  .progress-slider::-webkit-slider-thumb {
+    width: 0;
+    height: 0;
+    opacity: 0;
+  }
+
+  .progress-slider::-moz-range-thumb {
+    width: 0;
+    height: 0;
+    opacity: 0;
+  }
+
+  .time-display {
+    display: none;
+  }
+
+  .player-actions {
+    display: none !important; /* Hide desktop close button on mobile */
+  }
+
+  .cast-btn {
+    display: none;
+  }
+
+  .cast-control-btn {
+    display: none;
+  }
+
+  /* Remove any bottom margin/padding that creates gap */
+  .audio-player > * {
+    margin-bottom: 0 !important;
+  }
+
   .fullscreen-content {
     padding: 1rem;
   }

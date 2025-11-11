@@ -83,6 +83,45 @@ async function extractFileMetadata(filePath) {
     let series = null;  // Don't default to album tag - only use explicit series tags
     let seriesPosition = null;
 
+    // Check for MP4/iTunes tags (used in M4A, M4B files)
+    if (nativeTags.iTunes || nativeTags.MP4) {
+      const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
+
+      // Look for series in various iTunes/MP4 tag fields
+      const seriesTag = mp4Tags.find(tag =>
+        tag.id === '----:com.apple.iTunes:SERIES' ||
+        tag.id === '----:com.apple.iTunes:series' ||
+        tag.id === 'tvsh' || // TV Show (sometimes used for series)
+        tag.id === '©st3' // Subtitle field (sometimes used for series)
+      );
+      if (seriesTag && seriesTag.value) {
+        series = Array.isArray(seriesTag.value) ? seriesTag.value[0] : seriesTag.value;
+      }
+
+      // Look for series position
+      const posTag = mp4Tags.find(tag =>
+        tag.id === '----:com.apple.iTunes:PART' ||
+        tag.id === '----:com.apple.iTunes:part' ||
+        tag.id === 'tves' || // TV Episode
+        tag.id === 'tvsn' // TV Season (sometimes used for series position)
+      );
+      if (posTag && posTag.value) {
+        const val = Array.isArray(posTag.value) ? posTag.value[0] : posTag.value;
+        const parsed = parseFloat(val);
+        if (!isNaN(parsed)) {
+          seriesPosition = parsed;
+        }
+      }
+
+      // Also check disc/track number as fallback for series position
+      if (!seriesPosition && common.disk && common.disk.no) {
+        seriesPosition = common.disk.no;
+      }
+      if (!seriesPosition && common.track && common.track.no) {
+        seriesPosition = common.track.no;
+      }
+    }
+
     // Look for series in ID3v2.4 TXXX frames or other common locations
     if (nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2']) {
       const id3Tags = nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2'] || [];
@@ -93,7 +132,7 @@ async function extractFileMetadata(filePath) {
         tag.id === 'TXXX:ALBUMSERIES' ||
         tag.id === 'TXXX:Series'
       );
-      if (seriesTag && seriesTag.value) {
+      if (seriesTag && seriesTag.value && !series) {
         series = seriesTag.value;
       }
 
@@ -103,7 +142,7 @@ async function extractFileMetadata(filePath) {
         tag.id === 'TXXX:SERIESPART' ||
         tag.id === 'TXXX:Part'
       );
-      if (posTag && posTag.value) {
+      if (posTag && posTag.value && !seriesPosition) {
         const parsed = parseFloat(posTag.value);
         if (!isNaN(parsed)) {
           seriesPosition = parsed;
@@ -114,11 +153,11 @@ async function extractFileMetadata(filePath) {
     // Check for vorbis comments (used in FLAC, OGG)
     if (nativeTags.vorbis) {
       const vorbisTag = nativeTags.vorbis.find(tag => tag.id === 'SERIES');
-      if (vorbisTag && vorbisTag.value) {
+      if (vorbisTag && vorbisTag.value && !series) {
         series = vorbisTag.value;
       }
       const vorbisPartTag = nativeTags.vorbis.find(tag => tag.id === 'PART');
-      if (vorbisPartTag && vorbisPartTag.value) {
+      if (vorbisPartTag && vorbisPartTag.value && !seriesPosition) {
         const parsed = parseFloat(vorbisPartTag.value);
         if (!isNaN(parsed)) {
           seriesPosition = parsed;
@@ -207,8 +246,9 @@ async function extractFileMetadata(filePath) {
 
 async function saveCoverArt(picture, audioFilePath) {
   try {
-    // Create covers directory if it doesn't exist
-    const coversDir = path.join(audiobooksDir, '../covers');
+    // Create covers directory in data folder for persistence
+    const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
+    const coversDir = path.join(dataDir, 'covers');
     if (!fs.existsSync(coversDir)) {
       fs.mkdirSync(coversDir, { recursive: true });
     }

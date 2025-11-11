@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { getStreamUrl, updateProgress, getCoverUrl, getChapters } from '../api';
 import './AudioPlayer.css';
 
-export default function AudioPlayer({ audiobook, progress, onClose }) {
+const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -18,6 +18,77 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
   const [dragStartY, setDragStartY] = useState(0);
   const [dragCurrentY, setDragCurrentY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [showChapterList, setShowChapterList] = useState(false);
+  const [currentChapter, setCurrentChapter] = useState(0);
+  const [isCasting, setIsCasting] = useState(false);
+  const [castSession, setCastSession] = useState(null);
+  const [castReady, setCastReady] = useState(false);
+  const castPlayerRef = useRef(null);
+
+  // Check for Cast SDK availability
+  useEffect(() => {
+    const checkCastReady = () => {
+      if (window.cast && window.cast.framework) {
+        setCastReady(true);
+      } else {
+        setTimeout(checkCastReady, 100);
+      }
+    };
+    checkCastReady();
+  }, []);
+
+  // Expose closeFullscreen method to parent
+  useImperativeHandle(ref, () => ({
+    closeFullscreen: () => {
+      setShowFullscreen(false);
+    }
+  }));
+
+  // Initialize Google Cast
+  useEffect(() => {
+    const initializeCast = () => {
+      if (window.chrome && window.chrome.cast && window.chrome.cast.isAvailable) {
+        const castContext = window.cast.framework.CastContext.getInstance();
+        castContext.setOptions({
+          receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+          autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+        });
+
+        // Listen for cast state changes
+        castContext.addEventListener(
+          window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+          (event) => {
+            switch (event.sessionState) {
+              case window.cast.framework.SessionState.SESSION_STARTED:
+              case window.cast.framework.SessionState.SESSION_RESUMED:
+                const session = castContext.getCurrentSession();
+                setCastSession(session);
+                setIsCasting(true);
+                loadMediaToCast(session);
+                break;
+              case window.cast.framework.SessionState.SESSION_ENDED:
+                setIsCasting(false);
+                setCastSession(null);
+                castPlayerRef.current = null;
+                break;
+            }
+          }
+        );
+      }
+    };
+
+    // Wait for Cast API to load
+    if (window.__onGCastApiAvailable) {
+      initializeCast();
+    } else {
+      window.__onGCastApiAvailable = (isAvailable) => {
+        if (isAvailable) {
+          initializeCast();
+        }
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -105,7 +176,72 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
     return () => clearInterval(interval);
   }, [audiobook.id, playing]);
 
+  // Load media to Cast device
+  const loadMediaToCast = (session) => {
+    if (!session) return;
+
+    const mediaInfo = new window.chrome.cast.media.MediaInfo(
+      getStreamUrl(audiobook.id),
+      'audio/mpeg'
+    );
+
+    const metadata = new window.chrome.cast.media.GenericMediaMetadata();
+    metadata.title = audiobook.title;
+    metadata.subtitle = audiobook.author || 'Unknown Author';
+    if (audiobook.cover_image) {
+      metadata.images = [new window.chrome.cast.Image(getCoverUrl(audiobook.id))];
+    }
+    mediaInfo.metadata = metadata;
+
+    // Set current time if we have progress
+    mediaInfo.currentTime = currentTime || (progress ? progress.position : 0);
+
+    const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
+    request.autoplay = playing;
+    request.currentTime = mediaInfo.currentTime;
+
+    session.loadMedia(request).then(
+      () => {
+        console.log('Media loaded to Cast device');
+        const player = new window.cast.framework.RemotePlayer();
+        const playerController = new window.cast.framework.RemotePlayerController(player);
+        castPlayerRef.current = { player, playerController };
+
+        // Sync time from Cast device
+        playerController.addEventListener(
+          window.cast.framework.RemotePlayerEventType.CURRENT_TIME_CHANGED,
+          () => {
+            setCurrentTime(player.currentTime);
+          }
+        );
+
+        playerController.addEventListener(
+          window.cast.framework.RemotePlayerEventType.IS_PLAYING_CHANGED,
+          () => {
+            setPlaying(player.isPlaying);
+          }
+        );
+
+        playerController.addEventListener(
+          window.cast.framework.RemotePlayerEventType.DURATION_CHANGED,
+          () => {
+            setDuration(player.duration);
+          }
+        );
+      },
+      (error) => {
+        console.error('Error loading media:', error);
+      }
+    );
+  };
+
   const togglePlay = () => {
+    if (isCasting && castPlayerRef.current) {
+      const { playerController } = castPlayerRef.current;
+      playerController.playOrPause();
+      return;
+    }
+
     if (playing) {
       audioRef.current.pause();
       // Send pause state immediately
@@ -122,18 +258,76 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
     setPlaying(!playing);
   };
 
+  const handleSeek = (e) => {
+    const time = parseFloat(e.target.value);
+
+    if (isCasting && castPlayerRef.current) {
+      const { player, playerController } = castPlayerRef.current;
+      player.currentTime = time;
+      playerController.seek();
+      setCurrentTime(time);
+    } else {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const skipBackward = () => {
+    const newTime = Math.max(0, currentTime - 15);
+
+    if (isCasting && castPlayerRef.current) {
+      const { player, playerController } = castPlayerRef.current;
+      player.currentTime = newTime;
+      playerController.seek();
+    } else {
+      audioRef.current.currentTime = newTime;
+    }
+  };
+
+  const skipForward = () => {
+    const newTime = Math.min(duration, currentTime + 30);
+
+    if (isCasting && castPlayerRef.current) {
+      const { player, playerController } = castPlayerRef.current;
+      player.currentTime = newTime;
+      playerController.seek();
+    } else {
+      audioRef.current.currentTime = newTime;
+    }
+  };
+
+  const handleCastClick = () => {
+    if (!castReady) {
+      alert('Cast is initializing. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      const castContext = window.cast.framework.CastContext.getInstance();
+      castContext.requestSession().then(
+        () => {
+          console.log('Cast session started');
+        },
+        (error) => {
+          if (error !== 'cancel') {
+            console.error('Error starting cast session:', error);
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Error opening cast dialog:', error);
+      alert('Error initializing Cast: ' + error.message);
+    }
+  };
+
   const handleTimeUpdate = () => {
-    setCurrentTime(audioRef.current.currentTime);
+    if (!isCasting) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
   };
 
   const handleLoadedMetadata = () => {
     setDuration(audioRef.current.duration);
-  };
-
-  const handleSeek = (e) => {
-    const time = parseFloat(e.target.value);
-    audioRef.current.currentTime = time;
-    setCurrentTime(time);
   };
 
   const handleVolumeChange = (e) => {
@@ -154,14 +348,6 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const skipBackward = () => {
-    audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 15);
-  };
-
-  const skipForward = () => {
-    audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 30);
-  };
-
   const handleClose = () => {
     // Stop playback and send stopped state when closing the player
     if (audioRef.current) {
@@ -175,9 +361,9 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
 
   // Drag handlers for fullscreen
   const handleTouchStart = (e) => {
-    // Only handle touches on the drag handle or player info area
+    // Only handle touches on the drag handle
     const target = e.target;
-    const isDragHandle = target.closest('.drag-handle') || target.closest('.player-info');
+    const isDragHandle = target.closest('.drag-handle');
     if (!isDragHandle && !showFullscreen) return;
 
     setDragStartY(e.touches[0].clientY);
@@ -189,6 +375,10 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
     if (!isDragging) return;
     const currentY = e.touches[0].clientY;
     setDragCurrentY(currentY);
+
+    // Calculate drag offset for smooth visual feedback
+    const offset = currentY - dragStartY;
+    setDragOffset(offset);
 
     // Prevent default scrolling when in fullscreen
     if (showFullscreen) {
@@ -212,7 +402,23 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
     setIsDragging(false);
     setDragStartY(0);
     setDragCurrentY(0);
+    setDragOffset(0);
   };
+
+  // Update current chapter based on playback time
+  useEffect(() => {
+    if (!audiobook.is_multi_file || chapters.length === 0) return;
+
+    const currentChapterIndex = chapters.findIndex((chapter, index) => {
+      const nextChapter = chapters[index + 1];
+      return currentTime >= chapter.start_time &&
+             (!nextChapter || currentTime < nextChapter.start_time);
+    });
+
+    if (currentChapterIndex !== -1) {
+      setCurrentChapter(currentChapterIndex);
+    }
+  }, [currentTime, chapters, audiobook.is_multi_file]);
 
   return (
     <div
@@ -220,6 +426,10 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      style={{
+        transform: !showFullscreen && isDragging ? `translateY(${Math.min(0, dragOffset)}px)` : 'none',
+        transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+      }}
     >
       <audio
         ref={audioRef}
@@ -228,9 +438,12 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
         onEnded={() => setPlaying(false)}
       />
 
-      <div className="drag-handle">
-        <div className="drag-handle-bar"></div>
-      </div>
+      <button className="btn-close-mobile-top" onClick={handleClose} title="Stop and Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
 
       <div className="player-info">
         {audiobook.cover_image && (
@@ -241,26 +454,59 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
             onError={(e) => e.target.style.display = 'none'}
           />
         )}
-        <div className="player-text">
+        <div className="player-text" onClick={() => setShowFullscreen(true)} style={{ cursor: 'pointer' }}>
           <div className="player-title">{audiobook.title}</div>
           <div className="player-author">{audiobook.author || 'Unknown Author'}</div>
+          {isCasting && (
+            <div className="casting-indicator">
+              <span>📡</span>
+              <span>Casting</span>
+            </div>
+          )}
+          {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
+            <div className="chapter-indicator" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
+              <span className="speaker-icon">🔊</span>
+              <span>Chapter {currentChapter + 1}</span>
+            </div>
+          )}
         </div>
-        <button className="btn-close" onClick={handleClose} title="Stop and Close">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div className="player-mobile-controls">
+          <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
+            ⏪
+          </button>
+          <button className="control-btn play-btn" onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+            {playing ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            )}
+          </button>
+          <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
+            ⏩
+          </button>
+          <button className="control-btn cast-btn-mobile" onClick={handleCastClick} title="Cast to device">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+              <line x1="2" y1="20" x2="2.01" y2="20"></line>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="player-controls">
-        <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
+        <button className="control-btn cast-control-btn" onClick={handleCastClick} title="Cast to device">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-            <path d="M10 9l-3 3 3 3" strokeWidth="2"></path>
-            <path d="M17 9l-3 3 3 3" strokeWidth="2"></path>
+            <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+            <line x1="2" y1="20" x2="2.01" y2="20"></line>
           </svg>
+        </button>
+        <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
+          ⏪
         </button>
         <button className="control-btn play-btn" onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
           {playing ? (
@@ -275,11 +521,15 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
           )}
         </button>
         <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
+          ⏩
+        </button>
+      </div>
+
+      <div className="player-actions">
+        <button className="btn-close" onClick={handleClose} title="Close Player">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
-            <path d="M21 3v5h-5"></path>
-            <path d="M7 9l3 3-3 3" strokeWidth="2"></path>
-            <path d="M14 9l3 3-3 3" strokeWidth="2"></path>
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </div>
@@ -296,6 +546,32 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
         />
         <span className="time-display">{formatTime(duration)}</span>
       </div>
+
+      {showChapterList && audiobook.is_multi_file && chapters.length > 0 && (
+        <div className="chapter-list-popup" onClick={() => setShowChapterList(false)}>
+          <div className="chapter-list-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Chapters</h3>
+            <div className="chapters-list">
+              {chapters.map((chapter, index) => (
+                <div
+                  key={index}
+                  className={`chapter-item ${index === currentChapter ? 'active' : ''}`}
+                  onClick={() => {
+                    audioRef.current.currentTime = chapter.start_time;
+                    setCurrentTime(chapter.start_time);
+                    setShowChapterList(false);
+                  }}
+                >
+                  <span className="chapter-number">Chapter {index + 1}</span>
+                  {index === currentChapter && <span className="speaker-icon pulsing">🔊</span>}
+                  <span className="chapter-title">{chapter.title}</span>
+                  <span className="chapter-time">{formatTime(chapter.start_time)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showFullscreen && (
         <div
@@ -327,16 +603,30 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
             <div className="fullscreen-info">
               <h2>{audiobook.title}</h2>
               <p>{audiobook.author || 'Unknown Author'}</p>
+              {isCasting && (
+                <div className="casting-indicator">
+                  <span>📡</span>
+                  <span>Casting</span>
+                </div>
+              )}
+              {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
+                <div className="chapter-indicator" onClick={() => setShowChapterList(!showChapterList)}>
+                  <span className="speaker-icon">🔊</span>
+                  <span>Chapter {currentChapter + 1}</span>
+                </div>
+              )}
             </div>
 
-            <div className="fullscreen-controls">
-              <button className="fullscreen-control-btn" onClick={skipBackward}>
+            <div className="fullscreen-controls-wrapper">
+              <button className="fullscreen-cast-btn" onClick={handleCastClick} title="Cast to device">
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                  <path d="M3 3v5h5"></path>
-                  <path d="M10 9l-3 3 3 3" strokeWidth="2"></path>
-                  <path d="M17 9l-3 3 3 3" strokeWidth="2"></path>
+                  <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+                  <line x1="2" y1="20" x2="2.01" y2="20"></line>
                 </svg>
+              </button>
+              <div className="fullscreen-controls">
+              <button className="fullscreen-control-btn" onClick={skipBackward}>
+                ⏪
               </button>
               <button className="fullscreen-control-btn fullscreen-play-btn" onClick={togglePlay}>
                 {playing ? (
@@ -351,13 +641,9 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
                 )}
               </button>
               <button className="fullscreen-control-btn" onClick={skipForward}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
-                  <path d="M21 3v5h-5"></path>
-                  <path d="M7 9l3 3-3 3" strokeWidth="2"></path>
-                  <path d="M14 9l3 3-3 3" strokeWidth="2"></path>
-                </svg>
+                ⏩
               </button>
+              </div>
             </div>
 
             <div className="fullscreen-progress">
@@ -401,4 +687,8 @@ export default function AudioPlayer({ audiobook, progress, onClose }) {
       )}
     </div>
   );
-}
+});
+
+AudioPlayer.displayName = 'AudioPlayer';
+
+export default AudioPlayer;

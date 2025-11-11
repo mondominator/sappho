@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
 
+const execFileAsync = promisify(execFile);
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
 // Audio file extensions we support
@@ -54,6 +57,36 @@ function scanDirectory(dir, groupByDirectory = false) {
 }
 
 /**
+ * Extract chapters from an m4b file using ffprobe
+ */
+async function extractM4BChapters(filePath) {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'quiet',
+      '-print_format', 'json',
+      '-show_chapters',
+      filePath
+    ]);
+
+    const data = JSON.parse(stdout);
+    if (!data.chapters || data.chapters.length === 0) {
+      return null;
+    }
+
+    return data.chapters.map((chapter, index) => ({
+      chapter_number: index + 1,
+      title: chapter.tags?.title || `Chapter ${index + 1}`,
+      start_time: parseFloat(chapter.start_time) || 0,
+      end_time: parseFloat(chapter.end_time) || 0,
+      duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
+    }));
+  } catch (error) {
+    console.log(`No chapters found in ${path.basename(filePath)} or ffprobe not available`);
+    return null;
+  }
+}
+
+/**
  * Check if a file already exists in the database
  */
 function fileExistsInDatabase(filePath) {
@@ -86,13 +119,25 @@ async function importAudiobook(filePath, userId = 1) {
     // Get file stats
     const stats = fs.statSync(filePath);
 
+    // Check if this is an m4b file with chapters
+    const ext = path.extname(filePath).toLowerCase();
+    const isM4B = ext === '.m4b';
+    let chapters = null;
+
+    if (isM4B) {
+      chapters = await extractM4BChapters(filePath);
+    }
+
+    // Determine if this should be marked as multi-file (has embedded chapters)
+    const hasChapters = chapters && chapters.length > 1;
+
     // Save to database without moving the file
     return new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO audiobooks
          (title, author, narrator, description, duration, file_path, file_size,
-          genre, published_year, isbn, series, series_position, cover_image, added_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           metadata.title,
           metadata.author,
@@ -107,20 +152,63 @@ async function importAudiobook(filePath, userId = 1) {
           metadata.series,
           metadata.series_position,
           metadata.cover_image,
+          hasChapters ? 1 : 0,
           userId,
         ],
         function (err) {
           if (err) {
             reject(err);
           } else {
-            db.get('SELECT * FROM audiobooks WHERE id = ?', [this.lastID], (err, audiobook) => {
-              if (err) {
-                reject(err);
-              } else {
-                console.log(`Imported: ${metadata.title} by ${metadata.author}`);
-                resolve(audiobook);
-              }
-            });
+            const audiobookId = this.lastID;
+
+            // If we have chapters, insert them
+            if (hasChapters) {
+              let completedChapters = 0;
+              let hasError = false;
+
+              chapters.forEach((chapter) => {
+                db.run(
+                  `INSERT INTO audiobook_chapters
+                   (audiobook_id, chapter_number, file_path, duration, start_time, title)
+                   VALUES (?, ?, ?, ?, ?, ?)`,
+                  [
+                    audiobookId,
+                    chapter.chapter_number,
+                    filePath, // Same file for all chapters in m4b
+                    chapter.duration,
+                    chapter.start_time,
+                    chapter.title,
+                  ],
+                  (err) => {
+                    if (err && !hasError) {
+                      hasError = true;
+                      reject(err);
+                    } else {
+                      completedChapters++;
+                      if (completedChapters === chapters.length && !hasError) {
+                        db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+                          if (err) {
+                            reject(err);
+                          } else {
+                            console.log(`Imported: ${metadata.title} by ${metadata.author} (${chapters.length} chapters)`);
+                            resolve(audiobook);
+                          }
+                        });
+                      }
+                    }
+                  }
+                );
+              });
+            } else {
+              db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  console.log(`Imported: ${metadata.title} by ${metadata.author}`);
+                  resolve(audiobook);
+                }
+              });
+            }
           }
         }
       );
