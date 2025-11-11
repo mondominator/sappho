@@ -9,10 +9,12 @@ const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../
 const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac'];
 
 /**
- * Recursively scan a directory for audio files
+ * Recursively scan a directory for audio files, grouped by directory
+ * Returns an array of objects: { directory: string, files: string[] }
  */
-function scanDirectory(dir) {
+function scanDirectory(dir, groupByDirectory = false) {
   const audioFiles = [];
+  const groupedFiles = new Map(); // Map of directory -> files
 
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -22,11 +24,25 @@ function scanDirectory(dir) {
 
       if (entry.isDirectory()) {
         // Recursively scan subdirectories
-        audioFiles.push(...scanDirectory(fullPath));
+        if (groupByDirectory) {
+          const subResults = scanDirectory(fullPath, true);
+          for (const [subDir, files] of subResults.entries()) {
+            groupedFiles.set(subDir, files);
+          }
+        } else {
+          audioFiles.push(...scanDirectory(fullPath, false));
+        }
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
         if (audioExtensions.includes(ext)) {
-          audioFiles.push(fullPath);
+          if (groupByDirectory) {
+            if (!groupedFiles.has(dir)) {
+              groupedFiles.set(dir, []);
+            }
+            groupedFiles.get(dir).push(fullPath);
+          } else {
+            audioFiles.push(fullPath);
+          }
         }
       }
     }
@@ -34,7 +50,7 @@ function scanDirectory(dir) {
     console.error(`Error scanning directory ${dir}:`, error.message);
   }
 
-  return audioFiles;
+  return groupByDirectory ? groupedFiles : audioFiles;
 }
 
 /**
@@ -53,7 +69,7 @@ function fileExistsInDatabase(filePath) {
 }
 
 /**
- * Import an audiobook file into the database without moving it
+ * Import a single-file audiobook into the database without moving it
  */
 async function importAudiobook(filePath, userId = 1) {
   try {
@@ -116,6 +132,132 @@ async function importAudiobook(filePath, userId = 1) {
 }
 
 /**
+ * Import a multi-file audiobook (multiple chapters) into the database
+ */
+async function importMultiFileAudiobook(chapterFiles, userId = 1) {
+  try {
+    // Sort chapter files by name to ensure correct order
+    const sortedFiles = chapterFiles.sort();
+
+    // Extract metadata from first file to represent the audiobook
+    const metadata = await extractFileMetadata(sortedFiles[0]);
+
+    // Calculate total duration and file size
+    let totalDuration = 0;
+    let totalSize = 0;
+    const chapterMetadata = [];
+
+    for (const filePath of sortedFiles) {
+      const fileMetadata = await extractFileMetadata(filePath);
+      const stats = fs.statSync(filePath);
+
+      totalDuration += fileMetadata.duration || 0;
+      totalSize += stats.size;
+
+      chapterMetadata.push({
+        file_path: filePath,
+        duration: fileMetadata.duration,
+        file_size: stats.size,
+        title: fileMetadata.title,
+      });
+    }
+
+    // Use directory name as a fallback for title if metadata title seems like a chapter
+    const directory = path.dirname(sortedFiles[0]);
+    const dirName = path.basename(directory);
+
+    // If title looks like a chapter (contains "chapter", "part", numbers), use directory name
+    if (metadata.title && /chapter|part|\d+/i.test(metadata.title)) {
+      metadata.title = dirName;
+    }
+
+    // Store first file path as reference (will use chapters for playback)
+    const firstFilePath = sortedFiles[0];
+
+    // Check if already in database (check by first file path or by directory)
+    const exists = await fileExistsInDatabase(firstFilePath);
+    if (exists) {
+      console.log(`Skipping multi-file audiobook ${metadata.title} - already in database`);
+      return null;
+    }
+
+    // Save audiobook to database with is_multi_file flag
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO audiobooks
+         (title, author, narrator, description, duration, file_path, file_size,
+          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          metadata.title,
+          metadata.author,
+          metadata.narrator,
+          metadata.description,
+          totalDuration,
+          firstFilePath,
+          totalSize,
+          metadata.genre,
+          metadata.published_year,
+          metadata.isbn,
+          metadata.series,
+          metadata.series_position,
+          metadata.cover_image,
+          userId,
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            const audiobookId = this.lastID;
+
+            // Insert chapters
+            let completedChapters = 0;
+            let hasError = false;
+
+            chapterMetadata.forEach((chapter, index) => {
+              db.run(
+                `INSERT INTO audiobook_chapters
+                 (audiobook_id, chapter_number, file_path, duration, file_size, title)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                  audiobookId,
+                  index + 1,
+                  chapter.file_path,
+                  chapter.duration,
+                  chapter.file_size,
+                  chapter.title,
+                ],
+                (err) => {
+                  if (err && !hasError) {
+                    hasError = true;
+                    reject(err);
+                  } else {
+                    completedChapters++;
+                    if (completedChapters === chapterMetadata.length && !hasError) {
+                      db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+                        if (err) {
+                          reject(err);
+                        } else {
+                          console.log(`Imported multi-file audiobook: ${metadata.title} (${chapterMetadata.length} chapters)`);
+                          resolve(audiobook);
+                        }
+                      });
+                    }
+                  }
+                }
+              );
+            });
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error(`Error importing multi-file audiobook:`, error.message);
+    return null;
+  }
+}
+
+/**
  * Scan the entire audiobooks library and import any new files
  */
 async function scanLibrary() {
@@ -129,30 +271,45 @@ async function scanLibrary() {
     return { imported: 0, skipped: 0, errors: 0 };
   }
 
-  // Find all audio files
-  const audioFiles = scanDirectory(audiobooksDir);
-  console.log(`Found ${audioFiles.length} audio files`);
+  // Scan files grouped by directory
+  const groupedFiles = scanDirectory(audiobooksDir, true);
+  console.log(`Found audio files in ${groupedFiles.size} directories`);
 
   let imported = 0;
   let skipped = 0;
   let errors = 0;
+  let totalFiles = 0;
 
-  // Import each file
-  for (const filePath of audioFiles) {
+  // Process each directory
+  for (const [directory, files] of groupedFiles.entries()) {
+    totalFiles += files.length;
+
     try {
-      const result = await importAudiobook(filePath);
-      if (result) {
-        imported++;
+      if (files.length > 1) {
+        // Multi-file audiobook - treat all files in directory as chapters
+        console.log(`Processing multi-file audiobook in ${directory} (${files.length} files)`);
+        const result = await importMultiFileAudiobook(files);
+        if (result) {
+          imported++;
+        } else {
+          skipped++;
+        }
       } else {
-        skipped++;
+        // Single file audiobook
+        const result = await importAudiobook(files[0]);
+        if (result) {
+          imported++;
+        } else {
+          skipped++;
+        }
       }
     } catch (error) {
-      console.error(`Failed to import ${filePath}:`, error.message);
+      console.error(`Failed to import from ${directory}:`, error.message);
       errors++;
     }
   }
 
-  const stats = { imported, skipped, errors, total: audioFiles.length };
+  const stats = { imported, skipped, errors, totalFiles, totalBooks: groupedFiles.size };
   console.log('Library scan complete:', stats);
 
   return stats;
