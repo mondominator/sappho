@@ -23,6 +23,7 @@ app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/maintenance', require('./routes/maintenance'));
 
 // Health check
 app.get('/api/health', (req, res) => {
