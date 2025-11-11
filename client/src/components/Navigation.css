@@ -176,6 +176,16 @@
   z-index: 1000;
 }
 
+@media (max-width: 768px) {
+  .mobile-menu-container {
+    top: auto;
+    bottom: 70px;
+    right: 0;
+    left: 0;
+    padding: 0 1rem;
+  }
+}
+
 .mobile-menu-dropdown {
   background: #1f2937;
   border: 1px solid #374151;
