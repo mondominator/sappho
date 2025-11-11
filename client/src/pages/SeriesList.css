@@ -36,6 +36,7 @@
   aspect-ratio: 2.5 / 1;
   overflow: hidden;
   background: #374151;
+  position: relative;
 }
 
 .cover-grid {
@@ -117,6 +118,7 @@
   color: #fff;
   margin: 0;
   line-height: 1.4;
+  font-weight: 600;
 }
 
 .series-stats {
@@ -167,6 +169,19 @@
   }
 
   .series-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .series-card-content {
+    padding: 1.25rem;
+  }
+
+  .series-title {
+    font-size: 1.125rem;
+  }
+
+  .series-count {
+    font-size: 0.9rem;
   }
 }
