@@ -16,7 +16,7 @@ export default function Library({ onPlay }) {
 
   const loadAudiobooks = async () => {
     try {
-      const response = await getAudiobooks({ search, ...filter });
+      const response = await getAudiobooks({ search, ...filter, limit: 10000 });
       setAudiobooks(response.data.audiobooks);
     } catch (error) {
       console.error('Error loading audiobooks:', error);
