@@ -104,19 +104,28 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   }, []);
 
   useEffect(() => {
+    if (!audiobook || !audiobook.id) {
+      console.error('Invalid audiobook in useEffect');
+      return;
+    }
+
     if (audioRef.current) {
-      audioRef.current.src = getStreamUrl(audiobook.id);
-      audioRef.current.load();
+      try {
+        audioRef.current.src = getStreamUrl(audiobook.id);
+        audioRef.current.load();
 
-      // Check if this is a different audiobook than what was saved
-      const savedAudiobookId = localStorage.getItem('currentAudiobookId');
-      const isDifferentBook = !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
+        // Check if this is a different audiobook than what was saved
+        const savedAudiobookId = localStorage.getItem('currentAudiobookId');
+        const isDifferentBook = !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
 
-      setIsNewLoad(isDifferentBook); // Mark as new load if different book
-      setHasRestoredPosition(false); // Reset restoration flag
+        setIsNewLoad(isDifferentBook); // Mark as new load if different book
+        setHasRestoredPosition(false); // Reset restoration flag
 
-      // Save current audiobook ID
-      localStorage.setItem('currentAudiobookId', audiobook.id.toString());
+        // Save current audiobook ID
+        localStorage.setItem('currentAudiobookId', audiobook.id.toString());
+      } catch (err) {
+        console.error('Error initializing audio:', err);
+      }
     }
 
     // Load chapters if multi-file audiobook
@@ -143,7 +152,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   // Restore saved position when metadata loads and auto-play
   useEffect(() => {
     const handleLoadedMetadata = () => {
-      if (!hasRestoredPosition && audioRef.current) {
+      if (!hasRestoredPosition && audioRef.current && audiobook && audiobook.id) {
         const audioDuration = audioRef.current.duration;
 
         // Restore position if available and not finished
