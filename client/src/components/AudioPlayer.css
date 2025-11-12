@@ -713,12 +713,12 @@
   }
 
   .player-mobile-controls .control-btn {
-    background: #3b82f6;
+    background: #2563eb;
   }
 
   .player-mobile-controls .control-btn:active {
     opacity: 1;
-    background: #2563eb;
+    background: #1d4ed8;
   }
 
   .player-mobile-controls .play-btn {
