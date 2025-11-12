@@ -712,9 +712,13 @@
     border-radius: 50%;
   }
 
+  .player-mobile-controls .control-btn {
+    background: #3b82f6;
+  }
+
   .player-mobile-controls .control-btn:active {
     opacity: 1;
-    background: #4b5563;
+    background: #2563eb;
   }
 
   .player-mobile-controls .play-btn {
