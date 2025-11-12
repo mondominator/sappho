@@ -472,7 +472,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             </svg>
           </button>
           <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
-            ⏪
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 19 2 12 11 5 11 19"></polygon>
+              <polygon points="22 19 13 12 22 5 22 19"></polygon>
+            </svg>
           </button>
           <button className="control-btn play-btn" onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
             {playing ? (
@@ -487,7 +490,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             )}
           </button>
           <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
-            ⏩
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 19 22 12 13 5 13 19"></polygon>
+              <polygon points="2 19 11 12 2 5 2 19"></polygon>
+            </svg>
           </button>
         </div>
       </div>
@@ -618,7 +624,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </button>
               <div className="fullscreen-controls">
               <button className="fullscreen-control-btn" onClick={skipBackward}>
-                ⏪
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                  <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                </svg>
               </button>
               <button className="fullscreen-control-btn fullscreen-play-btn" onClick={togglePlay}>
                 {playing ? (
@@ -633,7 +642,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 )}
               </button>
               <button className="fullscreen-control-btn" onClick={skipForward}>
-                ⏩
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                  <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                </svg>
               </button>
               </div>
             </div>
