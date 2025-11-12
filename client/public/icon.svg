@@ -1,17 +1,36 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
   <!-- Background -->
-  <rect width="512" height="512" fill="#0a0e1a"/>
+  <rect width="512" height="512" fill="#1a1a1a" rx="80"/>
 
-  <!-- Book with sound waves icon (centered and scaled) -->
-  <g transform="translate(156, 166) scale(10)">
-    <!-- Book shape -->
-    <rect x="2" y="5" width="20" height="28" rx="2" fill="#3b82f6" opacity="0.2"/>
-    <rect x="0" y="3" width="20" height="28" rx="2" fill="#3b82f6"/>
-    <line x1="10" y1="3" x2="10" y2="31" stroke="#0a0e1a" stroke-width="1.5" opacity="0.3"/>
-
-    <!-- Sound waves emanating from book -->
-    <path d="M 24 12 Q 28 12, 28 16 Q 28 20, 24 20" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-    <path d="M 28 10 Q 34 10, 34 16 Q 34 22, 28 22" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7"/>
-    <path d="M 32 8 Q 40 8, 40 16 Q 40 24, 32 24" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.4"/>
+  <!-- Stylized S - scaled and centered -->
+  <g transform="translate(120, 100) scale(10)">
+    <!-- Outer glow -->
+    <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
+          stroke="url(#sGradient)"
+          stroke-width="8"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.3"/>
+    <!-- Main S -->
+    <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
+          stroke="url(#sGradient)"
+          stroke-width="4"
+          stroke-linecap="round"
+          fill="none"/>
+    <!-- Inner highlight -->
+    <path d="M 18 4 C 11 4, 7 7, 7 11 C 7 14, 10 16, 14 17"
+          stroke="#ffffff"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.4"/>
   </g>
 </svg>
