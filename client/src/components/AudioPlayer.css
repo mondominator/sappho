@@ -736,6 +736,7 @@
     font-size: 12px;
     background: #4b5563;
     color: #e5e7eb;
+    margin-right: 8px;
   }
 
   .player-mobile-controls .cast-btn-mobile:active {
