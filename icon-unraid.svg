@@ -1,55 +1,40 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background with gradient -->
-  <rect width="512" height="512" rx="80" fill="url(#bg-gradient)"/>
-
-  <!-- Subtle glow effect -->
-  <rect width="512" height="512" rx="80" fill="url(#glow-gradient)" opacity="0.3"/>
-
-  <!-- Book with sound waves icon (centered and larger) -->
-  <g transform="translate(128, 140) scale(12)">
-    <!-- Book shadow -->
-    <rect x="3" y="7" width="20" height="28" rx="2" fill="#000000" opacity="0.2"/>
-
-    <!-- Book shape -->
-    <rect x="0" y="3" width="20" height="28" rx="2" fill="#14b8a6"/>
-
-    <!-- Book spine line -->
-    <line x1="10" y1="3" x2="10" y2="31" stroke="#0a0e1a" stroke-width="1.5" opacity="0.3"/>
-
-    <!-- Book page lines -->
-    <line x1="3" y1="10" x2="8" y2="10" stroke="#0a0e1a" stroke-width="0.5" opacity="0.2"/>
-    <line x1="3" y1="14" x2="8" y2="14" stroke="#0a0e1a" stroke-width="0.5" opacity="0.2"/>
-    <line x1="3" y1="18" x2="8" y2="18" stroke="#0a0e1a" stroke-width="0.5" opacity="0.2"/>
-
-    <!-- Sound waves emanating from book (brighter and more prominent) -->
-    <path d="M 24 12 Q 28 12, 28 16 Q 28 20, 24 20"
-          stroke="#2dd4bf"
-          stroke-width="3"
-          stroke-linecap="round"
-          fill="none"/>
-    <path d="M 28 10 Q 34 10, 34 16 Q 34 22, 28 22"
-          stroke="#2dd4bf"
-          stroke-width="3"
-          stroke-linecap="round"
-          fill="none"
-          opacity="0.8"/>
-    <path d="M 32 8 Q 40 8, 40 16 Q 40 24, 32 24"
-          stroke="#2dd4bf"
-          stroke-width="3"
-          stroke-linecap="round"
-          fill="none"
-          opacity="0.5"/>
-  </g>
-
-  <!-- Gradients -->
   <defs>
+    <linearGradient id="sGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
     <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#0f1419;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#0a0e1a;stop-opacity:1" />
     </linearGradient>
-    <radialGradient id="glow-gradient" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" style="stop-color:#14b8a6;stop-opacity:0.2" />
-      <stop offset="100%" style="stop-color:#14b8a6;stop-opacity:0" />
-    </radialGradient>
   </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#bg-gradient)" rx="80"/>
+
+  <!-- Stylized S - scaled and centered -->
+  <g transform="translate(120, 100) scale(10)">
+    <!-- Outer glow -->
+    <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
+          stroke="url(#sGradient)"
+          stroke-width="8"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.3"/>
+    <!-- Main S -->
+    <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
+          stroke="url(#sGradient)"
+          stroke-width="4"
+          stroke-linecap="round"
+          fill="none"/>
+    <!-- Inner highlight -->
+    <path d="M 18 4 C 11 4, 7 7, 7 11 C 7 14, 10 16, 14 17"
+          stroke="#ffffff"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.4"/>
+  </g>
 </svg>
