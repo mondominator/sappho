@@ -167,12 +167,17 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
         console.log('Playback restore:', { isNewLoad, savedPlaying, shouldAutoPlay });
 
-        if (shouldAutoPlay) {
-          // Small delay to ensure audio is ready
+        // On page refresh (not new load), try to resume playback if it was playing
+        // But only if this is not a mobile browser, since mobile blocks auto-play on page load
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const canAutoPlayOnRefresh = !isMobile && !isNewLoad && savedPlaying === 'true';
+
+        if (isNewLoad) {
+          // New book load - always auto-play (user just clicked play button)
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
-                console.log('Playback started successfully');
+                console.log('Playback started successfully (new book)');
                 setPlaying(true);
                 setIsNewLoad(false);
               }).catch(err => {
@@ -182,9 +187,24 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               });
             }
           }, 100);
+        } else if (canAutoPlayOnRefresh) {
+          // Desktop page refresh with audio playing - try to resume
+          setTimeout(() => {
+            if (audioRef.current) {
+              audioRef.current.play().then(() => {
+                console.log('Playback resumed successfully on desktop');
+                setPlaying(true);
+                setIsNewLoad(false);
+              }).catch(err => {
+                console.warn('Auto-play on refresh prevented:', err);
+                setPlaying(false);
+                setIsNewLoad(false);
+              });
+            }
+          }, 100);
         } else {
-          // Paused state - don't auto-play
-          console.log('Staying paused on refresh');
+          // Mobile or paused state - don't auto-play, just restore position
+          console.log('Staying paused on refresh (mobile or was paused)');
           setPlaying(false);
           setIsNewLoad(false);
         }
