@@ -1,9 +1,13 @@
 import axios from 'axios';
 
 const API_BASE = '/api';
+const BUILD_ID = 'v20251112171700';
 
 const api = axios.create({
   baseURL: API_BASE,
+  headers: {
+    'X-Build-Version': BUILD_ID
+  }
 });
 
 // Add auth token to requests
@@ -26,8 +30,8 @@ api.interceptors.response.use(
       localStorage.removeItem('currentProgress');
       localStorage.removeItem('playerPlaying');
 
-      // Redirect to login by reloading the page (App will detect no token)
-      window.location.reload();
+      // Redirect to login by navigating to root (App will detect no token and show login)
+      window.location.href = '/';
     }
     return Promise.reject(error);
   }

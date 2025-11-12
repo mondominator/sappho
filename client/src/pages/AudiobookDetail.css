@@ -205,6 +205,19 @@
 }
 
 @media (max-width: 768px) {
+  .audiobook-detail {
+    padding-top: 80px !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin: 0 !important;
+  }
+
+  .back-button {
+    margin-top: 0;
+    padding-top: 0.5rem;
+  }
+
   .detail-content {
     grid-template-columns: 1fr;
     gap: 2rem;
@@ -212,8 +225,12 @@
 
   .detail-cover-container {
     position: static;
-    max-width: 240px;
+    max-width: 120px;
     margin: 0 auto;
+  }
+
+  .detail-cover {
+    /* Mobile: smaller cover */
   }
 
   .detail-title {

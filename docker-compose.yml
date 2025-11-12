@@ -5,12 +5,12 @@ services:
     build: .
     container_name: sapho
     ports:
-      - "3002:3002"
+      - "3003:3003"
     volumes:
       - ./data:/app/data
     environment:
       - NODE_ENV=production
-      - PORT=3002
+      - PORT=3003
       - JWT_SECRET=${JWT_SECRET:-change-this-secret}
       - DATABASE_PATH=/app/data/sapho.db
       - UPLOAD_DIR=/app/data/uploads

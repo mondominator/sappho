@@ -484,23 +484,33 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
 
   db.all(
-    `SELECT DISTINCT a.*, p.position as progress_position, p.completed as progress_completed
-     FROM audiobooks a
-     LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-     WHERE a.series IS NOT NULL AND a.series != ''
-     AND (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
-     AND EXISTS (
-       SELECT 1
-       FROM audiobooks a2
-       INNER JOIN playback_progress p2 ON a2.id = p2.audiobook_id
-       WHERE p2.user_id = ?
-       AND p2.completed = 0
-       AND p2.position > 0
-       AND a2.series = a.series
-       AND COALESCE(a2.series_index, a2.series_position, 0) < COALESCE(a.series_index, a.series_position, 0)
+    `WITH RankedBooks AS (
+       SELECT a.*,
+              p.position as progress_position,
+              p.completed as progress_completed,
+              ROW_NUMBER() OVER (
+                PARTITION BY a.series
+                ORDER BY COALESCE(a.series_index, a.series_position, 0) ASC
+              ) as row_num
+       FROM audiobooks a
+       LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+       WHERE a.series IS NOT NULL AND a.series != ''
+       AND (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
+       AND EXISTS (
+         SELECT 1
+         FROM audiobooks a2
+         INNER JOIN playback_progress p2 ON a2.id = p2.audiobook_id
+         WHERE p2.user_id = ?
+         AND p2.completed = 0
+         AND p2.position > 0
+         AND a2.series = a.series
+         AND COALESCE(a2.series_index, a2.series_position, 0) < COALESCE(a.series_index, a.series_position, 0)
+       )
+       AND (p.position IS NULL OR p.position = 0 OR (p.position > 0 AND p.completed = 0))
      )
-     AND (p.position IS NULL OR p.position = 0 OR p.completed = 0)
-     ORDER BY a.series, COALESCE(a.series_index, a.series_position, 0) ASC
+     SELECT * FROM RankedBooks
+     WHERE row_num = 1
+     ORDER BY series ASC
      LIMIT ?`,
     [req.user.id, req.user.id, limit],
     (err, audiobooks) => {

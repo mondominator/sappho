@@ -31,6 +31,22 @@ body {
   padding: 0 20px;
 }
 
+@media (max-width: 768px) {
+  html {
+    overflow-x: hidden;
+  }
+
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .container {
+    padding: 0;
+  }
+}
+
 .btn {
   padding: 10px 20px;
   border: none;

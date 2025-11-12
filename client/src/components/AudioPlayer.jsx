@@ -428,7 +428,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       onTouchEnd={handleTouchEnd}
       style={{
         transform: !showFullscreen && isDragging ? `translateY(${Math.min(0, dragOffset)}px)` : 'none',
-        transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+        transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+        position: 'fixed',
+        bottom: 0
       }}
     >
       <audio
@@ -437,13 +439,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={() => setPlaying(false)}
       />
-
-      <button className="btn-close-mobile-top" onClick={handleClose} title="Stop and Close">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
 
       <div className="player-info">
         {audiobook.cover_image && (
@@ -465,12 +460,17 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           )}
           {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
             <div className="chapter-indicator" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
-              <span className="speaker-icon">🔊</span>
               <span>Chapter {currentChapter + 1}</span>
             </div>
           )}
         </div>
         <div className="player-mobile-controls">
+          <button className="control-btn cast-btn-mobile" onClick={handleCastClick} title="Cast to device">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+              <line x1="2" y1="20" x2="2.01" y2="20"></line>
+            </svg>
+          </button>
           <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
             ⏪
           </button>
@@ -488,12 +488,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </button>
           <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
             ⏩
-          </button>
-          <button className="control-btn cast-btn-mobile" onClick={handleCastClick} title="Cast to device">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-              <line x1="2" y1="20" x2="2.01" y2="20"></line>
-            </svg>
           </button>
         </div>
       </div>
@@ -563,7 +557,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   }}
                 >
                   <span className="chapter-number">Chapter {index + 1}</span>
-                  {index === currentChapter && <span className="speaker-icon pulsing">🔊</span>}
                   <span className="chapter-title">{chapter.title}</span>
                   <span className="chapter-time">{formatTime(chapter.start_time)}</span>
                 </div>
@@ -611,7 +604,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               )}
               {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
                 <div className="chapter-indicator" onClick={() => setShowChapterList(!showChapterList)}>
-                  <span className="speaker-icon">🔊</span>
                   <span>Chapter {currentChapter + 1}</span>
                 </div>
               )}

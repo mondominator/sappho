@@ -224,7 +224,7 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
   }
 });
 
-// Force rescan - clear and reimport all audiobooks
+// Force rescan - clear and reimport all audiobooks (preserves user progress)
 router.post('/force-rescan', authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
@@ -232,7 +232,23 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
   }
 
   try {
-    console.log('Force rescan: clearing library database...');
+    console.log('Force rescan: backing up user progress...');
+
+    // Backup playback progress with file paths
+    const progressBackup = await new Promise((resolve, reject) => {
+      db.all(
+        `SELECT pp.user_id, pp.position, pp.completed, pp.updated_at, a.file_path
+         FROM playback_progress pp
+         JOIN audiobooks a ON pp.audiobook_id = a.id`,
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+
+    console.log(`Backed up progress for ${progressBackup.length} audiobooks`);
+    console.log('Force rescan: clearing library metadata...');
 
     // Delete all audiobook chapters first (due to foreign key constraint)
     await new Promise((resolve, reject) => {
@@ -242,7 +258,7 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
       });
     });
 
-    // Delete all playback progress
+    // Delete playback progress (will be restored after rescan)
     await new Promise((resolve, reject) => {
       db.run('DELETE FROM playback_progress', (err) => {
         if (err) reject(err);
@@ -258,13 +274,53 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
       });
     });
 
-    console.log('Library database cleared, starting scan...');
+    console.log('Library metadata cleared, rescanning...');
     const stats = await scanLibrary();
+
+    // Restore playback progress
+    console.log('Restoring user progress...');
+    let restored = 0;
+    for (const progress of progressBackup) {
+      try {
+        // Find audiobook by file path
+        const audiobook = await new Promise((resolve, reject) => {
+          db.get(
+            'SELECT id FROM audiobooks WHERE file_path = ?',
+            [progress.file_path],
+            (err, row) => {
+              if (err) reject(err);
+              else resolve(row);
+            }
+          );
+        });
+
+        if (audiobook) {
+          // Restore progress
+          await new Promise((resolve, reject) => {
+            db.run(
+              `INSERT INTO playback_progress (audiobook_id, user_id, position, completed, updated_at)
+               VALUES (?, ?, ?, ?, ?)`,
+              [audiobook.id, progress.user_id, progress.position, progress.completed, progress.updated_at],
+              (err) => {
+                if (err) reject(err);
+                else resolve();
+              }
+            );
+          });
+          restored++;
+        }
+      } catch (error) {
+        console.error(`Failed to restore progress for ${progress.file_path}:`, error.message);
+      }
+    }
+
+    console.log(`Restored progress for ${restored} audiobooks`);
 
     res.json({
       success: true,
       message: 'Library force rescanned successfully',
       stats,
+      progressRestored: restored,
     });
   } catch (error) {
     console.error('Error in force rescan:', error);

@@ -1,0 +1,34 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stylized S with gradient -->
+  <defs>
+    <linearGradient id="sGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Stylized S - elegant curved design scaled for mobile -->
+  <g transform="translate(8, 6)">
+    <!-- Outer glow -->
+    <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
+          stroke="url(#sGradient)"
+          stroke-width="8"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.3"/>
+    <!-- Main S -->
+    <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
+          stroke="url(#sGradient)"
+          stroke-width="4"
+          stroke-linecap="round"
+          fill="none"/>
+    <!-- Inner highlight -->
+    <path d="M 18 4 C 11 4, 7 7, 7 11 C 7 14, 10 16, 14 17"
+          stroke="#ffffff"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.4"/>
+  </g>
+</svg>

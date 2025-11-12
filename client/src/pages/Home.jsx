@@ -9,6 +9,16 @@ export default function Home({ onPlay }) {
   const [inProgress, setInProgress] = useState([]);
   const [upNext, setUpNext] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     loadSpecialSections();
@@ -111,7 +121,7 @@ export default function Home({ onPlay }) {
         <div className="horizontal-section">
           <h2>Recently Added</h2>
           <div className="horizontal-scroll">
-            {recentlyAdded.map(renderBookCard)}
+            {(isMobile ? recentlyAdded.slice(0, 9) : recentlyAdded).map(renderBookCard)}
           </div>
         </div>
       )}

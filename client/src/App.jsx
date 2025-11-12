@@ -6,6 +6,7 @@ import Library from './pages/Library'
 import Profile from './pages/Profile'
 import AudiobookDetail from './pages/AudiobookDetail'
 import AuthorDetail from './pages/AuthorDetail'
+import AuthorsList from './pages/AuthorsList'
 import SeriesList from './pages/SeriesList'
 import SeriesDetail from './pages/SeriesDetail'
 import Settings from './pages/Settings'
@@ -37,6 +38,7 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
           <Route path="/library" element={<Library onPlay={playAudiobook} />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/audiobook/:id" element={<AudiobookDetail onPlay={playAudiobook} />} />
+          <Route path="/authors" element={<AuthorsList />} />
           <Route path="/author/:name" element={<AuthorDetail onPlay={playAudiobook} />} />
           <Route path="/series" element={<SeriesList />} />
           <Route path="/series/:name" element={<SeriesDetail onPlay={playAudiobook} />} />
