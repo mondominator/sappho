@@ -1,40 +1,39 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="sGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#60a5fa;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:1" />
     </linearGradient>
-    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f1419;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0a0e1a;stop-opacity:1" />
+    <linearGradient id="sGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e0e7ff;stop-opacity:1" />
     </linearGradient>
   </defs>
 
-  <!-- Background -->
-  <rect width="512" height="512" fill="url(#bg-gradient)" rx="80"/>
+  <!-- Gradient Background -->
+  <rect width="512" height="512" fill="url(#bgGradient)" rx="80"/>
 
   <!-- Stylized S - scaled and centered -->
   <g transform="translate(120, 100) scale(10)">
-    <!-- Outer glow -->
+    <!-- Shadow -->
     <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
-          stroke="url(#sGradient)"
+          stroke="#1e40af"
           stroke-width="8"
           stroke-linecap="round"
           fill="none"
-          opacity="0.3"/>
+          opacity="0.2"/>
     <!-- Main S -->
     <path d="M 18 2 C 10 2, 4 6, 4 12 C 4 16, 8 19, 14 20 C 20 21, 24 23, 24 27 C 24 31, 20 34, 12 34 C 6 34, 2 32, 0 28"
           stroke="url(#sGradient)"
-          stroke-width="4"
+          stroke-width="5"
           stroke-linecap="round"
           fill="none"/>
     <!-- Inner highlight -->
-    <path d="M 18 4 C 11 4, 7 7, 7 11 C 7 14, 10 16, 14 17"
+    <path d="M 18 3 C 11 3, 6 6, 6 11 C 6 14, 9 16, 14 17"
           stroke="#ffffff"
-          stroke-width="1.5"
+          stroke-width="2"
           stroke-linecap="round"
           fill="none"
-          opacity="0.4"/>
+          opacity="0.6"/>
   </g>
 </svg>
