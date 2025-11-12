@@ -1,6 +1,6 @@
-# Sapho Audiobook Server
+# Sappho Audiobook Server
 
-![Sapho Logo](logo.png)
+![Sappho Logo](logo.png)
 
 A modern, self-hosted audiobook server with a beautiful web interface and native mobile app experience.
 
@@ -60,8 +60,8 @@ services:
    - Click "Add Template Repository"
    - Add: `https://github.com/global_dynamics/sapho/blob/main/unraid-template.xml`
 
-2. **Install Sapho:**
-   - Search for "Sapho" in Community Applications
+2. **Install Sappho:**
+   - Search for "Sappho" in Community Applications
    - Click Install
    - Configure paths and JWT_SECRET
    - Start container
@@ -73,27 +73,27 @@ services:
 
 ## Mobile Installation (Progressive Web App)
 
-Sapho is a full-featured Progressive Web App (PWA) that can be installed on your mobile device for a native app experience.
+Sappho is a full-featured Progressive Web App (PWA) that can be installed on your mobile device for a native app experience.
 
 ### Requirements for Full PWA Installation
 - **HTTPS**: Full PWA functionality requires HTTPS (service workers won't register on HTTP)
 - **For local/HTTP access**: You can still "Add to Home Screen" which creates a bookmark with the app icon
 
 ### iOS Installation
-1. Open **Safari** and navigate to Sapho (must use Safari, not Chrome)
+1. Open **Safari** and navigate to Sappho (must use Safari, not Chrome)
 2. Tap the **Share button** (square with arrow pointing up)
 3. Scroll down and select **"Add to Home Screen"**
 4. Tap **"Add"** in the top right
-5. The Sapho icon will appear on your home screen
+5. The Sappho icon will appear on your home screen
 
 **Note**: On HTTP (non-HTTPS), iOS will create a web clip (bookmark) rather than a full PWA. The app will still work but won't have offline capabilities.
 
 ### Android Installation
-1. Open **Chrome** and navigate to Sapho
+1. Open **Chrome** and navigate to Sappho
 2. Tap the **menu** (3 vertical dots) in the top right
 3. Select **"Install app"** or **"Add to Home Screen"**
 4. Tap **"Install"** in the popup
-5. Launch Sapho from your home screen or app drawer
+5. Launch Sappho from your home screen or app drawer
 
 **Note**: Chrome on Android may show a banner prompting you to install the app automatically.
 
@@ -148,7 +148,7 @@ cd client && npm run dev
 
 ## Importing Existing Libraries
 
-Sapho can automatically detect and import audiobooks from an existing library:
+Sappho can automatically detect and import audiobooks from an existing library:
 
 1. **Mount your existing library** to `/app/data/audiobooks`
 2. **Server starts immediately** - library scanning happens in the background
@@ -189,7 +189,7 @@ The library scanner will:
 
 ## Metadata Support
 
-Sapho extracts metadata from:
+Sappho extracts metadata from:
 - **ID3v2 tags** (MP3, M4B, M4A)
 - **Vorbis comments** (FLAC, OGG)
 - **Custom fields**: Series, Narrator, Position
