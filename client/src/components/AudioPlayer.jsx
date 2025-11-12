@@ -165,17 +165,26 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         const savedPlaying = localStorage.getItem('playerPlaying');
         const shouldAutoPlay = isNewLoad || (savedPlaying === 'true');
 
+        console.log('Playback restore:', { isNewLoad, savedPlaying, shouldAutoPlay });
+
         if (shouldAutoPlay) {
-          audioRef.current.play().then(() => {
-            setPlaying(true);
-            setIsNewLoad(false); // Clear the new load flag after first play
-          }).catch(err => {
-            console.log('Auto-play prevented:', err);
-            setPlaying(false);
-            setIsNewLoad(false);
-          });
+          // Small delay to ensure audio is ready
+          setTimeout(() => {
+            if (audioRef.current) {
+              audioRef.current.play().then(() => {
+                console.log('Playback started successfully');
+                setPlaying(true);
+                setIsNewLoad(false);
+              }).catch(err => {
+                console.warn('Auto-play prevented or failed:', err);
+                setPlaying(false);
+                setIsNewLoad(false);
+              });
+            }
+          }, 100);
         } else {
           // Paused state - don't auto-play
+          console.log('Staying paused on refresh');
           setPlaying(false);
           setIsNewLoad(false);
         }
