@@ -13,9 +13,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   });
   const [hasRestoredPosition, setHasRestoredPosition] = useState(false);
   const [isNewLoad, setIsNewLoad] = useState(() => {
-    // Check if this is a page refresh - if there's no saved audiobook, it's a new load
+    // Check if this is a page refresh by seeing if the audiobook was already loaded
+    // If the audiobook ID matches what's in localStorage, this is a page refresh
     const savedAudiobookId = localStorage.getItem('currentAudiobookId');
-    return !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
+    const isPageRefresh = savedAudiobookId && parseInt(savedAudiobookId) === audiobook.id;
+    // New load = NOT a page refresh
+    return !isPageRefresh;
   });
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [chapters, setChapters] = useState([]);
