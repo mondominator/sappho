@@ -70,12 +70,32 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('token'))
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [currentAudiobook, setCurrentAudiobook] = useState(() => {
-    const saved = localStorage.getItem('currentAudiobook')
-    return saved ? JSON.parse(saved) : null
+    try {
+      const saved = localStorage.getItem('currentAudiobook')
+      if (!saved) return null
+      const parsed = JSON.parse(saved)
+      // Validate that the audiobook object has required properties
+      if (!parsed || !parsed.id) {
+        console.warn('Invalid audiobook in localStorage, clearing')
+        localStorage.removeItem('currentAudiobook')
+        return null
+      }
+      return parsed
+    } catch (err) {
+      console.error('Error restoring audiobook state:', err)
+      localStorage.removeItem('currentAudiobook')
+      return null
+    }
   })
   const [currentProgress, setCurrentProgress] = useState(() => {
-    const saved = localStorage.getItem('currentProgress')
-    return saved ? JSON.parse(saved) : null
+    try {
+      const saved = localStorage.getItem('currentProgress')
+      return saved ? JSON.parse(saved) : null
+    } catch (err) {
+      console.error('Error restoring progress state:', err)
+      localStorage.removeItem('currentProgress')
+      return null
+    }
   })
 
   // Initialize Google Cast SDK
