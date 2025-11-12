@@ -53,9 +53,11 @@ if (fs.existsSync(distPath)) {
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
       }
-      // Never cache manifest.json
-      else if (path.endsWith('manifest.json')) {
+      // Never cache manifest.json or service worker
+      else if (path.endsWith('manifest.json') || path.endsWith('sw.js')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
       }
       // Cache assets with hash in filename for 1 year
       else if (path.match(/\.(js|css)$/)) {
