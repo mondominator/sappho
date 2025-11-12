@@ -50,7 +50,7 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
       />
-      {currentAudiobook && (
+      {currentAudiobook && currentAudiobook.id && (
         <AudioPlayer
           ref={playerRef}
           audiobook={currentAudiobook}
@@ -59,6 +59,9 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
             setCurrentAudiobook(null)
             setCurrentProgress(null)
             localStorage.removeItem('playerPlaying')
+            localStorage.removeItem('currentAudiobookId')
+            localStorage.removeItem('currentAudiobook')
+            localStorage.removeItem('currentProgress')
           }}
         />
       )}
