@@ -141,6 +141,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     localStorage.setItem('playerPlaying', playing.toString());
   }, [playing]);
 
+  // Pause audio before page unload/refresh to prevent crashes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (audioRef.current && playing) {
+        console.log('Pausing audio before page unload');
+        audioRef.current.pause();
+        // Save the playing state so we can resume after refresh
+        localStorage.setItem('playerPlaying', 'true');
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [playing]);
+
   // Save volume to localStorage
   useEffect(() => {
     localStorage.setItem('playerVolume', volume.toString());
