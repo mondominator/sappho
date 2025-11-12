@@ -16,4 +16,13 @@
     padding-top: 0;
     padding-bottom: 0;
   }
+
+  /* Add bottom padding when player is present */
+  .app.player-active {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));
+  }
+
+  .app.player-active .main-content {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));
+  }
 }

@@ -27,7 +27,7 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
   }, [location.pathname]);
 
   return (
-    <div className="app">
+    <div className={`app ${currentAudiobook ? 'player-active' : ''}`}>
       <Navigation
         onLogout={onLogout}
         onOpenUpload={() => setShowUploadModal(true)}
