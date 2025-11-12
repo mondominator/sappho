@@ -12,7 +12,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     return saved ? parseFloat(saved) : 1
   });
   const [hasRestoredPosition, setHasRestoredPosition] = useState(false);
-  const [isNewLoad, setIsNewLoad] = useState(true);
+  const [isNewLoad, setIsNewLoad] = useState(() => {
+    // Check if this is a page refresh - if there's no saved audiobook, it's a new load
+    const savedAudiobookId = localStorage.getItem('currentAudiobookId');
+    return !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
+  });
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [chapters, setChapters] = useState([]);
   const [dragStartY, setDragStartY] = useState(0);
@@ -94,8 +98,16 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     if (audioRef.current) {
       audioRef.current.src = getStreamUrl(audiobook.id);
       audioRef.current.load();
-      setIsNewLoad(true); // Mark as a new load
+
+      // Check if this is a different audiobook than what was saved
+      const savedAudiobookId = localStorage.getItem('currentAudiobookId');
+      const isDifferentBook = !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
+
+      setIsNewLoad(isDifferentBook); // Mark as new load if different book
       setHasRestoredPosition(false); // Reset restoration flag
+
+      // Save current audiobook ID
+      localStorage.setItem('currentAudiobookId', audiobook.id.toString());
     }
 
     // Load chapters if multi-file audiobook
@@ -139,10 +151,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         setHasRestoredPosition(true);
 
         // Auto-play logic:
-        // - If this is a new load (user clicked to play a book), always auto-play
-        // - If this is a page refresh, resume if it was playing before
+        // - If this is a new load (user clicked to play a different book), always auto-play
+        // - If this is a page refresh of the same book, only resume if it was playing before
         const savedPlaying = localStorage.getItem('playerPlaying');
-        if (isNewLoad || savedPlaying === 'true') {
+        const shouldAutoPlay = isNewLoad || (savedPlaying === 'true');
+
+        if (shouldAutoPlay) {
           audioRef.current.play().then(() => {
             setPlaying(true);
             setIsNewLoad(false); // Clear the new load flag after first play
@@ -152,6 +166,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             setIsNewLoad(false);
           });
         } else {
+          // Paused state - don't auto-play
+          setPlaying(false);
           setIsNewLoad(false);
         }
       }
