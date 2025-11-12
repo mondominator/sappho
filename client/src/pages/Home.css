@@ -195,7 +195,16 @@
 
 @media (max-width: 768px) {
   .home-page {
-    padding: 1.5rem 1rem 5rem 1rem;
+    padding-top: 80px !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin: 0 !important;
+  }
+
+  .home-header {
+    margin-top: 0;
+    padding-top: 0.5rem;
   }
 
   .home-header h1 {
@@ -206,22 +215,40 @@
     font-size: 1.25rem;
   }
 
+  .horizontal-scroll {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
+    overflow-x: visible !important;
+    padding: 0 !important;
+  }
+
   .audiobook-card {
-    width: 30px;
-    height: 45px;
-    min-width: 30px;
-    flex: 0 0 30px;
+    width: 100% !important;
+    height: 0 !important;
+    padding-bottom: 100% !important;
+    min-width: unset !important;
+    flex: unset !important;
+    position: relative !important;
+  }
+
+  .audiobook-cover {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
   }
 
   .play-button {
-    width: 24px;
-    height: 24px;
+    width: 40px;
+    height: 40px;
   }
 
   .play-button::after {
-    border-left: 6px solid white;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
+    border-left: 12px solid white;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
   }
 
   .audiobook-cover-placeholder h3 {

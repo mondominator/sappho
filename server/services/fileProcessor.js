@@ -87,23 +87,47 @@ async function extractFileMetadata(filePath) {
     if (nativeTags.iTunes || nativeTags.MP4) {
       const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
 
-      // Look for series in various iTunes/MP4 tag fields
+      // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
       const seriesTag = mp4Tags.find(tag =>
         tag.id === '----:com.apple.iTunes:SERIES' ||
         tag.id === '----:com.apple.iTunes:series' ||
+        tag.id === '----:com.pilabor.tone:SERIES' || // Tone/AudiobookShelf
+        tag.id === '----:com.pilabor.tone:series' ||
+        tag.id === '©grp' || // Grouping tag (common for series)
         tag.id === 'tvsh' || // TV Show (sometimes used for series)
-        tag.id === '©st3' // Subtitle field (sometimes used for series)
+        tag.id === '©st3' || // Subtitle field (sometimes used for series)
+        tag.id === 'sosn' // Sort show name
       );
       if (seriesTag && seriesTag.value) {
         series = Array.isArray(seriesTag.value) ? seriesTag.value[0] : seriesTag.value;
+        if (typeof series === 'object' && series.text) {
+          series = series.text; // Handle Buffer/object values
+        }
+        if (Buffer.isBuffer(series)) {
+          series = series.toString('utf8');
+        }
+
+        // If series contains "#N" pattern, extract series name and position
+        // Example: "The Eden Chronicles #1" -> series: "The Eden Chronicles", position: 1
+        const seriesMatch = series.match(/^(.+?)\s*#(\d+(?:\.\d+)?)$/);
+        if (seriesMatch) {
+          series = seriesMatch[1].trim();
+          const pos = parseFloat(seriesMatch[2]);
+          if (!isNaN(pos) && !seriesPosition) {
+            seriesPosition = pos;
+          }
+        }
       }
 
       // Look for series position
       const posTag = mp4Tags.find(tag =>
         tag.id === '----:com.apple.iTunes:PART' ||
         tag.id === '----:com.apple.iTunes:part' ||
+        tag.id === '----:com.pilabor.tone:PART' || // Tone/AudiobookShelf
+        tag.id === '----:com.pilabor.tone:part' ||
         tag.id === 'tves' || // TV Episode
-        tag.id === 'tvsn' // TV Season (sometimes used for series position)
+        tag.id === 'tvsn' || // TV Season (sometimes used for series position)
+        tag.id === 'disk' // Disc number
       );
       if (posTag && posTag.value) {
         const val = Array.isArray(posTag.value) ? posTag.value[0] : posTag.value;
@@ -166,18 +190,52 @@ async function extractFileMetadata(filePath) {
     }
 
     // Extract narrator from various tag locations
-    let narrator = common.composer || null;
+    // Start with composer as default (standard audiobook field)
+    let narrator = null;
+    if (common.composer) {
+      if (Array.isArray(common.composer)) {
+        narrator = common.composer[0];
+      } else if (typeof common.composer === 'string') {
+        narrator = common.composer;
+      }
+    }
+
+    // Check MP4/iTunes tags for narrator (AudiobookShelf compatible)
+    // Only override composer if we find an explicit narrator tag
+    if (nativeTags.iTunes || nativeTags.MP4) {
+      const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
+
+      const narratorTag = mp4Tags.find(tag =>
+        tag.id === '----:com.apple.iTunes:NARRATOR' ||
+        tag.id === '----:com.apple.iTunes:narrator' ||
+        tag.id === '----:com.pilabor.tone:NARRATOR' || // Tone/AudiobookShelf
+        tag.id === '----:com.pilabor.tone:narrator' ||
+        tag.id === 'soaa' // Sort album artist (sometimes narrator)
+      );
+      if (narratorTag && narratorTag.value) {
+        const val = Array.isArray(narratorTag.value) ? narratorTag.value[0] : narratorTag.value;
+        if (typeof val === 'object' && val.text) {
+          narrator = val.text;
+        } else if (Buffer.isBuffer(val)) {
+          narrator = val.toString('utf8');
+        } else {
+          narrator = val;
+        }
+      }
+    }
 
     // Check ID3 tags for narrator
-    if (nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2']) {
+    if (!narrator && (nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2'])) {
       const id3Tags = nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2'] || [];
 
       // Look for narrator in TXXX:NARRATOR or similar
       const narratorTag = id3Tags.find(tag =>
         tag.id === 'TXXX:NARRATOR' ||
         tag.id === 'TXXX:Narrator' ||
+        tag.id === 'TXXX:narrator' ||
         tag.id === 'TPE3' || // Conductor/Performer refinement (sometimes used for narrator)
-        tag.id === 'TXXX:READER'
+        tag.id === 'TXXX:READER' ||
+        tag.id === 'TXXX:Reader'
       );
       if (narratorTag && narratorTag.value) {
         narrator = narratorTag.value;
@@ -185,7 +243,7 @@ async function extractFileMetadata(filePath) {
     }
 
     // Check vorbis comments for narrator
-    if (nativeTags.vorbis) {
+    if (!narrator && nativeTags.vorbis) {
       const vorbisNarratorTag = nativeTags.vorbis.find(tag =>
         tag.id === 'NARRATOR' ||
         tag.id === 'READER' ||

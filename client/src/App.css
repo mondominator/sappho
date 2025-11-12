@@ -9,7 +9,7 @@
 
 @media (max-width: 768px) {
   .app {
-    padding-bottom: 130px; /* 70px navbar + 60px player */
+    padding-bottom: 0;
   }
 
   .main-content {

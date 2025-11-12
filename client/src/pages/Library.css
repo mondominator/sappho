@@ -3,7 +3,12 @@
 }
 
 .library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .library-count {
@@ -11,6 +16,43 @@
   color: #fff;
   margin: 0;
   font-weight: 600;
+}
+
+.library-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.library-sort label {
+  color: #9ca3af;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.sort-select {
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+}
+
+.sort-select:hover {
+  border-color: #3b82f6;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .library-search {
@@ -230,15 +272,19 @@
 
 @media (max-width: 768px) {
   .library-page {
-    padding: 0;
+    padding-top: 130px !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin: 0 !important;
   }
 
   .library-search {
     position: fixed;
-    top: 0;
+    top: 48px;
     left: 0;
     right: 0;
-    z-index: 40;
+    z-index: 999;
     background: #1a1a1a;
     padding: 0.75rem 1rem;
     margin-bottom: 0;
@@ -249,29 +295,83 @@
     padding: 0.75rem 1rem;
     font-size: 0.9375rem;
     margin: 0;
+    width: 100%;
   }
 
   .library-header {
-    margin-top: 80px;
-    padding: 0 1rem;
-    margin-bottom: 1rem;
+    margin-top: 0;
+    padding: 1rem 1rem;
+    margin-bottom: 0.5rem;
   }
 
   .library-count {
     font-size: 1.125rem;
   }
 
-  .library-page .audiobook-grid {
-    padding: 0 0.75rem 5rem;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.5rem;
+  .library-page {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
-  .library-page .audiobook-card {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
-    border-radius: 6px;
+  .audiobook-grid {
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
+    padding: 0 0.75rem 1rem 0.75rem !important;
+    min-height: 100px !important;
+  }
+
+  .audiobook-card {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    height: 0 !important;
+    padding-bottom: 100% !important;
+    min-width: unset !important;
+    max-width: 100% !important;
+    position: relative !important;
+    border-radius: 6px !important;
+    flex: unset !important;
+    overflow: hidden !important;
+  }
+
+  .audiobook-cover {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .audiobook-cover img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  .audiobook-cover-placeholder {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .play-overlay {
+    display: flex !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
   }
 
   .play-button {

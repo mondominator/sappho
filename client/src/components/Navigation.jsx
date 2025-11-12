@@ -82,6 +82,16 @@ export default function Navigation({ onLogout, onOpenUpload }) {
     }
   }, []);
 
+  const getUserDisplayName = () => {
+    if (!user) return '';
+    return user.display_name || user.username || 'User';
+  };
+
+  const getUserInitials = () => {
+    const name = getUserDisplayName();
+    return name.charAt(0).toUpperCase();
+  };
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -100,8 +110,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
     <nav className="navigation">
       <div className="container nav-container">
         <Link to="/" className="nav-brand">
-          <img src="/logo.svg" alt="Sapho" className="nav-logo nav-logo-full" />
-          <img src="/icon-192.png" alt="Sapho" className="nav-logo nav-logo-icon" />
+          <img src="/logo.svg" alt="Sappho" className="nav-logo" />
         </Link>
 
         <div className="nav-links">
@@ -119,25 +128,22 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
             <span className="nav-link-text">Library</span>
           </Link>
-          <Link to="/series" className={`nav-link ${location.pathname === '/series' ? 'active' : ''}`} title="Series">
+          <Link to="/authors" className={`nav-link ${location.pathname === '/authors' || location.pathname.startsWith('/author/') ? 'active' : ''}`} title="Authors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span className="nav-link-text">Authors</span>
+          </Link>
+          <Link to="/series" className={`nav-link ${location.pathname === '/series' || location.pathname.startsWith('/series/') ? 'active' : ''}`} title="Series">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
             <span className="nav-link-text">Series</span>
           </Link>
-          <button
-            className="nav-link mobile-only cast-nav-button"
-            onClick={handleCastClick}
-            title="Cast"
-            type="button"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-              <line x1="2" y1="20" x2="2.01" y2="20"></line>
-            </svg>
-            <span className="nav-link-text">Cast</span>
-          </button>
           <button
             className="nav-link mobile-only more-button"
             onClick={(e) => {
@@ -165,11 +171,12 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                 className="user-button"
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                <span>{user.username}</span>
+                {user.avatar ? (
+                  <img src={user.avatar} alt={getUserDisplayName()} className="user-avatar" />
+                ) : (
+                  <div className="user-avatar-placeholder">{getUserInitials()}</div>
+                )}
+                <span>{getUserDisplayName()}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="dropdown-arrow">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
@@ -236,11 +243,12 @@ export default function Navigation({ onLogout, onOpenUpload }) {
         <div className="mobile-menu-container mobile-only">
           <div className="mobile-menu-dropdown">
             <div className="mobile-menu-header">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              <span>{user?.username}</span>
+              {user?.avatar ? (
+                <img src={user.avatar} alt={getUserDisplayName()} className="user-avatar-mobile" />
+              ) : (
+                <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
+              )}
+              <span>{getUserDisplayName()}</span>
             </div>
 
             <button onClick={() => { navigate('/profile'); setShowMobileMenu(false); }}>

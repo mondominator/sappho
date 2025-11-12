@@ -1,5 +1,24 @@
+// Service Worker - Unregister immediately
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          return caches.delete(cacheName);
+        })
+      );
+    }).then(() => {
+      return self.registration.unregister();
+    })
+  );
+});
+
 // Service Worker for Sapho PWA
-const CACHE_NAME = 'sapho-v1';
+const CACHE_NAME = 'sapho-v2025111217';
 const urlsToCache = [
   '/',
   '/index.html',

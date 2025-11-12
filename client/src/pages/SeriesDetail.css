@@ -181,6 +181,19 @@
 }
 
 @media (max-width: 768px) {
+  .series-detail-page {
+    padding-top: 80px !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin: 0 !important;
+  }
+
+  .back-button {
+    margin-top: 0;
+    padding-top: 0.5rem;
+  }
+
   .series-detail-name {
     font-size: 2rem;
   }
