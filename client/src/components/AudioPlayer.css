@@ -761,7 +761,7 @@
   /* Show time display and chapter indicator on desktop */
   .player-mobile-controls {
     display: flex !important;
-    gap: 12px;
+    gap: 24px;
     flex-shrink: 0;
     align-items: center;
     margin-left: auto;
@@ -776,7 +776,11 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .player-mobile-controls .chapter-indicator {
+  .chapter-indicator-mobile {
+    display: none !important;
+  }
+
+  .chapter-indicator-desktop {
     display: flex !important;
     font-size: 12px;
     padding: 6px 12px;
@@ -878,18 +882,18 @@
     margin: 0 !important;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3) !important;
     position: fixed !important;
-    height: calc(70px + env(safe-area-inset-bottom, 0)) !important;
-    max-height: calc(70px + env(safe-area-inset-bottom, 0)) !important;
+    height: calc(85px + env(safe-area-inset-bottom, 0)) !important;
+    max-height: calc(85px + env(safe-area-inset-bottom, 0)) !important;
     overflow: hidden !important;
     transform: none !important;
   }
 
   .player-info {
-    padding: 10px !important;
-    padding-top: 10px !important;
+    padding: 12px !important;
+    padding-top: 12px !important;
     margin-bottom: 0 !important;
     gap: 10px;
-    height: 70px !important;
+    height: 85px !important;
     box-sizing: border-box !important;
     align-items: center !important;
   }
@@ -909,6 +913,10 @@
     max-width: 100%;
   }
 
+  .player-series {
+    display: none !important;
+  }
+
   .player-author {
     font-size: 11px;
     white-space: nowrap;
@@ -926,6 +934,14 @@
   .chapter-indicator {
     font-size: 10px;
     padding: 3px 6px;
+  }
+
+  .chapter-indicator-desktop {
+    display: none !important;
+  }
+
+  .chapter-indicator-mobile {
+    display: flex !important;
   }
 
   .player-controls {
