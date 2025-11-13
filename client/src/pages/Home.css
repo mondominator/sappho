@@ -255,4 +255,20 @@
     font-size: 0.7rem;
     -webkit-line-clamp: 3;
   }
+
+  /* Make Continue Listening cards larger on mobile and scroll horizontally */
+  .continue-listening-section .horizontal-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 0.75rem !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  .continue-listening-section .audiobook-card {
+    width: 45vw !important;
+    min-width: 45vw !important;
+    height: 0 !important;
+    padding-bottom: 45vw !important;
+    flex-shrink: 0 !important;
+  }
 }

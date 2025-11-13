@@ -100,7 +100,7 @@ export default function Home({ onPlay }) {
   return (
     <div className="home-page">
       {inProgress.length > 0 && (
-        <div className="horizontal-section">
+        <div className="horizontal-section continue-listening-section">
           <h2>Continue Listening</h2>
           <div className="horizontal-scroll">
             {inProgress.map(renderBookCard)}
