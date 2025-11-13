@@ -1,9 +1,9 @@
 {
   "name": "Sappho",
   "short_name": "Sappho",
-  "version": "1.3.7",
+  "version": "1.4.5",
   "description": "Your personal audiobook library",
-  "start_url": "/?v=1.3.7",
+  "start_url": "/?v=1.4.5",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0a0e1a",
