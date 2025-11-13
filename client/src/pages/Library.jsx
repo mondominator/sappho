@@ -118,16 +118,6 @@ export default function Library({ onPlay }) {
 
   return (
     <div className="library-page container">
-      <div className="library-search">
-        <input
-          type="text"
-          className="input search-input"
-          placeholder="Search audiobooks..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
       {audiobooks.length === 0 ? (
         <div className="empty-state">
           <p>No audiobooks found.</p>

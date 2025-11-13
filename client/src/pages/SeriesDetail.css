@@ -182,7 +182,7 @@
 
 @media (max-width: 768px) {
   .series-detail-page {
-    padding-top: 80px !important;
+    padding-top: 100px !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;

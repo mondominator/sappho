@@ -272,7 +272,7 @@
 
 @media (max-width: 768px) {
   .library-page {
-    padding-top: 130px !important;
+    padding-top: 100px !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
