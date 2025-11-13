@@ -271,4 +271,20 @@
     padding-bottom: 45vw !important;
     flex-shrink: 0 !important;
   }
+
+  /* Make Up Next section scroll horizontally on mobile */
+  .up-next-section .horizontal-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 0.75rem !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  .up-next-section .audiobook-card {
+    width: 45vw !important;
+    min-width: 45vw !important;
+    height: 0 !important;
+    padding-bottom: 45vw !important;
+    flex-shrink: 0 !important;
+  }
 }
