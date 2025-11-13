@@ -272,19 +272,19 @@
     flex-shrink: 0 !important;
   }
 
-  /* Make Up Next section scroll horizontally on mobile */
+  /* Make Up Next section scroll horizontally on mobile with standard size */
   .up-next-section .horizontal-scroll {
     display: flex !important;
     overflow-x: auto !important;
-    gap: 0.75rem !important;
+    gap: 0.5rem !important;
     padding: 0.5rem 0 !important;
   }
 
   .up-next-section .audiobook-card {
-    width: 45vw !important;
-    min-width: 45vw !important;
+    width: calc(33.333vw - 0.5rem) !important;
+    min-width: calc(33.333vw - 0.5rem) !important;
     height: 0 !important;
-    padding-bottom: 45vw !important;
+    padding-bottom: calc(33.333vw - 0.5rem) !important;
     flex-shrink: 0 !important;
   }
 }
