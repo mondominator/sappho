@@ -106,6 +106,11 @@ function App() {
     window['__onGCastApiAvailable'] = (isAvailable) => {
       if (isAvailable) {
         try {
+          // Check if Cast API is actually available
+          if (!window.cast || !window.cast.framework || !window.chrome || !window.chrome.cast) {
+            console.warn('Cast API reported available but framework not found');
+            return;
+          }
           const castContext = window.cast.framework.CastContext.getInstance();
           castContext.setOptions({
             receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
