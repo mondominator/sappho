@@ -109,7 +109,7 @@ export default function Home({ onPlay }) {
       )}
 
       {upNext.length > 0 && (
-        <div className="horizontal-section">
+        <div className="horizontal-section up-next-section">
           <h2>Up Next</h2>
           <div className="horizontal-scroll">
             {upNext.map(renderBookCard)}
