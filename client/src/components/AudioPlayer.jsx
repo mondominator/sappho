@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getStreamUrl, updateProgress, getCoverUrl, getChapters } from '../api';
 import './AudioPlayer.css';
 
 const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
+  const navigate = useNavigate();
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -712,91 +714,96 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       )}
 
       {showFullscreen && (
-        <div
-          className="fullscreen-player"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          <div className="fullscreen-content" onClick={(e) => e.stopPropagation()}>
-            <div className="drag-handle fullscreen-drag-handle">
-              <div className="drag-handle-bar"></div>
-            </div>
-
-            <button className="fullscreen-close" onClick={() => setShowFullscreen(false)}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-
-            <div className="fullscreen-cover">
-              {audiobook.cover_image ? (
-                <img src={getCoverUrl(audiobook.id)} alt={audiobook.title} />
-              ) : (
-                <div className="fullscreen-cover-placeholder">{audiobook.title}</div>
-              )}
-            </div>
-
-            <div className="fullscreen-info">
-              <h2>{audiobook.title}</h2>
-              <p>{audiobook.author || 'Unknown Author'}</p>
-              {isCasting && (
-                <div className="casting-indicator">
-                  <span>📡</span>
-                  <span>Casting</span>
-                </div>
-              )}
-            </div>
-
-            <div className="fullscreen-controls-wrapper">
-              <div className="fullscreen-controls">
-              <button className="fullscreen-control-btn" onClick={skipBackward}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
+        <div className="fullscreen-player">
+          <div
+            className="fullscreen-player-top"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="fullscreen-content" onClick={(e) => e.stopPropagation()}>
+              <button className="fullscreen-close" onClick={() => setShowFullscreen(false)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
-                <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
               </button>
-              <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay}>
-                {playing ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                    <rect x="6" y="4" width="4" height="16"></rect>
-                    <rect x="14" y="4" width="4" height="16"></rect>
-                  </svg>
+
+              <div className="fullscreen-cover">
+                {audiobook.cover_image ? (
+                  <img src={getCoverUrl(audiobook.id)} alt={audiobook.title} />
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                    <polygon points="6 3 20 12 6 21 6 3"></polygon>
-                  </svg>
+                  <div className="fullscreen-cover-placeholder">{audiobook.title}</div>
                 )}
-              </button>
-              <button className="fullscreen-control-btn" onClick={skipForward}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-                  <path d="M21 3v5h-5"/>
-                </svg>
-                <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
-              </button>
+              </div>
+
+              <div className="fullscreen-info">
+                <h2 onClick={() => navigate(`/audiobook/${audiobook.id}`)} style={{ cursor: 'pointer' }}>{audiobook.title}</h2>
+                {audiobook.series && (
+                  <p className="series-info" onClick={() => navigate(`/series/${encodeURIComponent(audiobook.series)}`)} style={{ cursor: 'pointer', color: '#9ca3af', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                    {audiobook.series}{(audiobook.series_index || audiobook.series_position) ? ` • Book ${audiobook.series_index || audiobook.series_position}` : ''}
+                  </p>
+                )}
+                <p onClick={() => navigate(`/author/${encodeURIComponent(audiobook.author || 'Unknown Author')}`)} style={{ cursor: 'pointer' }}>{audiobook.author || 'Unknown Author'}</p>
+                {isCasting && (
+                  <div className="casting-indicator">
+                    <span>📡</span>
+                    <span>Casting</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="fullscreen-controls-wrapper">
+                <div className="fullscreen-controls">
+                <button className="fullscreen-control-btn" onClick={skipBackward}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                  </svg>
+                  <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
+                </button>
+                <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay}>
+                  {playing ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                      <rect x="6" y="4" width="4" height="16"></rect>
+                      <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                      <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                    </svg>
+                  )}
+                </button>
+                <button className="fullscreen-control-btn" onClick={skipForward}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                  </svg>
+                  <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
+                </button>
+                </div>
+              </div>
+
+              <div className="fullscreen-progress">
+                <div className="fullscreen-time">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={duration || 0}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="fullscreen-slider"
+                />
               </div>
             </div>
+          </div>
 
-            <div className="fullscreen-progress">
-              <div className="fullscreen-time">
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max={duration || 0}
-                value={currentTime}
-                onChange={handleSeek}
-                className="fullscreen-slider"
-              />
-            </div>
-
-            {audiobook.is_multi_file && chapters.length > 0 && (
+          {audiobook.is_multi_file && chapters.length > 0 && (
+            <div className="fullscreen-player-bottom">
               <div className="fullscreen-chapters">
-                <h3>Chapters</h3>
+                <h3 onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }} style={{ cursor: 'pointer' }}>Chapters</h3>
                 <div className="chapters-list">
                   {chapters.map((chapter, index) => {
                     const isActive = currentTime >= chapter.start_time && currentTime < (chapters[index + 1]?.start_time || duration);
@@ -818,8 +825,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   })}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
