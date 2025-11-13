@@ -308,10 +308,10 @@
   right: 1rem;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  background: #dc2626;
+  border-radius: 0;
+  background: transparent;
   border: none;
-  color: #fff;
+  color: #9ca3af;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -321,8 +321,7 @@
 }
 
 .fullscreen-close:hover {
-  background: #b91c1c;
-  transform: rotate(90deg);
+  color: #fff;
 }
 
 .fullscreen-cover {
@@ -595,8 +594,21 @@
   background: #374151;
 }
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
 .chapter-item.active {
-  background: #3b82f6;
+  background: transparent;
+}
+
+.chapter-item.active.playing {
+  animation: none;
 }
 
 .chapter-number {
@@ -614,6 +626,10 @@
 
 .chapter-item.active .chapter-number {
   background: #2563eb;
+}
+
+.chapter-item.active.playing .chapter-number {
+  animation: pulse 6s ease-in-out infinite;
 }
 
 .chapter-title {
@@ -712,7 +728,7 @@
 
   .player-mobile-controls {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-shrink: 0;
     align-items: center;
   }
@@ -720,25 +736,33 @@
   .mobile-time-display {
     display: block;
     font-size: 11px;
-    color: #9ca3af;
+    color: #d1d5db;
     white-space: nowrap;
-    margin-right: 8px;
+    margin-right: 6px;
+    margin-left: 6px;
   }
 
   .player-mobile-controls .control-btn {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     font-size: 14px;
-    opacity: 1;
+    opacity: 0.9;
     flex-shrink: 0;
-    border-radius: 50%;
-    background: #374151;
+    border-radius: 0;
+    background: transparent;
     color: #e5e7eb;
+    border: none;
   }
 
   .player-mobile-controls .control-btn:active {
-    background: #4b5563;
+    background: transparent;
+    opacity: 0.6;
+  }
+
+  .player-mobile-controls .control-btn svg {
+    width: 28px;
+    height: 28px;
   }
 
   .player-mobile-controls .play-btn {
@@ -747,10 +771,34 @@
     opacity: 1;
     background: #60a5fa;
     color: #fff;
+    border-radius: 50%;
+  }
+
+  .player-mobile-controls .play-btn.playing {
+    background: #10b981;
   }
 
   .player-mobile-controls .play-btn:active {
     background: #3b82f6;
+  }
+
+  .player-mobile-controls .play-btn.playing:active {
+    background: #059669;
+  }
+
+  .player-mobile-controls .control-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .player-mobile-controls .control-btn text {
+    position: absolute;
+    font-size: 10px;
+    font-weight: bold;
+    color: #e5e7eb;
+    pointer-events: none;
   }
 
   .player-mobile-controls .btn-close-mobile {
@@ -815,12 +863,12 @@
   }
 
   .fullscreen-content {
-    padding: 1rem;
+    padding: 3rem 1rem 1rem 1rem;
   }
 
   .fullscreen-cover {
-    width: 150px !important;
-    height: 150px !important;
+    width: 280px !important;
+    height: 280px !important;
   }
 
   .fullscreen-info h2 {
@@ -829,5 +877,42 @@
 
   .fullscreen-controls {
     gap: 1.5rem;
+  }
+
+  /* Match mobile player button styles in fullscreen */
+  .fullscreen-control-btn {
+    position: relative;
+    background: transparent !important;
+    opacity: 0.9;
+    width: 60px;
+    height: 60px;
+  }
+
+  .fullscreen-control-btn:active {
+    background: transparent !important;
+    opacity: 0.6;
+  }
+
+  .fullscreen-control-btn text {
+    color: #e5e7eb;
+  }
+
+  .fullscreen-play-btn {
+    background: #60a5fa !important;
+    opacity: 1;
+    width: 80px;
+    height: 80px;
+  }
+
+  .fullscreen-play-btn.playing {
+    background: #10b981 !important;
+  }
+
+  .fullscreen-play-btn:active {
+    background: #3b82f6 !important;
+  }
+
+  .fullscreen-play-btn.playing:active {
+    background: #059669 !important;
   }
 }
