@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobooks, getCoverUrl } from '../api';
+import { getAudiobooks, getCoverUrl, getProgress } from '../api';
 import './SeriesDetail.css';
 
 export default function SeriesDetail({ onPlay }) {
@@ -67,7 +67,16 @@ export default function SeriesDetail({ onPlay }) {
         <div className="play-overlay">
           <button
             className="play-button"
-            onClick={(e) => { e.stopPropagation(); onPlay(book); }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                const progressResponse = await getProgress(book.id);
+                onPlay(book, progressResponse.data);
+              } catch (error) {
+                console.error('Error loading progress:', error);
+                onPlay(book, null);
+              }
+            }}
             aria-label={`Play ${book.title}`}
           />
         </div>
