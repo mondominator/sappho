@@ -61,7 +61,18 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   // Initialize Google Cast
   useEffect(() => {
     const initializeCast = () => {
-      if (window.chrome && window.chrome.cast && window.chrome.cast.isAvailable) {
+      try {
+        // Check all required Cast API components exist
+        if (!window.chrome || !window.chrome.cast || !window.cast || !window.cast.framework) {
+          console.log('Cast framework not available, skipping initialization');
+          return;
+        }
+
+        if (!window.chrome.cast.isAvailable) {
+          console.log('Cast not available on this device');
+          return;
+        }
+
         const castContext = window.cast.framework.CastContext.getInstance();
         castContext.setOptions({
           receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
@@ -88,6 +99,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             }
           }
         );
+      } catch (error) {
+        console.error('Error initializing Cast:', error);
       }
     };
 
@@ -260,45 +273,52 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const loadMediaToCast = (session) => {
     if (!session) return;
 
-    const mediaInfo = new window.chrome.cast.media.MediaInfo(
-      getStreamUrl(audiobook.id),
-      'audio/mpeg'
-    );
+    try {
+      // Verify Cast API is available
+      if (!window.chrome || !window.chrome.cast || !window.cast || !window.cast.framework) {
+        console.error('Cast API not available for loading media');
+        return;
+      }
 
-    const metadata = new window.chrome.cast.media.GenericMediaMetadata();
-    metadata.title = audiobook.title;
-    metadata.subtitle = audiobook.author || 'Unknown Author';
-    if (audiobook.cover_image) {
-      metadata.images = [new window.chrome.cast.Image(getCoverUrl(audiobook.id))];
-    }
-    mediaInfo.metadata = metadata;
+      const mediaInfo = new window.chrome.cast.media.MediaInfo(
+        getStreamUrl(audiobook.id),
+        'audio/mpeg'
+      );
 
-    // Set current time if we have progress
-    mediaInfo.currentTime = currentTime || (progress ? progress.position : 0);
+      const metadata = new window.chrome.cast.media.GenericMediaMetadata();
+      metadata.title = audiobook.title;
+      metadata.subtitle = audiobook.author || 'Unknown Author';
+      if (audiobook.cover_image) {
+        metadata.images = [new window.chrome.cast.Image(getCoverUrl(audiobook.id))];
+      }
+      mediaInfo.metadata = metadata;
 
-    const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
-    request.autoplay = playing;
-    request.currentTime = mediaInfo.currentTime;
+      // Set current time if we have progress
+      mediaInfo.currentTime = currentTime || (progress ? progress.position : 0);
 
-    session.loadMedia(request).then(
-      () => {
-        console.log('Media loaded to Cast device');
-        const player = new window.cast.framework.RemotePlayer();
-        const playerController = new window.cast.framework.RemotePlayerController(player);
-        castPlayerRef.current = { player, playerController };
+      const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
+      request.autoplay = playing;
+      request.currentTime = mediaInfo.currentTime;
 
-        // Sync time from Cast device
-        playerController.addEventListener(
-          window.cast.framework.RemotePlayerEventType.CURRENT_TIME_CHANGED,
-          () => {
-            setCurrentTime(player.currentTime);
-          }
-        );
+      session.loadMedia(request).then(
+        () => {
+          console.log('Media loaded to Cast device');
+          const player = new window.cast.framework.RemotePlayer();
+          const playerController = new window.cast.framework.RemotePlayerController(player);
+          castPlayerRef.current = { player, playerController };
 
-        playerController.addEventListener(
-          window.cast.framework.RemotePlayerEventType.IS_PLAYING_CHANGED,
-          () => {
-            setPlaying(player.isPlaying);
+          // Sync time from Cast device
+          playerController.addEventListener(
+            window.cast.framework.RemotePlayerEventType.CURRENT_TIME_CHANGED,
+            () => {
+              setCurrentTime(player.currentTime);
+            }
+          );
+
+          playerController.addEventListener(
+            window.cast.framework.RemotePlayerEventType.IS_PLAYING_CHANGED,
+            () => {
+              setPlaying(player.isPlaying);
           }
         );
 
@@ -313,6 +333,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         console.error('Error loading media:', error);
       }
     );
+    } catch (error) {
+      console.error('Error in loadMediaToCast:', error);
+    }
   };
 
   const togglePlay = () => {
@@ -383,6 +406,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
 
     try {
+      // Verify Cast API is still available
+      if (!window.cast || !window.cast.framework) {
+        console.error('Cast framework not available');
+        alert('Cast is not available on this device');
+        return;
+      }
+
       const castContext = window.cast.framework.CastContext.getInstance();
       castContext.requestSession().then(
         () => {
