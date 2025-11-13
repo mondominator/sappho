@@ -13,6 +13,7 @@ import Settings from './pages/Settings'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
 import UploadModal from './components/UploadModal'
+import { getProgress } from './api'
 import './App.css'
 
 function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, currentAudiobook, setCurrentAudiobook, currentProgress, setCurrentProgress, playAudiobook }) {
@@ -140,6 +141,26 @@ function App() {
       localStorage.removeItem('currentProgress')
     }
   }, [currentProgress])
+
+  // Fetch latest progress from server on page load if there's a current audiobook
+  useEffect(() => {
+    const fetchLatestProgress = async () => {
+      if (currentAudiobook && currentAudiobook.id && token) {
+        try {
+          console.log('Fetching latest progress for audiobook:', currentAudiobook.id);
+          const progressResponse = await getProgress(currentAudiobook.id);
+          const latestProgress = progressResponse.data;
+          console.log('Latest progress from server:', latestProgress);
+          setCurrentProgress(latestProgress);
+        } catch (error) {
+          console.error('Error fetching latest progress on load:', error);
+          // Keep the cached progress if server fetch fails
+        }
+      }
+    };
+
+    fetchLatestProgress();
+  }, []); // Run only once on mount
 
   const handleLogin = (newToken) => {
     localStorage.setItem('token', newToken)

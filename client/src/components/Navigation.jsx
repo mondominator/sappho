@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import SearchModal from './SearchModal';
 import './Navigation.css';
 
 export default function Navigation({ onLogout, onOpenUpload }) {
@@ -8,6 +9,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
   const [user, setUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [castReady, setCastReady] = useState(false);
 
   // Check for Cast SDK availability
@@ -98,7 +100,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
       if (showUserMenu && !event.target.closest('.user-menu')) {
         setShowUserMenu(false);
       }
-      if (showMobileMenu && !event.target.closest('.mobile-menu-container') && !event.target.closest('.hamburger-button') && !event.target.closest('.more-button')) {
+      if (showMobileMenu && !event.target.closest('.mobile-menu-container') && !event.target.closest('.user-avatar-button')) {
         setShowMobileMenu(false);
       }
     };
@@ -107,13 +109,14 @@ export default function Navigation({ onLogout, onOpenUpload }) {
   }, [showUserMenu, showMobileMenu]);
 
   return (
+    <>
     <nav className="navigation">
       <div className="container nav-container">
         <Link to="/" className="nav-brand">
           <img src="/logo.svg" alt="Sappho" className="nav-logo" />
         </Link>
 
-        <div className="nav-links">
+        <div className="nav-links desktop-only">
           <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -144,39 +147,56 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
             <span className="nav-link-text">Series</span>
           </Link>
+        </div>
+
+        {/* Mobile primary nav - Search, Cast, and User Avatar */}
+        <div className="nav-links mobile-only mobile-nav-actions">
           <button
-            className="nav-link mobile-only search-button"
+            className="nav-link search-button no-background"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              // TODO: Implement search functionality
-              alert('Search functionality coming soon!');
+              setShowSearchModal(true);
             }}
             title="Search"
             type="button"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"/>
               <path d="m21 21-4.35-4.35"/>
             </svg>
-            <span className="nav-link-text">Search</span>
           </button>
           <button
-            className="nav-link mobile-only more-button"
+            className="nav-link cast-button no-background"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // TODO: Implement cast functionality
+              alert('Cast functionality coming soon!');
+            }}
+            title="Cast"
+            type="button"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+              <line x1="2" y1="20" x2="2.01" y2="20"></line>
+            </svg>
+          </button>
+          <button
+            className="user-avatar-button mobile-only"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setShowMobileMenu(!showMobileMenu);
             }}
-            title="More"
+            title="Menu"
             type="button"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="1"/>
-              <circle cx="12" cy="5" r="1"/>
-              <circle cx="12" cy="19" r="1"/>
-            </svg>
-            <span className="nav-link-text">More</span>
+            {user?.avatar ? (
+              <img src={user.avatar} alt={getUserDisplayName()} className="user-avatar-mobile" />
+            ) : (
+              <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
+            )}
           </button>
         </div>
 
@@ -308,5 +328,46 @@ export default function Navigation({ onLogout, onOpenUpload }) {
         </div>
       )}
     </nav>
+
+    {/* Mobile secondary navbar - Home, Library, Series, Authors */}
+    <nav className="navigation secondary-nav mobile-only">
+      <div className="container nav-container">
+        <div className="nav-links">
+          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span className="nav-link-text">Home</span>
+          </Link>
+          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            <span className="nav-link-text">Library</span>
+          </Link>
+          <Link to="/series" className={`nav-link ${location.pathname === '/series' || location.pathname.startsWith('/series/') ? 'active' : ''}`} title="Series">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+            <span className="nav-link-text">Series</span>
+          </Link>
+          <Link to="/authors" className={`nav-link ${location.pathname === '/authors' || location.pathname.startsWith('/author/') ? 'active' : ''}`} title="Authors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span className="nav-link-text">Authors</span>
+          </Link>
+        </div>
+      </div>
+    </nav>
+
+    <SearchModal isOpen={showSearchModal} onClose={() => setShowSearchModal(false)} />
+    </>
   );
 }

@@ -44,16 +44,6 @@ export default function SeriesList() {
 
   return (
     <div className="series-list-page container">
-      <div className="series-search">
-        <input
-          type="text"
-          className="input search-input"
-          placeholder="Search series..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
       {filteredSeries.length === 0 ? (
         <div className="empty-state">
           <p>No series found.</p>

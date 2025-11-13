@@ -179,6 +179,32 @@
   width: auto;
 }
 
+/* Secondary navbar for mobile */
+.secondary-nav {
+  top: 48px;
+  background: #151515;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.secondary-nav .nav-container {
+  padding: 6px 20px;
+  justify-content: center;
+}
+
+.secondary-nav .nav-links {
+  gap: 4px;
+  width: 100%;
+  justify-content: space-evenly;
+}
+
+.secondary-nav .nav-link {
+  flex: 1;
+  max-width: 120px;
+  justify-content: center;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
 /* Desktop/mobile visibility helpers */
 .desktop-only {
   display: flex;
@@ -264,24 +290,42 @@
 @media (max-width: 768px) {
   /* Keep navigation at top on mobile */
   .navigation {
-    top: 0;
     bottom: auto;
     border-bottom: 1px solid #2a2a2a;
     border-top: none;
     z-index: 1000;
+  }
+
+  .navigation:not(.secondary-nav) {
+    top: 0;
     height: 48px;
   }
 
-  .nav-container {
-    padding: 8px 20px;
+  .navigation.secondary-nav {
+    height: 38px;
+  }
+
+  .navigation:not(.secondary-nav) .nav-container {
+    padding: 8px 12px 8px 12px;
     justify-content: space-between;
     height: 100%;
+  }
+
+  .navigation.secondary-nav .nav-container {
+    padding: 6px 12px;
+  }
+
+  /* Mobile nav actions container */
+  .mobile-nav-actions {
+    gap: 6px;
+    padding-right: 0;
+    margin-right: 0;
   }
 
   /* Show logo on mobile - smaller size */
   .nav-brand {
     display: flex;
-    padding-left: 8px;
+    padding-left: 4px;
   }
 
   .nav-logo {
@@ -313,20 +357,45 @@
     height: 20px;
   }
 
-  /* Style More button like other nav links */
-  .nav-link.mobile-only {
+  /* Style search and cast buttons with no background */
+  .nav-link.search-button.no-background,
+  .nav-link.cast-button.no-background {
     background: transparent;
     border: none;
     cursor: pointer;
     color: #9ca3af;
-    transition: color 0.2s, background 0.2s;
+    transition: color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    padding: 8px;
+  }
+
+  .nav-link.search-button.no-background:hover,
+  .nav-link.search-button.no-background:active,
+  .nav-link.cast-button.no-background:hover,
+  .nav-link.cast-button.no-background:active {
+    color: #fff;
+    background: transparent;
+  }
+
+  /* User avatar button in navbar */
+  .user-avatar-button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    padding-right: 0;
+    margin-right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
 
-  .nav-link.mobile-only:hover,
-  .nav-link.mobile-only:active {
-    color: #fff;
-    background: #374151;
+  .user-avatar-button .user-avatar-mobile,
+  .user-avatar-button .user-avatar-placeholder-mobile {
+    width: 32px;
+    height: 32px;
+    margin-right: 0;
   }
 
   /* Hide desktop actions on mobile */

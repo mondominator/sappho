@@ -44,16 +44,6 @@ export default function AuthorsList() {
 
   return (
     <div className="authors-list-page container">
-      <div className="authors-search">
-        <input
-          type="text"
-          className="input search-input"
-          placeholder="Search authors..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
       {filteredAuthors.length === 0 ? (
         <div className="empty-state">
           <p>No authors found.</p>
