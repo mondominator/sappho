@@ -38,6 +38,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [castSession, setCastSession] = useState(null);
   const [castReady, setCastReady] = useState(false);
   const castPlayerRef = useRef(null);
+  const activeChapterRef = useRef(null);
 
   // Check for Cast SDK availability
   useEffect(() => {
@@ -544,6 +545,16 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }, [currentTime, chapters, audiobook.is_multi_file]);
 
+  // Scroll active chapter into view in fullscreen
+  useEffect(() => {
+    if (showFullscreen && activeChapterRef.current) {
+      activeChapterRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  }, [currentChapter, showFullscreen]);
+
   return (
     <div
       className="audio-player"
@@ -595,28 +606,30 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
           </div>
           <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="11 19 2 12 11 5 11 19"></polygon>
-              <polygon points="22 19 13 12 22 5 22 19"></polygon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
             </svg>
+            <text style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
           </button>
-          <button className="control-btn play-btn" onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+          <button className={`control-btn play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
             {playing ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                 <rect x="6" y="4" width="4" height="16"></rect>
                 <rect x="14" y="4" width="4" height="16"></rect>
               </svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <polygon points="6 3 20 12 6 21 6 3"></polygon>
               </svg>
             )}
           </button>
           <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="13 19 22 12 13 5 13 19"></polygon>
-              <polygon points="2 19 11 12 2 5 2 19"></polygon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
             </svg>
+            <text style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
           </button>
         </div>
       </div>
@@ -712,8 +725,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
             <button className="fullscreen-close" onClick={() => setShowFullscreen(false)}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
+                <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </button>
 
@@ -734,44 +746,35 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   <span>Casting</span>
                 </div>
               )}
-              {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
-                <div className="chapter-indicator" onClick={() => setShowChapterList(!showChapterList)}>
-                  <span>Chapter {currentChapter + 1}</span>
-                </div>
-              )}
             </div>
 
             <div className="fullscreen-controls-wrapper">
-              <button className="fullscreen-cast-btn" onClick={handleCastClick} title="Cast to device">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-                  <line x1="2" y1="20" x2="2.01" y2="20"></line>
-                </svg>
-              </button>
               <div className="fullscreen-controls">
               <button className="fullscreen-control-btn" onClick={skipBackward}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                  <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
                 </svg>
+                <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
               </button>
-              <button className="fullscreen-control-btn fullscreen-play-btn" onClick={togglePlay}>
+              <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay}>
                 {playing ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                     <rect x="6" y="4" width="4" height="16"></rect>
                     <rect x="14" y="4" width="4" height="16"></rect>
                   </svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                    <polygon points="6 3 20 12 6 21 6 3"></polygon>
                   </svg>
                 )}
               </button>
               <button className="fullscreen-control-btn" onClick={skipForward}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                  <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                  <path d="M21 3v5h-5"/>
                 </svg>
+                <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
               </button>
               </div>
             </div>
@@ -795,20 +798,24 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               <div className="fullscreen-chapters">
                 <h3>Chapters</h3>
                 <div className="chapters-list">
-                  {chapters.map((chapter, index) => (
-                    <div
-                      key={index}
-                      className={`chapter-item ${currentTime >= chapter.start_time && currentTime < (chapters[index + 1]?.start_time || duration) ? 'active' : ''}`}
-                      onClick={() => {
-                        audioRef.current.currentTime = chapter.start_time;
-                        setCurrentTime(chapter.start_time);
-                      }}
-                    >
-                      <span className="chapter-number">{index + 1}</span>
-                      <span className="chapter-title">{chapter.title}</span>
-                      <span className="chapter-time">{formatTime(chapter.start_time)}</span>
-                    </div>
-                  ))}
+                  {chapters.map((chapter, index) => {
+                    const isActive = currentTime >= chapter.start_time && currentTime < (chapters[index + 1]?.start_time || duration);
+                    return (
+                      <div
+                        key={index}
+                        ref={isActive ? activeChapterRef : null}
+                        className={`chapter-item ${isActive ? 'active' : ''} ${isActive && playing ? 'playing' : ''}`}
+                        onClick={() => {
+                          audioRef.current.currentTime = chapter.start_time;
+                          setCurrentTime(chapter.start_time);
+                        }}
+                      >
+                        <span className="chapter-number">{index + 1}</span>
+                        <span className="chapter-title">{chapter.title}</span>
+                        <span className="chapter-time">{formatTime(chapter.start_time)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
