@@ -158,8 +158,15 @@ function App() {
   }
 
   const playAudiobook = (audiobook, progress = null) => {
-    setCurrentAudiobook(audiobook)
-    setCurrentProgress(progress)
+    // If clicking the same book that's already loaded, we need to signal a play request
+    if (currentAudiobook && currentAudiobook.id === audiobook.id) {
+      // Create a new object reference to trigger re-render and include play signal
+      setCurrentAudiobook({ ...audiobook, _playRequested: Date.now() })
+      setCurrentProgress(progress)
+    } else {
+      setCurrentAudiobook(audiobook)
+      setCurrentProgress(progress)
+    }
   }
 
   if (!token) {

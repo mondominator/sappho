@@ -131,7 +131,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         const savedAudiobookId = localStorage.getItem('currentAudiobookId');
         const isDifferentBook = !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
 
-        setIsNewLoad(isDifferentBook); // Mark as new load if different book
+        // If _playRequested exists, treat this as a new play request
+        const isPlayRequest = audiobook._playRequested !== undefined;
+
+        setIsNewLoad(isDifferentBook || isPlayRequest); // Mark as new load if different book or play requested
         setHasRestoredPosition(false); // Reset restoration flag
 
         // Save current audiobook ID
@@ -147,7 +150,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         .then(response => setChapters(response.data || []))
         .catch(err => console.error('Error loading chapters:', err));
     }
-  }, [audiobook.id, audiobook.is_multi_file]);
+  }, [audiobook.id, audiobook.is_multi_file, audiobook._playRequested]);
 
   // Save playing state to localStorage
   useEffect(() => {
@@ -458,6 +461,17 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatTimeShort = (seconds) => {
+    if (isNaN(seconds)) return '0:00';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}`;
+    }
+    return `0:${minutes.toString().padStart(2, '0')}`;
+  };
+
   const handleClose = () => {
     // Stop playback and send stopped state when closing the player
     if (audioRef.current) {
@@ -556,6 +570,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             src={getCoverUrl(audiobook.id)}
             alt={audiobook.title}
             className="player-cover"
+            onClick={() => setShowFullscreen(true)}
+            style={{ cursor: 'pointer' }}
             onError={(e) => e.target.style.display = 'none'}
           />
         )}
@@ -575,12 +591,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           )}
         </div>
         <div className="player-mobile-controls">
-          <button className="control-btn cast-btn-mobile" onClick={handleCastClick} title="Cast to device">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-              <line x1="2" y1="20" x2="2.01" y2="20"></line>
-            </svg>
-          </button>
+          <div className="mobile-time-display" onClick={() => setShowFullscreen(true)} style={{ cursor: 'pointer' }}>
+            {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
+          </div>
           <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="11 19 2 12 11 5 11 19"></polygon>
@@ -644,7 +657,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </button>
       </div>
 
-      <div className="player-progress">
+      <div
+        className="player-progress"
+        style={{ '--progress-percent': `${duration ? (currentTime / duration) * 100 : 0}%` }}
+      >
         <span className="time-display">{formatTime(currentTime)}</span>
         <input
           type="range"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobooks, getCoverUrl } from '../api';
+import { getAudiobooks, getCoverUrl, getProgress } from '../api';
 import './AuthorDetail.css';
 
 export default function AuthorDetail({ onPlay }) {
@@ -103,7 +103,16 @@ export default function AuthorDetail({ onPlay }) {
                 <p className="audiobook-duration">{formatDuration(book.duration)}</p>
               </div>
               <div className="audiobook-actions">
-                <button className="btn btn-primary" onClick={() => onPlay(book)}>
+                <button className="btn btn-primary" onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const progressResponse = await getProgress(book.id);
+                    onPlay(book, progressResponse.data);
+                  } catch (error) {
+                    console.error('Error loading progress:', error);
+                    onPlay(book, null);
+                  }
+                }}>
                   Play
                 </button>
               </div>
