@@ -41,6 +41,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [castReady, setCastReady] = useState(false);
   const castPlayerRef = useRef(null);
   const activeChapterRef = useRef(null);
+  const progressBarRef = useRef(null);
+  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
 
   // Check for Cast SDK availability
   useEffect(() => {
@@ -532,6 +534,72 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     setDragOffset(0);
   };
 
+  // Progress bar drag handlers
+  const handleProgressMouseDown = (e) => {
+    setIsDraggingProgress(true);
+    handleProgressDrag(e);
+  };
+
+  const handleProgressTouchStart = (e) => {
+    setIsDraggingProgress(true);
+    handleProgressDrag(e.touches[0]);
+  };
+
+  const handleProgressDrag = (e) => {
+    if (!progressBarRef.current || !duration) return;
+
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const newTime = percentage * duration;
+
+    if (isCasting && castPlayerRef.current) {
+      const { player, playerController } = castPlayerRef.current;
+      player.currentTime = newTime;
+      playerController.seek();
+      setCurrentTime(newTime);
+    } else {
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleProgressMouseMove = (e) => {
+    if (!isDraggingProgress) return;
+    handleProgressDrag(e);
+  };
+
+  const handleProgressTouchMove = (e) => {
+    if (!isDraggingProgress) return;
+    e.preventDefault();
+    handleProgressDrag(e.touches[0]);
+  };
+
+  const handleProgressMouseUp = () => {
+    setIsDraggingProgress(false);
+  };
+
+  const handleProgressTouchEnd = () => {
+    setIsDraggingProgress(false);
+  };
+
+  // Add global event listeners for progress dragging
+  useEffect(() => {
+    if (isDraggingProgress) {
+      document.addEventListener('mousemove', handleProgressMouseMove);
+      document.addEventListener('mouseup', handleProgressMouseUp);
+      document.addEventListener('touchmove', handleProgressTouchMove, { passive: false });
+      document.addEventListener('touchend', handleProgressTouchEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleProgressMouseMove);
+        document.removeEventListener('mouseup', handleProgressMouseUp);
+        document.removeEventListener('touchmove', handleProgressTouchMove);
+        document.removeEventListener('touchend', handleProgressTouchEnd);
+      };
+    }
+  }, [isDraggingProgress, duration, isCasting]);
+
   // Update current chapter based on playback time
   useEffect(() => {
     if (!audiobook.is_multi_file || chapters.length === 0) return;
@@ -583,27 +651,44 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             src={getCoverUrl(audiobook.id)}
             alt={audiobook.title}
             className="player-cover"
-            onClick={() => setShowFullscreen(true)}
+            onClick={() => navigate(`/audiobook/${audiobook.id}`)}
             style={{ cursor: 'pointer' }}
             onError={(e) => e.target.style.display = 'none'}
           />
         )}
-        <div className="player-text" onClick={() => setShowFullscreen(true)} style={{ cursor: 'pointer' }}>
-          <div className="player-title">{audiobook.title}</div>
-          <div className="player-author">{audiobook.author || 'Unknown Author'}</div>
+        <div className="player-text">
+          <div className="player-title" onClick={() => navigate(`/audiobook/${audiobook.id}`)} style={{ cursor: 'pointer' }}>
+            {audiobook.title}
+          </div>
+          {audiobook.series && (
+            <div
+              className="player-series"
+              onClick={() => navigate(`/series/${encodeURIComponent(audiobook.series)}`)}
+              style={{ cursor: 'pointer' }}
+            >
+              {audiobook.series}{(audiobook.series_index || audiobook.series_position) ? ` • Book ${audiobook.series_index || audiobook.series_position}` : ''}
+            </div>
+          )}
+          <div
+            className="player-author"
+            onClick={() => navigate(`/author/${encodeURIComponent(audiobook.author || 'Unknown Author')}`)}
+            style={{ cursor: 'pointer' }}
+          >
+            {audiobook.author || 'Unknown Author'}
+          </div>
           {isCasting && (
             <div className="casting-indicator">
               <span>📡</span>
               <span>Casting</span>
             </div>
           )}
+        </div>
+        <div className="player-mobile-controls">
           {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
             <div className="chapter-indicator" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
               <span>Chapter {currentChapter + 1}</span>
             </div>
           )}
-        </div>
-        <div className="player-mobile-controls">
           <div className="mobile-time-display" onClick={() => setShowFullscreen(true)} style={{ cursor: 'pointer' }}>
             {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
           </div>
@@ -637,29 +722,31 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       </div>
 
       <div className="player-controls">
-        <button className="control-btn cast-control-btn" onClick={handleCastClick} title="Cast to device">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-            <line x1="2" y1="20" x2="2.01" y2="20"></line>
-          </svg>
-        </button>
         <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
-          ⏪
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+          <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
         </button>
-        <button className="control-btn play-btn" onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+        <button className={`control-btn play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
           {playing ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
               <rect x="6" y="4" width="4" height="16"></rect>
               <rect x="14" y="4" width="4" height="16"></rect>
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="6 3 20 12 6 21 6 3"></polygon>
             </svg>
           )}
         </button>
         <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
-          ⏩
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+          <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
         </button>
       </div>
 
@@ -673,9 +760,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       </div>
 
       <div
+        ref={progressBarRef}
         className="player-progress"
         style={{ '--progress-percent': `${duration ? (currentTime / duration) * 100 : 0}%` }}
+        onMouseDown={handleProgressMouseDown}
+        onTouchStart={handleProgressTouchStart}
       >
+        <div className="progress-thumb"></div>
         <span className="time-display">{formatTime(currentTime)}</span>
         <input
           type="range"
@@ -753,6 +844,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </div>
 
               <div className="fullscreen-controls-wrapper">
+                <button className="fullscreen-cast-btn" onClick={handleCastClick} title="Cast to device">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+                    <line x1="2" y1="20" x2="2.01" y2="20"></line>
+                  </svg>
+                </button>
                 <div className="fullscreen-controls">
                 <button className="fullscreen-control-btn" onClick={skipBackward}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

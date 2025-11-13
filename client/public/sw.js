@@ -18,7 +18,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // Service Worker for Sappho PWA
-const CACHE_NAME = 'sappho-v1.3.7';
+const CACHE_NAME = 'sappho-v1.4.5';
 const urlsToCache = [
   '/',
   '/index.html',
