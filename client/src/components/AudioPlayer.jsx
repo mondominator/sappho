@@ -682,10 +682,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               <span>Casting</span>
             </div>
           )}
+          {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
+            <div className="chapter-indicator chapter-indicator-mobile" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
+              <span>Chapter {currentChapter + 1}</span>
+            </div>
+          )}
         </div>
         <div className="player-mobile-controls">
           {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
-            <div className="chapter-indicator" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
+            <div className="chapter-indicator chapter-indicator-desktop" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
               <span>Chapter {currentChapter + 1}</span>
             </div>
           )}
@@ -844,12 +849,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </div>
 
               <div className="fullscreen-controls-wrapper">
-                <button className="fullscreen-cast-btn" onClick={handleCastClick} title="Cast to device">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-                    <line x1="2" y1="20" x2="2.01" y2="20"></line>
-                  </svg>
-                </button>
                 <div className="fullscreen-controls">
                 <button className="fullscreen-control-btn" onClick={skipBackward}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
