@@ -75,7 +75,10 @@ export default function Profile() {
       });
 
       alert('Profile updated successfully');
-      loadProfile();
+      await loadProfile();
+
+      // Dispatch a custom event to notify other components (like Navigation)
+      window.dispatchEvent(new CustomEvent('profileUpdated'));
     } catch (error) {
       console.error('Error saving profile:', error);
       alert(error.response?.data?.error || 'Failed to update profile');
@@ -95,6 +98,9 @@ export default function Profile() {
       setProfile({ ...profile, avatar: null });
       setAvatarPreview(null);
       alert('Avatar removed successfully');
+
+      // Dispatch event to notify other components
+      window.dispatchEvent(new CustomEvent('profileUpdated'));
     } catch (error) {
       console.error('Error removing avatar:', error);
       alert('Failed to remove avatar');

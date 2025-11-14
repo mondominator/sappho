@@ -35,26 +35,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [showChapterList, setShowChapterList] = useState(false);
+  const [showChapterModal, setShowChapterModal] = useState(false);
   const [currentChapter, setCurrentChapter] = useState(0);
-  const [isCasting, setIsCasting] = useState(false);
-  const [castSession, setCastSession] = useState(null);
-  const [castReady, setCastReady] = useState(false);
-  const castPlayerRef = useRef(null);
   const activeChapterRef = useRef(null);
   const progressBarRef = useRef(null);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
-
-  // Check for Cast SDK availability
-  useEffect(() => {
-    const checkCastReady = () => {
-      if (window.cast && window.cast.framework) {
-        setCastReady(true);
-      } else {
-        setTimeout(checkCastReady, 100);
-      }
-    };
-    checkCastReady();
-  }, []);
 
   // Expose closeFullscreen method to parent
   useImperativeHandle(ref, () => ({
@@ -62,64 +47,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       setShowFullscreen(false);
     }
   }));
-
-  // Initialize Google Cast
-  useEffect(() => {
-    const initializeCast = () => {
-      try {
-        // Check all required Cast API components exist
-        if (!window.chrome || !window.chrome.cast || !window.cast || !window.cast.framework) {
-          console.log('Cast framework not available, skipping initialization');
-          return;
-        }
-
-        if (!window.chrome.cast.isAvailable) {
-          console.log('Cast not available on this device');
-          return;
-        }
-
-        const castContext = window.cast.framework.CastContext.getInstance();
-        castContext.setOptions({
-          receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-          autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-        });
-
-        // Listen for cast state changes
-        castContext.addEventListener(
-          window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-          (event) => {
-            switch (event.sessionState) {
-              case window.cast.framework.SessionState.SESSION_STARTED:
-              case window.cast.framework.SessionState.SESSION_RESUMED:
-                const session = castContext.getCurrentSession();
-                setCastSession(session);
-                setIsCasting(true);
-                loadMediaToCast(session);
-                break;
-              case window.cast.framework.SessionState.SESSION_ENDED:
-                setIsCasting(false);
-                setCastSession(null);
-                castPlayerRef.current = null;
-                break;
-            }
-          }
-        );
-      } catch (error) {
-        console.error('Error initializing Cast:', error);
-      }
-    };
-
-    // Wait for Cast API to load
-    if (window.__onGCastApiAvailable) {
-      initializeCast();
-    } else {
-      window.__onGCastApiAvailable = (isAvailable) => {
-        if (isAvailable) {
-          initializeCast();
-        }
-      };
-    }
-  }, []);
 
   useEffect(() => {
     if (!audiobook || !audiobook.id) {
@@ -277,82 +204,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     return () => clearInterval(interval);
   }, [audiobook.id, playing]);
 
-  // Load media to Cast device
-  const loadMediaToCast = (session) => {
-    if (!session) return;
-
-    try {
-      // Verify Cast API is available
-      if (!window.chrome || !window.chrome.cast || !window.cast || !window.cast.framework) {
-        console.error('Cast API not available for loading media');
-        return;
-      }
-
-      const mediaInfo = new window.chrome.cast.media.MediaInfo(
-        getStreamUrl(audiobook.id),
-        'audio/mpeg'
-      );
-
-      const metadata = new window.chrome.cast.media.GenericMediaMetadata();
-      metadata.title = audiobook.title;
-      metadata.subtitle = audiobook.author || 'Unknown Author';
-      if (audiobook.cover_image) {
-        metadata.images = [new window.chrome.cast.Image(getCoverUrl(audiobook.id))];
-      }
-      mediaInfo.metadata = metadata;
-
-      // Set current time if we have progress
-      mediaInfo.currentTime = currentTime || (progress ? progress.position : 0);
-
-      const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
-      request.autoplay = playing;
-      request.currentTime = mediaInfo.currentTime;
-
-      session.loadMedia(request).then(
-        () => {
-          console.log('Media loaded to Cast device');
-          const player = new window.cast.framework.RemotePlayer();
-          const playerController = new window.cast.framework.RemotePlayerController(player);
-          castPlayerRef.current = { player, playerController };
-
-          // Sync time from Cast device
-          playerController.addEventListener(
-            window.cast.framework.RemotePlayerEventType.CURRENT_TIME_CHANGED,
-            () => {
-              setCurrentTime(player.currentTime);
-            }
-          );
-
-          playerController.addEventListener(
-            window.cast.framework.RemotePlayerEventType.IS_PLAYING_CHANGED,
-            () => {
-              setPlaying(player.isPlaying);
-          }
-        );
-
-        playerController.addEventListener(
-          window.cast.framework.RemotePlayerEventType.DURATION_CHANGED,
-          () => {
-            setDuration(player.duration);
-          }
-        );
-      },
-      (error) => {
-        console.error('Error loading media:', error);
-      }
-    );
-    } catch (error) {
-      console.error('Error in loadMediaToCast:', error);
-    }
-  };
-
   const togglePlay = () => {
-    if (isCasting && castPlayerRef.current) {
-      const { playerController } = castPlayerRef.current;
-      playerController.playOrPause();
-      return;
-    }
-
     if (playing) {
       audioRef.current.pause();
       // Send pause state immediately
@@ -371,77 +223,40 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
-
-    if (isCasting && castPlayerRef.current) {
-      const { player, playerController } = castPlayerRef.current;
-      player.currentTime = time;
-      playerController.seek();
-      setCurrentTime(time);
-    } else {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
-    }
+    audioRef.current.currentTime = time;
+    setCurrentTime(time);
   };
 
   const skipBackward = () => {
     const newTime = Math.max(0, currentTime - 15);
-
-    if (isCasting && castPlayerRef.current) {
-      const { player, playerController } = castPlayerRef.current;
-      player.currentTime = newTime;
-      playerController.seek();
-    } else {
-      audioRef.current.currentTime = newTime;
-    }
+    audioRef.current.currentTime = newTime;
   };
 
   const skipForward = () => {
-    const newTime = Math.min(duration, currentTime + 30);
-
-    if (isCasting && castPlayerRef.current) {
-      const { player, playerController } = castPlayerRef.current;
-      player.currentTime = newTime;
-      playerController.seek();
-    } else {
-      audioRef.current.currentTime = newTime;
-    }
+    const newTime = Math.min(duration, currentTime + 15);
+    audioRef.current.currentTime = newTime;
   };
 
-  const handleCastClick = () => {
-    if (!castReady) {
-      alert('Cast is initializing. Please wait a moment and try again.');
-      return;
-    }
+  const skipToPreviousChapter = () => {
+    if (!audiobook.is_multi_file || chapters.length === 0) return;
 
-    try {
-      // Verify Cast API is still available
-      if (!window.cast || !window.cast.framework) {
-        console.error('Cast framework not available');
-        alert('Cast is not available on this device');
-        return;
-      }
+    const prevChapter = Math.max(0, currentChapter - 1);
+    const newTime = chapters[prevChapter].start_time;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
 
-      const castContext = window.cast.framework.CastContext.getInstance();
-      castContext.requestSession().then(
-        () => {
-          console.log('Cast session started');
-        },
-        (error) => {
-          if (error !== 'cancel') {
-            console.error('Error starting cast session:', error);
-          }
-        }
-      );
-    } catch (error) {
-      console.error('Error opening cast dialog:', error);
-      alert('Error initializing Cast: ' + error.message);
-    }
+  const skipToNextChapter = () => {
+    if (!audiobook.is_multi_file || chapters.length === 0) return;
+
+    const nextChapter = Math.min(chapters.length - 1, currentChapter + 1);
+    const newTime = chapters[nextChapter].start_time;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
   };
 
   const handleTimeUpdate = () => {
-    if (!isCasting) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
+    setCurrentTime(audioRef.current.currentTime);
   };
 
   const handleLoadedMetadata = () => {
@@ -455,26 +270,38 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const formatTime = (seconds) => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds)) return '0m 0s';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
 
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${hours}h ${minutes}m ${secs}s`;
     }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return `${minutes}m ${secs}s`;
   };
 
   const formatTimeShort = (seconds) => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds)) return '0m 0s';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    }
+    return `${minutes}m ${secs}s`;
+  };
+
+  const formatTimeWithLabels = (seconds) => {
+    if (isNaN(seconds)) return '0 min';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
 
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}`;
+      return `${hours}h ${minutes} min`;
     }
-    return `0:${minutes.toString().padStart(2, '0')}`;
+    return `${minutes} min`;
   };
 
   const handleClose = () => {
@@ -498,6 +325,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     setDragStartY(e.touches[0].clientY);
     setDragCurrentY(e.touches[0].clientY);
     setIsDragging(true);
+
+    // Prevent pull-to-refresh when in fullscreen
+    if (showFullscreen) {
+      e.preventDefault();
+    }
   };
 
   const handleTouchMove = (e) => {
@@ -509,7 +341,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     const offset = currentY - dragStartY;
     setDragOffset(offset);
 
-    // Prevent default scrolling when in fullscreen
+    // Prevent default scrolling and pull-to-refresh when in fullscreen
     if (showFullscreen) {
       e.preventDefault();
     }
@@ -553,15 +385,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     const percentage = Math.max(0, Math.min(1, x / rect.width));
     const newTime = percentage * duration;
 
-    if (isCasting && castPlayerRef.current) {
-      const { player, playerController } = castPlayerRef.current;
-      player.currentTime = newTime;
-      playerController.seek();
-      setCurrentTime(newTime);
-    } else {
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
   };
 
   const handleProgressMouseMove = (e) => {
@@ -598,7 +423,37 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         document.removeEventListener('touchend', handleProgressTouchEnd);
       };
     }
-  }, [isDraggingProgress, duration, isCasting]);
+  }, [isDraggingProgress, duration]);
+
+  // Prevent pull-to-refresh when fullscreen player is open
+  useEffect(() => {
+    if (showFullscreen) {
+      let touchStartY = 0;
+
+      const handleTouchStartPrevent = (e) => {
+        touchStartY = e.touches[0].clientY;
+      };
+
+      const handleTouchMovePrevent = (e) => {
+        const touchY = e.touches[0].clientY;
+        const touchDelta = touchY - touchStartY;
+
+        // Only prevent if swiping down at the top of the scroll container
+        const fullscreenPlayer = document.querySelector('.fullscreen-player');
+        if (fullscreenPlayer && fullscreenPlayer.scrollTop === 0 && touchDelta > 0) {
+          e.preventDefault();
+        }
+      };
+
+      document.addEventListener('touchstart', handleTouchStartPrevent, { passive: false });
+      document.addEventListener('touchmove', handleTouchMovePrevent, { passive: false });
+
+      return () => {
+        document.removeEventListener('touchstart', handleTouchStartPrevent);
+        document.removeEventListener('touchmove', handleTouchMovePrevent);
+      };
+    }
+  }, [showFullscreen]);
 
   // Update current chapter based on playback time
   useEffect(() => {
@@ -651,60 +506,94 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             src={getCoverUrl(audiobook.id)}
             alt={audiobook.title}
             className="player-cover"
-            onClick={() => navigate(`/audiobook/${audiobook.id}`)}
-            style={{ cursor: 'pointer' }}
+            onClick={(e) => {
+              if (window.innerWidth > 768) {
+                navigate(`/audiobook/${audiobook.id}`);
+              } else {
+                setShowFullscreen(true);
+              }
+            }}
             onError={(e) => e.target.style.display = 'none'}
           />
         )}
         <div className="player-text">
-          <div className="player-title" onClick={() => navigate(`/audiobook/${audiobook.id}`)} style={{ cursor: 'pointer' }}>
-            {audiobook.title}
+          <div className="player-title" onClick={(e) => {
+            if (window.innerWidth > 768) {
+              navigate(`/audiobook/${audiobook.id}`);
+            } else {
+              setShowFullscreen(true);
+            }
+          }}>
+            <span className="marquee-content">
+              {audiobook.title}
+              <span className="marquee-spacer"> • </span>
+              {audiobook.title}
+            </span>
           </div>
           {audiobook.series && (
-            <div
-              className="player-series"
-              onClick={() => navigate(`/series/${encodeURIComponent(audiobook.series)}`)}
-              style={{ cursor: 'pointer' }}
-            >
+            <div className="player-series" onClick={(e) => {
+              if (window.innerWidth > 768) {
+                e.stopPropagation();
+                navigate(`/series/${encodeURIComponent(audiobook.series)}`);
+              } else {
+                setShowFullscreen(true);
+              }
+            }}>
               {audiobook.series}{(audiobook.series_index || audiobook.series_position) ? ` • Book ${audiobook.series_index || audiobook.series_position}` : ''}
             </div>
           )}
-          <div
-            className="player-author"
-            onClick={() => navigate(`/author/${encodeURIComponent(audiobook.author || 'Unknown Author')}`)}
-            style={{ cursor: 'pointer' }}
-          >
+          <div className="player-author" onClick={(e) => {
+            if (window.innerWidth > 768) {
+              e.stopPropagation();
+              navigate(`/author/${encodeURIComponent(audiobook.author || 'Unknown Author')}`);
+            } else {
+              setShowFullscreen(true);
+            }
+          }}>
             {audiobook.author || 'Unknown Author'}
           </div>
-          {isCasting && (
-            <div className="casting-indicator">
-              <span>📡</span>
-              <span>Casting</span>
+          <div className="player-metadata">
+            {audiobook.is_multi_file && chapters.length > 0 && (
+              <div className="metadata-chapter">
+                Chapter {currentChapter + 1}
+              </div>
+            )}
+            <div className="metadata-time">
+              {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
             </div>
-          )}
-          {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
-            <div className="chapter-indicator chapter-indicator-mobile" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
-              <span>Chapter {currentChapter + 1}</span>
-            </div>
-          )}
-        </div>
-        <div className="player-mobile-controls">
-          {!isCasting && audiobook.is_multi_file && chapters.length > 0 && (
-            <div className="chapter-indicator chapter-indicator-desktop" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
-              <span>Chapter {currentChapter + 1}</span>
-            </div>
-          )}
-          <div className="mobile-time-display" onClick={() => setShowFullscreen(true)} style={{ cursor: 'pointer' }}>
-            {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
           </div>
-          <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-            </svg>
-            <text style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
-          </button>
-          <button className={`control-btn play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+        </div>
+        <div className="player-mobile-controls" onClick={(e) => e.stopPropagation()}>
+          <div className="mobile-time-display">
+            {audiobook.is_multi_file && chapters.length > 0 && (
+              <div className="chapter-indicator chapter-indicator-mobile-time">
+                <span>Chapter {currentChapter + 1}</span>
+              </div>
+            )}
+            <div>{formatTimeShort(currentTime)} / {formatTimeShort(duration)}</div>
+            {audiobook.is_multi_file && chapters.length > 0 && (
+              <div className="chapter-indicator chapter-indicator-desktop" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
+                <span>Chapter {currentChapter + 1}</span>
+              </div>
+            )}
+          </div>
+          {audiobook.is_multi_file && chapters.length > 0 && (
+            <>
+              <button className="control-btn chapter-skip-btn" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                  <line x1="5" y1="19" x2="5" y2="5"></line>
+                </svg>
+              </button>
+              <button className="control-btn chapter-skip-btn" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                  <line x1="19" y1="5" x2="19" y2="19"></line>
+                </svg>
+              </button>
+            </>
+          )}
+          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
             {playing ? (
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                 <rect x="6" y="4" width="4" height="16"></rect>
@@ -716,17 +605,18 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </svg>
             )}
           </button>
-          <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-              <path d="M21 3v5h-5"/>
-            </svg>
-            <text style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
-          </button>
         </div>
       </div>
 
       <div className="player-controls">
+        {audiobook.is_multi_file && chapters.length > 0 && (
+          <button className="control-btn chapter-skip-desktop" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="19 20 9 12 19 4 19 20"></polygon>
+              <line x1="5" y1="19" x2="5" y2="5"></line>
+            </svg>
+          </button>
+        )}
         <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -746,13 +636,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             </svg>
           )}
         </button>
-        <button className="control-btn" onClick={skipForward} title="Skip forward 30 seconds">
+        <button className="control-btn" onClick={skipForward} title="Skip forward 15 seconds">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
             <path d="M21 3v5h-5"/>
           </svg>
-          <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
+          <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
         </button>
+        {audiobook.is_multi_file && chapters.length > 0 && (
+          <button className="control-btn chapter-skip-desktop" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 4 15 12 5 20 5 4"></polygon>
+              <line x1="19" y1="5" x2="19" y2="19"></line>
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="player-actions">
@@ -840,22 +738,24 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   </p>
                 )}
                 <p onClick={() => navigate(`/author/${encodeURIComponent(audiobook.author || 'Unknown Author')}`)} style={{ cursor: 'pointer' }}>{audiobook.author || 'Unknown Author'}</p>
-                {isCasting && (
-                  <div className="casting-indicator">
-                    <span>📡</span>
-                    <span>Casting</span>
-                  </div>
-                )}
               </div>
 
               <div className="fullscreen-controls-wrapper">
                 <div className="fullscreen-controls">
+                {audiobook.is_multi_file && chapters.length > 0 && (
+                  <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={skipToPreviousChapter} disabled={currentChapter === 0}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                      <line x1="5" y1="19" x2="5" y2="5"></line>
+                    </svg>
+                  </button>
+                )}
                 <button className="fullscreen-control-btn" onClick={skipBackward}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                     <path d="M3 3v5h5"/>
                   </svg>
-                  <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
+                  <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
                 </button>
                 <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay}>
                   {playing ? (
@@ -874,8 +774,16 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                     <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                     <path d="M21 3v5h-5"/>
                   </svg>
-                  <text style={{ position: 'absolute', fontSize: '14px', fontWeight: 'bold', pointerEvents: 'none' }}>30</text>
+                  <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
                 </button>
+                {audiobook.is_multi_file && chapters.length > 0 && (
+                  <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                      <line x1="19" y1="5" x2="19" y2="19"></line>
+                    </svg>
+                  </button>
+                )}
                 </div>
               </div>
 
@@ -893,29 +801,52 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   className="fullscreen-slider"
                 />
               </div>
+
+              {audiobook.is_multi_file && chapters.length > 0 && (
+                <button className="fullscreen-chapter-btn" onClick={() => setShowChapterModal(true)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                  </svg>
+                  <span>Chapter {currentChapter + 1}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {audiobook.is_multi_file && chapters.length > 0 && (
-            <div className="fullscreen-player-bottom">
-              <div className="fullscreen-chapters">
-                <h3 onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }} style={{ cursor: 'pointer' }}>Chapters</h3>
-                <div className="chapters-list">
+          {showChapterModal && audiobook.is_multi_file && chapters.length > 0 && (
+            <div className="chapter-modal-overlay" onClick={() => setShowChapterModal(false)}>
+              <div className="chapter-modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="chapter-modal-header">
+                  <h3>Chapters</h3>
+                  <button className="chapter-modal-close" onClick={() => setShowChapterModal(false)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <div className="chapter-modal-list">
                   {chapters.map((chapter, index) => {
                     const isActive = currentTime >= chapter.start_time && currentTime < (chapters[index + 1]?.start_time || duration);
                     return (
                       <div
                         key={index}
                         ref={isActive ? activeChapterRef : null}
-                        className={`chapter-item ${isActive ? 'active' : ''} ${isActive && playing ? 'playing' : ''}`}
+                        className={`chapter-modal-item ${isActive ? 'active' : ''}`}
                         onClick={() => {
                           audioRef.current.currentTime = chapter.start_time;
                           setCurrentTime(chapter.start_time);
+                          setShowChapterModal(false);
                         }}
                       >
-                        <span className="chapter-number">{index + 1}</span>
-                        <span className="chapter-title">{chapter.title}</span>
-                        <span className="chapter-time">{formatTime(chapter.start_time)}</span>
+                        <span className="chapter-modal-number">{index + 1}</span>
+                        <span className="chapter-modal-title">{chapter.title}</span>
+                        <span className="chapter-modal-time">{formatTime(chapter.start_time)}</span>
                       </div>
                     );
                   })}

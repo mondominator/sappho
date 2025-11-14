@@ -112,6 +112,9 @@ export const getInProgress = (limit = 10) =>
 export const getUpNext = (limit = 10) =>
   api.get('/audiobooks/meta/up-next', { params: { limit } });
 
+export const getFinished = (limit = 10) =>
+  api.get('/audiobooks/meta/finished', { params: { limit } });
+
 // API Keys
 export const getApiKeys = () =>
   api.get('/api-keys');

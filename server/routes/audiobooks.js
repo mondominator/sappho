@@ -431,7 +431,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
     `SELECT a.*, p.position as progress_position, p.completed as progress_completed, p.updated_at as last_played
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
-     WHERE p.user_id = ? AND p.completed = 0 AND p.position > 0
+     WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 20
      ORDER BY p.updated_at DESC
      LIMIT ?`,
     [req.user.id, limit],
@@ -466,7 +466,7 @@ router.get('/meta/in-progress/all', authenticateToken, (req, res) => {
     `SELECT a.*, p.position, p.updated_at as last_played, p.user_id
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
-     WHERE p.completed = 0 AND p.position > 0
+     WHERE p.completed = 0 AND p.position >= 20
      ORDER BY p.updated_at DESC
      LIMIT ?`,
     [limit],
@@ -501,8 +501,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
          FROM audiobooks a2
          INNER JOIN playback_progress p2 ON a2.id = p2.audiobook_id
          WHERE p2.user_id = ?
-         AND p2.completed = 0
-         AND p2.position > 0
+         AND (p2.completed = 1 OR p2.position > 0)
          AND a2.series = a.series
          AND COALESCE(a2.series_index, a2.series_position, 0) < COALESCE(a.series_index, a.series_position, 0)
        )
@@ -526,6 +525,41 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
           position: book.progress_position,
           completed: book.progress_completed
         } : null
+      }));
+      transformedAudiobooks.forEach(b => {
+        delete b.progress_position;
+        delete b.progress_completed;
+      });
+
+      res.json(transformedAudiobooks);
+    }
+  );
+});
+
+// Get finished audiobooks (completed = 1) in random order
+router.get('/meta/finished', authenticateToken, (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+
+  db.all(
+    `SELECT a.*, p.position as progress_position, p.completed as progress_completed
+     FROM audiobooks a
+     INNER JOIN playback_progress p ON a.id = p.audiobook_id
+     WHERE p.user_id = ? AND p.completed = 1
+     ORDER BY RANDOM()
+     LIMIT ?`,
+    [req.user.id, limit],
+    (err, audiobooks) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // Transform progress fields into nested object
+      const transformedAudiobooks = audiobooks.map(book => ({
+        ...book,
+        progress: {
+          position: book.progress_position,
+          completed: book.progress_completed
+        }
       }));
       transformedAudiobooks.forEach(b => {
         delete b.progress_position;

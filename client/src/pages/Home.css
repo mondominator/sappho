@@ -57,8 +57,8 @@
 .audiobook-card {
   position: relative;
   flex-shrink: 0;
-  width: 180px;
-  height: 180px;
+  width: 135px;
+  height: 135px;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
@@ -125,6 +125,11 @@
   background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
   box-shadow: 0 0 12px rgba(20, 184, 166, 0.6);
   transition: width 0.3s ease;
+}
+
+.progress-bar-fill.completed {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
 }
 
 .play-overlay {
@@ -195,7 +200,7 @@
 
 @media (max-width: 768px) {
   .home-page {
-    padding-top: 100px !important;
+    padding-top: 60px !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -281,6 +286,38 @@
   }
 
   .up-next-section .audiobook-card {
+    width: calc(33.333vw - 0.5rem) !important;
+    min-width: calc(33.333vw - 0.5rem) !important;
+    height: 0 !important;
+    padding-bottom: calc(33.333vw - 0.5rem) !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Make Recently Added section scroll horizontally on mobile with standard size */
+  .recently-added-section .horizontal-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  .recently-added-section .audiobook-card {
+    width: calc(33.333vw - 0.5rem) !important;
+    min-width: calc(33.333vw - 0.5rem) !important;
+    height: 0 !important;
+    padding-bottom: calc(33.333vw - 0.5rem) !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Make Listen Again section scroll horizontally on mobile with standard size */
+  .listen-again-section .horizontal-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  .listen-again-section .audiobook-card {
     width: calc(33.333vw - 0.5rem) !important;
     min-width: calc(33.333vw - 0.5rem) !important;
     height: 0 !important;
