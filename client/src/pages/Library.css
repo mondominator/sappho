@@ -18,6 +18,100 @@
   font-weight: 600;
 }
 
+.back-button {
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-button:hover {
+  background: #374151;
+  border-color: #3b82f6;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.category-card {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.category-card:hover {
+  transform: translateY(-4px);
+  border-color: #3b82f6;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
+}
+
+.category-icon {
+  color: #60a5fa;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.category-card h3 {
+  font-size: 1.25rem;
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+}
+
+.category-card p {
+  font-size: 0.95rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.list-item {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.list-item:hover {
+  background: #374151;
+  border-color: #3b82f6;
+  transform: translateX(4px);
+}
+
+.list-item h3 {
+  font-size: 1.125rem;
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+}
+
+.list-item p {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
 .library-sort {
   display: flex;
   align-items: center;
@@ -272,7 +366,7 @@
 
 @media (max-width: 768px) {
   .library-page {
-    padding-top: 100px !important;
+    padding-top: 60px !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
@@ -388,5 +482,26 @@
   .audiobook-cover-placeholder h3 {
     font-size: 0.7rem;
     -webkit-line-clamp: 3;
+  }
+
+  .category-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 1rem;
+  }
+
+  .category-card {
+    padding: 1.5rem;
+  }
+
+  .list-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 0 1rem;
+  }
+
+  .back-button {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
   }
 }

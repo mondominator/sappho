@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getProgress } from '../api';
+import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress } from '../api';
 import './Home.css';
 
 export default function Home({ onPlay }) {
@@ -8,6 +8,7 @@ export default function Home({ onPlay }) {
   const [recentlyAdded, setRecentlyAdded] = useState([]);
   const [inProgress, setInProgress] = useState([]);
   const [upNext, setUpNext] = useState([]);
+  const [finished, setFinished] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -42,9 +43,15 @@ export default function Home({ onPlay }) {
         return { data: [] };
       });
 
+      const finishedResponse = await getFinished(10).catch(err => {
+        console.error('Error loading finished:', err);
+        return { data: [] };
+      });
+
       setRecentlyAdded(recentResponse.data);
       setInProgress(progressResponse.data);
       setUpNext(upNextResponse.data);
+      setFinished(finishedResponse.data);
     } catch (error) {
       console.error('Error loading special sections:', error);
     } finally {
@@ -74,11 +81,11 @@ export default function Home({ onPlay }) {
             <h3>{book.title}</h3>
           </div>
         )}
-        {book.progress && book.progress.position > 0 && book.duration && (
+        {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
           <div className="progress-bar-overlay">
             <div
-              className="progress-bar-fill"
-              style={{ width: `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+              className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
+              style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
             />
           </div>
         )}
@@ -118,15 +125,24 @@ export default function Home({ onPlay }) {
       )}
 
       {recentlyAdded.length > 0 && (
-        <div className="horizontal-section">
+        <div className="horizontal-section recently-added-section">
           <h2>Recently Added</h2>
           <div className="horizontal-scroll">
-            {(isMobile ? recentlyAdded.slice(0, 9) : recentlyAdded).map(renderBookCard)}
+            {recentlyAdded.map(renderBookCard)}
           </div>
         </div>
       )}
 
-      {inProgress.length === 0 && recentlyAdded.length === 0 && upNext.length === 0 && (
+      {finished.length > 0 && (
+        <div className="horizontal-section listen-again-section">
+          <h2>Listen Again</h2>
+          <div className="horizontal-scroll">
+            {finished.map(renderBookCard)}
+          </div>
+        </div>
+      )}
+
+      {inProgress.length === 0 && recentlyAdded.length === 0 && upNext.length === 0 && finished.length === 0 && (
         <div className="empty-state">
           <p>No audiobooks found.</p>
           <p>Upload some audiobooks or drop them in the watch directory!</p>

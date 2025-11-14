@@ -11,40 +11,39 @@ export default function Navigation({ onLogout, onOpenUpload }) {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [castReady, setCastReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Check for Cast SDK availability
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 50; // 5 seconds
+    const maxAttempts = 30; // 3 seconds
+    let timeoutId;
 
     const checkCastReady = () => {
       attempts++;
-      console.log(`Cast check attempt ${attempts}, cast available:`, !!window.cast, 'framework:', !!(window.cast?.framework));
 
       if (window.cast && window.cast.framework) {
-        console.log('Cast SDK is ready!');
         setCastReady(true);
         return;
       }
 
       if (attempts < maxAttempts) {
-        setTimeout(checkCastReady, 100);
-      } else {
-        console.error('Cast SDK failed to load after 5 seconds');
+        timeoutId = setTimeout(checkCastReady, 100);
       }
+      // Silently fail if Cast SDK doesn't load - it's an optional feature
     };
 
     window['__onGCastApiAvailable'] = (isAvailable) => {
-      console.log('__onGCastApiAvailable called, available:', isAvailable);
       if (isAvailable) {
         setCastReady(true);
       }
     };
 
-    // Check if script is loaded
-    console.log('Cast script loaded:', !!document.querySelector('script[src*="cast_sender.js"]'));
-
     checkCastReady();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleCastClick = () => {
@@ -71,17 +70,48 @@ export default function Navigation({ onLogout, onOpenUpload }) {
     }
   };
 
-  useEffect(() => {
-    // Decode JWT to get user info
+  const loadUserProfile = () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         setUser(payload);
+
+        // Fetch user profile to get avatar
+        fetch('/api/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+          .then(res => res.json())
+          .then(profile => {
+            console.log('Profile data:', profile);
+            setUser(prev => ({
+              ...prev,
+              avatar: profile.avatar ? `/api/profile/avatar?token=${encodeURIComponent(token)}&t=${Date.now()}` : null,
+              display_name: profile.display_name
+            }));
+          })
+          .catch(err => console.error('Error fetching profile:', err));
       } catch (error) {
         console.error('Error decoding token:', error);
       }
     }
+  };
+
+  useEffect(() => {
+    loadUserProfile();
+
+    // Listen for profile updates
+    const handleProfileUpdate = () => {
+      loadUserProfile();
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
   }, []);
 
   const getUserDisplayName = () => {
@@ -131,26 +161,37 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
             <span className="nav-link-text">Library</span>
           </Link>
-          <Link to="/authors" className={`nav-link ${location.pathname === '/authors' || location.pathname.startsWith('/author/') ? 'active' : ''}`} title="Authors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          <div className="nav-search-container">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-search-icon">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
             </svg>
-            <span className="nav-link-text">Authors</span>
-          </Link>
-          <Link to="/series" className={`nav-link ${location.pathname === '/series' || location.pathname.startsWith('/series/') ? 'active' : ''}`} title="Series">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
-            <span className="nav-link-text">Series</span>
-          </Link>
+            <input
+              type="text"
+              className="nav-search-input"
+              placeholder="Search audiobooks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setShowSearchModal(true)}
+              onClick={() => setShowSearchModal(true)}
+            />
+          </div>
         </div>
 
-        {/* Mobile primary nav - Search, Cast, and User Avatar */}
+        {/* Mobile primary nav - Home, Library, Search, and User Avatar */}
         <div className="nav-links mobile-only mobile-nav-actions">
+          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </Link>
+          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </Link>
           <button
             className="nav-link search-button no-background"
             onClick={(e) => {
@@ -167,22 +208,6 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             </svg>
           </button>
           <button
-            className="nav-link cast-button no-background"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // TODO: Implement cast functionality
-              alert('Cast functionality coming soon!');
-            }}
-            title="Cast"
-            type="button"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-              <line x1="2" y1="20" x2="2.01" y2="20"></line>
-            </svg>
-          </button>
-          <button
             className="user-avatar-button mobile-only"
             onClick={(e) => {
               e.preventDefault();
@@ -193,7 +218,15 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             type="button"
           >
             {user?.avatar ? (
-              <img src={user.avatar} alt={getUserDisplayName()} className="user-avatar-mobile" />
+              <img
+                src={user.avatar}
+                alt={getUserDisplayName()}
+                className="user-avatar-mobile"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = `<div class="user-avatar-placeholder-mobile">${getUserInitials()}</div>`;
+                }}
+              />
             ) : (
               <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
             )}
@@ -209,7 +242,18 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
                 {user.avatar ? (
-                  <img src={user.avatar} alt={getUserDisplayName()} className="user-avatar" />
+                  <img
+                    src={user.avatar}
+                    alt={getUserDisplayName()}
+                    className="user-avatar"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      const placeholder = document.createElement('div');
+                      placeholder.className = 'user-avatar-placeholder';
+                      placeholder.textContent = getUserInitials();
+                      e.target.parentElement.insertBefore(placeholder, e.target.nextSibling);
+                    }}
+                  />
                 ) : (
                   <div className="user-avatar-placeholder">{getUserInitials()}</div>
                 )}
@@ -281,7 +325,18 @@ export default function Navigation({ onLogout, onOpenUpload }) {
           <div className="mobile-menu-dropdown">
             <div className="mobile-menu-header">
               {user?.avatar ? (
-                <img src={user.avatar} alt={getUserDisplayName()} className="user-avatar-mobile" />
+                <img
+                  src={user.avatar}
+                  alt={getUserDisplayName()}
+                  className="user-avatar-mobile"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'user-avatar-placeholder-mobile';
+                    placeholder.textContent = getUserInitials();
+                    e.target.parentElement.insertBefore(placeholder, e.target.nextSibling);
+                  }}
+                />
               ) : (
                 <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
               )}
@@ -327,44 +382,6 @@ export default function Navigation({ onLogout, onOpenUpload }) {
           </div>
         </div>
       )}
-    </nav>
-
-    {/* Mobile secondary navbar - Home, Library, Series, Authors */}
-    <nav className="navigation secondary-nav mobile-only">
-      <div className="container nav-container">
-        <div className="nav-links">
-          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            <span className="nav-link-text">Home</span>
-          </Link>
-          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-            <span className="nav-link-text">Library</span>
-          </Link>
-          <Link to="/series" className={`nav-link ${location.pathname === '/series' || location.pathname.startsWith('/series/') ? 'active' : ''}`} title="Series">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
-            <span className="nav-link-text">Series</span>
-          </Link>
-          <Link to="/authors" className={`nav-link ${location.pathname === '/authors' || location.pathname.startsWith('/author/') ? 'active' : ''}`} title="Authors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-            <span className="nav-link-text">Authors</span>
-          </Link>
-        </div>
-      </div>
     </nav>
 
     <SearchModal isOpen={showSearchModal} onClose={() => setShowSearchModal(false)} />
