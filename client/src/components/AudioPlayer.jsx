@@ -204,6 +204,66 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     return () => clearInterval(interval);
   }, [audiobook.id, playing]);
 
+  // Set up Media Session API for OS-level media controls
+  useEffect(() => {
+    if ('mediaSession' in navigator && audiobook) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: audiobook.title || 'Unknown Title',
+        artist: audiobook.author || 'Unknown Author',
+        album: audiobook.series || 'Audiobook',
+        artwork: audiobook.cover_image ? [
+          { src: getCoverUrl(audiobook.id), sizes: '512x512', type: 'image/jpeg' }
+        ] : []
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (audioRef.current) {
+          audioRef.current.play();
+          setPlaying(true);
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setPlaying(false);
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        skipBackward();
+      });
+
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        skipForward();
+      });
+
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        if (audiobook.is_multi_file && chapters.length > 0) {
+          skipToPreviousChapter();
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (audiobook.is_multi_file && chapters.length > 0) {
+          skipToNextChapter();
+        }
+      });
+    }
+
+    return () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+      }
+    };
+  }, [audiobook, chapters]);
+
   const togglePlay = () => {
     if (playing) {
       audioRef.current.pause();
