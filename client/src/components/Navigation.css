@@ -8,6 +8,13 @@
   z-index: 50;
 }
 
+/* iOS safe area support for notch */
+@supports (-webkit-touch-callout: none) {
+  .navigation {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
 .nav-container {
   display: flex;
   align-items: center;
