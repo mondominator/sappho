@@ -265,20 +265,28 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   }, [audiobook, chapters]);
 
   const togglePlay = () => {
+    if (!audioRef.current) return;
+
     if (playing) {
       audioRef.current.pause();
+      setPlaying(false);
       // Send pause state immediately
-      if (audioRef.current) {
-        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
-      }
+      updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
     } else {
-      audioRef.current.play();
-      // Send playing state immediately
-      if (audioRef.current) {
-        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'playing');
+      // Better error handling for play
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setPlaying(true);
+            updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'playing');
+          })
+          .catch(err => {
+            console.error('Playback failed:', err);
+            setPlaying(false);
+          });
       }
     }
-    setPlaying(!playing);
   };
 
   const handleSeek = (e) => {
@@ -613,11 +621,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             {audiobook.author || 'Unknown Author'}
           </div>
           <div className="player-metadata">
-            {audiobook.is_multi_file && chapters.length > 0 && (
-              <div className="metadata-chapter">
-                Chapter {currentChapter + 1}
-              </div>
-            )}
             <div className="metadata-time">
               {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
             </div>
@@ -625,17 +628,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </div>
         <div className="player-mobile-controls" onClick={(e) => e.stopPropagation()}>
           <div className="mobile-time-display">
-            {audiobook.is_multi_file && chapters.length > 0 && (
-              <div className="chapter-indicator chapter-indicator-mobile-time">
-                <span>Chapter {currentChapter + 1}</span>
-              </div>
-            )}
-            <div>{formatTimeShort(currentTime)} / {formatTimeShort(duration)}</div>
-            {audiobook.is_multi_file && chapters.length > 0 && (
-              <div className="chapter-indicator chapter-indicator-desktop" onClick={(e) => { e.stopPropagation(); setShowChapterList(!showChapterList); }}>
-                <span>Chapter {currentChapter + 1}</span>
-              </div>
-            )}
+            <div>{formatTimeShort(currentTime)}</div>
+            <div>{formatTimeShort(duration)}</div>
           </div>
           {audiobook.is_multi_file && chapters.length > 0 && (
             <>
@@ -653,6 +647,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </button>
             </>
           )}
+          <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+              <text x="12" y="16" fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="normal">15</text>
+            </svg>
+          </button>
           <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
             {playing ? (
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
@@ -664,6 +665,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 <polygon points="6 3 20 12 6 21 6 3"></polygon>
               </svg>
             )}
+          </button>
+          <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+              <path d="M21 3v5h-5"></path>
+              <text x="12" y="16" fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="normal">15</text>
+            </svg>
           </button>
         </div>
       </div>

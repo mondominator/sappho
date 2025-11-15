@@ -8,13 +8,6 @@
   z-index: 50;
 }
 
-/* iOS safe area support for notch */
-@supports (-webkit-touch-callout: none) {
-  .navigation {
-    padding-top: env(safe-area-inset-top);
-  }
-}
-
 .nav-container {
   display: flex;
   align-items: center;
@@ -365,6 +358,14 @@
     height: 48px;
   }
 
+  /* iOS: extend navigation to fill safe area */
+  @supports (-webkit-touch-callout: none) {
+    .navigation:not(.secondary-nav) {
+      height: calc(48px + env(safe-area-inset-top));
+      padding-top: env(safe-area-inset-top);
+    }
+  }
+
   .navigation.secondary-nav {
     height: 38px;
   }
@@ -372,7 +373,7 @@
   .navigation:not(.secondary-nav) .nav-container {
     padding: 8px 12px 8px 12px;
     justify-content: space-between;
-    height: 100%;
+    height: 48px;
   }
 
   .navigation.secondary-nav .nav-container {

@@ -49,15 +49,10 @@ export default function Library({ onPlay }) {
 
   const loadAudiobooks = async () => {
     try {
-      console.log('Loading audiobooks with params:', { search, ...filter, limit: 10000 });
       const response = await getAudiobooks({ search, ...filter, limit: 10000 });
-      console.log('Audiobooks response:', response);
-      console.log('Audiobooks data:', response.data);
-      console.log('Audiobooks array:', response.data.audiobooks);
       setAudiobooks(response.data.audiobooks);
     } catch (error) {
       console.error('Error loading audiobooks:', error);
-      console.error('Error details:', error.response);
     } finally {
       setLoading(false);
     }
@@ -102,9 +97,7 @@ export default function Library({ onPlay }) {
   };
 
   const renderBookCard = (book) => {
-    console.log('Rendering book card:', book.id, book.title);
     const coverUrl = getCoverUrl(book.id);
-    console.log('Cover URL for', book.title, ':', coverUrl);
 
     return (
       <div key={book.id} className="audiobook-card" data-book-id={book.id}>
@@ -114,10 +107,8 @@ export default function Library({ onPlay }) {
               src={coverUrl}
               alt={book.title}
               onError={(e) => {
-                console.error('Cover image failed to load:', coverUrl);
                 e.target.style.display = 'none';
               }}
-              onLoad={() => console.log('Cover loaded successfully:', coverUrl)}
             />
           ) : (
             <div className="audiobook-cover-placeholder">
@@ -143,10 +134,6 @@ export default function Library({ onPlay }) {
       </div>
     );
   };
-
-  console.log('Library render - audiobooks count:', audiobooks.length);
-  console.log('Library render - loading:', loading);
-  console.log('Library render - audiobooks:', audiobooks);
 
   if (loading) {
     return <div className="loading">Loading library...</div>;
