@@ -9,6 +9,9 @@
   padding-top: 0;
   z-index: 1001;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  /* GPU acceleration for iOS */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
 }
 
 .player-info {
@@ -78,13 +81,15 @@
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
-    transform: scale(1);
+    -webkit-transform: scale3d(1, 1, 1);
+    transform: scale3d(1, 1, 1);
     background: #10b981;
     box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
   }
   50% {
     opacity: 1;
-    transform: scale(1.12);
+    -webkit-transform: scale3d(1.12, 1.12, 1);
+    transform: scale3d(1.12, 1.12, 1);
     background: #f59e0b;
     box-shadow: 0 0 40px rgba(245, 158, 11, 1);
   }
@@ -92,10 +97,12 @@
 
 @keyframes marquee {
   0% {
-    transform: translateX(0%);
+    -webkit-transform: translate3d(0%, 0, 0);
+    transform: translate3d(0%, 0, 0);
   }
   100% {
-    transform: translateX(-100%);
+    -webkit-transform: translate3d(-100%, 0, 0);
+    transform: translate3d(-100%, 0, 0);
   }
 }
 
@@ -1094,9 +1101,30 @@
     pointer-events: auto;
   }
 
-  /* Hide skip buttons on mobile, only show play button */
-  .player-mobile-controls .control-btn:not(.mobile-play-btn) {
+  /* Hide chapter skip buttons on mobile, show seek and play buttons */
+  .player-mobile-controls .control-btn.chapter-skip-btn {
     display: none !important;
+  }
+
+  /* Show mobile seek buttons */
+  .player-mobile-controls .mobile-seek-btn {
+    display: flex !important;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    color: #9ca3af;
+    border: none;
+    padding: 0;
+  }
+
+  .player-mobile-controls .mobile-seek-btn:active {
+    color: #fff;
+    background: transparent;
+  }
+
+  .player-mobile-controls .mobile-seek-btn svg {
+    width: 28px !important;
+    height: 28px !important;
   }
 
   .player-mobile-controls .control-btn {
@@ -1120,7 +1148,7 @@
     color: #fff;
     border-radius: 50%;
     margin-left: auto !important;
-    margin-right: 30px !important;
+    margin-right: -5px !important;
   }
 
   .player-mobile-controls .mobile-play-btn svg {

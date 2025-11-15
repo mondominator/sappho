@@ -49,12 +49,18 @@
   text-align: center;
   cursor: pointer;
   transition: all 0.3s;
+  /* GPU acceleration for iOS */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
 }
 
-.category-card:hover {
-  transform: translateY(-4px);
-  border-color: #3b82f6;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
+/* Only enable hover effects on devices with hover capability (not touch screens) */
+@media (hover: hover) {
+  .category-card:hover {
+    transform: translateY(-4px);
+    border-color: #3b82f6;
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
+  }
 }
 
 .category-icon {
@@ -93,10 +99,12 @@
   transition: all 0.2s;
 }
 
-.list-item:hover {
-  background: #374151;
-  border-color: #3b82f6;
-  transform: translateX(4px);
+@media (hover: hover) {
+  .list-item:hover {
+    background: #374151;
+    border-color: #3b82f6;
+    transform: translateX(4px);
+  }
 }
 
 .list-item h3 {
@@ -234,11 +242,17 @@
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  /* GPU acceleration for iOS */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
-.audiobook-card:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+@media (hover: hover) {
+  .audiobook-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  }
 }
 
 .audiobook-cover {
@@ -313,8 +327,10 @@
   transition: opacity 0.2s;
 }
 
-.audiobook-card:hover .play-overlay {
-  opacity: 1;
+@media (hover: hover) {
+  .audiobook-card:hover .play-overlay {
+    opacity: 1;
+  }
 }
 
 .play-button {
@@ -331,10 +347,12 @@
   box-shadow: 0 4px 12px rgba(96, 165, 250, 0.4);
 }
 
-.play-button:hover {
-  background: #3b82f6;
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(96, 165, 250, 0.6);
+@media (hover: hover) {
+  .play-button:hover {
+    background: #3b82f6;
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(96, 165, 250, 0.6);
+  }
 }
 
 .play-button::after {
@@ -400,6 +418,11 @@
 
   .library-count {
     font-size: 1.125rem;
+  }
+
+  /* Hide the "Library" heading on categories view on mobile */
+  .library-page .library-header .library-count {
+    display: none;
   }
 
   .library-page {
