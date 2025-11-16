@@ -42,6 +42,16 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
+  /* Hide scrollbars on mobile */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
   .container {
     padding: 0;
   }
