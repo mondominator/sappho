@@ -621,7 +621,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             {audiobook.author || 'Unknown Author'}
           </div>
           <div className="player-metadata">
-            <div className="metadata-time">
+            <div className={`metadata-time ${playing ? 'playing' : ''}`}>
               {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
             </div>
           </div>
@@ -648,10 +648,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             </>
           )}
           <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
-              <text x="12" y="16" fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="normal">15</text>
+              <text x="12" y="16" fontSize="7" fill="currentColor" textAnchor="middle" fontWeight="300">15</text>
             </svg>
           </button>
           <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
@@ -667,10 +667,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             )}
           </button>
           <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
               <path d="M21 3v5h-5"></path>
-              <text x="12" y="16" fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="normal">15</text>
+              <text x="12" y="16" fontSize="7" fill="currentColor" textAnchor="middle" fontWeight="300">15</text>
             </svg>
           </button>
         </div>
