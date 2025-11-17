@@ -5,6 +5,36 @@ const fs = require('fs');
 const path = require('path');
 const { authenticateToken } = require('../auth');
 
+/**
+ * Extract real client IP address from request
+ * Checks X-Forwarded-For and other proxy headers first
+ */
+function getClientIP(req) {
+  // Check X-Forwarded-For header (set by proxies/load balancers)
+  const xForwardedFor = req.headers['x-forwarded-for'];
+  if (xForwardedFor) {
+    // X-Forwarded-For can be a comma-separated list: "client, proxy1, proxy2"
+    // The first IP is the original client
+    const ips = xForwardedFor.split(',').map(ip => ip.trim());
+    return ips[0];
+  }
+
+  // Check X-Real-IP header (set by some reverse proxies)
+  const xRealIP = req.headers['x-real-ip'];
+  if (xRealIP) {
+    return xRealIP;
+  }
+
+  // Check CF-Connecting-IP (Cloudflare)
+  const cfConnectingIP = req.headers['cf-connecting-ip'];
+  if (cfConnectingIP) {
+    return cfConnectingIP;
+  }
+
+  // Fallback to direct connection IP
+  return req.ip || req.connection.remoteAddress || null;
+}
+
 // Get all audiobooks
 router.get('/', authenticateToken, (req, res) => {
   const { genre, author, series, search, limit = 50, offset = 0 } = req.query;
@@ -301,7 +331,7 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
               clientInfo: {
                 name: clientInfo.name || 'Web Player',
                 platform: clientInfo.platform || 'Web',
-                ipAddress: req.ip || req.connection.remoteAddress,
+                ipAddress: getClientIP(req),
               },
             });
 
