@@ -335,14 +335,6 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
               },
             });
 
-            // Debug logging for IP detection
-            const detectedIP = getClientIP(req);
-            console.log(`[Sappho] Progress update - Detected IP: ${detectedIP}, Headers:`, {
-              'x-forwarded-for': req.headers['x-forwarded-for'],
-              'x-real-ip': req.headers['x-real-ip'],
-              'req.ip': req.ip,
-            });
-
             if (session) {
               // Broadcast to WebSocket clients based on state
               const eventType = actualState === 'playing' ? 'session.update' : 'session.pause';
