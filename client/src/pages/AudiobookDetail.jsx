@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress } from '../api';
+import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters } from '../api';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -8,6 +8,7 @@ export default function AudiobookDetail({ onPlay }) {
   const navigate = useNavigate();
   const [audiobook, setAudiobook] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,12 +17,14 @@ export default function AudiobookDetail({ onPlay }) {
 
   const loadAudiobook = async () => {
     try {
-      const [bookResponse, progressResponse] = await Promise.all([
+      const [bookResponse, progressResponse, chaptersResponse] = await Promise.all([
         getAudiobook(id),
-        getProgress(id)
+        getProgress(id),
+        getChapters(id).catch(() => ({ data: [] })) // Chapters might not exist
       ]);
       setAudiobook(bookResponse.data);
       setProgress(progressResponse.data);
+      setChapters(chaptersResponse.data || []);
     } catch (error) {
       console.error('Error loading audiobook:', error);
     } finally {
@@ -258,9 +261,9 @@ export default function AudiobookDetail({ onPlay }) {
 
             {audiobook.file_path && (
               <div className="meta-item">
-                <span className="meta-label">File Location</span>
+                <span className="meta-label">Filename</span>
                 <span className="meta-value file-path" title={audiobook.file_path}>
-                  {audiobook.file_path}
+                  {audiobook.file_path.split('/').pop()}
                 </span>
               </div>
             )}
@@ -285,6 +288,25 @@ export default function AudiobookDetail({ onPlay }) {
             <div className="detail-description">
               <h3>About</h3>
               <p>{cleanDescription(audiobook.description)}</p>
+            </div>
+          )}
+
+          {chapters && chapters.length > 0 && (
+            <div className="detail-chapters">
+              <h3>Chapters & Tracks</h3>
+              <div className="chapters-list">
+                {chapters.map((chapter, index) => (
+                  <div key={chapter.id || index} className="chapter-item">
+                    <div className="chapter-number">{chapter.chapter_number || index + 1}</div>
+                    <div className="chapter-info">
+                      <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                      {chapter.duration && (
+                        <div className="chapter-duration">{formatDuration(chapter.duration)}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
