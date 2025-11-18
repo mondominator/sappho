@@ -197,21 +197,19 @@ export default function AudiobookDetail({ onPlay }) {
           <h1 className="detail-title">{audiobook.title}</h1>
 
           <div className="detail-actions">
+            <button
+              className="btn btn-success"
+              onClick={handleMarkFinished}
+            >
+              Mark Finished
+            </button>
             {progress && progress.position > 0 && (
-              <>
-                <button
-                  className="btn btn-success"
-                  onClick={handleMarkFinished}
-                >
-                  Mark Finished
-                </button>
-                <button
-                  className="btn btn-warning"
-                  onClick={handleClearProgress}
-                >
-                  Clear Progress
-                </button>
-              </>
+              <button
+                className="btn btn-warning"
+                onClick={handleClearProgress}
+              >
+                Clear Progress
+              </button>
             )}
             <button
               className="btn btn-secondary"
