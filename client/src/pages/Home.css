@@ -37,21 +37,13 @@
 }
 
 .horizontal-scroll::-webkit-scrollbar {
-  height: 6px;
+  height: 0;
+  display: none;
 }
 
-.horizontal-scroll::-webkit-scrollbar-track {
-  background: #1f2937;
-  border-radius: 3px;
-}
-
-.horizontal-scroll::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 3px;
-}
-
-.horizontal-scroll::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+.horizontal-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
 
 .audiobook-card {
