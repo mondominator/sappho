@@ -199,14 +199,12 @@ export default function AudiobookDetail({ onPlay }) {
           <div className="detail-actions">
             {progress && progress.position > 0 && (
               <>
-                {!progress.completed && (
-                  <button
-                    className="btn btn-success"
-                    onClick={handleMarkFinished}
-                  >
-                    Mark Finished
-                  </button>
-                )}
+                <button
+                  className="btn btn-success"
+                  onClick={handleMarkFinished}
+                >
+                  Mark Finished
+                </button>
                 <button
                   className="btn btn-warning"
                   onClick={handleClearProgress}
