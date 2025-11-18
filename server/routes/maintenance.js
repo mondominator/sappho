@@ -203,21 +203,94 @@ router.post('/clear-library', authenticateToken, async (req, res) => {
   }
 });
 
-// Trigger immediate library scan
+// Trigger immediate library scan (imports new files only)
 router.post('/scan-library', authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
+  const refreshMetadata = req.body.refreshMetadata === true;
+
   try {
-    console.log('Manual library scan triggered');
-    const stats = await scanLibrary();
-    res.json({
-      success: true,
-      message: 'Library scan completed',
-      stats,
-    });
+    if (refreshMetadata) {
+      console.log('Refreshing metadata for all audiobooks...');
+
+      // Get all audiobooks from database
+      const audiobooks = await new Promise((resolve, reject) => {
+        db.all('SELECT id, file_path FROM audiobooks', (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        });
+      });
+
+      let updated = 0;
+      let errors = 0;
+
+      for (const audiobook of audiobooks) {
+        try {
+          // Check if file still exists
+          if (!fs.existsSync(audiobook.file_path)) {
+            console.log(`File not found: ${audiobook.file_path}`);
+            errors++;
+            continue;
+          }
+
+          // Extract fresh metadata
+          const metadata = await extractFileMetadata(audiobook.file_path);
+
+          // Update database
+          await new Promise((resolve, reject) => {
+            db.run(
+              `UPDATE audiobooks SET
+                title = ?, author = ?, narrator = ?, description = ?,
+                duration = ?, genre = ?, published_year = ?, isbn = ?,
+                series = ?, series_position = ?, cover_image = ?,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`,
+              [
+                metadata.title, metadata.author, metadata.narrator, metadata.description,
+                metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
+                metadata.series, metadata.series_position, metadata.cover_image,
+                audiobook.id
+              ],
+              (err) => {
+                if (err) reject(err);
+                else resolve();
+              }
+            );
+          });
+
+          updated++;
+          console.log(`Updated metadata for: ${metadata.title}`);
+        } catch (error) {
+          console.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
+          errors++;
+        }
+      }
+
+      // Also scan for new files
+      const scanStats = await scanLibrary();
+
+      res.json({
+        success: true,
+        message: 'Metadata refresh and library scan completed',
+        stats: {
+          ...scanStats,
+          metadataRefreshed: updated,
+          metadataErrors: errors,
+        },
+      });
+    } else {
+      // Normal scan (new files only)
+      console.log('Manual library scan triggered');
+      const stats = await scanLibrary();
+      res.json({
+        success: true,
+        message: 'Library scan completed',
+        stats,
+      });
+    }
   } catch (error) {
     console.error('Error scanning library:', error);
     res.status(500).json({ error: error.message });

@@ -62,16 +62,31 @@ export default function LibrarySettings() {
   };
 
   const handleScanLibrary = async () => {
-    if (!confirm('Trigger an immediate library scan? This will import any new audiobooks found in the library directory.')) {
+    if (!confirm('Scan library and refresh all metadata? This will import new audiobooks and update metadata for existing ones.')) {
       return;
     }
 
     setScanning(true);
     try {
-      const result = await scanLibrary();
+      const result = await scanLibrary(true); // Pass true to refresh metadata
       const stats = result.data.stats;
-      alert(`Library scan complete!\nImported: ${stats.imported}\nSkipped: ${stats.skipped}\nErrors: ${stats.errors}`);
-      if (stats.imported > 0) {
+      const messages = [
+        `Library scan complete!`,
+        `New imports: ${stats.imported}`,
+        `Skipped: ${stats.skipped}`,
+        `Errors: ${stats.errors}`
+      ];
+
+      if (stats.metadataRefreshed !== undefined) {
+        messages.push(`\nMetadata refreshed: ${stats.metadataRefreshed}`);
+        if (stats.metadataErrors > 0) {
+          messages.push(`Metadata errors: ${stats.metadataErrors}`);
+        }
+      }
+
+      alert(messages.join('\n'));
+
+      if (stats.imported > 0 || stats.metadataRefreshed > 0) {
         window.location.reload();
       }
     } catch (error) {
