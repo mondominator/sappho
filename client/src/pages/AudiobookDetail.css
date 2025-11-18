@@ -189,6 +189,18 @@
   text-decoration: underline;
 }
 
+.meta-value.file-path {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #9ca3af;
+  word-break: break-all;
+  line-height: 1.6;
+  background: rgba(75, 85, 99, 0.2);
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .progress-section {
   padding: 1.5rem;
   background: rgba(20, 184, 166, 0.08);
