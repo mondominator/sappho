@@ -945,7 +945,7 @@
     pointer-events: auto !important;
   }
 
-  /* Hide metadata on desktop */
+  /* Hide metadata on desktop - time shows in mobile-time-display instead */
   .player-metadata {
     display: none !important;
   }

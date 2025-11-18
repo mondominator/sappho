@@ -628,8 +628,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </div>
         <div className="player-mobile-controls" onClick={(e) => e.stopPropagation()}>
           <div className={`mobile-time-display ${playing ? 'playing' : ''}`}>
-            <div>{formatTimeShort(currentTime)}</div>
-            <div>{formatTimeShort(duration)}</div>
+            <div>{formatTimeShort(currentTime)} / {formatTimeShort(duration)}</div>
           </div>
           {audiobook.is_multi_file && chapters.length > 0 && (
             <>
