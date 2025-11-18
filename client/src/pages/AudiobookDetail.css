@@ -290,10 +290,19 @@
   cursor: default;
 }
 
-.chapter-item:hover {
+.chapter-item.clickable {
+  cursor: pointer;
+}
+
+.chapter-item.clickable:hover {
   background: rgba(31, 41, 55, 0.5);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
   transform: translateX(4px);
+}
+
+.chapter-item.clickable:active {
+  transform: translateX(2px);
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .chapter-info {

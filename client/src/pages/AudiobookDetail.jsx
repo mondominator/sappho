@@ -313,7 +313,27 @@ export default function AudiobookDetail({ onPlay }) {
                     <h3>Audio Tracks</h3>
                     <div className="chapters-list">
                       {audioTracks.map((track, index) => (
-                        <div key={track.id || index} className="chapter-item">
+                        <div
+                          key={track.id || index}
+                          className="chapter-item clickable"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('Track clicked:', track.title, 'Index:', index);
+                            if (!onPlay) {
+                              console.error('onPlay function not available');
+                              return;
+                            }
+                            // Calculate start time based on previous track durations
+                            let startTime = 0;
+                            for (let i = 0; i < index; i++) {
+                              startTime += audioTracks[i].duration || 0;
+                            }
+                            console.log('Starting playback at:', startTime);
+                            // Create a modified progress object with the chapter start time
+                            const chapterProgress = { ...progress, position: startTime };
+                            onPlay(audiobook, chapterProgress);
+                          }}
+                        >
                           <div className="chapter-info">
                             <div className="chapter-title">{track.title || `Track ${index + 1}`}</div>
                             <div className="chapter-meta">
@@ -337,7 +357,30 @@ export default function AudiobookDetail({ onPlay }) {
                     <h3>Chapters</h3>
                     <div className="chapters-list">
                       {embeddedChapters.map((chapter, index) => (
-                        <div key={chapter.id || index} className="chapter-item">
+                        <div
+                          key={chapter.id || index}
+                          className="chapter-item clickable"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('Chapter clicked:', chapter.title, 'Index:', index);
+                            if (!onPlay) {
+                              console.error('onPlay function not available');
+                              return;
+                            }
+                            // If chapter has start_time, use it; otherwise calculate from durations
+                            let startTime = chapter.start_time || 0;
+                            if (!chapter.start_time) {
+                              // Calculate based on previous chapter durations
+                              for (let i = 0; i < index; i++) {
+                                startTime += embeddedChapters[i].duration || 0;
+                              }
+                            }
+                            console.log('Starting playback at:', startTime);
+                            // Create a modified progress object with the chapter start time
+                            const chapterProgress = { ...progress, position: startTime };
+                            onPlay(audiobook, chapterProgress);
+                          }}
+                        >
                           <div className="chapter-info">
                             <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
                             {chapter.duration && (
