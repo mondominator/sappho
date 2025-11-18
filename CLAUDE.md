@@ -81,9 +81,10 @@ docker-compose down
 
 3. **Database Layer** (`server/database.js`):
    - SQLite with async callback API (sqlite3 package, not better-sqlite3)
-   - Tables: `users`, `audiobooks`, `progress`, `api_keys`, `sessions`
-   - Migration system: `server/migrations/` directory with numbered SQL files
-   - No auto-migration on startup - migrations run via maintenance endpoint
+   - Tables: `users`, `audiobooks`, `progress`, `api_keys`, `sessions`, `migrations`
+   - Migration system: `server/migrations/` directory with numbered .js files
+   - Migrations run automatically on startup (via `runMigrations()` in database.js)
+   - Manual trigger available via POST `/api/maintenance/migrate` endpoint
 
 4. **Authentication** (`server/auth.js`):
    - JWT-based authentication with configurable secret (`JWT_SECRET` env var)
@@ -215,10 +216,11 @@ const getUserById = (userId) => {
 ### Migrations
 
 Located in `server/migrations/`:
-- Numbered files: `001_initial.sql`, `002_add_column.sql`
-- Run via `/api/maintenance/migrate` endpoint (manual trigger)
+- Numbered files: `001_create_chapters.js`, `002_add_columns.js`, `003_clean_descriptions.js`
+- Run automatically on startup via `runMigrations()` in `database.js`
+- Manual trigger available via POST `/api/maintenance/migrate` endpoint
 - Tracks applied migrations in `migrations` table
-- Not automatic on startup (unlike OpsDec)
+- Each migration exports `up(db)` and `down(db)` functions
 
 ### Authentication Middleware
 
@@ -272,5 +274,4 @@ When playback position updates:
    - Check API key is valid and not expired
    - Ensure `getClientIP()` is used in progress update handler
 6. **Library not scanning**: Check `LIBRARY_SCAN_INTERVAL` env var, verify audiobooks directory is mounted correctly
-7. **Migrations not applied**: Unlike OpsDec, migrations don't run automatically - trigger via `/api/maintenance/migrate` endpoint
-8. **Duplicate audiobooks**: Scanner checks file path - moving files will create duplicates; use maintenance endpoint to clean up
+7. **Duplicate audiobooks**: Scanner checks file path - moving files will create duplicates; use maintenance endpoint to clean up
