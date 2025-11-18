@@ -224,6 +224,99 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
   }
 });
 
+// Run database migrations
+router.post('/migrate', authenticateToken, async (req, res) => {
+  // Only allow admins to run this
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    console.log('Running database migrations...');
+
+    const migrationsDir = path.join(__dirname, '../migrations');
+
+    // Ensure migrations table exists
+    await new Promise((resolve, reject) => {
+      db.run(
+        `CREATE TABLE IF NOT EXISTS migrations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          filename TEXT NOT NULL UNIQUE,
+          applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    // Get applied migrations
+    const appliedMigrations = await new Promise((resolve, reject) => {
+      db.all('SELECT filename FROM migrations', (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows.map(r => r.filename));
+      });
+    });
+
+    // Get all migration files
+    const files = fs.readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.js'))
+      .sort();
+
+    const results = {
+      applied: [],
+      skipped: [],
+      errors: [],
+    };
+
+    // Run pending migrations
+    for (const file of files) {
+      if (appliedMigrations.includes(file)) {
+        results.skipped.push(file);
+        continue;
+      }
+
+      try {
+        console.log(`Applying migration: ${file}`);
+        const migration = require(path.join(migrationsDir, file));
+
+        // Run the up function
+        await migration.up(db);
+
+        // Record migration
+        await new Promise((resolve, reject) => {
+          db.run(
+            'INSERT INTO migrations (filename) VALUES (?)',
+            [file],
+            (err) => {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+
+        results.applied.push(file);
+        console.log(`Migration ${file} applied successfully`);
+      } catch (error) {
+        console.error(`Error applying migration ${file}:`, error);
+        results.errors.push({ file, error: error.message });
+        // Stop on first error to prevent partial migrations
+        break;
+      }
+    }
+
+    console.log('Migration results:', results);
+    res.json({
+      success: results.errors.length === 0,
+      ...results,
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Force rescan - clear and reimport all audiobooks (preserves user progress)
 router.post('/force-rescan', authenticateToken, async (req, res) => {
   // Only allow admins to run this
