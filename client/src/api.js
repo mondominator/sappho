@@ -43,6 +43,9 @@ export const login = (username, password) =>
 export const register = (username, password, email) =>
   api.post('/auth/register', { username, password, email });
 
+export const getProfile = () =>
+  api.get('/profile');
+
 export const getAudiobooks = (params) =>
   api.get('/audiobooks', { params });
 
