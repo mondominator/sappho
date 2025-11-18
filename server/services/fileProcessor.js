@@ -18,20 +18,31 @@ function cleanDescription(description) {
 
   let cleaned = description;
 
-  // Pattern 1: "CHAPTER ONE CHAPTER TWO CHAPTER THREE..." (word-based)
+  // Remove Opening Credits / End Credits
+  cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
+  cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
+
+  // Pattern 1: "Chapter One Chapter Two..." or "Chapter Twenty-One..." (word-based with optional hyphens)
+  cleaned = cleaned.replace(/^(\s*Chapter\s+([A-Z][a-z]+(-[A-Z][a-z]+)*)\s*)+/i, '');
+
+  // Pattern 2: "CHAPTER ONE CHAPTER TWO CHAPTER THREE..." (all caps word-based)
   cleaned = cleaned.replace(/^(\s*CHAPTER\s+[A-Z]+(\s+[A-Z]+)*\s*)+/i, '');
 
-  // Pattern 2: "CHAPTER 1 CHAPTER 2 CHAPTER 3..." (number-based)
+  // Pattern 3: "CHAPTER 1 CHAPTER 2 CHAPTER 3..." (number-based)
   cleaned = cleaned.replace(/^(\s*CHAPTER\s+\d+\s*)+/i, '');
 
-  // Pattern 3: "Chapter One, Chapter Two, Chapter Three..." (comma-separated)
+  // Pattern 4: "Chapter One, Chapter Two, Chapter Three..." (comma-separated)
   cleaned = cleaned.replace(/^(\s*Chapter\s+[A-Za-z]+(\s+[A-Za-z]+)?,?\s*)+/i, '');
 
-  // Pattern 4: "Ch. 1, Ch. 2, Ch. 3..." (abbreviated)
+  // Pattern 5: "Ch. 1, Ch. 2, Ch. 3..." (abbreviated)
   cleaned = cleaned.replace(/^(\s*Ch\.\s*\d+,?\s*)+/i, '');
 
-  // Pattern 5: Just numbers separated by spaces/commas at the start
+  // Pattern 6: Just numbers separated by spaces/commas at the start
   cleaned = cleaned.replace(/^(\s*\d+[,\s]+)+/, '');
+
+  // Clean up any remaining Opening/End Credits
+  cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
+  cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
 
   return cleaned.trim();
 }

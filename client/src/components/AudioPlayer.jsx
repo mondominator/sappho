@@ -738,7 +738,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         onTouchStart={handleProgressTouchStart}
       >
         <div className="progress-thumb"></div>
-        <span className="time-display">{formatTime(currentTime)}</span>
+        <span className="time-display">{formatTime(currentTime)} / {formatTime(duration)}</span>
         <input
           type="range"
           min="0"
@@ -747,7 +747,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           onChange={handleSeek}
           className="progress-slider"
         />
-        <span className="time-display">{formatTime(duration)}</span>
       </div>
 
       {showChapterList && audiobook.is_multi_file && chapters.length > 0 && (

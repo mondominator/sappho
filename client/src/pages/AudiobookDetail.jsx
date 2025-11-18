@@ -59,23 +59,33 @@ export default function AudiobookDetail({ onPlay }) {
   const cleanDescription = (description) => {
     if (!description) return '';
 
-    // Remove various chapter listing patterns from the beginning
     let cleaned = description;
 
-    // Pattern 1: "CHAPTER ONE CHAPTER TWO CHAPTER THREE..." (word-based)
+    // Remove Opening Credits / End Credits
+    cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
+    cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
+
+    // Pattern 1: "Chapter One Chapter Two..." or "Chapter Twenty-One..." (word-based with optional hyphens)
+    cleaned = cleaned.replace(/^(\s*Chapter\s+([A-Z][a-z]+(-[A-Z][a-z]+)*)\s*)+/i, '');
+
+    // Pattern 2: "CHAPTER ONE CHAPTER TWO CHAPTER THREE..." (all caps word-based)
     cleaned = cleaned.replace(/^(\s*CHAPTER\s+[A-Z]+(\s+[A-Z]+)*\s*)+/i, '');
 
-    // Pattern 2: "CHAPTER 1 CHAPTER 2 CHAPTER 3..." (number-based)
+    // Pattern 3: "CHAPTER 1 CHAPTER 2 CHAPTER 3..." (number-based)
     cleaned = cleaned.replace(/^(\s*CHAPTER\s+\d+\s*)+/i, '');
 
-    // Pattern 3: "Chapter One, Chapter Two, Chapter Three..." (comma-separated)
+    // Pattern 4: "Chapter One, Chapter Two, Chapter Three..." (comma-separated)
     cleaned = cleaned.replace(/^(\s*Chapter\s+[A-Za-z]+(\s+[A-Za-z]+)?,?\s*)+/i, '');
 
-    // Pattern 4: "Ch. 1, Ch. 2, Ch. 3..." (abbreviated)
+    // Pattern 5: "Ch. 1, Ch. 2, Ch. 3..." (abbreviated)
     cleaned = cleaned.replace(/^(\s*Ch\.\s*\d+,?\s*)+/i, '');
 
-    // Pattern 5: Just numbers separated by spaces/commas at the start
+    // Pattern 6: Just numbers separated by spaces/commas at the start
     cleaned = cleaned.replace(/^(\s*\d+[,\s]+)+/, '');
+
+    // Clean up any remaining Opening/End Credits
+    cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
+    cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
 
     return cleaned.trim();
   };
@@ -291,24 +301,59 @@ export default function AudiobookDetail({ onPlay }) {
             </div>
           )}
 
-          {chapters && chapters.length > 0 && (
-            <div className="detail-chapters">
-              <h3>Chapters & Tracks</h3>
-              <div className="chapters-list">
-                {chapters.map((chapter, index) => (
-                  <div key={chapter.id || index} className="chapter-item">
-                    <div className="chapter-number">{chapter.chapter_number || index + 1}</div>
-                    <div className="chapter-info">
-                      <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
-                      {chapter.duration && (
-                        <div className="chapter-duration">{formatDuration(chapter.duration)}</div>
-                      )}
+          {chapters && chapters.length > 0 && (() => {
+            // Separate chapters from audio tracks
+            const audioTracks = chapters.filter(ch => ch.file_path);
+            const embeddedChapters = chapters.filter(ch => !ch.file_path);
+
+            return (
+              <>
+                {audioTracks.length > 0 && (
+                  <div className="detail-chapters">
+                    <h3>Audio Tracks</h3>
+                    <div className="chapters-list">
+                      {audioTracks.map((track, index) => (
+                        <div key={track.id || index} className="chapter-item">
+                          <div className="chapter-info">
+                            <div className="chapter-title">{track.title || `Track ${index + 1}`}</div>
+                            <div className="chapter-meta">
+                              {track.duration && (
+                                <span className="chapter-duration">{formatDuration(track.duration)}</span>
+                              )}
+                              {track.file_path && track.duration && <span className="meta-separator">•</span>}
+                              {track.file_path && (
+                                <span className="chapter-filename">{track.file_path.split('/').pop()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
+
+                {embeddedChapters.length > 0 && (
+                  <div className="detail-chapters">
+                    <h3>Chapters</h3>
+                    <div className="chapters-list">
+                      {embeddedChapters.map((chapter, index) => (
+                        <div key={chapter.id || index} className="chapter-item">
+                          <div className="chapter-info">
+                            <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                            {chapter.duration && (
+                              <div className="chapter-meta">
+                                <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
