@@ -10,6 +10,7 @@ export default function AudiobookDetail({ onPlay }) {
   const [progress, setProgress] = useState(null);
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showChapters, setShowChapters] = useState(false);
 
   useEffect(() => {
     loadAudiobook();
@@ -187,14 +188,16 @@ export default function AudiobookDetail({ onPlay }) {
           <h1 className="detail-title">{audiobook.title}</h1>
 
           <div className="detail-actions">
-            {progress && progress.position > 0 && !progress.completed && (
+            {progress && progress.position > 0 && (
               <>
-                <button
-                  className="btn btn-success"
-                  onClick={handleMarkFinished}
-                >
-                  Mark Finished
-                </button>
+                {!progress.completed && (
+                  <button
+                    className="btn btn-success"
+                    onClick={handleMarkFinished}
+                  >
+                    Mark Finished
+                  </button>
+                )}
                 <button
                   className="btn btn-warning"
                   onClick={handleClearProgress}
@@ -305,12 +308,53 @@ export default function AudiobookDetail({ onPlay }) {
             // Separate chapters from audio tracks
             const audioTracks = chapters.filter(ch => ch.file_path);
             const embeddedChapters = chapters.filter(ch => !ch.file_path);
+            const totalChapters = audioTracks.length + embeddedChapters.length;
 
             return (
-              <>
-                {audioTracks.length > 0 && (
-                  <div className="detail-chapters">
-                    <h3>Audio Tracks</h3>
+              <div className="detail-chapters-container">
+                <button
+                  className="chapters-toggle-btn"
+                  onClick={() => setShowChapters(!showChapters)}
+                >
+                  <div className="chapters-toggle-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6"></line>
+                      <line x1="8" y1="12" x2="21" y2="12"></line>
+                      <line x1="8" y1="18" x2="21" y2="18"></line>
+                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                    <span>
+                      {audioTracks.length > 0 && embeddedChapters.length > 0
+                        ? `${totalChapters} Tracks & Chapters`
+                        : audioTracks.length > 0
+                          ? `${audioTracks.length} Audio Track${audioTracks.length !== 1 ? 's' : ''}`
+                          : `${embeddedChapters.length} Chapter${embeddedChapters.length !== 1 ? 's' : ''}`
+                      }
+                    </span>
+                  </div>
+                  <svg
+                    className={`chapters-toggle-icon ${showChapters ? 'open' : ''}`}
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                {showChapters && (
+                  <>
+                    {audioTracks.length > 0 && (
+                      <div className="detail-chapters">
+                        <h3>Audio Tracks</h3>
                     <div className="chapters-list">
                       {audioTracks.map((track, index) => (
                         <div
@@ -349,52 +393,54 @@ export default function AudiobookDetail({ onPlay }) {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                      </div>
+                    )}
 
-                {embeddedChapters.length > 0 && (
-                  <div className="detail-chapters">
-                    <h3>Chapters</h3>
-                    <div className="chapters-list">
-                      {embeddedChapters.map((chapter, index) => (
-                        <div
-                          key={chapter.id || index}
-                          className="chapter-item clickable"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Chapter clicked:', chapter.title, 'Index:', index);
-                            if (!onPlay) {
-                              console.error('onPlay function not available');
-                              return;
-                            }
-                            // If chapter has start_time, use it; otherwise calculate from durations
-                            let startTime = chapter.start_time || 0;
-                            if (!chapter.start_time) {
-                              // Calculate based on previous chapter durations
-                              for (let i = 0; i < index; i++) {
-                                startTime += embeddedChapters[i].duration || 0;
-                              }
-                            }
-                            console.log('Starting playback at:', startTime);
-                            // Create a modified progress object with the chapter start time
-                            const chapterProgress = { ...progress, position: startTime };
-                            onPlay(audiobook, chapterProgress);
-                          }}
-                        >
-                          <div className="chapter-info">
-                            <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
-                            {chapter.duration && (
-                              <div className="chapter-meta">
-                                <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
+                    {embeddedChapters.length > 0 && (
+                      <div className="detail-chapters">
+                        <h3>Chapters</h3>
+                        <div className="chapters-list">
+                          {embeddedChapters.map((chapter, index) => (
+                            <div
+                              key={chapter.id || index}
+                              className="chapter-item clickable"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('Chapter clicked:', chapter.title, 'Index:', index);
+                                if (!onPlay) {
+                                  console.error('onPlay function not available');
+                                  return;
+                                }
+                                // If chapter has start_time, use it; otherwise calculate from durations
+                                let startTime = chapter.start_time || 0;
+                                if (!chapter.start_time) {
+                                  // Calculate based on previous chapter durations
+                                  for (let i = 0; i < index; i++) {
+                                    startTime += embeddedChapters[i].duration || 0;
+                                  }
+                                }
+                                console.log('Starting playback at:', startTime);
+                                // Create a modified progress object with the chapter start time
+                                const chapterProgress = { ...progress, position: startTime };
+                                onPlay(audiobook, chapterProgress);
+                              }}
+                            >
+                              <div className="chapter-info">
+                                <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                                {chapter.duration && (
+                                  <div className="chapter-meta">
+                                    <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
+              </div>
             );
           })()}
         </div>

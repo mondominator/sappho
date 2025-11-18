@@ -867,6 +867,21 @@
     order: -1;
   }
 
+  .desktop-chapter-indicator {
+    display: flex !important;
+    padding: 6px 12px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    color: #93c5fd;
+    font-size: 13px;
+    font-weight: 500;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .mobile-time-display {
     display: flex !important;
     flex-direction: row !important;
@@ -1186,6 +1201,10 @@
   }
 
   .mobile-time-display {
+    display: none !important;
+  }
+
+  .desktop-chapter-indicator {
     display: none !important;
   }
 
