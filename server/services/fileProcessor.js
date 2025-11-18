@@ -12,6 +12,30 @@ let parseFile;
 
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
+// Clean chapter listings from description text
+function cleanDescription(description) {
+  if (!description) return '';
+
+  let cleaned = description;
+
+  // Pattern 1: "CHAPTER ONE CHAPTER TWO CHAPTER THREE..." (word-based)
+  cleaned = cleaned.replace(/^(\s*CHAPTER\s+[A-Z]+(\s+[A-Z]+)*\s*)+/i, '');
+
+  // Pattern 2: "CHAPTER 1 CHAPTER 2 CHAPTER 3..." (number-based)
+  cleaned = cleaned.replace(/^(\s*CHAPTER\s+\d+\s*)+/i, '');
+
+  // Pattern 3: "Chapter One, Chapter Two, Chapter Three..." (comma-separated)
+  cleaned = cleaned.replace(/^(\s*Chapter\s+[A-Za-z]+(\s+[A-Za-z]+)?,?\s*)+/i, '');
+
+  // Pattern 4: "Ch. 1, Ch. 2, Ch. 3..." (abbreviated)
+  cleaned = cleaned.replace(/^(\s*Ch\.\s*\d+,?\s*)+/i, '');
+
+  // Pattern 5: Just numbers separated by spaces/commas at the start
+  cleaned = cleaned.replace(/^(\s*\d+[,\s]+)+/, '');
+
+  return cleaned.trim();
+}
+
 // Ensure audiobooks directory exists
 if (!fs.existsSync(audiobooksDir)) {
   fs.mkdirSync(audiobooksDir, { recursive: true });
@@ -271,11 +295,13 @@ async function extractFileMetadata(filePath) {
       }
     }
 
+    const rawDescription = common.comment ? common.comment.join(' ') : null;
+
     return {
       title: title,
       author: common.artist || common.albumartist || null,
       narrator: narrator,
-      description: common.comment ? common.comment.join(' ') : null,
+      description: cleanDescription(rawDescription),
       duration: format.duration ? Math.round(format.duration) : null,
       genre: common.genre ? common.genre.join(', ') : null,
       published_year: common.year || null,
