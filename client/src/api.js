@@ -154,8 +154,8 @@ export const consolidateMultiFile = () =>
 export const clearLibrary = () =>
   api.post('/maintenance/clear-library');
 
-export const scanLibrary = () =>
-  api.post('/maintenance/scan-library');
+export const scanLibrary = (refreshMetadata = false) =>
+  api.post('/maintenance/scan-library', { refreshMetadata });
 
 export const forceRescan = () =>
   api.post('/maintenance/force-rescan');
