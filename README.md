@@ -4,19 +4,79 @@
 
 A modern, self-hosted audiobook server with a beautiful web interface and native mobile app experience.
 
-## Features
+> ⚠️ **Early Development**: Sappho is currently in early development. While fully functional, you may encounter bugs or incomplete features. Please report any issues you find!
 
-- 📚 **Automatic Metadata Extraction** - Reads metadata from audiobook files (ID3, Vorbis tags)
-- 🎨 **Series & Author Organization** - Organize your library by series and authors
-- 📱 **Progressive Web App** - Install on your phone for a native app experience
-- 🎧 **Built-in Audio Player** - Stream and listen to your audiobooks
-- 📊 **Progress Tracking** - Keep track of where you left off
-- 🔍 **Search & Filter** - Find audiobooks quickly
-- 👥 **Multi-user Support** - Create accounts for family members
-- 📂 **Watch Directory** - Auto-import audiobooks from a folder
-- 🔄 **Automatic Library Import** - Mount existing libraries and auto-detect audiobooks
-- 🌓 **Modern Dark UI** - Beautiful teal-themed interface
-- 🔄 **Real-time Updates** - WebSocket integration for live updates
+## 📖 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#quick-start)
+- [Mobile Installation](#mobile-installation-progressive-web-app)
+- [Building from Source](#building-from-source)
+- [Importing Existing Libraries](#importing-existing-libraries)
+- [Supported Formats](#supported-audio-formats)
+- [Technology Stack](#technology-stack)
+- [Roadmap](#-roadmap)
+- [Contributing](#-contributing)
+- [Known Issues](#-known-issues)
+- [License](#-license)
+
+## ✨ Features
+
+### 📚 Library Management
+- **Automatic Metadata Extraction** - Reads title, author, narrator, series, cover art, and more from ID3 and Vorbis tags
+- **Existing Library Import** - Mount your current audiobook collection and Sappho automatically detects and catalogs everything
+- **Watch Directory** - Drop audiobooks into a folder for automatic processing and import
+- **Periodic Scanning** - Automatically rescans library every 5 minutes (configurable) to detect new additions
+- **Series & Author Organization** - Browse by series with proper ordering, or explore by author
+- **Multi-format Support** - Handles M4B, MP3, M4A, FLAC, OGG, and more
+- **Cover Art Extraction** - Automatically extracts and displays embedded cover images
+
+### 🎧 Playback & Progress
+- **Modern Audio Player** - Beautiful, responsive player with chapter support
+- **Chapter Navigation** - Skip between chapters, view chapter list, see current chapter title
+- **Progress Tracking** - Automatically saves your position, resume exactly where you left off
+- **Cross-device Sync** - Continue listening on any device (same account)
+- **Playback Speed Control** - Adjust speed to your preference
+- **Sleep Timer** - Fall asleep without losing your place (coming soon)
+- **Streaming Playback** - Direct audio streaming from server, no downloads required
+
+### 📱 Mobile Experience
+- **Progressive Web App (PWA)** - Install on iOS/Android for native app experience
+- **Mobile-optimized UI** - Touch-friendly interface designed for phones and tablets
+- **Fullscreen Player** - Immersive fullscreen mode with large controls and cover art
+- **Offline Support** - App shell cached for instant loading (requires HTTPS)
+- **Background Playback** - Continue listening while using other apps
+- **Lock Screen Controls** - Control playback from your lock screen
+
+### 👥 Multi-user & Security
+- **Multi-user Accounts** - Create separate accounts for family members with individual progress tracking
+- **JWT Authentication** - Secure token-based authentication
+- **API Key Support** - Generate API keys for external integrations and automation
+- **User Avatars** - Personalize accounts with custom profile pictures
+- **Session Management** - Track active listening sessions across devices
+
+### 🔍 Discovery & Organization
+- **Powerful Search** - Instantly search by title, author, narrator, or series
+- **Filter by Status** - View in-progress, completed, or unstarted audiobooks
+- **Smart Sorting** - Sort by title, author, date added, duration, or progress
+- **Detailed Metadata** - View comprehensive information including ISBN, publication year, genre, duration
+- **Author & Series Pages** - Dedicated pages showing all works by an author or books in a series
+
+### 🎨 User Interface
+- **Modern Design** - Sleek, translucent glass-morphism UI with smooth animations
+- **Dark Theme** - Easy on the eyes with a beautiful blue-tinted dark interface
+- **Responsive Layout** - Optimized for desktop, tablet, and mobile
+- **Real-time Updates** - WebSocket integration for live library updates
+- **Accessibility** - Keyboard navigation and proper semantic HTML
+
+### 🔧 Administration & Integration
+- **Web Upload** - Upload audiobooks directly through the web interface
+- **Bulk Operations** - Mark finished, clear progress, delete audiobooks
+- **Library Statistics** - View total audiobooks, listening time, completion stats
+- **WebSocket API** - Real-time integration with external services (e.g., OpsDec for Now Playing displays)
+- **RESTful API** - Full-featured API for automation and third-party integrations
+- **Docker-first** - Easy deployment with Docker Compose or standalone container
+- **Unraid Support** - Community Applications template for one-click install
 
 ## Quick Start
 
@@ -208,15 +268,79 @@ Supported metadata fields:
 - **Audio**: music-metadata
 - **Containerization**: Docker
 
-## Support
+## 🗺️ Roadmap
+
+Sappho is actively being developed! Here are some features planned for future releases:
+
+### Near-term (v0.2.x)
+- [ ] Sleep timer with auto-shutdown
+- [ ] Playback queue/playlist support
+- [ ] Bookmarks and notes
+- [ ] Advanced filtering (by genre, narrator, duration)
+- [ ] Batch metadata editing
+- [ ] Import from Audible library
+- [ ] User listening statistics and charts
+
+### Mid-term (v0.3.x - v0.4.x)
+- [ ] Smart recommendations based on listening history
+- [ ] Collections and custom playlists
+- [ ] Library sharing between users
+- [ ] Podcast support
+- [ ] Mobile apps (native iOS/Android)
+- [ ] Chromecast/AirPlay support
+- [ ] Audiobook ratings and reviews
+- [ ] Multi-language support
+
+### Long-term (v1.0+)
+- [ ] AI-powered chapter detection for files without chapters
+- [ ] Automatic audiobook organization and renaming
+- [ ] Integration with Goodreads/Audible
+- [ ] Social features (share recommendations with friends)
+- [ ] Advanced audio processing (noise reduction, volume normalization)
+- [ ] Plugin system for extensibility
+
+**Want a feature?** Open an issue and let me know!
+
+## 🤝 Contributing
+
+Contributions are welcome! This project is in early development, so there's plenty of room for improvement.
+
+### Ways to Contribute
+- 🐛 **Report bugs** - Found an issue? Let me know!
+- 💡 **Suggest features** - Have an idea? Open a feature request
+- 📝 **Improve documentation** - Help make the docs better
+- 🔧 **Submit pull requests** - Fix bugs or add features
+- ⭐ **Star the repo** - Show your support!
+
+### Development Setup
+See the [Development](#development) section above for setup instructions.
+
+## 📋 Known Issues
+
+- Sleep timer not yet implemented
+- Some metadata tags may not be recognized (working on expanding support)
+- HTTPS required for full PWA functionality (service workers limitation)
+- Large libraries (10,000+ books) may experience slower initial scans
+
+See the [Issues](https://github.com/mondominator/sappho/issues) page for a complete list.
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ using [Claude Code](https://claude.com/claude-code)
+- Metadata extraction powered by [music-metadata](https://github.com/borewit/music-metadata)
+- Icons from Feather Icons and Heroicons
+- Inspired by projects like Audiobookshelf, Plex, and Jellyfin
+
+## 📞 Support
 
 - **Issues**: https://github.com/mondominator/sappho/issues
+- **Discussions**: https://github.com/mondominator/sappho/discussions
 - **Documentation**: https://github.com/mondominator/sappho
 
-## License
+## 📄 License
 
-MIT License - See LICENSE file for details
+MIT License - See [LICENSE](LICENSE) file for details.
 
-## Credits
+---
 
-Built with ❤️ using Claude Code
+**Note**: Sappho is a personal project and is not affiliated with or endorsed by any audiobook providers or services.
