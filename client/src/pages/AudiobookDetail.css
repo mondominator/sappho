@@ -281,52 +281,56 @@
 
 .chapter-item {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: rgba(75, 85, 99, 0.2);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: flex-start;
+  padding: 1rem;
+  background: rgba(17, 24, 39, 0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.2s ease;
+  cursor: default;
 }
 
 .chapter-item:hover {
-  background: rgba(75, 85, 99, 0.3);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.chapter-number {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(59, 130, 246, 0.15);
-  border-radius: 8px;
-  font-weight: 600;
-  color: #60a5fa;
-  font-size: 0.875rem;
+  background: rgba(31, 41, 55, 0.5);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateX(4px);
 }
 
 .chapter-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .chapter-title {
-  color: #e5e7eb;
+  color: #f3f4f6;
   font-size: 0.9375rem;
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.5;
+}
+
+.chapter-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.8125rem;
 }
 
 .chapter-duration {
+  color: #6b7280;
+}
+
+.chapter-filename {
   color: #9ca3af;
-  font-size: 0.8125rem;
-  margin-top: 0.25rem;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.75rem;
+}
+
+.meta-separator {
+  color: #4b5563;
 }
 
 .detail-actions {
