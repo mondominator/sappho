@@ -55,9 +55,26 @@ export default function AudiobookDetail({ onPlay }) {
 
   const cleanDescription = (description) => {
     if (!description) return '';
-    // Remove chapter listings like "CHAPTER ONE CHAPTER TWO..." or "CHAPTER 1 CHAPTER 2..." from the beginning
-    // This handles multi-word chapter names like "TWENTY ONE"
-    return description.replace(/^(\s*CHAPTER\s+([A-Z\s]+?(?=\s+CHAPTER)|[A-Z\s]+?(?=\s+The)|[\d]+)\s*)+/i, '').trim();
+
+    // Remove various chapter listing patterns from the beginning
+    let cleaned = description;
+
+    // Pattern 1: "CHAPTER ONE CHAPTER TWO CHAPTER THREE..." (word-based)
+    cleaned = cleaned.replace(/^(\s*CHAPTER\s+[A-Z]+(\s+[A-Z]+)*\s*)+/i, '');
+
+    // Pattern 2: "CHAPTER 1 CHAPTER 2 CHAPTER 3..." (number-based)
+    cleaned = cleaned.replace(/^(\s*CHAPTER\s+\d+\s*)+/i, '');
+
+    // Pattern 3: "Chapter One, Chapter Two, Chapter Three..." (comma-separated)
+    cleaned = cleaned.replace(/^(\s*Chapter\s+[A-Za-z]+(\s+[A-Za-z]+)?,?\s*)+/i, '');
+
+    // Pattern 4: "Ch. 1, Ch. 2, Ch. 3..." (abbreviated)
+    cleaned = cleaned.replace(/^(\s*Ch\.\s*\d+,?\s*)+/i, '');
+
+    // Pattern 5: Just numbers separated by spaces/commas at the start
+    cleaned = cleaned.replace(/^(\s*\d+[,\s]+)+/, '');
+
+    return cleaned.trim();
   };
 
   const getProgressPercentage = () => {
