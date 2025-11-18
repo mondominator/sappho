@@ -61,21 +61,26 @@
   color: #9ca3af;
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.2s, background 0.2s;
+  transition: all 0.2s ease;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
 }
 
 .nav-link:hover {
   color: #fff;
+  background: rgba(75, 85, 99, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .nav-link.active {
   color: #fff;
-  background: #374151;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .nav-actions {
@@ -116,17 +121,18 @@
   gap: 8px;
   background: transparent;
   color: #e5e7eb;
-  border: none;
+  border: 1px solid transparent;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .user-button:hover {
-  background: transparent;
+  background: rgba(75, 85, 99, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 
@@ -245,27 +251,55 @@
   left: 12px;
   color: #9ca3af;
   pointer-events: none;
+  z-index: 1;
+}
+
+.nav-search-clear {
+  position: absolute;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(75, 85, 99, 0.4);
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.nav-search-clear:hover {
+  background: rgba(75, 85, 99, 0.6);
+  color: #fff;
 }
 
 .nav-search-input {
   width: 300px;
-  padding: 8px 12px 8px 38px;
-  background: #374151;
-  border: 1px solid #4b5563;
-  border-radius: 8px;
+  padding: 8px 40px 8px 38px;
+  background: rgba(75, 85, 99, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   color: #fff;
   font-size: 0.95rem;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .nav-search-input::placeholder {
   color: #6b7280;
 }
 
+.nav-search-input:hover {
+  background: rgba(75, 85, 99, 0.35);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
 .nav-search-input:focus {
   outline: none;
-  border-color: #3b82f6;
-  background: #1f2937;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.08);
 }
 
 .mobile-only {

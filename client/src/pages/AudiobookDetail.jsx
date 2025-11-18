@@ -36,6 +36,30 @@ export default function AudiobookDetail({ onPlay }) {
     return `${hours}h ${minutes}m`;
   };
 
+  const formatLastListened = (timestamp) => {
+    if (!timestamp) return 'Never';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    // Handle timestamps in the future or just now
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  const cleanDescription = (description) => {
+    if (!description) return '';
+    // Remove chapter listings like "CHAPTER ONE CHAPTER TWO..." or "CHAPTER 1 CHAPTER 2..." from the beginning
+    // This handles multi-word chapter names like "TWENTY ONE"
+    return description.replace(/^(\s*CHAPTER\s+([A-Z\s]+?(?=\s+CHAPTER)|[A-Z\s]+?(?=\s+The)|[\d]+)\s*)+/i, '').trim();
+  };
+
   const getProgressPercentage = () => {
     if (!progress || !audiobook || !audiobook.duration) return 0;
     return Math.round((progress.position / audiobook.duration) * 100);
@@ -90,13 +114,16 @@ export default function AudiobookDetail({ onPlay }) {
 
   return (
     <div className="audiobook-detail container">
-      <button className="btn btn-secondary back-button" onClick={() => navigate(-1)}>
-        ← Back to Library
+      <button className="back-button-modern" onClick={() => navigate(-1)}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back
       </button>
 
       <div className="detail-content">
         <div className="detail-cover-container">
-          <div className="detail-cover">
+          <div className="detail-cover" onClick={() => onPlay(audiobook, progress)}>
             {audiobook.cover_image ? (
               <img
                 src={getCoverUrl(audiobook.id)}
@@ -108,6 +135,13 @@ export default function AudiobookDetail({ onPlay }) {
                 <h3>{audiobook.title}</h3>
               </div>
             )}
+            <div className="cover-play-overlay">
+              <div className="cover-play-button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                </svg>
+              </div>
+            </div>
             {progress && progress.position > 0 && (
               <div className="cover-progress-overlay">
                 <div
@@ -121,6 +155,37 @@ export default function AudiobookDetail({ onPlay }) {
 
         <div className="detail-info">
           <h1 className="detail-title">{audiobook.title}</h1>
+
+          <div className="detail-actions">
+            {progress && progress.position > 0 && !progress.completed && (
+              <>
+                <button
+                  className="btn btn-success"
+                  onClick={handleMarkFinished}
+                >
+                  Mark Finished
+                </button>
+                <button
+                  className="btn btn-warning"
+                  onClick={handleClearProgress}
+                >
+                  Clear Progress
+                </button>
+              </>
+            )}
+            <button
+              className="btn btn-secondary"
+              onClick={handleDownload}
+            >
+              Download
+            </button>
+            <button
+              className="btn btn-danger"
+              onClick={handleDelete}
+            >
+              Delete
+            </button>
+          </div>
 
           <div className="detail-metadata">
             {audiobook.author && (
@@ -173,51 +238,29 @@ export default function AudiobookDetail({ onPlay }) {
               <span className="meta-label">Duration</span>
               <span className="meta-value">{formatDuration(audiobook.duration)}</span>
             </div>
-          </div>
 
-          {audiobook.description && (
-            <div className="detail-description">
-              <h3>About</h3>
-              <p>{audiobook.description}</p>
-            </div>
-          )}
-
-          <div className="detail-actions">
-            <button
-              className="btn btn-primary btn-large"
-              onClick={() => onPlay(audiobook, progress)}
-            >
-              {progress && progress.position > 0 ? 'Resume' : 'Play'}
-            </button>
-            <button
-              className="btn btn-secondary"
-              onClick={handleDownload}
-            >
-              Download
-            </button>
-            {progress && progress.position > 0 && !progress.completed && (
+            {progress && progress.position > 0 && (
               <>
-                <button
-                  className="btn btn-success"
-                  onClick={handleMarkFinished}
-                >
-                  Mark Finished
-                </button>
-                <button
-                  className="btn btn-warning"
-                  onClick={handleClearProgress}
-                >
-                  Clear Progress
-                </button>
+                <div className="meta-item">
+                  <span className="meta-label">Progress</span>
+                  <span className="meta-value">
+                    {formatDuration(progress.position)} / {formatDuration(audiobook.duration)} ({getProgressPercentage()}%)
+                  </span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">Last Listened</span>
+                  <span className="meta-value">{formatLastListened(progress.updated_at)}</span>
+                </div>
               </>
             )}
-            <button
-              className="btn btn-danger"
-              onClick={handleDelete}
-            >
-              Delete
-            </button>
           </div>
+
+          {audiobook.description && cleanDescription(audiobook.description) && (
+            <div className="detail-description">
+              <h3>About</h3>
+              <p>{cleanDescription(audiobook.description)}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -345,23 +345,26 @@
   left: 1rem;
   width: 44px;
   height: 44px;
-  border-radius: 0;
-  background: transparent;
-  border: none;
+  border-radius: 12px;
+  background: rgba(75, 85, 99, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #9ca3af;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   z-index: 1001;
 }
 
 .fullscreen-close:hover {
+  background: rgba(75, 85, 99, 0.5);
+  border-color: rgba(255, 255, 255, 0.15);
   color: #fff;
 }
 
 .fullscreen-cover {
+  position: relative;
   width: 300px;
   height: 300px;
   border-radius: 20px;
@@ -450,40 +453,39 @@
 }
 
 .fullscreen-control-btn {
-  background: #374151;
-  border: none;
+  background: rgba(75, 85, 99, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   padding: 1rem;
   font-size: 32px;
   line-height: 1;
   width: 80px;
   height: 80px;
-  opacity: 0.7;
 }
 
 .fullscreen-control-btn:hover {
-  background: #4b5563;
-  transform: scale(1.1);
-  opacity: 1;
+  background: rgba(75, 85, 99, 0.5);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: scale(1.05);
 }
 
 .fullscreen-play-btn {
-  background: #3b82f6;
+  background: rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.4);
   padding: 1.5rem;
   width: 100px;
   height: 100px;
-  opacity: 1;
 }
 
 .fullscreen-play-btn:hover {
-  background: #2563eb;
-  opacity: 1;
+  background: rgba(59, 130, 246, 0.4);
+  border-color: rgba(59, 130, 246, 0.6);
 }
 
 .chapter-list-popup {
@@ -575,28 +577,64 @@
   width: 100%;
   height: 8px;
   border-radius: 4px;
-  background: #374151;
+  background: transparent;
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
+}
+
+.fullscreen-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #3b82f6 0%, #3b82f6 var(--progress, 0%), #374151 var(--progress, 0%), #374151 100%);
 }
 
 .fullscreen-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #3b82f6;
   cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  margin-top: -10px;
+  border: 3px solid #fff;
+}
+
+.fullscreen-slider::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #3b82f6 0%, #3b82f6 var(--progress, 0%), #374151 var(--progress, 0%), #374151 100%);
+  border: none;
 }
 
 .fullscreen-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #3b82f6;
   cursor: pointer;
-  border: none;
+  border: 3px solid #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.fullscreen-cover-progress-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.fullscreen-cover-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.8);
+  transition: width 0.1s linear;
 }
 
 .fullscreen-chapters {
@@ -772,29 +810,46 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 12px;
     position: relative;
     flex-shrink: 0;
+    background: rgba(75, 85, 99, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.2s ease;
+  }
+
+  .player-controls .control-btn:hover {
+    background: rgba(75, 85, 99, 0.5);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .player-controls .control-btn:active {
+    transform: translateY(0);
   }
 
   .player-controls .play-btn {
     width: 56px;
     height: 56px;
-    background: #60a5fa;
+    background: rgba(59, 130, 246, 0.25);
+    border: 1px solid rgba(59, 130, 246, 0.4);
     border-radius: 50%;
   }
 
   .player-controls .play-btn.playing {
-    background: #10b981;
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.4);
     animation: pulse 3s ease-in-out infinite;
   }
 
   .player-controls .play-btn:hover {
-    background: #3b82f6;
+    background: rgba(59, 130, 246, 0.4);
+    border-color: rgba(59, 130, 246, 0.6);
   }
 
   .player-controls .play-btn.playing:hover {
-    background: #059669;
+    background: rgba(16, 185, 129, 0.4);
+    border-color: rgba(16, 185, 129, 0.6);
   }
 
   .player-controls .cast-control-btn {
@@ -823,6 +878,21 @@
     position: static !important;
     transform: none !important;
     gap: 12px !important;
+    transition: color 0.3s ease;
+  }
+
+  /* Desktop time pulse animation */
+  .mobile-time-display.playing {
+    animation: timePulse 2s ease-in-out infinite;
+  }
+
+  @keyframes timePulse {
+    0%, 100% {
+      color: #60a5fa;
+    }
+    50% {
+      color: #93c5fd;
+    }
   }
 
   .chapter-indicator-mobile-time {
@@ -845,16 +915,24 @@
     width: 40px !important;
     height: 40px !important;
     padding: 0 !important;
-    opacity: 0.8 !important;
+    background: rgba(75, 85, 99, 0.25) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
   }
 
   .chapter-skip-desktop:hover {
-    opacity: 1 !important;
+    background: rgba(75, 85, 99, 0.4) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
   }
 
   .chapter-skip-desktop:disabled {
     opacity: 0.3 !important;
     cursor: not-allowed !important;
+  }
+
+  .chapter-skip-desktop:disabled:hover {
+    background: rgba(75, 85, 99, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    transform: none !important;
   }
 
   /* Make player-text clickable on desktop */
@@ -1263,7 +1341,7 @@
     height: 3px;
     background: #3b82f6;
     width: calc(var(--progress-percent, 0%) * (100% - 24px) / 100%);
-    transition: width 0.1s linear;
+    transition: none;
     pointer-events: none;
   }
 
@@ -1314,15 +1392,15 @@
   /* Match mobile player button styles in fullscreen */
   .fullscreen-control-btn {
     position: relative;
-    background: transparent !important;
-    opacity: 0.9;
+    background: rgba(75, 85, 99, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     width: 60px;
     height: 60px;
   }
 
   .fullscreen-control-btn:active {
-    background: transparent !important;
-    opacity: 0.6;
+    background: rgba(75, 85, 99, 0.5) !important;
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .fullscreen-control-btn text {
@@ -1330,23 +1408,26 @@
   }
 
   .fullscreen-play-btn {
-    background: #60a5fa !important;
-    opacity: 1;
+    background: rgba(59, 130, 246, 0.25) !important;
+    border: 1px solid rgba(59, 130, 246, 0.4);
     width: 80px;
     height: 80px;
   }
 
   .fullscreen-play-btn.playing {
-    background: #10b981 !important;
+    background: rgba(16, 185, 129, 0.25) !important;
+    border-color: rgba(16, 185, 129, 0.4);
     animation: pulse 3s ease-in-out infinite;
   }
 
   .fullscreen-play-btn:active {
-    background: #3b82f6 !important;
+    background: rgba(59, 130, 246, 0.4) !important;
+    border-color: rgba(59, 130, 246, 0.6);
   }
 
   .fullscreen-play-btn.playing:active {
-    background: #059669 !important;
+    background: rgba(16, 185, 129, 0.4) !important;
+    border-color: rgba(16, 185, 129, 0.6);
   }
 
   .fullscreen-chapter-skip {
@@ -1389,6 +1470,45 @@
   .fullscreen-chapter-btn svg {
     width: 18px;
     height: 18px;
+  }
+
+  .equalizer {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 18px;
+  }
+
+  .eq-bar {
+    width: 3px;
+    background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+    border-radius: 2px;
+    animation: equalize 0.8s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
+  .eq-bar:nth-child(1) {
+    animation-delay: 0s;
+    height: 14px;
+  }
+
+  .eq-bar:nth-child(2) {
+    animation-delay: 0.2s;
+    height: 10px;
+  }
+
+  .eq-bar:nth-child(3) {
+    animation-delay: 0.4s;
+    height: 16px;
+  }
+
+  @keyframes equalize {
+    0%, 100% {
+      transform: scaleY(0.5);
+    }
+    50% {
+      transform: scaleY(1);
+    }
   }
 
   .chapter-modal-overlay {
