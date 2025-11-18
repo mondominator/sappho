@@ -115,11 +115,11 @@ export default function Library({ onPlay }) {
               <h3>{book.title}</h3>
             </div>
           )}
-          {book.progress && book.progress.position > 0 && book.duration && (
+          {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
             <div className="progress-bar-overlay">
               <div
-                className="progress-bar-fill"
-                style={{ width: `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+                className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
+                style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
               />
             </div>
           )}
