@@ -262,6 +262,73 @@
   margin: 0;
 }
 
+.detail-chapters {
+  margin-top: 2rem;
+}
+
+.detail-chapters h3 {
+  font-size: 1.25rem;
+  margin: 0 0 1rem 0;
+  color: #fff;
+  font-weight: 600;
+}
+
+.chapters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(75, 85, 99, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.chapter-item:hover {
+  background: rgba(75, 85, 99, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.chapter-number {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 8px;
+  font-weight: 600;
+  color: #60a5fa;
+  font-size: 0.875rem;
+}
+
+.chapter-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.chapter-title {
+  color: #e5e7eb;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chapter-duration {
+  color: #9ca3af;
+  font-size: 0.8125rem;
+  margin-top: 0.25rem;
+}
+
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
