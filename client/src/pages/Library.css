@@ -18,6 +18,13 @@
   font-weight: 600;
 }
 
+/* Hide "Library" heading on desktop */
+@media (min-width: 769px) {
+  .library-page .library-header .library-count {
+    display: none;
+  }
+}
+
 .back-button {
   background: #1f2937;
   border: 1px solid #374151;

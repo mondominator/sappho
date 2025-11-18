@@ -627,7 +627,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </div>
         </div>
         <div className="player-mobile-controls" onClick={(e) => e.stopPropagation()}>
-          <div className="mobile-time-display">
+          <div className={`mobile-time-display ${playing ? 'playing' : ''}`}>
             <div>{formatTimeShort(currentTime)}</div>
             <div>{formatTimeShort(duration)}</div>
           </div>
@@ -648,10 +648,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             </>
           )}
           <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
-              <text x="12" y="16" fontSize="7" fill="currentColor" textAnchor="middle" fontWeight="300">15</text>
+              <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
             </svg>
           </button>
           <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
@@ -667,10 +667,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             )}
           </button>
           <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
               <path d="M21 3v5h-5"></path>
-              <text x="12" y="16" fontSize="7" fill="currentColor" textAnchor="middle" fontWeight="300">15</text>
+              <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
             </svg>
           </button>
         </div>
@@ -796,6 +796,14 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 ) : (
                   <div className="fullscreen-cover-placeholder">{audiobook.title}</div>
                 )}
+                {progress && progress.position > 0 && duration > 0 && (
+                  <div className="fullscreen-cover-progress-overlay">
+                    <div
+                      className="fullscreen-cover-progress-fill"
+                      style={{ width: `${(currentTime / duration) * 100}%` }}
+                    ></div>
+                  </div>
+                )}
               </div>
 
               <div className="fullscreen-info">
@@ -867,20 +875,29 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   value={currentTime}
                   onChange={handleSeek}
                   className="fullscreen-slider"
+                  style={{ '--progress': `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
                 />
               </div>
 
               {audiobook.is_multi_file && chapters.length > 0 && (
                 <button className="fullscreen-chapter-btn" onClick={() => setShowChapterModal(true)}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="8" y1="6" x2="21" y2="6"></line>
-                    <line x1="8" y1="12" x2="21" y2="12"></line>
-                    <line x1="8" y1="18" x2="21" y2="18"></line>
-                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                  </svg>
-                  <span>Chapter {currentChapter + 1}</span>
+                  {playing ? (
+                    <div className="equalizer">
+                      <span className="eq-bar"></span>
+                      <span className="eq-bar"></span>
+                      <span className="eq-bar"></span>
+                    </div>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6"></line>
+                      <line x1="8" y1="12" x2="21" y2="12"></line>
+                      <line x1="8" y1="18" x2="21" y2="18"></line>
+                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                  )}
+                  <span>{chapters[currentChapter]?.title || ''}</span>
                 </button>
               )}
             </div>
