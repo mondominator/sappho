@@ -6,6 +6,8 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 
 > ⚠️ **Early Development**: Sappho is currently in early development. While fully functional, you may encounter bugs or incomplete features. Please report any issues you find!
 
+> 💯 **Vibe Check**: This entire project was architected, coded, and shipped in record time with [Claude Code](https://claude.com/claude-code). From zero to a fully-functional audiobook server with 115+ features, PWA support, real-time WebSockets, and a modern glass-morphism UI - all crafted through AI-assisted development. The future of coding is here, and it's absolutely fire. 🔥
+
 ## 📖 Table of Contents
 
 - [Features](#-features)
