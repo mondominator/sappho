@@ -13,7 +13,7 @@ import Settings from './pages/Settings'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
 import UploadModal from './components/UploadModal'
-import { getProgress } from './api'
+import { getProgress, getProfile } from './api'
 import './App.css'
 
 function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, currentAudiobook, setCurrentAudiobook, currentProgress, setCurrentProgress, playAudiobook }) {
@@ -101,6 +101,18 @@ function App() {
       return null
     }
   })
+
+  // Validate token on mount
+  useEffect(() => {
+    if (token) {
+      getProfile().catch((error) => {
+        if (error.response && error.response.status === 401) {
+          // Token is invalid/expired, the axios interceptor will handle logout
+          console.log('Token expired, logging out');
+        }
+      });
+    }
+  }, [token]);
 
   // Initialize Google Cast SDK
   useEffect(() => {
