@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>Sapho</Name>
-  <Repository>ghcr.io/global_dynamics/sapho:latest</Repository>
+  <Repository>ghcr.io/mondominator/sappho:latest</Repository>
   <Registry>https://ghcr.io/</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://git.bitstorm.ca/global_dynamics/sapho</Support>
-  <Project>https://git.bitstorm.ca/global_dynamics/sapho</Project>
+  <Support>https://github.com/mondominator/sapho</Support>
+  <Project>https://github.com/mondominator/sapho</Project>
   <Overview>Sapho is a modern, self-hosted audiobook server with a beautiful web interface. Features include automatic metadata extraction, series organization, progress tracking, and a mobile-optimized PWA interface.</Overview>
   <Category>MediaApp:Other MediaServer:Other</Category>
   <WebUI>http://[IP]:[PORT:3002]</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/global_dynamics/sapho/main/unraid-template.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/global_dynamics/sapho/main/icon-unraid.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/mondominator/sapho/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/mondominator/sapho/main/icon-unraid.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>

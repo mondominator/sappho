@@ -8,6 +8,28 @@
   margin-bottom: 2rem;
 }
 
+.back-button-modern {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 2rem;
+}
+
+.back-button-modern:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 .detail-content {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -29,11 +51,48 @@
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   transition: transform 0.3s ease;
+  cursor: pointer;
 }
 
 .detail-cover:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.detail-cover:hover .cover-play-overlay {
+  opacity: 1;
+}
+
+.cover-play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+.cover-play-button {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: all 0.2s;
+}
+
+.cover-play-button:hover {
+  transform: scale(1.05);
+  background: rgba(59, 130, 246, 0.7);
 }
 
 .detail-cover img {
@@ -194,8 +253,71 @@
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.75rem;
   padding-top: 1rem;
+}
+
+.detail-actions .btn {
+  flex: 0 1 auto;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-actions .btn-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+.detail-actions .btn-success:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(110, 231, 183, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-actions .btn-warning {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fbbf24;
+}
+
+.detail-actions .btn-warning:hover {
+  background: rgba(251, 146, 60, 0.25);
+  border-color: rgba(251, 191, 36, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-actions .btn-secondary {
+  background: rgba(107, 114, 128, 0.15);
+  color: #d1d5db;
+}
+
+.detail-actions .btn-secondary:hover {
+  background: rgba(107, 114, 128, 0.25);
+  border-color: rgba(209, 213, 219, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-actions .btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.detail-actions .btn-danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(252, 165, 165, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-actions .btn:active {
+  transform: translateY(0);
 }
 
 .btn-large {
@@ -218,27 +340,60 @@
     padding-top: 0.5rem;
   }
 
+  .back-button-modern {
+    margin-bottom: 1rem;
+  }
+
   .detail-content {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1.5rem;
   }
 
   .detail-cover-container {
     position: static;
-    max-width: 120px;
+    max-width: 320px;
     margin: 0 auto;
   }
 
   .detail-cover {
-    /* Mobile: smaller cover */
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  .cover-play-overlay {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .cover-play-button {
+    width: 70px;
+    height: 70px;
   }
 
   .detail-title {
-    font-size: 2rem;
+    display: none;
   }
 
   .detail-metadata {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+
+  .detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    order: -1;
+  }
+
+  .detail-actions .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+  }
+
+  .detail-info {
+    display: flex;
+    flex-direction: column;
   }
 }

@@ -27,7 +27,7 @@ version: '3.8'
 
 services:
   sapho:
-    image: ghcr.io/global_dynamics/sapho:latest
+    image: ghcr.io/mondominator/sappho:latest
     container_name: sapho
     ports:
       - "3002:3002"
@@ -58,7 +58,7 @@ services:
 1. **Add Template Repository:**
    - Go to Docker tab in Unraid
    - Click "Add Template Repository"
-   - Add: `https://github.com/global_dynamics/sapho/blob/main/unraid-template.xml`
+   - Add: `https://github.com/mondominator/sappho/blob/main/unraid-template.xml`
 
 2. **Install Sappho:**
    - Search for "Sappho" in Community Applications
@@ -108,7 +108,7 @@ Sappho is a full-featured Progressive Web App (PWA) that can be installed on you
 
 ```bash
 # Clone the repository
-git clone https://git.bitstorm.ca/global_dynamics/sapho.git
+git clone https://github.com/mondominator/sappho.git
 cd sapho
 
 # Build with Docker
@@ -161,7 +161,7 @@ Example Docker Compose for existing library:
 ```yaml
 services:
   sapho:
-    image: ghcr.io/global_dynamics/sapho:latest
+    image: ghcr.io/mondominator/sappho:latest
     environment:
       - LIBRARY_SCAN_INTERVAL=5  # Scan every 5 minutes (optional)
     volumes:
@@ -210,8 +210,8 @@ Supported metadata fields:
 
 ## Support
 
-- **Issues**: https://git.bitstorm.ca/global_dynamics/sapho/issues
-- **Documentation**: https://git.bitstorm.ca/global_dynamics/sapho
+- **Issues**: https://github.com/mondominator/sappho/issues
+- **Documentation**: https://github.com/mondominator/sappho
 
 ## License
 
