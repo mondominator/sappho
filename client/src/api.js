@@ -19,11 +19,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 responses and redirect to login
+// Handle 401/403 responses and redirect to login
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       // Clear local storage
       localStorage.removeItem('token');
       localStorage.removeItem('currentAudiobook');

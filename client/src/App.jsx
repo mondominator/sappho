@@ -106,9 +106,12 @@ function App() {
   useEffect(() => {
     if (token) {
       getProfile().catch((error) => {
-        if (error.response && error.response.status === 401) {
-          // Token is invalid/expired, the axios interceptor will handle logout
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          // Token is invalid/expired - clear state
           console.log('Token expired, logging out');
+          setToken(null);
+          setCurrentAudiobook(null);
+          setCurrentProgress(null);
         }
       });
     }
