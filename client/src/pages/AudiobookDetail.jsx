@@ -84,6 +84,15 @@ export default function AudiobookDetail({ onPlay }) {
     // Pattern 6: Just numbers separated by spaces/commas at the start
     cleaned = cleaned.replace(/^(\s*\d+[,\s]+)+/, '');
 
+    // Pattern 7: "-1-", "-2-", "-3-" or similar hyphen-wrapped numbers
+    cleaned = cleaned.replace(/^(\s*-\d+-?\s*)+/, '');
+
+    // Pattern 8: "1. 2. 3." or "1) 2) 3)" (numbered lists)
+    cleaned = cleaned.replace(/^(\s*\d+[.)]\s*)+/, '');
+
+    // Pattern 9: Track listing patterns like "01 - ", "Track 1", etc.
+    cleaned = cleaned.replace(/^(\s*(Track\s+)?\d+(\s*-\s*|\s+))+/i, '');
+
     // Clean up any remaining Opening/End Credits
     cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
     cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
