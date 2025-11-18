@@ -40,6 +40,15 @@ function cleanDescription(description) {
   // Pattern 6: Just numbers separated by spaces/commas at the start
   cleaned = cleaned.replace(/^(\s*\d+[,\s]+)+/, '');
 
+  // Pattern 7: "-1-", "-2-", "-3-" or similar hyphen-wrapped numbers
+  cleaned = cleaned.replace(/^(\s*-\d+-?\s*)+/, '');
+
+  // Pattern 8: "1. 2. 3." or "1) 2) 3)" (numbered lists)
+  cleaned = cleaned.replace(/^(\s*\d+[.)]\s*)+/, '');
+
+  // Pattern 9: Track listing patterns like "01 - ", "Track 1", etc.
+  cleaned = cleaned.replace(/^(\s*(Track\s+)?\d+(\s*-\s*|\s+))+/i, '');
+
   // Clean up any remaining Opening/End Credits
   cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
   cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
@@ -308,11 +317,16 @@ async function extractFileMetadata(filePath) {
 
     const rawDescription = common.comment ? common.comment.join(' ') : null;
 
+    // Clean the description and check if it's meaningful
+    // If after cleaning it's empty or very short (< 20 chars), it was probably just chapter metadata
+    const cleanedDesc = cleanDescription(rawDescription);
+    const meaningfulDescription = cleanedDesc && cleanedDesc.length >= 20 ? cleanedDesc : null;
+
     return {
       title: title,
       author: common.artist || common.albumartist || null,
       narrator: narrator,
-      description: cleanDescription(rawDescription),
+      description: meaningfulDescription,
       duration: format.duration ? Math.round(format.duration) : null,
       genre: common.genre ? common.genre.join(', ') : null,
       published_year: common.year || null,
