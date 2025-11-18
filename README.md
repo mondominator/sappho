@@ -113,24 +113,6 @@ services:
 | `LIBRARY_SCAN_INTERVAL` | No | `5` | Minutes between library rescans for new audiobooks |
 | `DATABASE_PATH` | No | `/app/data/sapho.db` | SQLite database location |
 
-## Unraid Installation
-
-1. **Add Template Repository:**
-   - Go to Docker tab in Unraid
-   - Click "Add Template Repository"
-   - Add: `https://github.com/mondominator/sappho/blob/main/unraid-template.xml`
-
-2. **Install Sappho:**
-   - Search for "Sappho" in Community Applications
-   - Click Install
-   - Configure paths and JWT_SECRET
-   - Start container
-
-3. **First Time Setup:**
-   - Access at `http://your-server-ip:3002`
-   - Default admin credentials will be shown in container logs
-   - Change your password immediately
-
 ## Mobile Installation (Progressive Web App)
 
 Sappho is a full-featured Progressive Web App (PWA) that can be installed on your mobile device for a native app experience.
