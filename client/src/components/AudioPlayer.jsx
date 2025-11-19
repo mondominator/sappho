@@ -146,15 +146,16 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                       window.navigator.standalone === true;
         const canAutoPlayOnRefresh = !isMobile && !isPWA && !isNewLoad && savedPlaying === 'true';
 
-        if (isNewLoad && savedPlaying !== 'false') {
-          // New book load - auto-play only if we weren't explicitly paused
-          // This prevents auto-play when refreshing while paused
+        if (isNewLoad) {
+          // New book load - always auto-play (user just clicked play button)
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
                 console.log('Playback started successfully (new book)');
                 setPlaying(true);
                 setIsNewLoad(false);
+                // Mark as playing after successful start
+                localStorage.setItem('playerPlaying', 'true');
               }).catch(err => {
                 console.warn('Auto-play prevented or failed:', err);
                 setPlaying(false);
