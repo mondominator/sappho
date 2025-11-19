@@ -315,7 +315,15 @@ async function extractFileMetadata(filePath) {
       }
     }
 
-    const rawDescription = common.comment ? common.comment.join(' ') : null;
+    // Prioritize 'description' tag over 'comment' tag (AudioBookshelf approach)
+    // Description tag is typically the proper book description
+    // Comment tag often contains chapter listings or other metadata
+    let rawDescription = null;
+    if (common.description) {
+      rawDescription = Array.isArray(common.description) ? common.description.join(' ') : common.description;
+    } else if (common.comment) {
+      rawDescription = Array.isArray(common.comment) ? common.comment.join(' ') : common.comment;
+    }
 
     // Clean the description and check if it's meaningful
     // If after cleaning it's empty or very short (< 20 chars), it was probably just chapter metadata
