@@ -287,13 +287,49 @@ router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
     const { extractFileMetadata } = require('../services/fileProcessor');
     const metadata = await extractFileMetadata(audiobook.file_path);
 
+    // Check if this is an M4B file with embedded chapters
+    const ext = path.extname(audiobook.file_path).toLowerCase();
+    const isM4B = ext === '.m4b';
+    let chapters = null;
+
+    if (isM4B) {
+      // Extract chapters using ffprobe
+      const { execFile } = require('child_process');
+      const { promisify } = require('util');
+      const execFileAsync = promisify(execFile);
+
+      try {
+        const { stdout } = await execFileAsync('ffprobe', [
+          '-v', 'quiet',
+          '-print_format', 'json',
+          '-show_chapters',
+          audiobook.file_path
+        ]);
+
+        const data = JSON.parse(stdout);
+        if (data.chapters && data.chapters.length > 0) {
+          chapters = data.chapters.map((chapter, index) => ({
+            chapter_number: index + 1,
+            title: chapter.tags?.title || `Chapter ${index + 1}`,
+            start_time: parseFloat(chapter.start_time) || 0,
+            end_time: parseFloat(chapter.end_time) || 0,
+            duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
+          }));
+        }
+      } catch (error) {
+        console.log(`No chapters found in ${path.basename(audiobook.file_path)} or ffprobe failed:`, error.message);
+      }
+    }
+
+    const hasChapters = chapters && chapters.length > 1;
+
     // Update database with new metadata
     await new Promise((resolve, reject) => {
       db.run(
         `UPDATE audiobooks
          SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
              series = ?, series_position = ?, published_year = ?, cover_image = ?,
-             duration = ?, updated_at = CURRENT_TIMESTAMP
+             duration = ?, is_multi_file = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           metadata.title,
@@ -306,6 +342,7 @@ router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
           metadata.published_year,
           metadata.cover_image,
           metadata.duration,
+          hasChapters ? 1 : 0,
           req.params.id
         ],
         (err) => {
@@ -314,6 +351,41 @@ router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
         }
       );
     });
+
+    // Delete existing chapters and insert new ones if we have chapters
+    if (hasChapters) {
+      // Delete old chapters
+      await new Promise((resolve, reject) => {
+        db.run('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id], (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      // Insert new chapters
+      for (const chapter of chapters) {
+        await new Promise((resolve, reject) => {
+          db.run(
+            `INSERT INTO audiobook_chapters
+             (audiobook_id, chapter_number, file_path, duration, start_time, title)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              req.params.id,
+              chapter.chapter_number,
+              audiobook.file_path, // Same file for all chapters in m4b
+              chapter.duration,
+              chapter.start_time,
+              chapter.title,
+            ],
+            (err) => {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+      }
+      console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
+    }
 
     // Return updated audiobook
     const updatedAudiobook = await new Promise((resolve, reject) => {
