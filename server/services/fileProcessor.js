@@ -342,23 +342,39 @@ async function extractFileMetadata(filePath) {
       }
     }
 
-    // AudioBookshelf approach: ONLY use description tag, never fall back to comment
-    // Comment tag often contains chapter listings or other metadata, not the actual book description
-    // If there's no description tag, leave description empty rather than using potentially wrong data
+    const iTunesTags = nativeTags.iTunes || nativeTags.MP4 || [];
+
+    // Extract description from multiple possible sources
+    // Priority: iTunes long description (ldes) > common.description > iTunes description (desc)
+    // DO NOT use comment tags as they often contain chapter listings
     let rawDescription = null;
     let descriptionSource = null;
 
-    if (common.description) {
-      rawDescription = Array.isArray(common.description) ? common.description.join(' ') : common.description;
-      descriptionSource = 'description';
+    // Check iTunes/MP4 tags for long description or description fields
+    if (iTunesTags.length > 0) {
+      // Look for long description tag (ldes) - this is the proper description field in M4B files
+      const ldesTag = iTunesTags.find(tag => tag.id === 'ldes' || tag.id === '©ldes' || tag.id === 'desc' || tag.id === '©des');
+      if (ldesTag && ldesTag.value) {
+        const val = Array.isArray(ldesTag.value) ? ldesTag.value[0] : ldesTag.value;
+        if (typeof val === 'string') {
+          rawDescription = val;
+          descriptionSource = 'iTunes:' + ldesTag.id;
+        } else if (typeof val === 'object' && val.text) {
+          rawDescription = val.text;
+          descriptionSource = 'iTunes:' + ldesTag.id;
+        } else if (Buffer.isBuffer(val)) {
+          rawDescription = val.toString('utf8');
+          descriptionSource = 'iTunes:' + ldesTag.id;
+        }
+      }
     }
-    // Do NOT fall back to comment tag - it often contains chapter listings
 
-    console.log(`Description for ${title}:`, {
-      source: descriptionSource || 'none',
-      rawLength: rawDescription?.length || 0,
-      preview: rawDescription?.substring(0, 100) || 'No description tag found'
-    });
+    // Fall back to common.description if no iTunes description found
+    if (!rawDescription && common.description) {
+      rawDescription = Array.isArray(common.description) ? common.description.join(' ') : common.description;
+      descriptionSource = 'common.description';
+    }
+    // DO NOT fall back to comment tags - they often contain chapter listings
 
     // Clean the description if we have one
     // Check if it looks like chapter listings rather than a real description
@@ -374,12 +390,6 @@ async function extractFileMetadata(filePath) {
         meaningfulDescription = cleaned;
       }
     }
-
-    console.log(`Cleaned description:`, {
-      cleanedLength: meaningfulDescription?.length || 0,
-      meaningful: meaningfulDescription !== null,
-      preview: meaningfulDescription?.substring(0, 100) || 'No meaningful description'
-    });
 
     return {
       title: title,
