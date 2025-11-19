@@ -135,6 +135,11 @@
   transition: width 0.3s ease;
 }
 
+.cover-progress-fill.completed {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.8);
+}
+
 .detail-info {
   display: flex;
   flex-direction: column;

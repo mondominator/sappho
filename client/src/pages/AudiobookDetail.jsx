@@ -182,15 +182,90 @@ export default function AudiobookDetail({ onPlay }) {
                 </svg>
               </div>
             </div>
-            {progress && progress.position > 0 && (
+            {progress && (progress.position > 0 || progress.completed === 1) && (
               <div className="cover-progress-overlay">
                 <div
-                  className="cover-progress-fill"
-                  style={{ width: `${getProgressPercentage()}%` }}
+                  className={`cover-progress-fill ${progress.completed === 1 ? 'completed' : ''}`}
+                  style={{ width: progress.completed === 1 ? '100%' : `${getProgressPercentage()}%` }}
                 ></div>
               </div>
             )}
           </div>
+
+          {audiobook.is_multi_file && chapters && chapters.length > 0 && (
+              <div className="detail-chapters-container">
+                <button
+                  className="chapters-toggle-btn"
+                  onClick={() => setShowChapters(!showChapters)}
+                >
+                  <div className="chapters-toggle-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6"></line>
+                      <line x1="8" y1="12" x2="21" y2="12"></line>
+                      <line x1="8" y1="18" x2="21" y2="18"></line>
+                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                    <span>
+                      {chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <svg
+                    className={`chapters-toggle-icon ${showChapters ? 'open' : ''}`}
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                {showChapters && (
+                  <div className="detail-chapters">
+                    <div className="chapters-list">
+                      {chapters.map((chapter, index) => {
+                        // Use start_time if available (embedded chapters), otherwise calculate from durations (multi-file)
+                        const startTime = chapter.start_time !== undefined ? chapter.start_time :
+                          chapters.slice(0, index).reduce((sum, ch) => sum + (ch.duration || 0), 0);
+
+                        return (
+                          <div
+                            key={chapter.id || index}
+                            className="chapter-item clickable"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!onPlay) {
+                                console.error('onPlay function not available');
+                                return;
+                              }
+                              // Create a modified progress object with the chapter start time
+                              const chapterProgress = { ...progress, position: startTime };
+                              onPlay(audiobook, chapterProgress);
+                            }}
+                          >
+                            <div className="chapter-info">
+                              <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                              <div className="chapter-meta">
+                                {chapter.duration && (
+                                  <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
         </div>
 
         <div className="detail-info">
@@ -203,7 +278,7 @@ export default function AudiobookDetail({ onPlay }) {
             >
               Mark Finished
             </button>
-            {progress && progress.position > 0 && (
+            {progress && (progress.position > 0 || progress.completed === 1) && (
               <button
                 className="btn btn-warning"
                 onClick={handleClearProgress}
@@ -308,81 +383,6 @@ export default function AudiobookDetail({ onPlay }) {
               <p>{cleanDescription(audiobook.description)}</p>
             </div>
           )}
-
-          {chapters && chapters.length > 0 && (
-              <div className="detail-chapters-container">
-                <button
-                  className="chapters-toggle-btn"
-                  onClick={() => setShowChapters(!showChapters)}
-                >
-                  <div className="chapters-toggle-content">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="8" y1="6" x2="21" y2="6"></line>
-                      <line x1="8" y1="12" x2="21" y2="12"></line>
-                      <line x1="8" y1="18" x2="21" y2="18"></line>
-                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                    </svg>
-                    <span>
-                      {chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <svg
-                    className={`chapters-toggle-icon ${showChapters ? 'open' : ''}`}
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-
-                {showChapters && (
-                  <div className="detail-chapters">
-                    <div className="chapters-list">
-                      {chapters.map((chapter, index) => {
-                        // Use start_time if available (embedded chapters), otherwise calculate from durations (multi-file)
-                        const startTime = chapter.start_time !== undefined ? chapter.start_time :
-                          chapters.slice(0, index).reduce((sum, ch) => sum + (ch.duration || 0), 0);
-
-                        return (
-                          <div
-                            key={chapter.id || index}
-                            className="chapter-item clickable"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!onPlay) {
-                                console.error('onPlay function not available');
-                                return;
-                              }
-                              // Create a modified progress object with the chapter start time
-                              const chapterProgress = { ...progress, position: startTime };
-                              onPlay(audiobook, chapterProgress);
-                            }}
-                          >
-                            <div className="chapter-info">
-                              <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
-                              <div className="chapter-meta">
-                                {chapter.duration && (
-                                  <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
         </div>
       </div>
     </div>

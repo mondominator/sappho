@@ -76,13 +76,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       }
     }
 
-    // Load chapters if multi-file audiobook
-    if (audiobook.is_multi_file) {
-      getChapters(audiobook.id)
-        .then(response => setChapters(response.data || []))
-        .catch(err => console.error('Error loading chapters:', err));
-    }
-  }, [audiobook.id, audiobook.is_multi_file, audiobook._playRequested]);
+    // Load chapters for all audiobooks (both embedded chapters in M4B and multi-file)
+    getChapters(audiobook.id)
+      .then(response => setChapters(response.data || []))
+      .catch(err => console.error('Error loading chapters:', err));
+  }, [audiobook.id, audiobook._playRequested]);
 
   // Save playing state to localStorage
   useEffect(() => {
@@ -241,13 +239,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       });
 
       navigator.mediaSession.setActionHandler('previoustrack', () => {
-        if (audiobook.is_multi_file && chapters.length > 0) {
+        if (chapters.length > 0) {
           skipToPreviousChapter();
         }
       });
 
       navigator.mediaSession.setActionHandler('nexttrack', () => {
-        if (audiobook.is_multi_file && chapters.length > 0) {
+        if (chapters.length > 0) {
           skipToNextChapter();
         }
       });
@@ -308,7 +306,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const skipToPreviousChapter = () => {
-    if (!audiobook.is_multi_file || chapters.length === 0) return;
+    if (chapters.length === 0) return;
 
     const prevChapter = Math.max(0, currentChapter - 1);
     const newTime = chapters[prevChapter].start_time;
@@ -317,7 +315,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const skipToNextChapter = () => {
-    if (!audiobook.is_multi_file || chapters.length === 0) return;
+    if (chapters.length === 0) return;
 
     const nextChapter = Math.min(chapters.length - 1, currentChapter + 1);
     const newTime = chapters[nextChapter].start_time;
@@ -527,7 +525,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
   // Update current chapter based on playback time
   useEffect(() => {
-    if (!audiobook.is_multi_file || chapters.length === 0) return;
+    if (chapters.length === 0) return;
 
     const currentChapterIndex = chapters.findIndex((chapter, index) => {
       const nextChapter = chapters[index + 1];
@@ -538,7 +536,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     if (currentChapterIndex !== -1) {
       setCurrentChapter(currentChapterIndex);
     }
-  }, [currentTime, chapters, audiobook.is_multi_file]);
+  }, [currentTime, chapters]);
 
   // Scroll active chapter into view in fullscreen
   useEffect(() => {
@@ -629,15 +627,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </div>
         </div>
         <div className="player-mobile-controls" onClick={(e) => e.stopPropagation()}>
-          {audiobook.is_multi_file && chapters.length > 0 && (
-            <div className="desktop-chapter-indicator">
+          {chapters.length > 0 && (
+            <button
+              className="desktop-chapter-indicator"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowChapterModal(true);
+              }}
+            >
               {chapters[currentChapter]?.title || ''}
-            </div>
+            </button>
           )}
           <div className={`mobile-time-display ${playing ? 'playing' : ''}`}>
             <div>{formatTimeShort(currentTime)} / {formatTimeShort(duration)}</div>
           </div>
-          {audiobook.is_multi_file && chapters.length > 0 && (
+          {chapters.length > 0 && (
             <>
               <button className="control-btn chapter-skip-btn" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -683,7 +687,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       </div>
 
       <div className="player-controls">
-        {audiobook.is_multi_file && chapters.length > 0 && (
+        {chapters.length > 0 && (
           <button className="control-btn chapter-skip-desktop" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="19 20 9 12 19 4 19 20"></polygon>
@@ -717,7 +721,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </svg>
           <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
         </button>
-        {audiobook.is_multi_file && chapters.length > 0 && (
+        {chapters.length > 0 && (
           <button className="control-btn chapter-skip-desktop" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="5 4 15 12 5 20 5 4"></polygon>
@@ -755,7 +759,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         />
       </div>
 
-      {showChapterList && audiobook.is_multi_file && chapters.length > 0 && (
+      {showChapterList && chapters.length > 0 && (
         <div className="chapter-list-popup" onClick={() => setShowChapterList(false)}>
           <div className="chapter-list-content" onClick={(e) => e.stopPropagation()}>
             <h3>Chapters</h3>
@@ -823,7 +827,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
               <div className="fullscreen-controls-wrapper">
                 <div className="fullscreen-controls">
-                {audiobook.is_multi_file && chapters.length > 0 && (
+                {chapters.length > 0 && (
                   <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={skipToPreviousChapter} disabled={currentChapter === 0}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="19 20 9 12 19 4 19 20"></polygon>
@@ -857,7 +861,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   </svg>
                   <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
                 </button>
-                {audiobook.is_multi_file && chapters.length > 0 && (
+                {chapters.length > 0 && (
                   <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="5 4 15 12 5 20 5 4"></polygon>
@@ -884,7 +888,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 />
               </div>
 
-              {audiobook.is_multi_file && chapters.length > 0 && (
+              {chapters.length > 0 && (
                 <button className="fullscreen-chapter-btn" onClick={() => setShowChapterModal(true)}>
                   {playing ? (
                     <div className="equalizer">
@@ -908,7 +912,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             </div>
           </div>
 
-          {showChapterModal && audiobook.is_multi_file && chapters.length > 0 && (
+          {showChapterModal && chapters.length > 0 && (
             <div className="chapter-modal-overlay" onClick={() => setShowChapterModal(false)}>
               <div className="chapter-modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="chapter-modal-header">
