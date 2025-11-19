@@ -18,9 +18,26 @@ function cleanDescription(description) {
 
   let cleaned = description;
 
-  // Remove Opening Credits / End Credits
+  // Strategy 1: Check if the real description is AFTER chapter listings
+  // Look for patterns like "End Credits [actual description]" or "Epilogue [actual description]"
+  const afterCreditsMatch = cleaned.match(/(?:End\s+Credits|Epilogue|About\s+the\s+Author|Q&A\s+with\s+the\s+Author)\s+(.+)/is);
+  if (afterCreditsMatch && afterCreditsMatch[1]) {
+    const potentialDescription = afterCreditsMatch[1].trim();
+    // Check if this looks like a real description (starts with a capital letter, has reasonable length)
+    if (potentialDescription.length >= 50 && /^[A-Z<"]/.test(potentialDescription)) {
+      // Remove any trailing "End Credits", "Epilogue", etc.
+      cleaned = potentialDescription.replace(/\s*(Opening|End)\s+Credits\s*$/i, '').trim();
+      return cleaned;
+    }
+  }
+
+  // Strategy 2: Remove chapter listings from the beginning (original approach)
+  // Remove Opening Credits / End Credits from start and end
   cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
   cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
+
+  // Pattern: "Dedication Part 1: Name Chapter 1 Chapter 2..." (common in audiobooks)
+  cleaned = cleaned.replace(/^(\s*Dedication\s+)?Part\s+\d+:\s*[A-Za-z\s]+(\s+Chapter\s+\d+)+/i, '');
 
   // Pattern 1: "Chapter One Chapter Two..." or "Chapter Twenty-One..." (word-based with optional hyphens)
   cleaned = cleaned.replace(/^(\s*Chapter\s+([A-Z][a-z]+(-[A-Z][a-z]+)*)\s*)+/i, '');
@@ -49,9 +66,19 @@ function cleanDescription(description) {
   // Pattern 9: Track listing patterns like "01 - ", "Track 1", etc.
   cleaned = cleaned.replace(/^(\s*(Track\s+)?\d+(\s*-\s*|\s+))+/i, '');
 
+  // Remove repeating "Chapter N" patterns more aggressively
+  // This handles cases like "Chapter 1 Chapter 2 Chapter 3..." that slip through
+  cleaned = cleaned.replace(/^(.*?Chapter\s+\d+\s*)+/i, '');
+
+  // Remove "Part N: Title" patterns at the beginning
+  cleaned = cleaned.replace(/^(\s*Part\s+\d+:\s*[^\n]+\s*)+/gi, '');
+
   // Clean up any remaining Opening/End Credits
   cleaned = cleaned.replace(/^(\s*(Opening|End)\s+Credits\s*)+/i, '');
   cleaned = cleaned.replace(/(\s*(Opening|End)\s+Credits\s*)+$/i, '');
+
+  // Remove "Dedication" if it's still at the start
+  cleaned = cleaned.replace(/^(\s*Dedication\s*)+/i, '');
 
   return cleaned.trim();
 }
@@ -315,20 +342,44 @@ async function extractFileMetadata(filePath) {
       }
     }
 
-    // Prioritize 'description' tag over 'comment' tag (AudioBookshelf approach)
-    // Description tag is typically the proper book description
-    // Comment tag often contains chapter listings or other metadata
+    // AudioBookshelf approach: ONLY use description tag, never fall back to comment
+    // Comment tag often contains chapter listings or other metadata, not the actual book description
+    // If there's no description tag, leave description empty rather than using potentially wrong data
     let rawDescription = null;
+    let descriptionSource = null;
+
     if (common.description) {
       rawDescription = Array.isArray(common.description) ? common.description.join(' ') : common.description;
-    } else if (common.comment) {
-      rawDescription = Array.isArray(common.comment) ? common.comment.join(' ') : common.comment;
+      descriptionSource = 'description';
+    }
+    // Do NOT fall back to comment tag - it often contains chapter listings
+
+    console.log(`Description for ${title}:`, {
+      source: descriptionSource || 'none',
+      rawLength: rawDescription?.length || 0,
+      preview: rawDescription?.substring(0, 100) || 'No description tag found'
+    });
+
+    // Clean the description if we have one
+    // Check if it looks like chapter listings rather than a real description
+    let meaningfulDescription = null;
+    if (rawDescription) {
+      const cleaned = cleanDescription(rawDescription);
+      // Check if this looks like a real description:
+      // - At least 50 characters after cleaning
+      // - Doesn't start with common chapter patterns
+      const looksLikeChapters = /^(Chapter|Part|Track|\d+[.:\-)]|Dedication|Opening|Prologue)/i.test(cleaned.trim());
+
+      if (cleaned && cleaned.length >= 50 && !looksLikeChapters) {
+        meaningfulDescription = cleaned;
+      }
     }
 
-    // Clean the description and check if it's meaningful
-    // If after cleaning it's empty or very short (< 20 chars), it was probably just chapter metadata
-    const cleanedDesc = cleanDescription(rawDescription);
-    const meaningfulDescription = cleanedDesc && cleanedDesc.length >= 20 ? cleanedDesc : null;
+    console.log(`Cleaned description:`, {
+      cleanedLength: meaningfulDescription?.length || 0,
+      meaningful: meaningfulDescription !== null,
+      preview: meaningfulDescription?.substring(0, 100) || 'No meaningful description'
+    });
 
     return {
       title: title,
