@@ -265,6 +265,71 @@ router.put('/:id', authenticateToken, (req, res) => {
   );
 });
 
+// Refresh metadata from file
+router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
+  try {
+    const audiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    if (!fs.existsSync(audiobook.file_path)) {
+      return res.status(404).json({ error: 'Audio file not found on disk' });
+    }
+
+    // Re-extract metadata
+    const { extractFileMetadata } = require('../services/fileProcessor');
+    const metadata = await extractFileMetadata(audiobook.file_path);
+
+    // Update database with new metadata
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE audiobooks
+         SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
+             series = ?, series_position = ?, published_year = ?, cover_image = ?,
+             duration = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          metadata.title,
+          metadata.author,
+          metadata.narrator,
+          metadata.description,
+          metadata.genre,
+          metadata.series,
+          metadata.series_position,
+          metadata.published_year,
+          metadata.cover_image,
+          metadata.duration,
+          req.params.id
+        ],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    // Return updated audiobook
+    const updatedAudiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    res.json({ message: 'Metadata refreshed successfully', audiobook: updatedAudiobook });
+  } catch (error) {
+    console.error('Error refreshing metadata:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get/Update playback progress
 router.get('/:id/progress', authenticateToken, (req, res) => {
   db.get(
