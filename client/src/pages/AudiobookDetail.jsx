@@ -309,13 +309,7 @@ export default function AudiobookDetail({ onPlay }) {
             </div>
           )}
 
-          {chapters && chapters.length > 0 && (() => {
-            // Separate chapters from audio tracks
-            const audioTracks = chapters.filter(ch => ch.file_path);
-            const embeddedChapters = chapters.filter(ch => !ch.file_path);
-            const totalChapters = audioTracks.length + embeddedChapters.length;
-
-            return (
+          {chapters && chapters.length > 0 && (
               <div className="detail-chapters-container">
                 <button
                   className="chapters-toggle-btn"
@@ -331,12 +325,7 @@ export default function AudiobookDetail({ onPlay }) {
                       <line x1="3" y1="18" x2="3.01" y2="18"></line>
                     </svg>
                     <span>
-                      {audioTracks.length > 0 && embeddedChapters.length > 0
-                        ? `${totalChapters} Tracks & Chapters`
-                        : audioTracks.length > 0
-                          ? `${audioTracks.length} Audio Track${audioTracks.length !== 1 ? 's' : ''}`
-                          : `${embeddedChapters.length} Chapter${embeddedChapters.length !== 1 ? 's' : ''}`
-                      }
+                      {chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}
                     </span>
                   </div>
                   <svg
@@ -356,98 +345,44 @@ export default function AudiobookDetail({ onPlay }) {
                 </button>
 
                 {showChapters && (
-                  <>
-                    {audioTracks.length > 0 && (
-                      <div className="detail-chapters">
-                        <h3>Audio Tracks</h3>
+                  <div className="detail-chapters">
                     <div className="chapters-list">
-                      {audioTracks.map((track, index) => (
-                        <div
-                          key={track.id || index}
-                          className="chapter-item clickable"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Track clicked:', track.title, 'Index:', index);
-                            if (!onPlay) {
-                              console.error('onPlay function not available');
-                              return;
-                            }
-                            // Calculate start time based on previous track durations
-                            let startTime = 0;
-                            for (let i = 0; i < index; i++) {
-                              startTime += audioTracks[i].duration || 0;
-                            }
-                            console.log('Starting playback at:', startTime);
-                            // Create a modified progress object with the chapter start time
-                            const chapterProgress = { ...progress, position: startTime };
-                            onPlay(audiobook, chapterProgress);
-                          }}
-                        >
-                          <div className="chapter-info">
-                            <div className="chapter-title">{track.title || `Track ${index + 1}`}</div>
-                            <div className="chapter-meta">
-                              {track.duration && (
-                                <span className="chapter-duration">{formatDuration(track.duration)}</span>
-                              )}
-                              {track.file_path && track.duration && <span className="meta-separator">•</span>}
-                              {track.file_path && (
-                                <span className="chapter-filename">{track.file_path.split('/').pop()}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                      </div>
-                    )}
+                      {chapters.map((chapter, index) => {
+                        // Use start_time if available (embedded chapters), otherwise calculate from durations (multi-file)
+                        const startTime = chapter.start_time !== undefined ? chapter.start_time :
+                          chapters.slice(0, index).reduce((sum, ch) => sum + (ch.duration || 0), 0);
 
-                    {embeddedChapters.length > 0 && (
-                      <div className="detail-chapters">
-                        <h3>Chapters</h3>
-                        <div className="chapters-list">
-                          {embeddedChapters.map((chapter, index) => (
-                            <div
-                              key={chapter.id || index}
-                              className="chapter-item clickable"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('Chapter clicked:', chapter.title, 'Index:', index);
-                                if (!onPlay) {
-                                  console.error('onPlay function not available');
-                                  return;
-                                }
-                                // If chapter has start_time, use it; otherwise calculate from durations
-                                let startTime = chapter.start_time || 0;
-                                if (!chapter.start_time) {
-                                  // Calculate based on previous chapter durations
-                                  for (let i = 0; i < index; i++) {
-                                    startTime += embeddedChapters[i].duration || 0;
-                                  }
-                                }
-                                console.log('Starting playback at:', startTime);
-                                // Create a modified progress object with the chapter start time
-                                const chapterProgress = { ...progress, position: startTime };
-                                onPlay(audiobook, chapterProgress);
-                              }}
-                            >
-                              <div className="chapter-info">
-                                <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                        return (
+                          <div
+                            key={chapter.id || index}
+                            className="chapter-item clickable"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!onPlay) {
+                                console.error('onPlay function not available');
+                                return;
+                              }
+                              // Create a modified progress object with the chapter start time
+                              const chapterProgress = { ...progress, position: startTime };
+                              onPlay(audiobook, chapterProgress);
+                            }}
+                          >
+                            <div className="chapter-info">
+                              <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                              <div className="chapter-meta">
                                 {chapter.duration && (
-                                  <div className="chapter-meta">
-                                    <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
-                                  </div>
+                                  <span className="chapter-duration">{formatDuration(chapter.duration)}</span>
                                 )}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
-            );
-          })()}
+            )}
         </div>
       </div>
     </div>
