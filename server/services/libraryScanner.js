@@ -385,7 +385,13 @@ async function scanLibrary() {
     totalFiles += files.length;
 
     try {
-      if (files.length > 1) {
+      // Check if this looks like a multi-file audiobook (chapters) or separate books
+      // M4B files typically have embedded chapters, so multiple M4Bs are likely separate books
+      // MP3/M4A/FLAC files typically don't have chapters, so multiple files are likely chapters
+      const hasM4BFiles = files.some(f => path.extname(f).toLowerCase() === '.m4b');
+      const isMultiFileBook = files.length > 1 && !hasM4BFiles;
+
+      if (isMultiFileBook) {
         // Multi-file audiobook - treat all files in directory as chapters
         console.log(`Processing multi-file audiobook in ${directory} (${files.length} files)`);
         const result = await importMultiFileAudiobook(files);
@@ -395,12 +401,14 @@ async function scanLibrary() {
           skipped++;
         }
       } else {
-        // Single file audiobook
-        const result = await importAudiobook(files[0]);
-        if (result) {
-          imported++;
-        } else {
-          skipped++;
+        // Single file audiobook(s) - process each file separately
+        for (const file of files) {
+          const result = await importAudiobook(file);
+          if (result) {
+            imported++;
+          } else {
+            skipped++;
+          }
         }
       }
     } catch (error) {

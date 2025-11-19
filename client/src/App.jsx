@@ -188,9 +188,13 @@ function App() {
     localStorage.removeItem('token')
     localStorage.removeItem('currentAudiobook')
     localStorage.removeItem('currentProgress')
+    localStorage.removeItem('playerPlaying')
+    localStorage.removeItem('currentAudiobookId')
     setToken(null)
     setCurrentAudiobook(null)
     setCurrentProgress(null)
+    // Force a page reload to ensure clean logout
+    window.location.href = '/'
   }
 
   const playAudiobook = (audiobook, progress = null) => {

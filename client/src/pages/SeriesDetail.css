@@ -111,6 +111,11 @@
   transition: width 0.3s ease;
 }
 
+.series-books-grid .progress-bar-fill.completed {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+}
+
 .series-books-grid .series-badge {
   position: absolute;
   top: 8px;
