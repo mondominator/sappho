@@ -298,15 +298,26 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
           } else {
             const audiobookId = this.lastID;
 
-            // Insert chapters
+            // Insert chapters with cumulative start times
             let completedChapters = 0;
             let hasError = false;
 
-            chapterMetadata.forEach((chapter, index) => {
+            // Calculate cumulative start times for each chapter
+            let cumulativeTime = 0;
+            const chaptersWithStartTimes = chapterMetadata.map((chapter, index) => {
+              const chapterWithStart = {
+                ...chapter,
+                start_time: cumulativeTime
+              };
+              cumulativeTime += chapter.duration || 0;
+              return chapterWithStart;
+            });
+
+            chaptersWithStartTimes.forEach((chapter, index) => {
               db.run(
                 `INSERT INTO audiobook_chapters
-                 (audiobook_id, chapter_number, file_path, duration, file_size, title)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
+                 (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
                   audiobookId,
                   index + 1,
@@ -314,6 +325,7 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
                   chapter.duration,
                   chapter.file_size,
                   chapter.title,
+                  chapter.start_time,
                 ],
                 (err) => {
                   if (err && !hasError) {
@@ -321,12 +333,12 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
                     reject(err);
                   } else {
                     completedChapters++;
-                    if (completedChapters === chapterMetadata.length && !hasError) {
+                    if (completedChapters === chaptersWithStartTimes.length && !hasError) {
                       db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
                         if (err) {
                           reject(err);
                         } else {
-                          console.log(`Imported multi-file audiobook: ${metadata.title} (${chapterMetadata.length} chapters)`);
+                          console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
                           resolve(audiobook);
                         }
                       });
