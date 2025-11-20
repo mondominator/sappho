@@ -99,9 +99,19 @@ export default function Library({ onPlay }) {
   const renderBookCard = (book) => {
     const coverUrl = getCoverUrl(book.id);
 
+    // On mobile, clicking cover should play; on desktop, navigate to detail
+    const handleCoverClick = (e) => {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        handlePlay(book, e);
+      } else {
+        navigate(`/audiobook/${book.id}`);
+      }
+    };
+
     return (
       <div key={book.id} className="audiobook-card" data-book-id={book.id}>
-        <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
+        <div className="audiobook-cover" onClick={handleCoverClick}>
           {book.cover_image ? (
             <img
               src={coverUrl}
