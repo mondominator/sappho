@@ -537,7 +537,7 @@
 
 @media (max-width: 768px) {
   .audiobook-detail {
-    padding-top: 56px !important;
+    padding-top: 0 !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;

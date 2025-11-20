@@ -90,18 +90,39 @@ export default function SeriesDetail({ onPlay }) {
 
   return (
     <div className="series-detail-page container">
-      <button className="btn btn-secondary back-button" onClick={() => navigate(-1)}>
-        ← Back
+      <button className="back-button-modern" onClick={() => navigate(-1)}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back
       </button>
 
       <div className="series-detail-header">
         <h1 className="series-detail-name">{name}</h1>
         <div className="series-detail-stats">
-          <span className="stat-item">{audiobooks.length} books</span>
+          <span className="stat-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            {audiobooks.length} book{audiobooks.length !== 1 ? 's' : ''}
+          </span>
           {getAuthors().length > 0 && (
-            <span className="stat-item">by {getAuthors().join(', ')}</span>
+            <span className="stat-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              {getAuthors().join(', ')}
+            </span>
           )}
-          <span className="stat-item">{getTotalDuration()}</span>
+          <span className="stat-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            {getTotalDuration()}
+          </span>
         </div>
       </div>
 

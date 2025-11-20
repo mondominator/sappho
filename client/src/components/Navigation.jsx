@@ -193,7 +193,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
           </div>
         </div>
 
-        {/* Mobile primary nav - Home, Library, Search, and User Avatar */}
+        {/* Mobile primary nav - Home, Library, Search (centered) */}
         <div className="nav-links mobile-only mobile-nav-actions">
           <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -222,31 +222,33 @@ export default function Navigation({ onLogout, onOpenUpload }) {
               <path d="m21 21-4.35-4.35"/>
             </svg>
           </button>
-          <button
-            className="user-avatar-button mobile-only"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowMobileMenu(!showMobileMenu);
-            }}
-            title="Menu"
-            type="button"
-          >
-            {user?.avatar ? (
-              <img
-                src={user.avatar}
-                alt={getUserDisplayName()}
-                className="user-avatar-mobile"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.parentElement.innerHTML = `<div class="user-avatar-placeholder-mobile">${getUserInitials()}</div>`;
-                }}
-              />
-            ) : (
-              <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
-            )}
-          </button>
         </div>
+
+        {/* Mobile user avatar (right side) */}
+        <button
+          className="user-avatar-button mobile-only"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowMobileMenu(!showMobileMenu);
+          }}
+          title="Menu"
+          type="button"
+        >
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={getUserDisplayName()}
+              className="user-avatar-mobile"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML = `<div class="user-avatar-placeholder-mobile">${getUserInitials()}</div>`;
+              }}
+            />
+          ) : (
+            <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
+          )}
+        </button>
 
         <div className="nav-actions">
           {/* Desktop user menu */}

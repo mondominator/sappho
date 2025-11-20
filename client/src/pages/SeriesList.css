@@ -29,23 +29,25 @@
 
 .series-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
 }
 
 .series-card {
-  background: #1f2937;
-  border-radius: 12px;
+  background: rgba(31, 41, 55, 0.6);
+  backdrop-filter: blur(8px);
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s;
-  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .series-card:hover {
-  transform: translateY(-4px);
-  border-color: #60a5fa;
-  box-shadow: 0 8px 20px rgba(45, 212, 191, 0.3);
+  transform: translateY(-6px);
+  border-color: rgba(96, 165, 250, 0.4);
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.3);
+  background: rgba(31, 41, 55, 0.8);
 }
 
 .series-covers {
@@ -87,9 +89,10 @@
   aspect-ratio: 2 / 3;
   overflow: hidden;
   background: #374151;
-  border-radius: 6px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-  transition: all 0.3s;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .cover-grid-1 .cover-thumbnail {
@@ -209,10 +212,10 @@
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.75rem;
-  background: rgba(20, 184, 166, 0.15);
-  border: 1px solid rgba(20, 184, 166, 0.3);
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
   border-radius: 12px;
-  color: #60a5fa;
+  color: #6ee7b7;
   font-size: 0.85rem;
   font-weight: 600;
 }
@@ -232,7 +235,7 @@
 
 @media (max-width: 768px) {
   .series-list-page {
-    padding-top: 60px !important;
+    padding-top: 0 !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 0 !important;
     padding-right: 0 !important;

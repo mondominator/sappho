@@ -4,12 +4,35 @@
   margin: 0 auto;
 }
 
-.back-button {
+.back-button-modern {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
   margin-bottom: 2rem;
+}
+
+.back-button-modern:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .series-detail-header {
   margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  background: rgba(31, 41, 55, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
 }
 
 .series-detail-name {
@@ -17,6 +40,10 @@
   margin: 0 0 1rem 0;
   color: #fff;
   font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #e0e7ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .series-detail-stats {
@@ -26,8 +53,15 @@
 }
 
 .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   color: #9ca3af;
   font-size: 1rem;
+}
+
+.stat-item svg {
+  color: #60a5fa;
 }
 
 .series-books-grid {
@@ -120,14 +154,16 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background: rgba(20, 184, 166, 0.9);
+  background: rgba(59, 130, 246, 0.9);
+  backdrop-filter: blur(8px);
   color: white;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   z-index: 2;
-  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .series-books-grid .play-overlay {
@@ -187,16 +223,20 @@
 
 @media (max-width: 768px) {
   .series-detail-page {
-    padding-top: 60px !important;
+    padding-top: 0 !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     margin: 0 !important;
   }
 
-  .back-button {
-    margin-top: 0;
-    padding-top: 0.5rem;
+  .back-button-modern {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .series-detail-header {
+    padding: 1.25rem;
   }
 
   .series-detail-name {
