@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import Login from './pages/Login'
 import Home from './pages/Home'
 import Library from './pages/Library'
+import AllBooks from './pages/AllBooks'
 import Profile from './pages/Profile'
 import AudiobookDetail from './pages/AudiobookDetail'
 import AuthorDetail from './pages/AuthorDetail'
@@ -37,6 +38,7 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
         <Routes>
           <Route path="/" element={<Home onPlay={playAudiobook} />} />
           <Route path="/library" element={<Library onPlay={playAudiobook} />} />
+          <Route path="/all-books" element={<AllBooks onPlay={playAudiobook} />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/audiobook/:id" element={<AudiobookDetail onPlay={playAudiobook} />} />
           <Route path="/authors" element={<AuthorsList />} />

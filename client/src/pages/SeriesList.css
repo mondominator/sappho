@@ -29,8 +29,8 @@
 
 .series-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
 }
 
 .series-card {
@@ -60,6 +60,22 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
+}
+
+.series-book-count {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .cover-grid {
@@ -184,11 +200,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1.5rem;
+  padding: 1rem;
 }
 
 .series-title {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   color: #fff;
   margin: 0;
   line-height: 1.4;
@@ -200,12 +216,6 @@
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-}
-
-.series-count {
-  color: #9ca3af;
-  font-size: 0.95rem;
-  margin: 0;
 }
 
 .completion-badge {
@@ -339,13 +349,16 @@
     line-height: 1.3;
   }
 
-  .series-count {
-    font-size: 0.875rem;
-  }
-
   .completion-badge {
     padding: 0.25rem 0.65rem;
     font-size: 0.8rem;
+  }
+
+  .series-book-count {
+    top: 6px;
+    right: 6px;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
   }
 
   .series-placeholder span {
