@@ -488,23 +488,11 @@
   }
 
   .play-overlay {
-    opacity: 0.7 !important;
-    pointer-events: auto !important;
-    background: transparent !important;
+    display: none !important;
   }
 
   .play-button {
-    pointer-events: auto !important;
-    width: 32px !important;
-    height: 32px !important;
-    background: rgba(0, 0, 0, 0.4) !important;
-    border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
-  }
-
-  .play-button::after {
-    border-left: 10px solid rgba(255, 255, 255, 0.7) !important;
-    border-top: 6px solid transparent !important;
-    border-bottom: 6px solid transparent !important;
+    display: none !important;
   }
 
   .audiobook-cover-placeholder h3 {

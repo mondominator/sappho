@@ -200,6 +200,19 @@ export default function AudiobookDetail({ onPlay }) {
             )}
           </div>
 
+          <button
+            className="detail-play-button"
+            onClick={() => {
+              const isMobile = window.innerWidth <= 768;
+              onPlay(audiobook, progress, isMobile);
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="6 3 20 12 6 21 6 3"></polygon>
+            </svg>
+            Play
+          </button>
+
           {audiobook.is_multi_file && chapters && chapters.length > 0 && (
               <div className="detail-chapters-container">
                 <button

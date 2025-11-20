@@ -192,7 +192,7 @@
 
 @media (max-width: 768px) {
   .home-page {
-    padding-top: 60px !important;
+    padding-top: 48px !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -201,7 +201,7 @@
 
   .home-header {
     margin-top: 0;
-    padding-top: 0.5rem;
+    padding-top: 0;
   }
 
   .home-header h1 {
@@ -237,15 +237,12 @@
     height: 100% !important;
   }
 
-  .play-button {
-    width: 40px;
-    height: 40px;
+  .play-overlay {
+    display: none !important;
   }
 
-  .play-button::after {
-    border-left: 12px solid white;
-    border-top: 8px solid transparent;
-    border-bottom: 8px solid transparent;
+  .play-button {
+    display: none !important;
   }
 
   .audiobook-cover-placeholder h3 {
