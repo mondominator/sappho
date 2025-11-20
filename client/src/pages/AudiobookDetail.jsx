@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters } from '../api';
+import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles } from '../api';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -9,8 +9,10 @@ export default function AudiobookDetail({ onPlay }) {
   const [audiobook, setAudiobook] = useState(null);
   const [progress, setProgress] = useState(null);
   const [chapters, setChapters] = useState([]);
+  const [directoryFiles, setDirectoryFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showChapters, setShowChapters] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
 
   useEffect(() => {
     loadAudiobook();
@@ -18,14 +20,16 @@ export default function AudiobookDetail({ onPlay }) {
 
   const loadAudiobook = async () => {
     try {
-      const [bookResponse, progressResponse, chaptersResponse] = await Promise.all([
+      const [bookResponse, progressResponse, chaptersResponse, filesResponse] = await Promise.all([
         getAudiobook(id),
         getProgress(id),
-        getChapters(id).catch(() => ({ data: [] })) // Chapters might not exist
+        getChapters(id).catch(() => ({ data: [] })), // Chapters might not exist
+        getDirectoryFiles(id).catch(() => ({ data: [] })) // Directory files might fail
       ]);
       setAudiobook(bookResponse.data);
       setProgress(progressResponse.data);
       setChapters(chaptersResponse.data || []);
+      setDirectoryFiles(filesResponse.data || []);
     } catch (error) {
       console.error('Error loading audiobook:', error);
     } finally {
@@ -288,6 +292,59 @@ export default function AudiobookDetail({ onPlay }) {
               </div>
             )}
 
+          {directoryFiles && directoryFiles.length > 0 && (
+              <div className="detail-chapters-container">
+                <button
+                  className="chapters-toggle-btn"
+                  onClick={() => setShowFiles(!showFiles)}
+                >
+                  <div className="chapters-toggle-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                      <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    <span>
+                      {directoryFiles.length} File{directoryFiles.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <svg
+                    className={`chapters-toggle-icon ${showFiles ? 'open' : ''}`}
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                {showFiles && (
+                  <div className="detail-chapters">
+                    <div className="chapters-list">
+                      {directoryFiles.map((file, index) => (
+                        <div
+                          key={index}
+                          className="chapter-item"
+                        >
+                          <div className="chapter-info">
+                            <div className="chapter-title">{file.name}</div>
+                            <div className="chapter-meta">
+                              <span className="chapter-duration">{formatFileSize(file.size)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
         </div>
 
         <div className="detail-info">
@@ -375,18 +432,12 @@ export default function AudiobookDetail({ onPlay }) {
             </div>
 
             {progress && progress.position > 0 && (
-              <>
-                <div className="meta-item">
-                  <span className="meta-label">Progress</span>
-                  <span className="meta-value">
-                    {formatDuration(progress.position)} / {formatDuration(audiobook.duration)} ({getProgressPercentage()}%)
-                  </span>
-                </div>
-                <div className="meta-item">
-                  <span className="meta-label">Last Listened</span>
-                  <span className="meta-value">{formatLastListened(progress.updated_at)}</span>
-                </div>
-              </>
+              <div className="meta-item">
+                <span className="meta-label">Progress</span>
+                <span className="meta-value">
+                  {formatDuration(progress.position)} / {formatDuration(audiobook.duration)} ({getProgressPercentage()}%)
+                </span>
+              </div>
             )}
           </div>
 
