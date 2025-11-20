@@ -145,14 +145,33 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           isDesktop: !isMobile && !isPWA
         });
 
-        // Mobile/PWA: Never auto-play, even on new book load
+        // Mobile/PWA: Only auto-play if explicitly requested via _playRequested
         if (isMobile || isPWA) {
-          console.log('Mobile/PWA detected - no auto-play, waiting for user interaction');
-          setPlaying(false);
-          setIsNewLoad(false);
-          localStorage.setItem('playerPlaying', 'false');
-          if (audioRef.current) {
-            audioRef.current.pause();
+          const isExplicitPlayRequest = audiobook._playRequested !== undefined;
+          if (isExplicitPlayRequest) {
+            console.log('Mobile/PWA - explicit play request, auto-playing');
+            setTimeout(() => {
+              if (audioRef.current) {
+                audioRef.current.play().then(() => {
+                  console.log('Playback started successfully (explicit request on mobile)');
+                  setPlaying(true);
+                  setIsNewLoad(false);
+                  localStorage.setItem('playerPlaying', 'true');
+                }).catch(err => {
+                  console.warn('Auto-play prevented or failed:', err);
+                  setPlaying(false);
+                  setIsNewLoad(false);
+                });
+              }
+            }, 100);
+          } else {
+            console.log('Mobile/PWA - no explicit play request, waiting for user interaction');
+            setPlaying(false);
+            setIsNewLoad(false);
+            localStorage.setItem('playerPlaying', 'false');
+            if (audioRef.current) {
+              audioRef.current.pause();
+            }
           }
         }
         // Desktop + New book load: Auto-play

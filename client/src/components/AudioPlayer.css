@@ -1227,12 +1227,17 @@
   /* Show mobile seek buttons */
   .player-mobile-controls .mobile-seek-btn {
     display: flex !important;
-    width: 44px;
-    height: 44px;
-    background: transparent;
-    color: #9ca3af;
-    border: none;
+    width: 40px;
+    height: 40px;
+    background: rgba(55, 65, 81, 0.5);
+    backdrop-filter: blur(8px);
+    color: #e5e7eb;
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    border-radius: 12px;
     padding: 0;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
   }
 
   /* Remove custom margins on seek buttons - let gap handle spacing */
@@ -1243,7 +1248,9 @@
 
   .player-mobile-controls .mobile-seek-btn:active {
     color: #fff;
-    background: transparent;
+    background: rgba(75, 85, 99, 0.7);
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: scale(0.95);
   }
 
   .player-mobile-controls .control-btn {
@@ -1253,49 +1260,69 @@
     font-size: 14px;
     opacity: 0.9;
     flex-shrink: 0;
-    border-radius: 0;
-    background: transparent;
+    border-radius: 12px;
+    background: rgba(55, 65, 81, 0.5);
+    backdrop-filter: blur(8px);
     color: #e5e7eb;
-    border: none;
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .player-mobile-controls .mobile-play-btn {
     width: 56px !important;
     height: 56px !important;
     opacity: 1;
-    background: #60a5fa;
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
     color: #fff;
     border-radius: 50%;
+    border: none;
     margin-left: auto !important;
     margin-right: 0 !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
   }
 
   .player-mobile-controls .mobile-play-btn svg {
-    width: 34px !important;
-    height: 34px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
 
   .player-mobile-controls .control-btn:active {
-    background: transparent;
-    opacity: 0.6;
+    background: rgba(75, 85, 99, 0.7);
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: scale(0.95);
   }
 
   .player-mobile-controls .control-btn svg {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
   }
 
   .player-mobile-controls .mobile-play-btn.playing {
-    background: #10b981;
-    animation: pulse 3s ease-in-out infinite;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    animation: playingPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes playingPulse {
+    0%, 100% {
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    50% {
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+    }
   }
 
   .player-mobile-controls .mobile-play-btn:active {
-    background: #3b82f6;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    transform: scale(0.95);
   }
 
   .player-mobile-controls .mobile-play-btn.playing:active {
-    background: #059669;
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: scale(0.95);
   }
 
   .player-mobile-controls .control-btn {
