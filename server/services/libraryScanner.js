@@ -448,9 +448,23 @@ async function scanLibrary() {
     try {
       // Check if this looks like a multi-file audiobook (chapters) or separate books
       // M4B files typically have embedded chapters, so multiple M4Bs are likely separate books
+      // UNLESS they have chapter-like names (e.g., "Chapter 01.m4b", "Part 1.m4b")
       // MP3/M4A/FLAC files typically don't have chapters, so multiple files are likely chapters
+
       const hasM4BFiles = files.some(f => path.extname(f).toLowerCase() === '.m4b');
-      const isMultiFileBook = files.length > 1 && !hasM4BFiles;
+
+      // Check if M4B files have chapter-like names
+      let isMultiFileBook = false;
+      if (hasM4BFiles && files.length > 1) {
+        const fileNames = files.map(f => path.basename(f, path.extname(f)).toLowerCase());
+        const hasChapterNames = fileNames.some(name =>
+          /chapter\s*\d+|part\s*\d+|section\s*\d+|\d+\s*-\s*chapter|^\d+$/i.test(name)
+        );
+        isMultiFileBook = hasChapterNames;
+      } else if (!hasM4BFiles && files.length > 1) {
+        // Non-M4B files with multiple files = multi-file book
+        isMultiFileBook = true;
+      }
 
       if (isMultiFileBook) {
         // Multi-file audiobook - treat all files in directory as chapters
