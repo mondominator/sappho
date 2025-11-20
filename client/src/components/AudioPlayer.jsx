@@ -181,6 +181,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           console.log('Staying paused on refresh (mobile or was paused)');
           setPlaying(false);
           setIsNewLoad(false);
+          // Explicitly pause to prevent any auto-resume behavior on mobile
+          if (audioRef.current && (isMobile || isPWA)) {
+            audioRef.current.pause();
+            // Clear the playing state from localStorage on mobile to prevent any auto-play
+            localStorage.setItem('playerPlaying', 'false');
+          }
         }
       }
     };
