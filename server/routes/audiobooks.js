@@ -672,6 +672,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
          AND a2.series = a.series
          AND COALESCE(a2.series_index, a2.series_position, 0) < COALESCE(a.series_index, a.series_position, 0)
        )
+       AND (p.position IS NULL OR p.position = 0)
        AND (p.completed IS NULL OR p.completed = 0)
      )
      SELECT * FROM RankedBooks
