@@ -16,7 +16,7 @@
 }
 
 .horizontal-section {
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
 }
 
 .horizontal-section h2 {
@@ -193,10 +193,18 @@
 @media (max-width: 768px) {
   .home-page {
     padding-top: 1.5rem !important;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     margin: 0 !important;
+  }
+
+  .horizontal-section {
+    margin-bottom: 1.5rem !important;
+  }
+
+  .horizontal-section:last-child {
+    margin-bottom: 0 !important;
   }
 
   .home-header {
