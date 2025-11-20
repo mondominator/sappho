@@ -25,12 +25,14 @@ This document provides a comprehensive overview of all features currently implem
 |---------|-------------|--------|
 | **Modern Audio Player** | Beautiful, responsive player with smooth controls and real-time progress updates | ✅ Complete |
 | **Multi-file Chapter Support** | Automatically detects chapters from multi-file audiobooks (one file per chapter) | ✅ Complete |
+| **Multi-file M4B Detection** | Smart detection of chapter-based M4B files (e.g., "Chapter 01.m4b") vs separate books | ✅ Complete |
 | **Embedded Chapter Support** | Reads chapter markers from M4B files with embedded chapter metadata | ✅ Complete |
 | **Chapter Navigation** | Skip forward/backward between chapters with dedicated buttons | ✅ Complete |
 | **Chapter List View** | Browse all chapters with titles and timestamps, jump directly to any chapter | ✅ Complete |
 | **Current Chapter Display** | Shows the current chapter title in player (from metadata, not "Chapter 1") | ✅ Complete |
 | **Progress Tracking** | Automatically saves playback position every few seconds to database | ✅ Complete |
 | **Auto-resume** | Resume exactly where you left off, down to the second | ✅ Complete |
+| **Smart Autoplay** | Desktop auto-plays on book selection, mobile requires manual play (browser policy compliance) | ✅ Complete |
 | **Cross-device Sync** | Continue listening on any device using the same account | ✅ Complete |
 | **Playback Speed Control** | Adjust speed from 0.5x to 2.0x in 0.25x increments | ✅ Complete |
 | **Skip Forward/Backward** | Quick 15-second skip buttons for navigation | ✅ Complete |
@@ -137,6 +139,8 @@ This document provides a comprehensive overview of all features currently implem
 | **API Documentation** | Endpoints for auth, audiobooks, progress, sessions, uploads, users, settings | ✅ Complete |
 | **Database Migrations** | SQL migration system in server/migrations/ directory | ✅ Complete |
 | **Manual Migration Trigger** | Run migrations via /api/maintenance/migrate endpoint | ✅ Complete |
+| **Background Library Scanning** | Large library metadata refresh runs in background without HTTP timeout | ✅ Complete |
+| **Scan Progress Logging** | Progress updates every 10 books during background scans | ✅ Complete |
 | **User Management API** | Admin endpoints for creating and managing user accounts | ✅ Complete |
 | **Settings API** | Server configuration and preferences endpoints | ✅ Complete |
 | **File Processing Queue** | Background processing of watch directory files (one at a time) | ✅ Complete |
