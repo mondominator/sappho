@@ -12,9 +12,6 @@
 
 .series-list-header {
   margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
 }
 
 .back-button {
@@ -26,6 +23,8 @@
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s;
+  margin-bottom: 1rem;
+  display: inline-block;
 }
 
 .back-button:hover {
