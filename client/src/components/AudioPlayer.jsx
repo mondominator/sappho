@@ -130,47 +130,52 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         setHasRestoredPosition(true);
 
         // Auto-play logic:
-        // - If this is a new load (user clicked to play a different book), always auto-play
-        // - If this is a page refresh of the same book, only resume if it was playing before
+        // - On DESKTOP: If new book load, auto-play. If page refresh, only resume if was playing.
+        // - On MOBILE/PWA: Never auto-play (even on new book), user must manually press play
         const savedPlaying = localStorage.getItem('playerPlaying');
-        const shouldAutoPlay = isNewLoad || (savedPlaying === 'true');
-
-        console.log('Playback restore:', { isNewLoad, savedPlaying, shouldAutoPlay });
-
-        // On page refresh (not new load), try to resume playback if it was playing
-        // But only if this is not a mobile browser or PWA, since they block auto-play on page load
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
                       window.navigator.standalone === true;
-        const canAutoPlayOnRefresh = !isMobile && !isPWA && !isNewLoad && savedPlaying === 'true';
 
-        if (isNewLoad) {
-          // New book load - auto-play unless on mobile/PWA
-          // On mobile, user must manually press play due to browser restrictions
-          if (isMobile || isPWA) {
-            console.log('New book on mobile - waiting for user interaction');
-            setPlaying(false);
-            setIsNewLoad(false);
-            localStorage.setItem('playerPlaying', 'false');
-          } else {
-            setTimeout(() => {
-              if (audioRef.current) {
-                audioRef.current.play().then(() => {
-                  console.log('Playback started successfully (new book)');
-                  setPlaying(true);
-                  setIsNewLoad(false);
-                  // Mark as playing after successful start
-                  localStorage.setItem('playerPlaying', 'true');
-                }).catch(err => {
-                  console.warn('Auto-play prevented or failed:', err);
-                  setPlaying(false);
-                  setIsNewLoad(false);
-                });
-              }
-            }, 100);
+        console.log('Playback restore:', {
+          isNewLoad,
+          savedPlaying,
+          isMobile,
+          isPWA,
+          isDesktop: !isMobile && !isPWA
+        });
+
+        // Mobile/PWA: Never auto-play, even on new book load
+        if (isMobile || isPWA) {
+          console.log('Mobile/PWA detected - no auto-play, waiting for user interaction');
+          setPlaying(false);
+          setIsNewLoad(false);
+          localStorage.setItem('playerPlaying', 'false');
+          if (audioRef.current) {
+            audioRef.current.pause();
           }
-        } else if (canAutoPlayOnRefresh) {
-          // Desktop page refresh with audio playing - try to resume
+        }
+        // Desktop + New book load: Auto-play
+        else if (isNewLoad) {
+          console.log('Desktop + New book load - auto-playing');
+          setTimeout(() => {
+            if (audioRef.current) {
+              audioRef.current.play().then(() => {
+                console.log('Playback started successfully (new book on desktop)');
+                setPlaying(true);
+                setIsNewLoad(false);
+                localStorage.setItem('playerPlaying', 'true');
+              }).catch(err => {
+                console.warn('Auto-play prevented or failed:', err);
+                setPlaying(false);
+                setIsNewLoad(false);
+              });
+            }
+          }, 100);
+        }
+        // Desktop + Page refresh + Was playing: Resume playback
+        else if (savedPlaying === 'true') {
+          console.log('Desktop + Page refresh + Was playing - resuming playback');
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
@@ -184,17 +189,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               });
             }
           }, 100);
-        } else {
-          // Mobile or paused state - don't auto-play, just restore position
-          console.log('Staying paused on refresh (mobile or was paused)');
+        }
+        // Desktop + Page refresh + Was paused: Stay paused
+        else {
+          console.log('Desktop + Page refresh + Was paused - staying paused');
           setPlaying(false);
           setIsNewLoad(false);
-          // Explicitly pause to prevent any auto-resume behavior on mobile
-          if (audioRef.current && (isMobile || isPWA)) {
-            audioRef.current.pause();
-            // Clear the playing state from localStorage on mobile to prevent any auto-play
-            localStorage.setItem('playerPlaying', 'false');
-          }
         }
       }
     };
