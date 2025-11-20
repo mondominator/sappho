@@ -163,42 +163,44 @@ async function importAudiobook(filePath, userId = 1) {
 
             // If we have chapters, insert them
             if (hasChapters) {
-              let completedChapters = 0;
-              let hasError = false;
+              // Use Promise.all to insert all chapters and wait for all to complete
+              const chapterInsertPromises = chapters.map((chapter) => {
+                return new Promise((resolveChapter, rejectChapter) => {
+                  db.run(
+                    `INSERT INTO audiobook_chapters
+                     (audiobook_id, chapter_number, file_path, duration, start_time, title)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                      audiobookId,
+                      chapter.chapter_number,
+                      filePath, // Same file for all chapters in m4b
+                      chapter.duration,
+                      chapter.start_time,
+                      chapter.title,
+                    ],
+                    (err) => {
+                      if (err) rejectChapter(err);
+                      else resolveChapter();
+                    }
+                  );
+                });
+              });
 
-              chapters.forEach((chapter) => {
-                db.run(
-                  `INSERT INTO audiobook_chapters
-                   (audiobook_id, chapter_number, file_path, duration, start_time, title)
-                   VALUES (?, ?, ?, ?, ?, ?)`,
-                  [
-                    audiobookId,
-                    chapter.chapter_number,
-                    filePath, // Same file for all chapters in m4b
-                    chapter.duration,
-                    chapter.start_time,
-                    chapter.title,
-                  ],
-                  (err) => {
-                    if (err && !hasError) {
-                      hasError = true;
+              Promise.all(chapterInsertPromises)
+                .then(() => {
+                  db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+                    if (err) {
                       reject(err);
                     } else {
-                      completedChapters++;
-                      if (completedChapters === chapters.length && !hasError) {
-                        db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-                          if (err) {
-                            reject(err);
-                          } else {
-                            console.log(`Imported: ${metadata.title} by ${metadata.author} (${chapters.length} chapters)`);
-                            resolve(audiobook);
-                          }
-                        });
-                      }
+                      console.log(`Imported: ${metadata.title} by ${metadata.author} (${chapters.length} chapters)`);
+                      resolve(audiobook);
                     }
-                  }
-                );
-              });
+                  });
+                })
+                .catch((err) => {
+                  console.error(`Error inserting chapters for ${metadata.title}:`, err.message);
+                  reject(err);
+                });
             } else {
               db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
                 if (err) {
@@ -298,10 +300,6 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
           } else {
             const audiobookId = this.lastID;
 
-            // Insert chapters with cumulative start times
-            let completedChapters = 0;
-            let hasError = false;
-
             // Calculate cumulative start times for each chapter
             let cumulativeTime = 0;
             const chaptersWithStartTimes = chapterMetadata.map((chapter, index) => {
@@ -313,40 +311,45 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
               return chapterWithStart;
             });
 
-            chaptersWithStartTimes.forEach((chapter, index) => {
-              db.run(
-                `INSERT INTO audiobook_chapters
-                 (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  audiobookId,
-                  index + 1,
-                  chapter.file_path,
-                  chapter.duration,
-                  chapter.file_size,
-                  chapter.title,
-                  chapter.start_time,
-                ],
-                (err) => {
-                  if (err && !hasError) {
-                    hasError = true;
+            // Use Promise.all to insert all chapters and wait for all to complete
+            const chapterInsertPromises = chaptersWithStartTimes.map((chapter, index) => {
+              return new Promise((resolveChapter, rejectChapter) => {
+                db.run(
+                  `INSERT INTO audiobook_chapters
+                   (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    audiobookId,
+                    index + 1,
+                    chapter.file_path,
+                    chapter.duration,
+                    chapter.file_size,
+                    chapter.title,
+                    chapter.start_time,
+                  ],
+                  (err) => {
+                    if (err) rejectChapter(err);
+                    else resolveChapter();
+                  }
+                );
+              });
+            });
+
+            Promise.all(chapterInsertPromises)
+              .then(() => {
+                db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+                  if (err) {
                     reject(err);
                   } else {
-                    completedChapters++;
-                    if (completedChapters === chaptersWithStartTimes.length && !hasError) {
-                      db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-                        if (err) {
-                          reject(err);
-                        } else {
-                          console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
-                          resolve(audiobook);
-                        }
-                      });
-                    }
+                    console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
+                    resolve(audiobook);
                   }
-                }
-              );
-            });
+                });
+              })
+              .catch((err) => {
+                console.error(`Error inserting chapters for multi-file audiobook ${metadata.title}:`, err.message);
+                reject(err);
+              });
           }
         }
       );
