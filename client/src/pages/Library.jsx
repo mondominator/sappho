@@ -153,7 +153,7 @@ export default function Library({ onPlay }) {
           <h2 className="library-count">Library</h2>
         </div>
         <div className="category-grid">
-          <div className="category-card" onClick={() => setView('series')}>
+          <div className="category-card" onClick={() => navigate('/series')}>
             <div className="category-icon">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -202,26 +202,7 @@ export default function Library({ onPlay }) {
     );
   }
 
-  // List views (series, authors, genres)
-  if (view === 'series') {
-    return (
-      <div className="library-page container">
-        <div className="library-header">
-          <button className="back-button" onClick={() => setView('categories')}>← Back</button>
-          <h2 className="library-count">Series</h2>
-        </div>
-        <div className="list-grid">
-          {categories.series.map((series) => (
-            <div key={series.series} className="list-item" onClick={() => navigate(`/series/${encodeURIComponent(series.series)}`)}>
-              <h3>{series.series}</h3>
-              <p>{series.book_count} {series.book_count === 1 ? 'book' : 'books'}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  // List views (authors, genres)
   if (view === 'authors') {
     return (
       <div className="library-page container">

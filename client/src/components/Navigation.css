@@ -402,9 +402,19 @@
 
   /* Mobile nav actions container */
   .mobile-nav-actions {
+    display: flex;
+    align-items: center;
     gap: 6px;
     padding-right: 0;
     margin-right: 0;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .mobile-nav-actions .nav-link,
+  .mobile-nav-actions .search-button {
+    flex-shrink: 0;
   }
 
   /* Show logo on mobile - smaller size */

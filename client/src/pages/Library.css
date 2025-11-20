@@ -399,7 +399,7 @@
 
 @media (max-width: 768px) {
   .library-page {
-    padding-top: 48px !important;
+    padding-top: 1.5rem !important;
     padding-bottom: 0 !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
