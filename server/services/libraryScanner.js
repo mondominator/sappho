@@ -358,6 +358,63 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
 }
 
 /**
+ * Merge subdirectories that belong to the same audiobook
+ * For example: /Book/CD1/file.mp3 and /Book/CD2/file.mp3 should be merged
+ */
+function mergeSubdirectories(groupedFiles) {
+  const mergedGroups = new Map();
+  const processedDirs = new Set();
+
+  // Group directories by their parent
+  const parentGroups = new Map();
+  for (const [dir, files] of groupedFiles.entries()) {
+    const parent = path.dirname(dir);
+    if (!parentGroups.has(parent)) {
+      parentGroups.set(parent, []);
+    }
+    parentGroups.set(parent, [...parentGroups.get(parent), { dir, files }]);
+  }
+
+  // For each parent directory
+  for (const [parent, children] of parentGroups.entries()) {
+    // If there's only one child directory, no merging needed
+    if (children.length === 1) {
+      const { dir, files } = children[0];
+      mergedGroups.set(dir, files);
+      processedDirs.add(dir);
+      continue;
+    }
+
+    // Check if children look like multi-part audiobook (CD1, CD2, Part 1, Part 2, etc.)
+    // Common patterns: CD, Disc, Disk, Part, Vol, Volume, Chapter, numbered directories
+    const dirNames = children.map(c => path.basename(c.dir).toLowerCase());
+    const looksLikeMultiPart = dirNames.some(name =>
+      /^(cd|disc|disk|part|vol|volume|chapter|ch)[\s_-]*\d+$/i.test(name) ||
+      /^\d+$/.test(name) // Just a number
+    );
+
+    // Also check if all subdirectories have non-M4B files (MP3, FLAC, M4A)
+    const allFiles = children.flatMap(c => c.files);
+    const hasM4BFiles = allFiles.some(f => path.extname(f).toLowerCase() === '.m4b');
+
+    if (looksLikeMultiPart && !hasM4BFiles) {
+      // Merge all files from subdirectories into parent
+      console.log(`Merging ${children.length} subdirectories under ${parent}`);
+      mergedGroups.set(parent, allFiles);
+      children.forEach(c => processedDirs.add(c.dir));
+    } else {
+      // Don't merge, keep as separate directories
+      children.forEach(({ dir, files }) => {
+        mergedGroups.set(dir, files);
+        processedDirs.add(dir);
+      });
+    }
+  }
+
+  return mergedGroups;
+}
+
+/**
  * Scan the entire audiobooks library and import any new files
  */
 async function scanLibrary() {
@@ -375,13 +432,17 @@ async function scanLibrary() {
   const groupedFiles = scanDirectory(audiobooksDir, true);
   console.log(`Found audio files in ${groupedFiles.size} directories`);
 
+  // Merge subdirectories that are part of the same audiobook (e.g., CD1, CD2, Part1, Part2)
+  const mergedGroups = mergeSubdirectories(groupedFiles);
+  console.log(`After merging subdirectories: ${mergedGroups.size} audiobook groups`);
+
   let imported = 0;
   let skipped = 0;
   let errors = 0;
   let totalFiles = 0;
 
   // Process each directory
-  for (const [directory, files] of groupedFiles.entries()) {
+  for (const [directory, files] of mergedGroups.entries()) {
     totalFiles += files.length;
 
     try {
