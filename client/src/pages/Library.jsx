@@ -85,7 +85,13 @@ export default function Library({ onPlay }) {
   }
 
   const handlePlay = async (book, e) => {
-    e.stopPropagation();
+    // On desktop, prevent navigation to detail page when clicking play button
+    // On mobile, both cover and button trigger play, so no need to stop propagation
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) {
+      e.stopPropagation();
+    }
+
     try {
       const progressResponse = await getProgress(book.id);
       const progress = progressResponse.data;
@@ -133,7 +139,7 @@ export default function Library({ onPlay }) {
               />
             </div>
           )}
-          <div className="play-overlay">
+          <div className="play-overlay" onClick={handleCoverClick}>
             <button
               className="play-button"
               onClick={(e) => handlePlay(book, e)}

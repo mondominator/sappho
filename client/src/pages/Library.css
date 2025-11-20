@@ -332,12 +332,13 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: opacity 0.2s;
+  pointer-events: none;
 }
 
 @media (hover: hover) {
@@ -347,24 +348,25 @@
 }
 
 .play-button {
-  width: 60px;
-  height: 60px;
+  width: 45px;
+  height: 45px;
   border-radius: 50%;
-  background: #60a5fa;
-  border: none;
+  background: rgba(0, 0, 0, 0.75);
+  border: 2px solid rgba(255, 255, 255, 0.9);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.4);
+  pointer-events: auto;
+  backdrop-filter: blur(4px);
 }
 
 @media (hover: hover) {
   .play-button:hover {
-    background: #3b82f6;
-    transform: scale(1.1);
-    box-shadow: 0 6px 16px rgba(96, 165, 250, 0.6);
+    background: rgba(0, 0, 0, 0.85);
+    border-color: #fff;
+    transform: scale(1.05);
   }
 }
 
@@ -372,10 +374,10 @@
   content: "";
   width: 0;
   height: 0;
-  border-left: 18px solid white;
-  border-top: 12px solid transparent;
-  border-bottom: 12px solid transparent;
-  margin-left: 4px;
+  border-left: 14px solid rgba(255, 255, 255, 0.95);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  margin-left: 3px;
 }
 
 .empty-state {
@@ -486,23 +488,23 @@
   }
 
   .play-overlay {
-    display: flex !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
+    opacity: 0.7 !important;
+    pointer-events: auto !important;
+    background: transparent !important;
   }
 
   .play-button {
-    width: 40px;
-    height: 40px;
+    pointer-events: auto !important;
+    width: 32px !important;
+    height: 32px !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
   }
 
   .play-button::after {
-    border-left: 12px solid white;
-    border-top: 8px solid transparent;
-    border-bottom: 8px solid transparent;
+    border-left: 10px solid rgba(255, 255, 255, 0.7) !important;
+    border-top: 6px solid transparent !important;
+    border-bottom: 6px solid transparent !important;
   }
 
   .audiobook-cover-placeholder h3 {
