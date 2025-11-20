@@ -147,6 +147,50 @@ router.get('/:id/chapters', authenticateToken, (req, res) => {
   );
 });
 
+// Get all files in the audiobook's directory
+router.get('/:id/directory-files', authenticateToken, (req, res) => {
+  db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!audiobook || !audiobook.file_path) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    try {
+      // Get the directory containing the audiobook file
+      const directory = path.dirname(audiobook.file_path);
+
+      // List all files in the directory
+      const files = fs.readdirSync(directory);
+
+      // Filter to only audio files and sort them
+      const audioExtensions = ['.mp3', '.m4a', '.m4b', '.flac', '.ogg', '.wav'];
+      const audioFiles = files
+        .filter(file => {
+          const ext = path.extname(file).toLowerCase();
+          return audioExtensions.includes(ext);
+        })
+        .map(file => {
+          const fullPath = path.join(directory, file);
+          const stats = fs.statSync(fullPath);
+          return {
+            name: file,
+            path: fullPath,
+            size: stats.size,
+            extension: path.extname(file).toLowerCase()
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+      res.json(audioFiles);
+    } catch (error) {
+      console.error('Error reading directory:', error);
+      res.status(500).json({ error: 'Failed to read directory' });
+    }
+  });
+});
+
 // Stream audiobook
 router.get('/:id/stream', authenticateToken, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {

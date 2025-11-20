@@ -100,6 +100,9 @@ export const clearProgress = (id) =>
 export const getChapters = (id) =>
   api.get(`/audiobooks/${id}/chapters`);
 
+export const getDirectoryFiles = (id) =>
+  api.get(`/audiobooks/${id}/directory-files`);
+
 export const getSeries = () =>
   api.get('/audiobooks/meta/series');
 
