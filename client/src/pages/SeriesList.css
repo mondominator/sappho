@@ -12,6 +12,25 @@
 
 .series-list-header {
   margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back-button {
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-button:hover {
+  background: #374151;
+  border-color: #3b82f6;
 }
 
 .series-list-count {
@@ -275,6 +294,11 @@
     margin-top: 0;
     padding: 1rem 1rem;
     margin-bottom: 0.5rem;
+  }
+
+  .back-button {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
   }
 
   .series-list-count {
