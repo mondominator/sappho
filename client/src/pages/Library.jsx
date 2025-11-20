@@ -1,25 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAudiobooks, getCoverUrl, getProgress, getSeries, getAuthors } from '../api';
+import { getAudiobooks, getSeries, getAuthors } from '../api';
 import './Library.css';
 
 export default function Library({ onPlay }) {
   const navigate = useNavigate();
   const [audiobooks, setAudiobooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState({ series: '', author: '' });
-  const [sortBy, setSortBy] = useState('title');
-  const [view, setView] = useState('categories'); // 'categories', 'series', 'authors', 'genres', 'all'
+  const [view, setView] = useState('categories'); // 'categories', 'authors', 'genres'
   const [categories, setCategories] = useState({ series: [], authors: [], genres: [] });
 
   useEffect(() => {
     if (view === 'categories') {
       loadCategories();
-    } else if (view === 'all' || view === 'series' || view === 'authors' || view === 'genres') {
+    } else if (view === 'authors' || view === 'genres') {
       loadAudiobooks();
     }
-  }, [view, search, filter]);
+  }, [view]);
 
   const loadCategories = async () => {
     try {
@@ -49,96 +46,13 @@ export default function Library({ onPlay }) {
 
   const loadAudiobooks = async () => {
     try {
-      const response = await getAudiobooks({ search, ...filter, limit: 10000 });
+      const response = await getAudiobooks({ limit: 10000 });
       setAudiobooks(response.data.audiobooks);
     } catch (error) {
       console.error('Error loading audiobooks:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const sortedAudiobooks = [...audiobooks].sort((a, b) => {
-    switch (sortBy) {
-      case 'title':
-        return (a.title || '').localeCompare(b.title || '');
-      case 'author':
-        return (a.author || '').localeCompare(b.author || '');
-      case 'series':
-        if (!a.series && !b.series) return 0;
-        if (!a.series) return 1;
-        if (!b.series) return -1;
-        const seriesCompare = a.series.localeCompare(b.series);
-        if (seriesCompare !== 0) return seriesCompare;
-        return (a.series_position || 0) - (b.series_position || 0);
-      case 'genre':
-        return (a.genre || '').localeCompare(b.genre || '');
-      case 'recent':
-        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-      default:
-        return 0;
-    }
-  });
-
-  if (loading) {
-    return <div className="loading">Loading library...</div>;
-  }
-
-  const handlePlay = async (book, e) => {
-    // On desktop, prevent navigation to detail page when clicking play button
-    // On mobile, both cover and button trigger play, so no need to stop propagation
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-      e.stopPropagation();
-    }
-
-    try {
-      const progressResponse = await getProgress(book.id);
-      const progress = progressResponse.data;
-      onPlay(book, progress);
-    } catch (error) {
-      console.error('Error loading progress:', error);
-      onPlay(book, null);
-    }
-  };
-
-  const renderBookCard = (book) => {
-    const coverUrl = getCoverUrl(book.id);
-
-    return (
-      <div key={book.id} className="audiobook-card" data-book-id={book.id}>
-        <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
-          {book.cover_image ? (
-            <img
-              src={coverUrl}
-              alt={book.title}
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-          ) : (
-            <div className="audiobook-cover-placeholder">
-              <h3>{book.title}</h3>
-            </div>
-          )}
-          {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
-            <div className="progress-bar-overlay">
-              <div
-                className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
-                style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
-              />
-            </div>
-          )}
-          <div className="play-overlay">
-            <button
-              className="play-button"
-              onClick={(e) => handlePlay(book, e)}
-              aria-label={`Play ${book.title}`}
-            />
-          </div>
-        </div>
-      </div>
-    );
   };
 
   if (loading) {
@@ -184,7 +98,7 @@ export default function Library({ onPlay }) {
             <h3>Genres</h3>
             <p>{categories.genres.length} genres</p>
           </div>
-          <div className="category-card" onClick={() => setView('all')}>
+          <div className="category-card" onClick={() => navigate('/all-books')}>
             <div className="category-icon">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 3h18v18H3z"></path>
@@ -231,10 +145,7 @@ export default function Library({ onPlay }) {
         </div>
         <div className="list-grid">
           {categories.genres.map((genre) => (
-            <div key={genre} className="list-item" onClick={() => {
-              setFilter({ ...filter, genre });
-              setView('all');
-            }}>
+            <div key={genre} className="list-item" onClick={() => navigate(`/all-books?genre=${encodeURIComponent(genre)}`)}>
               <h3>{genre}</h3>
             </div>
           ))}
@@ -242,44 +153,4 @@ export default function Library({ onPlay }) {
       </div>
     );
   }
-
-  // All books view
-  return (
-    <div className="library-page container">
-      {audiobooks.length === 0 ? (
-        <div className="empty-state">
-          <p>No audiobooks found.</p>
-          <p>Upload some audiobooks or drop them in the watch directory!</p>
-        </div>
-      ) : (
-        <>
-          <div className="library-header">
-            <button className="back-button" onClick={() => {
-              setView('categories');
-              setFilter({ series: '', author: '' });
-            }}>← Back</button>
-            <h2 className="library-count">{audiobooks.length} {audiobooks.length === 1 ? 'Book' : 'Books'}</h2>
-            <div className="library-sort">
-              <label htmlFor="sort-select">Sort by:</label>
-              <select
-                id="sort-select"
-                className="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="title">Title</option>
-                <option value="author">Author</option>
-                <option value="series">Series</option>
-                <option value="genre">Genre</option>
-                <option value="recent">Recently Added</option>
-              </select>
-            </div>
-          </div>
-          <div className="audiobook-grid" data-book-count={sortedAudiobooks.length}>
-            {sortedAudiobooks.map(renderBookCard)}
-          </div>
-        </>
-      )}
-    </div>
-  );
 }

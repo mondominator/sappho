@@ -571,11 +571,14 @@ router.get('/meta/series', authenticateToken, (req, res) => {
         return res.status(500).json({ error: err.message });
       }
       // Convert comma-separated IDs to array and take first 4
-      const seriesWithCovers = series.map(s => ({
-        ...s,
-        cover_ids: s.book_ids ? s.book_ids.split(',').slice(0, 4) : [],
-        completed_count: s.completed_count || 0
-      }));
+      // Filter out series with only one book
+      const seriesWithCovers = series
+        .filter(s => s.book_count > 1)
+        .map(s => ({
+          ...s,
+          cover_ids: s.book_ids ? s.book_ids.split(',').slice(0, 4) : [],
+          completed_count: s.completed_count || 0
+        }));
       res.json(seriesWithCovers);
     }
   );

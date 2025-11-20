@@ -61,6 +61,7 @@ export default function SeriesList() {
               onClick={() => navigate(`/series/${encodeURIComponent(series.series)}`)}
             >
               <div className="series-covers">
+                <div className="series-book-count">{series.book_count}</div>
                 {series.cover_ids && series.cover_ids.length > 0 ? (
                   <div className={`cover-grid cover-grid-${Math.min(series.cover_ids.length, 4)}`}>
                     {series.cover_ids.slice(0, 4).map((coverId, index) => (
@@ -82,7 +83,6 @@ export default function SeriesList() {
               <div className="series-card-content">
                 <h3 className="series-title">{series.series}</h3>
                 <div className="series-stats">
-                  <p className="series-count">{series.book_count} book{series.book_count !== 1 ? 's' : ''}</p>
                   {series.completed_count > 0 && (
                     <span className="completion-badge">
                       {series.completed_count}/{series.book_count} read
