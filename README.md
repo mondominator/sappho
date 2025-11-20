@@ -36,11 +36,13 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 ### 🎧 Playback & Progress
 - **Modern Audio Player** - Beautiful, responsive player with chapter support
 - **Chapter Navigation** - Skip between chapters, view chapter list, see current chapter title
+- **Multi-file Audiobook Support** - Automatically detects and combines chapter files (e.g., "Chapter 01.m4b", "Chapter 02.m4b")
 - **Progress Tracking** - Automatically saves your position, resume exactly where you left off
 - **Cross-device Sync** - Continue listening on any device (same account)
 - **Playback Speed Control** - Adjust speed to your preference
 - **Sleep Timer** - Fall asleep without losing your place (coming soon)
 - **Streaming Playback** - Direct audio streaming from server, no downloads required
+- **Smart Autoplay** - Desktop auto-plays on book selection, mobile requires manual play (browser policy compliance)
 
 ### 📱 Mobile Experience
 - **Progressive Web App (PWA)** - Install on iOS/Android for native app experience
@@ -75,6 +77,7 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 - **Web Upload** - Upload audiobooks directly through the web interface
 - **Bulk Operations** - Mark finished, clear progress, delete audiobooks
 - **Library Statistics** - View total audiobooks, listening time, completion stats
+- **Background Library Scanning** - Large library scans run in background without timeout issues
 - **WebSocket API** - Real-time integration with external services (e.g., OpsDec for Now Playing displays)
 - **RESTful API** - Full-featured API for automation and third-party integrations
 - **Docker-first** - Easy deployment with Docker Compose or standalone container
@@ -304,7 +307,13 @@ See the [Development](#development) section above for setup instructions.
 - Sleep timer not yet implemented
 - Some metadata tags may not be recognized (working on expanding support)
 - HTTPS required for full PWA functionality (service workers limitation)
-- Large libraries (10,000+ books) may experience slower initial scans
+
+## ✅ Recently Fixed
+
+- ~~Large library scan timeouts~~ - Now runs in background (v0.1.5+)
+- ~~Multi-file M4B detection~~ - Automatically detects chapter-based files (v0.1.4+)
+- ~~Mobile autoplay issues~~ - Smart autoplay respects browser policies (v0.1.5+)
+- ~~Race conditions in chapter imports~~ - Promise-based imports prevent corruption (v0.1.5+)
 
 See the [Issues](https://github.com/mondominator/sappho/issues) page for a complete list.
 
