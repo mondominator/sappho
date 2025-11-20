@@ -62,7 +62,7 @@ export default function LibrarySettings() {
   };
 
   const handleScanLibrary = async () => {
-    if (!confirm('Scan library and refresh all metadata? This will import new audiobooks and update metadata for existing ones.')) {
+    if (!confirm('Scan library and refresh all metadata? This will import new audiobooks and update metadata for existing ones. For large libraries, this process runs in the background.')) {
       return;
     }
 
@@ -70,24 +70,31 @@ export default function LibrarySettings() {
     try {
       const result = await scanLibrary(true); // Pass true to refresh metadata
       const stats = result.data.stats;
-      const messages = [
-        `Library scan complete!`,
-        `New imports: ${stats.imported}`,
-        `Skipped: ${stats.skipped}`,
-        `Errors: ${stats.errors}`
-      ];
 
-      if (stats.metadataRefreshed !== undefined) {
-        messages.push(`\nMetadata refreshed: ${stats.metadataRefreshed}`);
-        if (stats.metadataErrors > 0) {
-          messages.push(`Metadata errors: ${stats.metadataErrors}`);
+      // Check if scan is running in background
+      if (stats.scanning) {
+        alert(result.data.message || 'Metadata refresh started in background. This may take several minutes for large libraries. Check Docker logs for progress.');
+      } else {
+        // Synchronous scan completed
+        const messages = [
+          `Library scan complete!`,
+          `New imports: ${stats.imported}`,
+          `Skipped: ${stats.skipped}`,
+          `Errors: ${stats.errors}`
+        ];
+
+        if (stats.metadataRefreshed !== undefined) {
+          messages.push(`\nMetadata refreshed: ${stats.metadataRefreshed}`);
+          if (stats.metadataErrors > 0) {
+            messages.push(`Metadata errors: ${stats.metadataErrors}`);
+          }
         }
-      }
 
-      alert(messages.join('\n'));
+        alert(messages.join('\n'));
 
-      if (stats.imported > 0 || stats.metadataRefreshed > 0) {
-        window.location.reload();
+        if (stats.imported > 0 || stats.metadataRefreshed > 0) {
+          window.location.reload();
+        }
       }
     } catch (error) {
       console.error('Error scanning library:', error);

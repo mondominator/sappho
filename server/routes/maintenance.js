@@ -214,75 +214,94 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
 
   try {
     if (refreshMetadata) {
-      console.log('Refreshing metadata for all audiobooks...');
+      // Start metadata refresh in background - don't wait for it
+      console.log('Starting metadata refresh for all audiobooks in background...');
 
-      // Get all audiobooks from database
-      const audiobooks = await new Promise((resolve, reject) => {
-        db.all('SELECT id, file_path FROM audiobooks', (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        });
-      });
-
-      let updated = 0;
-      let errors = 0;
-
-      for (const audiobook of audiobooks) {
-        try {
-          // Check if file still exists
-          if (!fs.existsSync(audiobook.file_path)) {
-            console.log(`File not found: ${audiobook.file_path}`);
-            errors++;
-            continue;
-          }
-
-          // Extract fresh metadata
-          const metadata = await extractFileMetadata(audiobook.file_path);
-
-          // Update database
-          await new Promise((resolve, reject) => {
-            db.run(
-              `UPDATE audiobooks SET
-                title = ?, author = ?, narrator = ?, description = ?,
-                duration = ?, genre = ?, published_year = ?, isbn = ?,
-                series = ?, series_position = ?, cover_image = ?,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?`,
-              [
-                metadata.title, metadata.author, metadata.narrator, metadata.description,
-                metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
-                metadata.series, metadata.series_position, metadata.cover_image,
-                audiobook.id
-              ],
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
-
-          updated++;
-          console.log(`Updated metadata for: ${metadata.title}`);
-        } catch (error) {
-          console.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
-          errors++;
-        }
-      }
-
-      // Also scan for new files
-      const scanStats = await scanLibrary();
-
+      // Return immediately to prevent timeout
       res.json({
         success: true,
-        message: 'Metadata refresh and library scan completed',
+        message: 'Metadata refresh started in background. This may take several minutes for large libraries. Check Docker logs for progress.',
         stats: {
-          ...scanStats,
-          metadataRefreshed: updated,
-          metadataErrors: errors,
+          imported: 0,
+          skipped: 0,
+          errors: 0,
+          metadataRefreshed: 0,
+          metadataErrors: 0,
+          scanning: true
         },
       });
+
+      // Continue processing in background
+      setImmediate(async () => {
+        try {
+          // Get all audiobooks from database
+          const audiobooks = await new Promise((resolve, reject) => {
+            db.all('SELECT id, file_path FROM audiobooks', (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows);
+            });
+          });
+
+          let updated = 0;
+          let errors = 0;
+
+          console.log(`Refreshing metadata for ${audiobooks.length} audiobooks...`);
+
+          for (const audiobook of audiobooks) {
+            try {
+              // Check if file still exists
+              if (!fs.existsSync(audiobook.file_path)) {
+                console.log(`File not found: ${audiobook.file_path}`);
+                errors++;
+                continue;
+              }
+
+              // Extract fresh metadata
+              const metadata = await extractFileMetadata(audiobook.file_path);
+
+              // Update database
+              await new Promise((resolve, reject) => {
+                db.run(
+                  `UPDATE audiobooks SET
+                    title = ?, author = ?, narrator = ?, description = ?,
+                    duration = ?, genre = ?, published_year = ?, isbn = ?,
+                    series = ?, series_position = ?, cover_image = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?`,
+                  [
+                    metadata.title, metadata.author, metadata.narrator, metadata.description,
+                    metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
+                    metadata.series, metadata.series_position, metadata.cover_image,
+                    audiobook.id
+                  ],
+                  (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                  }
+                );
+              });
+
+              updated++;
+              if (updated % 10 === 0) {
+                console.log(`Metadata refresh progress: ${updated}/${audiobooks.length}`);
+              }
+            } catch (error) {
+              console.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
+              errors++;
+            }
+          }
+
+          // Also scan for new files
+          const scanStats = await scanLibrary();
+
+          console.log(`✅ Metadata refresh complete: ${updated} updated, ${errors} errors`);
+          console.log(`✅ New files scan: ${scanStats.imported} imported, ${scanStats.skipped} skipped`);
+        } catch (error) {
+          console.error('Error in background metadata refresh:', error);
+        }
+      });
     } else {
-      // Normal scan (new files only)
+      // Normal scan (new files only) - this is fast, can be synchronous
       console.log('Manual library scan triggered');
       const stats = await scanLibrary();
       res.json({
