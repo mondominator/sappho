@@ -143,7 +143,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
     <nav className="navigation">
       <div className="container nav-container">
         <Link to="/" className="nav-brand">
-          <img src="/logo.svg" alt="Sappho" className="nav-logo" />
+          <img src="/sappho-logo-new.png" alt="Sappho" className="nav-logo" />
         </Link>
 
         <div className="nav-links desktop-only">
