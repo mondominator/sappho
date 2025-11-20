@@ -152,12 +152,22 @@
   line-height: 1.2;
   color: #fff;
   font-weight: 700;
+  order: 1;
+}
+
+.detail-actions {
+  order: 2;
+}
+
+.detail-description {
+  order: 3;
 }
 
 .detail-metadata {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
+  order: 4;
 }
 
 .meta-item {
@@ -265,6 +275,41 @@
   color: #d1d5db;
   font-size: 1rem;
   margin: 0;
+}
+
+.detail-play-button {
+  display: none;
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-play-button:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(110, 231, 183, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-play-button:active {
+  transform: translateY(0);
+}
+
+.detail-play-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .detail-chapters-container {
@@ -433,13 +478,13 @@
 }
 
 .detail-actions .btn-success {
-  background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
 }
 
 .detail-actions .btn-success:hover {
-  background: rgba(16, 185, 129, 0.25);
-  border-color: rgba(110, 231, 183, 0.3);
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(147, 197, 253, 0.3);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
@@ -492,7 +537,7 @@
 
 @media (max-width: 768px) {
   .audiobook-detail {
-    padding-top: 60px !important;
+    padding-top: 56px !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -500,11 +545,12 @@
   }
 
   .back-button {
-    margin-top: 0;
-    padding-top: 0.5rem;
+    margin-top: -8px;
+    margin-bottom: 1rem;
   }
 
   .back-button-modern {
+    margin-top: -8px;
     margin-bottom: 1rem;
   }
 
@@ -525,13 +571,11 @@
   }
 
   .cover-play-overlay {
-    opacity: 1;
-    background: rgba(0, 0, 0, 0.3);
+    display: none !important;
   }
 
   .cover-play-button {
-    width: 70px;
-    height: 70px;
+    display: none !important;
   }
 
   .detail-title {
@@ -543,12 +587,40 @@
     gap: 1rem;
   }
 
+  .detail-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .detail-cover-container {
+    display: flex;
+    flex-direction: column;
+    order: 1;
+  }
+
+  .detail-cover {
+    order: 1;
+  }
+
+  .detail-play-button {
+    display: flex !important;
+    order: 2;
+  }
+
+  .detail-info {
+    display: flex;
+    flex-direction: column;
+    order: 2;
+  }
+
   .detail-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 1rem;
-    order: -1;
+    margin-top: 0;
+    padding-top: 0;
+    order: 1;
   }
 
   .detail-actions .btn {
@@ -556,8 +628,15 @@
     min-width: calc(50% - 0.25rem);
   }
 
-  .detail-info {
-    display: flex;
-    flex-direction: column;
+  .detail-chapters-container {
+    order: 2;
+  }
+
+  .detail-description {
+    order: 3;
+  }
+
+  .detail-metadata {
+    order: 4;
   }
 }

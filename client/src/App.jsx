@@ -197,14 +197,14 @@ function App() {
     window.location.href = '/'
   }
 
-  const playAudiobook = (audiobook, progress = null) => {
+  const playAudiobook = (audiobook, progress = null, openFullscreen = false) => {
     // If clicking the same book that's already loaded, we need to signal a play request
     if (currentAudiobook && currentAudiobook.id === audiobook.id) {
       // Create a new object reference to trigger re-render and include play signal
-      setCurrentAudiobook({ ...audiobook, _playRequested: Date.now() })
+      setCurrentAudiobook({ ...audiobook, _playRequested: Date.now(), _openFullscreen: openFullscreen })
       setCurrentProgress(progress)
     } else {
-      setCurrentAudiobook(audiobook)
+      setCurrentAudiobook({ ...audiobook, _openFullscreen: openFullscreen })
       setCurrentProgress(progress)
     }
   }

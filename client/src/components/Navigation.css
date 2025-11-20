@@ -227,32 +227,6 @@
   width: auto;
 }
 
-/* Secondary navbar for mobile */
-.secondary-nav {
-  top: 48px;
-  background: #151515;
-  border-bottom: 1px solid #2a2a2a;
-}
-
-.secondary-nav .nav-container {
-  padding: 6px 20px;
-  justify-content: center;
-}
-
-.secondary-nav .nav-links {
-  gap: 4px;
-  width: 100%;
-  justify-content: space-evenly;
-}
-
-.secondary-nav .nav-link {
-  flex: 1;
-  max-width: 120px;
-  justify-content: center;
-  padding: 6px 12px;
-  font-size: 13px;
-}
-
 /* Desktop/mobile visibility helpers */
 .desktop-only {
   display: flex;
@@ -407,31 +381,23 @@
     z-index: 1000;
   }
 
-  .navigation:not(.secondary-nav) {
+  .navigation {
     top: 0;
     height: 48px;
   }
 
   /* iOS: extend navigation to fill safe area */
   @supports (-webkit-touch-callout: none) {
-    .navigation:not(.secondary-nav) {
+    .navigation {
       height: calc(48px + env(safe-area-inset-top));
       padding-top: env(safe-area-inset-top);
     }
   }
 
-  .navigation.secondary-nav {
-    height: 38px;
-  }
-
-  .navigation:not(.secondary-nav) .nav-container {
+  .navigation .nav-container {
     padding: 8px 12px 8px 12px;
     justify-content: space-between;
     height: 48px;
-  }
-
-  .navigation.secondary-nav .nav-container {
-    padding: 6px 12px;
   }
 
   /* Mobile nav actions container */

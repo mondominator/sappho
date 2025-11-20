@@ -76,11 +76,16 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       }
     }
 
+    // Open fullscreen if requested
+    if (audiobook._openFullscreen) {
+      setShowFullscreen(true);
+    }
+
     // Load chapters for all audiobooks (both embedded chapters in M4B and multi-file)
     getChapters(audiobook.id)
       .then(response => setChapters(response.data || []))
       .catch(err => console.error('Error loading chapters:', err));
-  }, [audiobook.id, audiobook._playRequested]);
+  }, [audiobook.id, audiobook._playRequested, audiobook._openFullscreen]);
 
   // Save playing state to localStorage
   useEffect(() => {
@@ -145,15 +150,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           isDesktop: !isMobile && !isPWA
         });
 
-        // Mobile/PWA: Only auto-play if explicitly requested via _playRequested
+        // Mobile/PWA: Only auto-play if _openFullscreen is true (explicit play from detail page)
         if (isMobile || isPWA) {
-          const isExplicitPlayRequest = audiobook._playRequested !== undefined;
-          if (isExplicitPlayRequest) {
-            console.log('Mobile/PWA - explicit play request, auto-playing');
+          const shouldAutoPlay = audiobook._openFullscreen === true;
+          if (shouldAutoPlay) {
+            console.log('Mobile/PWA - fullscreen play requested, auto-playing');
             setTimeout(() => {
               if (audioRef.current) {
                 audioRef.current.play().then(() => {
-                  console.log('Playback started successfully (explicit request on mobile)');
+                  console.log('Playback started successfully (fullscreen request on mobile)');
                   setPlaying(true);
                   setIsNewLoad(false);
                   localStorage.setItem('playerPlaying', 'true');
@@ -165,7 +170,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               }
             }, 100);
           } else {
-            console.log('Mobile/PWA - no explicit play request, waiting for user interaction');
+            console.log('Mobile/PWA detected - no auto-play, waiting for user interaction');
             setPlaying(false);
             setIsNewLoad(false);
             localStorage.setItem('playerPlaying', 'false');
