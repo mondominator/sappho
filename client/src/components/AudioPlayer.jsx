@@ -145,22 +145,30 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         const canAutoPlayOnRefresh = !isMobile && !isPWA && !isNewLoad && savedPlaying === 'true';
 
         if (isNewLoad) {
-          // New book load - always auto-play (user just clicked play button)
-          setTimeout(() => {
-            if (audioRef.current) {
-              audioRef.current.play().then(() => {
-                console.log('Playback started successfully (new book)');
-                setPlaying(true);
-                setIsNewLoad(false);
-                // Mark as playing after successful start
-                localStorage.setItem('playerPlaying', 'true');
-              }).catch(err => {
-                console.warn('Auto-play prevented or failed:', err);
-                setPlaying(false);
-                setIsNewLoad(false);
-              });
-            }
-          }, 100);
+          // New book load - auto-play unless on mobile/PWA
+          // On mobile, user must manually press play due to browser restrictions
+          if (isMobile || isPWA) {
+            console.log('New book on mobile - waiting for user interaction');
+            setPlaying(false);
+            setIsNewLoad(false);
+            localStorage.setItem('playerPlaying', 'false');
+          } else {
+            setTimeout(() => {
+              if (audioRef.current) {
+                audioRef.current.play().then(() => {
+                  console.log('Playback started successfully (new book)');
+                  setPlaying(true);
+                  setIsNewLoad(false);
+                  // Mark as playing after successful start
+                  localStorage.setItem('playerPlaying', 'true');
+                }).catch(err => {
+                  console.warn('Auto-play prevented or failed:', err);
+                  setPlaying(false);
+                  setIsNewLoad(false);
+                });
+              }
+            }, 100);
+          }
         } else if (canAutoPlayOnRefresh) {
           // Desktop page refresh with audio playing - try to resume
           setTimeout(() => {
