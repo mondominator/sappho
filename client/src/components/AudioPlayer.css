@@ -346,8 +346,8 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(75, 85, 99, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  border: none;
   color: #9ca3af;
   cursor: pointer;
   display: flex;
@@ -358,8 +358,6 @@
 }
 
 .fullscreen-close:hover {
-  background: rgba(75, 85, 99, 0.5);
-  border-color: rgba(255, 255, 255, 0.15);
   color: #fff;
 }
 
