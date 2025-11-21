@@ -26,7 +26,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-container">
-        <h1 className="login-title">Sappho</h1>
+        <img src="/sappho-logo-navbar.png" alt="Sappho" className="login-logo" />
         <p className="login-subtitle">Audiobook Server</p>
 
         <form onSubmit={handleSubmit} className="login-form">
