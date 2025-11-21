@@ -40,7 +40,7 @@ const upload = multer({
 // Get profile
 router.get('/', authenticateToken, (req, res) => {
   db.get(
-    'SELECT id, username, email, display_name, avatar FROM users WHERE id = ?',
+    'SELECT id, username, email, display_name, avatar, is_admin FROM users WHERE id = ?',
     [req.user.id],
     (err, user) => {
       if (err) {
