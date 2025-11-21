@@ -151,10 +151,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         });
 
         // Mobile/PWA: Only auto-play if _openFullscreen is true (explicit play from detail page)
+        // AND it's a new load (not a page refresh)
         if (isMobile || isPWA) {
-          const shouldAutoPlay = audiobook._openFullscreen === true;
+          const shouldAutoPlay = audiobook._openFullscreen === true && isNewLoad;
           if (shouldAutoPlay) {
-            console.log('Mobile/PWA - fullscreen play requested, auto-playing');
+            console.log('Mobile/PWA - fullscreen play requested on new load, auto-playing');
             setTimeout(() => {
               if (audioRef.current) {
                 audioRef.current.play().then(() => {
@@ -170,7 +171,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               }
             }, 100);
           } else {
-            console.log('Mobile/PWA detected - no auto-play, waiting for user interaction');
+            console.log('Mobile/PWA detected - no auto-play (page refresh or no explicit request), waiting for user interaction');
             setPlaying(false);
             setIsNewLoad(false);
             localStorage.setItem('playerPlaying', 'false');

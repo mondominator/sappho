@@ -15,6 +15,8 @@ Sappho is a modern, self-hosted audiobook streaming server with automatic metada
 
 ## Development Commands
 
+**IMPORTANT: This project is containerized and runs in Docker in production. For local development, you can run it directly with npm commands below.**
+
 ### Running the Application
 
 ```bash
