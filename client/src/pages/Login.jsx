@@ -27,7 +27,6 @@ export default function Login({ onLogin }) {
     <div className="login-page">
       <div className="login-container">
         <img src="/sappho-logo-navbar.png" alt="Sappho" className="login-logo" />
-        <p className="login-subtitle">Audiobook Server</p>
 
         <form onSubmit={handleSubmit} className="login-form">
           {error && <div className="error-message">{error}</div>}
@@ -59,10 +58,6 @@ export default function Login({ onLogin }) {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        <p className="login-hint">
-          Default credentials: admin / admin
-        </p>
       </div>
     </div>
   );
