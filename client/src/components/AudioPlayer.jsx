@@ -15,14 +15,19 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   });
   const [hasRestoredPosition, setHasRestoredPosition] = useState(false);
   const [isNewLoad, setIsNewLoad] = useState(() => {
-    // Check if this is a page refresh by seeing if the audiobook was already loaded
-    // If the audiobook ID matches what's in localStorage, this is a page refresh
+    // Check if this is a page refresh by checking session storage
+    // sessionStorage persists during the same tab session but clears on refresh
     try {
-      const savedAudiobookId = localStorage.getItem('currentAudiobookId');
-      if (!audiobook || !audiobook.id) return true;
-      const isPageRefresh = savedAudiobookId && parseInt(savedAudiobookId) === audiobook.id;
-      // New load = NOT a page refresh
-      return !isPageRefresh;
+      const isSessionActive = sessionStorage.getItem('audioPlayerActive');
+      if (isSessionActive === 'true') {
+        // Session was active, this is NOT a new load (navigating within app)
+        return false;
+      } else {
+        // No active session marker = page refresh or new load
+        // Mark session as active for future navigation
+        sessionStorage.setItem('audioPlayerActive', 'true');
+        return true;
+      }
     } catch (err) {
       console.error('Error checking page refresh state:', err);
       return true; // Default to new load on error
@@ -302,6 +307,31 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       }
     };
   }, [audiobook, chapters]);
+
+  // Handle audio interruptions (bluetooth disconnect, phone calls, etc.)
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleAudioInterruption = () => {
+      console.log('Audio interrupted - pausing playback');
+      setPlaying(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+      }
+    };
+
+    // Handle various interruption events
+    audio.addEventListener('pause', handleAudioInterruption);
+    audio.addEventListener('ended', handleAudioInterruption);
+
+    // Cleanup
+    return () => {
+      audio.removeEventListener('pause', handleAudioInterruption);
+      audio.removeEventListener('ended', handleAudioInterruption);
+    };
+  }, [audiobook.id]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
