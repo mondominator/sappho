@@ -8,6 +8,7 @@ export default function AllBooks({ onPlay }) {
   const [audiobooks, setAudiobooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('title');
+  const [progressFilter, setProgressFilter] = useState('all');
 
   useEffect(() => {
     loadAudiobooks();
@@ -24,7 +25,27 @@ export default function AllBooks({ onPlay }) {
     }
   };
 
-  const sortedAudiobooks = [...audiobooks].sort((a, b) => {
+  // Filter audiobooks based on progress filter
+  const filteredAudiobooks = audiobooks.filter(book => {
+    const isFinished = book.progress?.completed === 1;
+    const hasProgress = book.progress && book.progress.position > 0;
+
+    switch (progressFilter) {
+      case 'hide-finished':
+        return !isFinished;
+      case 'in-progress':
+        return hasProgress && !isFinished;
+      case 'not-started':
+        return !hasProgress && !isFinished;
+      case 'finished':
+        return isFinished;
+      case 'all':
+      default:
+        return true;
+    }
+  });
+
+  const sortedAudiobooks = [...filteredAudiobooks].sort((a, b) => {
     switch (sortBy) {
       case 'title':
         return (a.title || '').localeCompare(b.title || '');
@@ -118,21 +139,38 @@ export default function AllBooks({ onPlay }) {
         <>
           <div className="all-books-header">
             <button className="back-button" onClick={() => navigate('/library')}>← Back</button>
-            <h2 className="all-books-count">{audiobooks.length} {audiobooks.length === 1 ? 'Book' : 'Books'}</h2>
-            <div className="all-books-sort">
-              <label htmlFor="sort-select">Sort by:</label>
-              <select
-                id="sort-select"
-                className="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="title">Title</option>
-                <option value="author">Author</option>
-                <option value="series">Series</option>
-                <option value="genre">Genre</option>
-                <option value="recent">Recently Added</option>
-              </select>
+            <h2 className="all-books-count">{sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}</h2>
+            <div className="all-books-controls">
+              <div className="all-books-filter">
+                <label htmlFor="filter-select">Show:</label>
+                <select
+                  id="filter-select"
+                  className="filter-select"
+                  value={progressFilter}
+                  onChange={(e) => setProgressFilter(e.target.value)}
+                >
+                  <option value="all">All Books</option>
+                  <option value="hide-finished">Hide Finished</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="not-started">Not Started</option>
+                  <option value="finished">Finished Only</option>
+                </select>
+              </div>
+              <div className="all-books-sort">
+                <label htmlFor="sort-select">Sort by:</label>
+                <select
+                  id="sort-select"
+                  className="sort-select"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="title">Title</option>
+                  <option value="author">Author</option>
+                  <option value="series">Series</option>
+                  <option value="genre">Genre</option>
+                  <option value="recent">Recently Added</option>
+                </select>
+              </div>
             </div>
           </div>
           <div className="audiobook-grid" data-book-count={sortedAudiobooks.length}>

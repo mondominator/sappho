@@ -241,7 +241,14 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       // Only send updates when actively playing
       // Don't send periodic updates when paused to allow OpsDec to timeout the session
       if (audioRef.current && playing) {
-        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'playing');
+        const currentTime = Math.floor(audioRef.current.currentTime);
+        const duration = audioRef.current.duration;
+
+        // Calculate progress percentage and mark as finished if >= 98%
+        const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+        const isFinished = progressPercent >= 98;
+
+        updateProgress(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
       }
     }, 5000);
 
@@ -340,7 +347,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       audioRef.current.pause();
       setPlaying(false);
       // Send pause state immediately
-      updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+      const currentTime = Math.floor(audioRef.current.currentTime);
+      const duration = audioRef.current.duration;
+      const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+      const isFinished = progressPercent >= 98;
+      updateProgress(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
     } else {
       // Better error handling for play
       const playPromise = audioRef.current.play();
@@ -348,7 +359,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         playPromise
           .then(() => {
             setPlaying(true);
-            updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'playing');
+            const currentTime = Math.floor(audioRef.current.currentTime);
+            const duration = audioRef.current.duration;
+            const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+            const isFinished = progressPercent >= 98;
+            updateProgress(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
           })
           .catch(err => {
             console.error('Playback failed:', err);
@@ -445,9 +460,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     // Stop playback and send stopped state when closing the player
     if (audioRef.current) {
       const currentPosition = Math.floor(audioRef.current.currentTime);
+      const duration = audioRef.current.duration;
+      const progressPercent = duration > 0 ? (currentPosition / duration) * 100 : 0;
+      const isFinished = progressPercent >= 98;
       audioRef.current.pause();
       setPlaying(false);
-      updateProgress(audiobook.id, currentPosition, 0, 'stopped');
+      updateProgress(audiobook.id, currentPosition, isFinished ? 1 : 0, 'stopped');
     }
     onClose();
   };
@@ -634,7 +652,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         ref={audioRef}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          // Mark as finished (100% completion)
+          updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 1, 'stopped');
+          // Close fullscreen player if open
+          if (showFullscreen) {
+            setShowFullscreen(false);
+          }
+        }}
       />
 
       <div className="player-info">
