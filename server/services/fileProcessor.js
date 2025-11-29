@@ -154,6 +154,14 @@ async function extractFileMetadata(filePath) {
     let series = null;  // Don't default to album tag - only use explicit series tags
     let seriesPosition = null;
 
+    // Check common.movementName first (music-metadata exposes this for movement tags)
+    if (common.movementName) {
+      series = common.movementName;
+    }
+    if (common.movementIndex && common.movementIndex.no) {
+      seriesPosition = common.movementIndex.no;
+    }
+
     // Check for MP4/iTunes tags (used in M4A, M4B files)
     if (nativeTags.iTunes || nativeTags.MP4) {
       const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
@@ -168,8 +176,10 @@ async function extractFileMetadata(filePath) {
       };
 
       // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
-      // Priority: explicit SERIES tag > grouping > show > album
+      // Priority: movement name (proper audiobook tag) > explicit SERIES tag > grouping > show
       const seriesTagPriority = [
+        '©mvn',  // Movement Name - standard audiobook series tag (what tone writes)
+        'movementName',  // Alternative movement name key
         '----:com.apple.iTunes:SERIES',
         '----:com.apple.iTunes:series',
         '----:com.pilabor.tone:SERIES',
@@ -203,7 +213,10 @@ async function extractFileMetadata(filePath) {
       }
 
       // Look for series position
+      // Priority: movement (proper audiobook tag) > PART > TV episode > disc
       const posTag = mp4Tags.find(tag =>
+        tag.id === '©mvi' ||  // Movement Index - standard audiobook series position (what tone writes)
+        tag.id === 'movement' ||  // Alternative movement key
         tag.id === '----:com.apple.iTunes:PART' ||
         tag.id === '----:com.apple.iTunes:part' ||
         tag.id === '----:com.pilabor.tone:PART' || // Tone/AudiobookShelf
@@ -289,6 +302,8 @@ async function extractFileMetadata(filePath) {
       const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
 
       const narratorTag = mp4Tags.find(tag =>
+        tag.id === '©nrt' ||  // Standard narrator tag (what tone writes)
+        tag.id === 'narrator' ||  // Alternative narrator key
         tag.id === '----:com.apple.iTunes:NARRATOR' ||
         tag.id === '----:com.apple.iTunes:narrator' ||
         tag.id === '----:com.pilabor.tone:NARRATOR' || // Tone/AudiobookShelf
