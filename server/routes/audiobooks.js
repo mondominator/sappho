@@ -774,6 +774,11 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         .replace(/\n/g, '\\\n'); // Escape newlines (ffmetadata multiline format)
     };
 
+    // Build series string with position (e.g., "The Eden Chronicles #1")
+    const seriesWithPosition = audiobook.series && audiobook.series_position
+      ? `${audiobook.series} #${audiobook.series_position}`
+      : audiobook.series;
+
     // For M4B/M4A files with chapters, we need to use ffmetadata format
     if ((ext === '.m4b' || ext === '.m4a') && chapters.length > 0) {
       // Create ffmetadata file with chapters
@@ -789,15 +794,25 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       if (audiobook.description) metadataContent += `description=${escapeMetadata(audiobook.description)}\n`;
       if (audiobook.genre) metadataContent += `genre=${escapeMetadata(audiobook.genre)}\n`;
       if (audiobook.published_year) metadataContent += `date=${audiobook.published_year}\n`;
-      // Series info - use multiple tags for compatibility
+
+      // Series info - use multiple compatible tags
+      // Note: FFmpeg doesn't support MVNM/MVIN (movement) tags, so we use alternatives
       if (audiobook.series) {
+        // Use album for series name (widely supported)
         metadataContent += `album=${escapeMetadata(audiobook.series)}\n`;
-        metadataContent += `show=${escapeMetadata(audiobook.series)}\n`;  // Podcast/audiobook series tag
-        metadataContent += `series=${escapeMetadata(audiobook.series)}\n`;  // Custom series tag
+        // Grouping tag (©grp) - readable by many players including iTunes
+        metadataContent += `grouping=${escapeMetadata(seriesWithPosition)}\n`;
+        // TV show tag (tvsh) - used by some audiobook players
+        metadataContent += `show=${escapeMetadata(audiobook.series)}\n`;
+        // Sort album - helps with organization
+        metadataContent += `sort_album=${escapeMetadata(audiobook.series)}\n`;
         if (audiobook.series_position) {
+          // Track number - widely supported for position
           metadataContent += `track=${audiobook.series_position}\n`;
-          metadataContent += `episode_sort=${audiobook.series_position}\n`;  // Podcast episode sort
-          metadataContent += `series-part=${audiobook.series_position}\n`;  // Custom series position
+          // Disc number as fallback for series position
+          metadataContent += `disc=${audiobook.series_position}\n`;
+          // Episode sort for podcast-style players
+          metadataContent += `episode_sort=${audiobook.series_position}\n`;
         }
       }
       if (audiobook.publisher) metadataContent += `publisher=${escapeMetadata(audiobook.publisher)}\n`;
@@ -836,15 +851,17 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       if (audiobook.description) args.push('-metadata', `description=${audiobook.description}`);
       if (audiobook.genre) args.push('-metadata', `genre=${audiobook.genre}`);
       if (audiobook.published_year) args.push('-metadata', `date=${audiobook.published_year}`);
-      // Series info - use multiple tags for compatibility
+
+      // Series info - use multiple compatible tags
       if (audiobook.series) {
         args.push('-metadata', `album=${audiobook.series}`);
+        args.push('-metadata', `grouping=${seriesWithPosition}`);
         args.push('-metadata', `show=${audiobook.series}`);
-        args.push('-metadata', `series=${audiobook.series}`);
+        args.push('-metadata', `sort_album=${audiobook.series}`);
         if (audiobook.series_position) {
           args.push('-metadata', `track=${audiobook.series_position}`);
+          args.push('-metadata', `disc=${audiobook.series_position}`);
           args.push('-metadata', `episode_sort=${audiobook.series_position}`);
-          args.push('-metadata', `series-part=${audiobook.series_position}`);
         }
       }
       if (audiobook.publisher) args.push('-metadata', `publisher=${audiobook.publisher}`);

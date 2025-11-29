@@ -158,26 +158,38 @@ async function extractFileMetadata(filePath) {
     if (nativeTags.iTunes || nativeTags.MP4) {
       const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
 
-      // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
-      const seriesTag = mp4Tags.find(tag =>
-        tag.id === '----:com.apple.iTunes:SERIES' ||
-        tag.id === '----:com.apple.iTunes:series' ||
-        tag.id === '----:com.pilabor.tone:SERIES' || // Tone/AudiobookShelf
-        tag.id === '----:com.pilabor.tone:series' ||
-        tag.id === '©grp' || // Grouping tag (common for series)
-        tag.id === 'tvsh' || // TV Show (sometimes used for series)
-        tag.id === '©st3' || // Subtitle field (sometimes used for series)
-        tag.id === 'sosn' // Sort show name
-      );
-      if (seriesTag && seriesTag.value) {
-        series = Array.isArray(seriesTag.value) ? seriesTag.value[0] : seriesTag.value;
-        if (typeof series === 'object' && series.text) {
-          series = series.text; // Handle Buffer/object values
-        }
-        if (Buffer.isBuffer(series)) {
-          series = series.toString('utf8');
-        }
+      // Helper to extract string value from tag
+      const getTagValue = (tag) => {
+        if (!tag || !tag.value) return null;
+        let val = Array.isArray(tag.value) ? tag.value[0] : tag.value;
+        if (typeof val === 'object' && val.text) val = val.text;
+        if (Buffer.isBuffer(val)) val = val.toString('utf8');
+        return typeof val === 'string' ? val : null;
+      };
 
+      // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
+      // Priority: explicit SERIES tag > grouping > show > album
+      const seriesTagPriority = [
+        '----:com.apple.iTunes:SERIES',
+        '----:com.apple.iTunes:series',
+        '----:com.pilabor.tone:SERIES',
+        '----:com.pilabor.tone:series',
+        '©grp',  // Grouping tag - often contains "Series Name #N"
+        'tvsh',  // TV Show (sometimes used for series)
+        '©st3',  // Subtitle field
+        'sosn',  // Sort show name
+      ];
+
+      for (const tagId of seriesTagPriority) {
+        const tag = mp4Tags.find(t => t.id === tagId);
+        const val = getTagValue(tag);
+        if (val) {
+          series = val;
+          break;
+        }
+      }
+
+      if (series) {
         // If series contains "#N" pattern, extract series name and position
         // Example: "The Eden Chronicles #1" -> series: "The Eden Chronicles", position: 1
         const seriesMatch = series.match(/^(.+?)\s*#(\d+(?:\.\d+)?)$/);
