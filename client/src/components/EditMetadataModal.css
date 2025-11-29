@@ -273,6 +273,48 @@
   margin-top: 0.25rem;
 }
 
+/* Source badges for search results */
+.result-source {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.source-audible {
+  background: #f59e0b;
+  color: #1f2937;
+}
+
+.source-google {
+  background: #4285f4;
+  color: white;
+}
+
+.source-openlibrary {
+  background: #6b7280;
+  color: white;
+}
+
+/* Has chapters indicator */
+.result-chapters {
+  font-size: 0.75rem;
+  color: #22c55e;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.result-chapters::before {
+  content: "✓";
+  font-weight: bold;
+}
+
 /* Button styles (extend existing) */
 .btn {
   padding: 0.75rem 1.5rem;

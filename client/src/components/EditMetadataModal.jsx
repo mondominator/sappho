@@ -150,10 +150,10 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         setAudnexusResults(response.data.results);
         setShowAudnexusResults(true);
       } else {
-        setError('No Audible audiobooks found. Try adjusting the title or author.');
+        setError('No results found. Try adjusting the title or author.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Audnexus search failed');
+      setError(err.response?.data?.error || 'Search failed');
     } finally {
       setSearching(false);
     }
@@ -190,10 +190,14 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       abridged: pendingResult.abridged !== undefined ? pendingResult.abridged : prev.abridged,
     }));
 
-    // Also fetch chapters
-    handleFetchChapters(pendingResult.asin);
+    // Only fetch chapters if it's an Audible result with an ASIN
+    if (pendingResult.hasChapters && pendingResult.asin) {
+      handleFetchChapters(pendingResult.asin);
+      setSuccess('Metadata applied! Fetching chapters...');
+    } else {
+      setSuccess('Metadata applied!');
+    }
     setPendingResult(null);
-    setSuccess('Metadata applied! Fetching chapters...');
   };
 
   const handleCancelPendingResult = () => {
@@ -393,9 +397,9 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
               </button>
             </div>
             <div className="results-list">
-              {audnexusResults.map((result) => (
+              {audnexusResults.map((result, index) => (
                 <div
-                  key={result.asin}
+                  key={result.asin || `${result.source}-${index}`}
                   className="result-item"
                   onClick={() => handleSelectAudnexusResult(result)}
                 >
@@ -407,7 +411,12 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                     />
                   )}
                   <div className="result-info">
-                    <div className="result-title">{result.title}</div>
+                    <div className="result-title">
+                      {result.title}
+                      <span className={`result-source source-${result.source || 'audible'}`}>
+                        {result.source === 'google' ? 'Google' : result.source === 'openlibrary' ? 'OpenLibrary' : 'Audible'}
+                      </span>
+                    </div>
                     {result.author && <div className="result-author">by {result.author}</div>}
                     {result.narrator && <div className="result-narrator">Narrated by {result.narrator}</div>}
                     {result.series && (
@@ -415,6 +424,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                         {result.series}{result.series_position ? ` #${result.series_position}` : ''}
                       </div>
                     )}
+                    {result.hasChapters && <div className="result-chapters">Has chapters</div>}
                   </div>
                 </div>
               ))}
@@ -423,7 +433,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         ) : pendingResult ? (
           <div className="metadata-preview">
             <div className="preview-header">
-              <h3>Apply Metadata from Audible?</h3>
+              <h3>Apply Metadata{pendingResult.source ? ` from ${pendingResult.source === 'google' ? 'Google Books' : pendingResult.source === 'openlibrary' ? 'Open Library' : 'Audible'}` : ''}?</h3>
               <p className="preview-subtitle">Review changes before applying</p>
             </div>
 
@@ -460,7 +470,9 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                   ))}
                 </div>
               )}
-              <p className="chapters-note">Chapters will also be fetched from Audible.</p>
+              {pendingResult.hasChapters && pendingResult.asin && (
+                <p className="chapters-note">Chapters will also be fetched from Audible.</p>
+              )}
             </div>
 
             <div className="preview-actions">
@@ -490,9 +502,9 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                 onClick={handleSearchAudnexus}
                 disabled={saving || searching || (!formData.title && !formData.author)}
               >
-                {searching ? 'Searching Audible...' : 'Search Audible for Metadata'}
+                {searching ? 'Searching...' : 'Search for Metadata'}
               </button>
-              <p className="search-hint">Search uses title and author fields below</p>
+              <p className="search-hint">Searches Audible, Google Books, and Open Library</p>
             </div>
 
             <div className="form-row">

@@ -279,19 +279,12 @@ router.post('/:id/fetch-chapters', authenticateToken, async (req, res) => {
   }
 });
 
-// Search Audible catalog and get details from Audnexus (admin only)
-// Uses Audible's public catalog API (same as Audiobookshelf)
-router.get('/:id/search-audnexus', authenticateToken, async (req, res) => {
-  // Check if user is admin
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
-  const { title, author, asin } = req.query;
+// Helper: Search Audible and get details from Audnexus
+async function searchAudible(title, author, asin) {
+  const results = [];
+  let asins = [];
 
   try {
-    let asins = [];
-
     // If ASIN provided directly, use it
     if (asin && /^[A-Z0-9]{10}$/i.test(asin)) {
       asins.push(asin.toUpperCase());
@@ -310,95 +303,232 @@ router.get('/:id/search-audnexus', authenticateToken, async (req, res) => {
       if (author) queryParams.append('author', author);
 
       const searchUrl = `https://api.audible.com/1.0/catalog/products?${queryParams.toString()}`;
-      console.log(`[Audnexus Search] Searching Audible: ${searchUrl}`);
+      console.log(`[Audible Search] ${searchUrl}`);
 
-      const searchResponse = await fetch(searchUrl, { timeout: 10000 });
-
+      const searchResponse = await fetch(searchUrl);
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
         if (searchData.products && searchData.products.length > 0) {
           asins = searchData.products.map(p => p.asin).filter(Boolean);
         }
-      } else {
-        console.log(`[Audnexus Search] Audible search failed: ${searchResponse.status}`);
       }
     }
 
-    if (asins.length === 0) {
-      return res.json({
-        results: [],
-        message: 'No audiobooks found. Try a different title or author.'
-      });
-    }
-
     // Get full details from Audnexus for each ASIN
-    const results = [];
     for (const bookAsin of asins.slice(0, 10)) {
       try {
         const response = await fetch(`https://api.audnex.us/books/${bookAsin}`);
         if (response.ok) {
           const book = await response.json();
-
-          // Extract genres and tags separately
           const genres = book.genres?.filter(g => g.type === 'genre').map(g => g.name) || [];
           const tags = book.genres?.filter(g => g.type === 'tag').map(g => g.name) || [];
-
-          // Extract year from releaseDate
           const publishedYear = book.releaseDate ? parseInt(book.releaseDate.split('-')[0]) : null;
 
           results.push({
-            // Core fields
+            source: 'audible',
             asin: book.asin,
             title: book.title,
             subtitle: book.subtitle || null,
             author: book.authors?.map(a => a.name).join(', ') || null,
             narrator: book.narrators?.map(n => n.name).join(', ') || null,
-
-            // Series info
             series: book.seriesPrimary?.name || null,
             series_position: book.seriesPrimary?.position || null,
-
-            // Publication info
             publisher: book.publisherName || null,
             published_year: publishedYear,
             copyright_year: book.copyright || null,
-            release_date: book.releaseDate || null,
-
-            // Identifiers
             isbn: book.isbn || null,
-
-            // Content info
             description: book.summary ? book.summary.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : null,
             language: book.language || null,
             runtime: book.runtimeLengthMin || null,
             abridged: book.formatType === 'abridged' ? 1 : 0,
-
-            // Categories
             genre: genres.join(', ') || null,
             tags: tags.join(', ') || null,
-
-            // Rating
             rating: book.rating || null,
-
-            // Cover
             image: book.image || null,
+            hasChapters: true,
           });
         }
       } catch (err) {
-        console.log(`[Audnexus Search] Failed to get details for ${bookAsin}:`, err.message);
+        console.log(`[Audible] Failed to get details for ${bookAsin}:`, err.message);
       }
     }
+  } catch (err) {
+    console.log('[Audible] Search error:', err.message);
+  }
+
+  return results;
+}
+
+// Helper: Search Google Books
+async function searchGoogleBooks(title, author) {
+  const results = [];
+
+  try {
+    let query = '';
+    if (title) query += `intitle:${title}`;
+    if (author) query += `${query ? '+' : ''}inauthor:${author}`;
+
+    const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10`;
+    console.log(`[Google Books] ${searchUrl}`);
+
+    const response = await fetch(searchUrl);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.items) {
+        for (const item of data.items) {
+          const vol = item.volumeInfo;
+
+          // Try to extract series info from title (common pattern: "Title (Series Name #1)")
+          let series = null;
+          let seriesPosition = null;
+          const seriesMatch = vol.title?.match(/\(([^)]+)\s*#?(\d+(?:\.\d+)?)\)$/);
+          if (seriesMatch) {
+            series = seriesMatch[1].trim();
+            seriesPosition = seriesMatch[2];
+          }
+
+          // Get ISBN-13 or ISBN-10
+          let isbn = null;
+          if (vol.industryIdentifiers) {
+            const isbn13 = vol.industryIdentifiers.find(id => id.type === 'ISBN_13');
+            const isbn10 = vol.industryIdentifiers.find(id => id.type === 'ISBN_10');
+            isbn = isbn13?.identifier || isbn10?.identifier || null;
+          }
+
+          results.push({
+            source: 'google',
+            title: vol.title || null,
+            subtitle: vol.subtitle || null,
+            author: vol.authors?.join(', ') || null,
+            narrator: null, // Google Books doesn't have narrator
+            series: series,
+            series_position: seriesPosition,
+            publisher: vol.publisher || null,
+            published_year: vol.publishedDate ? parseInt(vol.publishedDate.split('-')[0]) : null,
+            isbn: isbn,
+            description: vol.description || null,
+            language: vol.language || null,
+            genre: vol.categories?.join(', ') || null,
+            rating: vol.averageRating?.toString() || null,
+            image: vol.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+            hasChapters: false,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.log('[Google Books] Search error:', err.message);
+  }
+
+  return results;
+}
+
+// Helper: Search Open Library
+async function searchOpenLibrary(title, author) {
+  const results = [];
+
+  try {
+    const queryParts = [];
+    if (title) queryParts.push(`title=${encodeURIComponent(title)}`);
+    if (author) queryParts.push(`author=${encodeURIComponent(author)}`);
+
+    const searchUrl = `https://openlibrary.org/search.json?${queryParts.join('&')}&limit=10`;
+    console.log(`[Open Library] ${searchUrl}`);
+
+    const response = await fetch(searchUrl);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.docs) {
+        for (const doc of data.docs.slice(0, 10)) {
+          // Open Library has series info in some cases
+          let series = null;
+          let seriesPosition = null;
+
+          // Try to get series from the first_series field or parse from title
+          if (doc.series) {
+            series = Array.isArray(doc.series) ? doc.series[0] : doc.series;
+          }
+
+          // Get cover
+          let image = null;
+          if (doc.cover_i) {
+            image = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
+          }
+
+          results.push({
+            source: 'openlibrary',
+            title: doc.title || null,
+            subtitle: doc.subtitle || null,
+            author: doc.author_name?.join(', ') || null,
+            narrator: null, // Open Library doesn't have narrator
+            series: series,
+            series_position: seriesPosition,
+            publisher: doc.publisher?.[0] || null,
+            published_year: doc.first_publish_year || null,
+            isbn: doc.isbn?.[0] || null,
+            description: null, // Would need another API call to get description
+            language: doc.language?.[0] || null,
+            genre: doc.subject?.slice(0, 5).join(', ') || null,
+            image: image,
+            hasChapters: false,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.log('[Open Library] Search error:', err.message);
+  }
+
+  return results;
+}
+
+// Search multiple sources for metadata (admin only)
+router.get('/:id/search-audnexus', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { title, author, asin } = req.query;
+
+  if (!title && !author && !asin) {
+    return res.json({ results: [], message: 'Provide title or author to search' });
+  }
+
+  try {
+    // Search all sources in parallel
+    const [audibleResults, googleResults, openLibraryResults] = await Promise.all([
+      searchAudible(title, author, asin),
+      searchGoogleBooks(title, author),
+      searchOpenLibrary(title, author),
+    ]);
+
+    console.log(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}`);
+
+    // Combine results - Audible first (best for audiobooks), then others
+    const results = [
+      ...audibleResults,
+      ...googleResults,
+      ...openLibraryResults,
+    ];
 
     if (results.length === 0) {
       return res.json({
         results: [],
-        message: 'Found audiobooks on Audible but could not get details. Try again later.'
+        message: 'No results found. Try a different title or author.'
       });
     }
 
-    res.json({ results });
+    res.json({
+      results,
+      sources: {
+        audible: audibleResults.length,
+        google: googleResults.length,
+        openlibrary: openLibraryResults.length,
+      }
+    });
   } catch (error) {
-    console.error('Audible/Audnexus search error:', error);
+    console.error('Multi-source search error:', error);
     res.status(500).json({ error: 'Failed to search: ' + error.message });
   }
 });
