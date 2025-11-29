@@ -821,9 +821,10 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       fs.writeFileSync(metadataFile, metadataContent, 'utf8');
       console.log(`Created metadata file with ${chapters.length} chapters`);
 
-      // Use the metadata file - map audio from input 0, metadata from input 1
+      // Use the metadata file - map only audio and video (cover art) streams, skip data streams
       args.push('-i', metadataFile);
-      args.push('-map', '0');  // Map all streams from audio file
+      args.push('-map', '0:a');  // Map audio streams from input file
+      args.push('-map', '0:v?');  // Map video streams (cover art) if present, ? makes it optional
       args.push('-map_metadata', '1');  // Map metadata from ffmetadata file
       args.push('-map_chapters', '1');  // Map chapters from ffmetadata file
     } else {
