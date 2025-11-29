@@ -432,111 +432,119 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
   forceRescanInProgress = true;
   lockScanning();  // Lock periodic scans while force rescan runs
 
-  try {
-    console.log('Force rescan: backing up user progress...');
+  // Return immediately - run in background to prevent timeout on large libraries
+  res.json({
+    success: true,
+    message: 'Force rescan started in background. Check Docker logs for progress.',
+    stats: {
+      imported: 0,
+      skipped: 0,
+      errors: 0,
+      scanning: true,
+    },
+  });
 
-    // Backup playback progress with file paths
-    const progressBackup = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT pp.user_id, pp.position, pp.completed, pp.updated_at, a.file_path
-         FROM playback_progress pp
-         JOIN audiobooks a ON pp.audiobook_id = a.id`,
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows || []);
-        }
-      );
-    });
+  // Continue processing in background
+  setImmediate(async () => {
+    try {
+      console.log('Force rescan: backing up user progress...');
 
-    console.log(`Backed up progress for ${progressBackup.length} audiobooks`);
-    console.log('Force rescan: clearing library metadata...');
-
-    // Use a transaction-like approach - serialize all deletes
-    await new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('DELETE FROM audiobook_chapters', (err) => {
-          if (err) console.error('Error deleting chapters:', err);
-        });
-        db.run('DELETE FROM playback_progress', (err) => {
-          if (err) console.error('Error deleting progress:', err);
-        });
-        db.run('DELETE FROM audiobooks', (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
+      // Backup playback progress with file paths
+      const progressBackup = await new Promise((resolve, reject) => {
+        db.all(
+          `SELECT pp.user_id, pp.position, pp.completed, pp.updated_at, a.file_path
+           FROM playback_progress pp
+           JOIN audiobooks a ON pp.audiobook_id = a.id`,
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
           }
-        });
+        );
       });
-    });
 
-    // Verify audiobooks table is empty before scanning
-    const count = await new Promise((resolve, reject) => {
-      db.get('SELECT COUNT(*) as count FROM audiobooks', (err, row) => {
-        if (err) reject(err);
-        else resolve(row.count);
-      });
-    });
+      console.log(`Backed up progress for ${progressBackup.length} audiobooks`);
+      console.log('Force rescan: clearing library metadata...');
 
-    if (count > 0) {
-      throw new Error(`Failed to clear audiobooks table. ${count} records remain.`);
-    }
-
-    console.log('Library metadata cleared, rescanning...');
-    const stats = await scanLibrary();
-
-    // Restore playback progress
-    console.log('Restoring user progress...');
-    let restored = 0;
-    for (const progress of progressBackup) {
-      try {
-        // Find audiobook by file path
-        const audiobook = await new Promise((resolve, reject) => {
-          db.get(
-            'SELECT id FROM audiobooks WHERE file_path = ?',
-            [progress.file_path],
-            (err, row) => {
-              if (err) reject(err);
-              else resolve(row);
+      // Use a transaction-like approach - serialize all deletes
+      await new Promise((resolve, reject) => {
+        db.serialize(() => {
+          db.run('DELETE FROM audiobook_chapters', (err) => {
+            if (err) console.error('Error deleting chapters:', err);
+          });
+          db.run('DELETE FROM playback_progress', (err) => {
+            if (err) console.error('Error deleting progress:', err);
+          });
+          db.run('DELETE FROM audiobooks', (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
             }
-          );
+          });
         });
+      });
 
-        if (audiobook) {
-          // Restore progress - use INSERT OR REPLACE to avoid duplicates
-          await new Promise((resolve, reject) => {
-            db.run(
-              `INSERT OR REPLACE INTO playback_progress (audiobook_id, user_id, position, completed, updated_at)
-               VALUES (?, ?, ?, ?, ?)`,
-              [audiobook.id, progress.user_id, progress.position, progress.completed, progress.updated_at],
-              (err) => {
+      // Verify audiobooks table is empty before scanning
+      const count = await new Promise((resolve, reject) => {
+        db.get('SELECT COUNT(*) as count FROM audiobooks', (err, row) => {
+          if (err) reject(err);
+          else resolve(row.count);
+        });
+      });
+
+      if (count > 0) {
+        throw new Error(`Failed to clear audiobooks table. ${count} records remain.`);
+      }
+
+      console.log('Library metadata cleared, rescanning...');
+      const stats = await scanLibrary();
+
+      // Restore playback progress
+      console.log('Restoring user progress...');
+      let restored = 0;
+      for (const progress of progressBackup) {
+        try {
+          // Find audiobook by file path
+          const audiobook = await new Promise((resolve, reject) => {
+            db.get(
+              'SELECT id FROM audiobooks WHERE file_path = ?',
+              [progress.file_path],
+              (err, row) => {
                 if (err) reject(err);
-                else resolve();
+                else resolve(row);
               }
             );
           });
-          restored++;
+
+          if (audiobook) {
+            // Restore progress - use INSERT OR REPLACE to avoid duplicates
+            await new Promise((resolve, reject) => {
+              db.run(
+                `INSERT OR REPLACE INTO playback_progress (audiobook_id, user_id, position, completed, updated_at)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [audiobook.id, progress.user_id, progress.position, progress.completed, progress.updated_at],
+                (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+            restored++;
+          }
+        } catch (error) {
+          console.error(`Failed to restore progress for ${progress.file_path}:`, error.message);
         }
-      } catch (error) {
-        console.error(`Failed to restore progress for ${progress.file_path}:`, error.message);
       }
+
+      console.log(`✅ Force rescan complete: ${stats.imported} imported, ${stats.skipped} skipped, ${stats.errors} errors`);
+      console.log(`✅ Restored progress for ${restored} audiobooks`);
+    } catch (error) {
+      console.error('❌ Error in force rescan:', error);
+    } finally {
+      forceRescanInProgress = false;
+      unlockScanning();  // Unlock periodic scans
     }
-
-    console.log(`Restored progress for ${restored} audiobooks`);
-
-    res.json({
-      success: true,
-      message: 'Library force rescanned successfully',
-      stats,
-      progressRestored: restored,
-    });
-  } catch (error) {
-    console.error('Error in force rescan:', error);
-    res.status(500).json({ error: error.message });
-  } finally {
-    forceRescanInProgress = false;
-    unlockScanning();  // Unlock periodic scans
-  }
+  });
 });
 
 module.exports = router;
