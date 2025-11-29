@@ -7,6 +7,44 @@ const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
 const { scanLibrary, lockScanning, unlockScanning, isScanningLocked } = require('../services/libraryScanner');
 
+// In-memory log buffer for UI viewing
+const LOG_BUFFER_SIZE = 500;
+const logBuffer = [];
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+// Intercept console.log and console.error
+console.log = (...args) => {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  logBuffer.push({ timestamp: new Date().toISOString(), level: 'info', message });
+  if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  logBuffer.push({ timestamp: new Date().toISOString(), level: 'error', message });
+  if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
+  originalConsoleError.apply(console, args);
+};
+
+// Get server logs
+router.get('/logs', authenticateToken, (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const limit = Math.min(parseInt(req.query.limit) || 100, LOG_BUFFER_SIZE);
+  const logs = logBuffer.slice(-limit);
+
+  res.json({
+    logs,
+    total: logBuffer.length,
+    forceRescanInProgress,
+    scanningLocked: isScanningLocked()
+  });
+});
+
 // Consolidate multi-file audiobooks
 router.post('/consolidate-multifile', authenticateToken, async (req, res) => {
   // Only allow admins to run this

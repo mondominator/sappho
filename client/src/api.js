@@ -184,4 +184,7 @@ export const scanLibrary = (refreshMetadata = false) =>
 export const forceRescan = () =>
   api.post('/maintenance/force-rescan');
 
+export const getServerLogs = (limit = 100) =>
+  api.get('/maintenance/logs', { params: { limit } });
+
 export default api;
