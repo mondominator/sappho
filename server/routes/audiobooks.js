@@ -723,7 +723,7 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
   const { promisify } = require('util');
   const execFileAsync = promisify(execFile);
 
-  let chaptersFile = null;
+  let metadataJsonFile = null;
   let tempPath = null;
 
   try {
@@ -760,61 +760,62 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
 
     // Use tone for M4B/M4A files - supports proper audiobook tags (MVNM, MVIN, narrator, etc.)
     if (ext === '.m4b' || ext === '.m4a') {
-      // Build tone tag command
-      // Note: tone modifies files in place, so we don't need temp files
-      const args = ['tag', audiobook.file_path];
+      // Create a JSON file with metadata to avoid command line escaping issues
+      metadataJsonFile = path.join(dir, `metadata_${req.params.id}.json`);
 
-      // Add metadata flags
-      if (audiobook.title) args.push(`--meta-title=${audiobook.title}`);
-      if (audiobook.author) args.push(`--meta-artist=${audiobook.author}`);
-      if (audiobook.author) args.push(`--meta-album-artist=${audiobook.author}`);
-      if (audiobook.narrator) args.push(`--meta-narrator=${audiobook.narrator}`);
-      if (audiobook.narrator) args.push(`--meta-composer=${audiobook.narrator}`);
-      if (audiobook.description) args.push(`--meta-description=${audiobook.description}`);
-      if (audiobook.genre) args.push(`--meta-genre=${audiobook.genre}`);
-      if (audiobook.published_year) args.push(`--meta-publishing-date=${audiobook.published_year}`);
-      if (audiobook.publisher) args.push(`--meta-publisher=${audiobook.publisher}`);
-      if (audiobook.copyright_year) args.push(`--meta-copyright=${audiobook.copyright_year}`);
+      // Build metadata object for tone
+      const toneMetadata = {
+        meta: {}
+      };
+
+      if (audiobook.title) toneMetadata.meta.title = audiobook.title;
+      if (audiobook.author) {
+        toneMetadata.meta.artist = audiobook.author;
+        toneMetadata.meta.albumArtist = audiobook.author;
+      }
+      if (audiobook.narrator) {
+        toneMetadata.meta.narrator = audiobook.narrator;
+        toneMetadata.meta.composer = audiobook.narrator;
+      }
+      if (audiobook.description) toneMetadata.meta.description = audiobook.description;
+      if (audiobook.genre) toneMetadata.meta.genre = audiobook.genre;
+      if (audiobook.published_year) toneMetadata.meta.publishingDate = String(audiobook.published_year);
+      if (audiobook.publisher) toneMetadata.meta.publisher = audiobook.publisher;
+      if (audiobook.copyright_year) toneMetadata.meta.copyright = String(audiobook.copyright_year);
 
       // Series info - use movement tags (proper audiobook series tags)
       if (audiobook.series) {
-        args.push(`--meta-movement-name=${audiobook.series}`);
-        args.push(`--meta-album=${audiobook.series}`);
-        args.push(`--meta-sort-album=${audiobook.series}`);
+        toneMetadata.meta.movementName = audiobook.series;
+        toneMetadata.meta.album = audiobook.series;
+        toneMetadata.meta.sortAlbum = audiobook.series;
         if (audiobook.series_position) {
-          args.push(`--meta-movement=${audiobook.series_position}`);
-          args.push(`--meta-part=${audiobook.series_position}`);
+          toneMetadata.meta.movement = String(audiobook.series_position);
+          toneMetadata.meta.part = String(audiobook.series_position);
         }
       }
 
-      // Custom fields via additional-field for ASIN, ISBN
-      if (audiobook.asin) args.push(`--meta-additional-field=asin=${audiobook.asin}`);
-      if (audiobook.isbn) args.push(`--meta-additional-field=isbn=${audiobook.isbn}`);
+      // Additional fields for ASIN, ISBN
+      if (audiobook.asin || audiobook.isbn) {
+        toneMetadata.meta.additionalFields = {};
+        if (audiobook.asin) toneMetadata.meta.additionalFields.asin = audiobook.asin;
+        if (audiobook.isbn) toneMetadata.meta.additionalFields.isbn = audiobook.isbn;
+      }
 
-      // Create chapters file if we have chapters
+      // Add chapters if we have them
       if (chapters.length > 0) {
-        chaptersFile = path.join(dir, `chapters_${req.params.id}.txt`);
-
-        // Create chapters.txt in Nero format (HH:MM:SS.mmm Title)
-        let chaptersContent = '';
-        for (const chapter of chapters) {
-          const startTime = chapter.start_time || 0;
-          const hours = Math.floor(startTime / 3600);
-          const minutes = Math.floor((startTime % 3600) / 60);
-          const seconds = Math.floor(startTime % 60);
-          const millis = Math.floor((startTime % 1) * 1000);
-
-          const timestamp = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
-          const title = chapter.title || `Chapter ${chapter.chapter_number}`;
-          chaptersContent += `${timestamp} ${title}\n`;
-        }
-
-        fs.writeFileSync(chaptersFile, chaptersContent, 'utf8');
-        console.log(`Created chapters file with ${chapters.length} chapters`);
-
-        // Tell tone to import chapters from file
-        args.push(`--import-chapters-file=${chaptersFile}`);
+        toneMetadata.meta.chapters = chapters.map(chapter => ({
+          start: Math.floor((chapter.start_time || 0) * 1000),  // milliseconds
+          length: Math.floor((chapter.duration || 0) * 1000),
+          title: chapter.title || `Chapter ${chapter.chapter_number}`
+        }));
       }
+
+      // Write JSON file
+      fs.writeFileSync(metadataJsonFile, JSON.stringify(toneMetadata, null, 2), 'utf8');
+      console.log(`Created tone metadata JSON file with ${chapters.length} chapters`);
+
+      // Build tone command with JSON file
+      const args = ['tag', audiobook.file_path, `--meta-tone-json-file=${metadataJsonFile}`];
 
       console.log(`Embedding metadata with tone into ${audiobook.file_path}${chapters.length > 0 ? ` with ${chapters.length} chapters` : ''}`);
 
@@ -828,9 +829,9 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         throw new Error(`Tone failed: ${toneError.stderr || toneError.message}`);
       }
 
-      // Clean up chapters file
-      if (chaptersFile && fs.existsSync(chaptersFile)) {
-        fs.unlinkSync(chaptersFile);
+      // Clean up JSON file
+      if (fs.existsSync(metadataJsonFile)) {
+        fs.unlinkSync(metadataJsonFile);
       }
 
       console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
@@ -891,8 +892,8 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
     console.error('Error embedding metadata:', error);
     // Clean up temp files
     try {
-      if (chaptersFile && fs.existsSync(chaptersFile)) {
-        fs.unlinkSync(chaptersFile);
+      if (metadataJsonFile && fs.existsSync(metadataJsonFile)) {
+        fs.unlinkSync(metadataJsonFile);
       }
       if (tempPath && fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
