@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { clearLibrary, scanLibrary, forceRescan } from '../../api';
+import { clearLibrary, scanLibrary, forceRescan, getServerLogs } from '../../api';
 import './LibrarySettings.css';
 
 export default function LibrarySettings() {
@@ -12,10 +12,54 @@ export default function LibrarySettings() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const logsEndRef = useRef(null);
+  const refreshInterval = useRef(null);
 
   useEffect(() => {
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (autoRefresh && showLogs) {
+      refreshInterval.current = setInterval(loadLogs, 2000);
+    }
+    return () => {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+    };
+  }, [autoRefresh, showLogs]);
+
+  useEffect(() => {
+    if (logsEndRef.current && showLogs) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs, showLogs]);
+
+  const loadLogs = async () => {
+    try {
+      const result = await getServerLogs(200);
+      setLogs(result.data.logs);
+      // Auto-detect if scan is in progress
+      if (result.data.forceRescanInProgress || result.data.scanningLocked) {
+        setRescanning(result.data.forceRescanInProgress);
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error);
+    }
+  };
+
+  const handleShowLogs = async () => {
+    setShowLogs(true);
+    setLogsLoading(true);
+    await loadLogs();
+    setLogsLoading(false);
+    setAutoRefresh(true);
+  };
 
   const loadSettings = async () => {
     try {
@@ -105,7 +149,7 @@ export default function LibrarySettings() {
   };
 
   const handleForceRescan = async () => {
-    if (!confirm('Force rescan will CLEAR the entire library database and reimport all audiobooks. All playback progress will be lost. Are you sure?')) {
+    if (!confirm('Force rescan will CLEAR the entire library database and reimport all audiobooks. User playback progress will be preserved. Are you sure?')) {
       return;
     }
 
@@ -116,15 +160,22 @@ export default function LibrarySettings() {
     setRescanning(true);
     try {
       const result = await forceRescan();
-      const stats = result.data.stats;
-      alert(`Force rescan complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
-      window.location.reload();
+
+      // Check if scan is running in background
+      if (result.data.stats?.scanning) {
+        // Open logs panel to show progress
+        handleShowLogs();
+      } else {
+        const stats = result.data.stats;
+        alert(`Force rescan complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
+        window.location.reload();
+      }
     } catch (error) {
       console.error('Error in force rescan:', error);
       alert(error.response?.data?.error || 'Failed to force rescan');
-    } finally {
       setRescanning(false);
     }
+    // Note: Don't reset rescanning here - let the logs polling detect when it's done
   };
 
   if (loading) {
@@ -235,7 +286,7 @@ export default function LibrarySettings() {
         </div>
         <div className="warning-box" style={{ background: '#450a0a', borderColor: '#991b1b' }}>
           <p className="warning-text">
-            Warning: This will delete all audiobook entries and playback progress from the database.
+            Warning: This will delete all audiobook entries from the database. User playback progress will be preserved.
             Your audio files will not be deleted and will be automatically reimported.
           </p>
         </div>
@@ -247,6 +298,70 @@ export default function LibrarySettings() {
         >
           {rescanning ? 'Force Rescanning...' : 'Force Rescan Library'}
         </button>
+      </div>
+
+      <div className="settings-section" style={{ marginTop: '2rem' }}>
+        <div className="section-header">
+          <div>
+            <h2>Server Logs</h2>
+            <p className="section-description">
+              View recent server activity including scan progress and errors.
+            </p>
+          </div>
+        </div>
+        <div className="form-actions" style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={showLogs ? () => { setShowLogs(false); setAutoRefresh(false); } : handleShowLogs}
+          >
+            {showLogs ? 'Hide Logs' : 'View Logs'}
+          </button>
+          {showLogs && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={loadLogs}
+                disabled={logsLoading}
+              >
+                Refresh
+              </button>
+              <label className="checkbox-inline">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                />
+                <span>Auto-refresh</span>
+              </label>
+            </>
+          )}
+        </div>
+        {showLogs && (
+          <div className="logs-container">
+            {logsLoading ? (
+              <div className="logs-loading">Loading logs...</div>
+            ) : logs.length === 0 ? (
+              <div className="logs-empty">No logs available</div>
+            ) : (
+              <div className="logs-list">
+                {logs.map((log, index) => (
+                  <div
+                    key={index}
+                    className={`log-entry ${log.level}`}
+                  >
+                    <span className="log-time">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className="log-message">{log.message}</span>
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
