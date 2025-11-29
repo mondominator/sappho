@@ -722,6 +722,9 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
   const { promisify } = require('util');
   const execFileAsync = promisify(execFile);
 
+  let metadataFile = null;
+  let tempPath = null;
+
   try {
     // Get audiobook from database
     const audiobook = await new Promise((resolve, reject) => {
@@ -739,34 +742,102 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Audio file not found on disk' });
     }
 
+    // Get chapters from database
+    const chapters = await new Promise((resolve, reject) => {
+      db.all(
+        'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
+        [req.params.id],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        }
+      );
+    });
+
     const ext = path.extname(audiobook.file_path).toLowerCase();
-    const tempPath = audiobook.file_path + '.tmp' + ext;
+    tempPath = audiobook.file_path + '.tmp' + ext;
+    const dir = path.dirname(audiobook.file_path);
 
     // Build ffmpeg arguments for metadata embedding
     const args = [
       '-i', audiobook.file_path,
-      '-c', 'copy', // Copy streams without re-encoding
     ];
 
-    // Add metadata tags
-    if (audiobook.title) args.push('-metadata', `title=${audiobook.title}`);
-    if (audiobook.author) args.push('-metadata', `artist=${audiobook.author}`);
-    if (audiobook.author) args.push('-metadata', `album_artist=${audiobook.author}`);
-    if (audiobook.narrator) args.push('-metadata', `composer=${audiobook.narrator}`);
-    if (audiobook.description) args.push('-metadata', `comment=${audiobook.description}`);
-    if (audiobook.genre) args.push('-metadata', `genre=${audiobook.genre}`);
-    if (audiobook.published_year) args.push('-metadata', `date=${audiobook.published_year}`);
-    if (audiobook.series) {
-      args.push('-metadata', `album=${audiobook.series}`);
-      if (audiobook.series_position) {
-        args.push('-metadata', `track=${audiobook.series_position}`);
+    // For M4B/M4A files with chapters, we need to use ffmetadata format
+    if ((ext === '.m4b' || ext === '.m4a') && chapters.length > 0) {
+      // Create ffmetadata file with chapters
+      metadataFile = path.join(dir, `metadata_${req.params.id}.txt`);
+
+      let metadataContent = ';FFMETADATA1\n';
+
+      // Add global metadata
+      if (audiobook.title) metadataContent += `title=${audiobook.title}\n`;
+      if (audiobook.author) metadataContent += `artist=${audiobook.author}\n`;
+      if (audiobook.author) metadataContent += `album_artist=${audiobook.author}\n`;
+      if (audiobook.narrator) metadataContent += `composer=${audiobook.narrator}\n`;
+      if (audiobook.description) metadataContent += `comment=${audiobook.description.replace(/\n/g, '\\n')}\n`;
+      if (audiobook.genre) metadataContent += `genre=${audiobook.genre}\n`;
+      if (audiobook.published_year) metadataContent += `date=${audiobook.published_year}\n`;
+      if (audiobook.series) {
+        metadataContent += `album=${audiobook.series}\n`;
+        if (audiobook.series_position) {
+          metadataContent += `track=${audiobook.series_position}\n`;
+        }
       }
+      if (audiobook.publisher) metadataContent += `publisher=${audiobook.publisher}\n`;
+      if (audiobook.copyright_year) metadataContent += `copyright=${audiobook.copyright_year}\n`;
+      if (audiobook.isbn) metadataContent += `isbn=${audiobook.isbn}\n`;
+      if (audiobook.asin) metadataContent += `asin=${audiobook.asin}\n`;
+      if (audiobook.language) metadataContent += `language=${audiobook.language}\n`;
+
+      // Add chapters
+      for (const chapter of chapters) {
+        const startMs = Math.floor((chapter.start_time || 0) * 1000);
+        const endMs = startMs + Math.floor((chapter.duration || 0) * 1000);
+
+        metadataContent += '\n[CHAPTER]\n';
+        metadataContent += 'TIMEBASE=1/1000\n';
+        metadataContent += `START=${startMs}\n`;
+        metadataContent += `END=${endMs}\n`;
+        metadataContent += `title=${chapter.title || `Chapter ${chapter.chapter_number}`}\n`;
+      }
+
+      fs.writeFileSync(metadataFile, metadataContent, 'utf8');
+      console.log(`Created metadata file with ${chapters.length} chapters`);
+
+      // Use the metadata file
+      args.push('-i', metadataFile);
+      args.push('-map_metadata', '1');
+      args.push('-map_chapters', '1');
+    } else {
+      // For other formats or no chapters, just use -metadata flags
+      if (audiobook.title) args.push('-metadata', `title=${audiobook.title}`);
+      if (audiobook.author) args.push('-metadata', `artist=${audiobook.author}`);
+      if (audiobook.author) args.push('-metadata', `album_artist=${audiobook.author}`);
+      if (audiobook.narrator) args.push('-metadata', `composer=${audiobook.narrator}`);
+      if (audiobook.description) args.push('-metadata', `comment=${audiobook.description}`);
+      if (audiobook.genre) args.push('-metadata', `genre=${audiobook.genre}`);
+      if (audiobook.published_year) args.push('-metadata', `date=${audiobook.published_year}`);
+      if (audiobook.series) {
+        args.push('-metadata', `album=${audiobook.series}`);
+        if (audiobook.series_position) {
+          args.push('-metadata', `track=${audiobook.series_position}`);
+        }
+      }
+      if (audiobook.publisher) args.push('-metadata', `publisher=${audiobook.publisher}`);
+      if (audiobook.copyright_year) args.push('-metadata', `copyright=${audiobook.copyright_year}`);
+      if (audiobook.isbn) args.push('-metadata', `isbn=${audiobook.isbn}`);
+      if (audiobook.asin) args.push('-metadata', `asin=${audiobook.asin}`);
+      if (audiobook.language) args.push('-metadata', `language=${audiobook.language}`);
     }
+
+    // Copy streams without re-encoding
+    args.push('-c', 'copy');
 
     // Output to temp file
     args.push('-y', tempPath);
 
-    console.log(`Embedding metadata into ${audiobook.file_path}`);
+    console.log(`Embedding metadata into ${audiobook.file_path}${chapters.length > 0 ? ` with ${chapters.length} chapters` : ''}`);
 
     // Run ffmpeg
     await execFileAsync('ffmpeg', args, { timeout: 600000 }); // 10 min timeout
@@ -774,24 +845,24 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
     // Replace original with temp file
     fs.renameSync(tempPath, audiobook.file_path);
 
+    // Clean up metadata file
+    if (metadataFile && fs.existsSync(metadataFile)) {
+      fs.unlinkSync(metadataFile);
+    }
+
     console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
-    res.json({ message: 'Metadata embedded successfully' });
+    res.json({
+      message: `Metadata embedded successfully${chapters.length > 0 ? ` with ${chapters.length} chapters` : ''}`
+    });
   } catch (error) {
     console.error('Error embedding metadata:', error);
-    // Clean up temp file if it exists
+    // Clean up temp files
     try {
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
-      if (audiobook) {
-        const ext = path.extname(audiobook.file_path).toLowerCase();
-        const tempPath = audiobook.file_path + '.tmp' + ext;
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
-        }
+      if (metadataFile && fs.existsSync(metadataFile)) {
+        fs.unlinkSync(metadataFile);
+      }
+      if (tempPath && fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
       }
     } catch (e) { /* ignore cleanup errors */ }
     res.status(500).json({ error: 'Failed to embed metadata: ' + error.message });

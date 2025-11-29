@@ -233,7 +233,7 @@ export default function AudiobookDetail({ onPlay }) {
             Play
           </button>
 
-          {audiobook.is_multi_file && chapters && chapters.length > 0 && (
+          {chapters && chapters.length > 0 && (
               <div className="detail-chapters-container">
                 <button
                   className="chapters-toggle-btn"
