@@ -104,7 +104,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     }
   };
 
-  const handleFetchChapters = async (asinToUse) => {
+  const handleFetchChapters = async (asinToUse, skipParentRefresh = false) => {
     const asin = asinToUse || formData.asin;
     if (!asin) {
       setError('ASIN is required to fetch chapters');
@@ -121,7 +121,10 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       if (!formData.asin) {
         setFormData(prev => ({ ...prev, asin }));
       }
-      onSave(); // Refresh parent data
+      // Only refresh parent if not called from apply flow (would reset form data)
+      if (!skipParentRefresh) {
+        onSave();
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch chapters');
     } finally {
@@ -192,7 +195,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
     // Only fetch chapters if it's an Audible result with an ASIN
     if (pendingResult.hasChapters && pendingResult.asin) {
-      handleFetchChapters(pendingResult.asin);
+      handleFetchChapters(pendingResult.asin, true); // Skip parent refresh to preserve form data
       setSuccess('Metadata applied! Fetching chapters...');
     } else {
       setSuccess('Metadata applied!');
