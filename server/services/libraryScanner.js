@@ -506,6 +506,19 @@ async function scanLibrary() {
  */
 let scanInterval = null;
 let isScanning = false;
+let scanningLocked = false;  // External lock for force rescan
+
+function lockScanning() {
+  scanningLocked = true;
+}
+
+function unlockScanning() {
+  scanningLocked = false;
+}
+
+function isScanningLocked() {
+  return scanningLocked || isScanning;
+}
 
 function startPeriodicScan(intervalMinutes = 5) {
   // Don't start if already running
@@ -533,8 +546,8 @@ function startPeriodicScan(intervalMinutes = 5) {
 
   // Set up periodic scanning
   scanInterval = setInterval(async () => {
-    if (isScanning) {
-      console.log('Library scan already in progress, skipping...');
+    if (isScanning || scanningLocked) {
+      console.log('Library scan already in progress or locked, skipping...');
       return;
     }
 
@@ -566,4 +579,7 @@ module.exports = {
   importAudiobook,
   startPeriodicScan,
   stopPeriodicScan,
+  lockScanning,
+  unlockScanning,
+  isScanningLocked,
 };

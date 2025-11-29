@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
-const { scanLibrary } = require('../services/libraryScanner');
+const { scanLibrary, lockScanning, unlockScanning, isScanningLocked } = require('../services/libraryScanner');
 
 // Consolidate multi-file audiobooks
 router.post('/consolidate-multifile', authenticateToken, async (req, res) => {
@@ -410,11 +410,27 @@ router.post('/migrate', authenticateToken, async (req, res) => {
 });
 
 // Force rescan - clear and reimport all audiobooks (preserves user progress)
+// Uses a lock to prevent concurrent scans
+let forceRescanInProgress = false;
+
 router.post('/force-rescan', authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
+
+  // Prevent concurrent force rescans
+  if (forceRescanInProgress) {
+    return res.status(409).json({ error: 'Force rescan already in progress. Please wait.' });
+  }
+
+  // Check if periodic scan is running
+  if (isScanningLocked()) {
+    return res.status(409).json({ error: 'Library scan in progress. Please wait and try again.' });
+  }
+
+  forceRescanInProgress = true;
+  lockScanning();  // Lock periodic scans while force rescan runs
 
   try {
     console.log('Force rescan: backing up user progress...');
@@ -427,7 +443,7 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
          JOIN audiobooks a ON pp.audiobook_id = a.id`,
         (err, rows) => {
           if (err) reject(err);
-          else resolve(rows);
+          else resolve(rows || []);
         }
       );
     });
@@ -435,29 +451,36 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
     console.log(`Backed up progress for ${progressBackup.length} audiobooks`);
     console.log('Force rescan: clearing library metadata...');
 
-    // Delete all audiobook chapters first (due to foreign key constraint)
+    // Use a transaction-like approach - serialize all deletes
     await new Promise((resolve, reject) => {
-      db.run('DELETE FROM audiobook_chapters', (err) => {
-        if (err) reject(err);
-        else resolve();
+      db.serialize(() => {
+        db.run('DELETE FROM audiobook_chapters', (err) => {
+          if (err) console.error('Error deleting chapters:', err);
+        });
+        db.run('DELETE FROM playback_progress', (err) => {
+          if (err) console.error('Error deleting progress:', err);
+        });
+        db.run('DELETE FROM audiobooks', (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
       });
     });
 
-    // Delete playback progress (will be restored after rescan)
-    await new Promise((resolve, reject) => {
-      db.run('DELETE FROM playback_progress', (err) => {
+    // Verify audiobooks table is empty before scanning
+    const count = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) as count FROM audiobooks', (err, row) => {
         if (err) reject(err);
-        else resolve();
+        else resolve(row.count);
       });
     });
 
-    // Delete all audiobooks
-    await new Promise((resolve, reject) => {
-      db.run('DELETE FROM audiobooks', (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    if (count > 0) {
+      throw new Error(`Failed to clear audiobooks table. ${count} records remain.`);
+    }
 
     console.log('Library metadata cleared, rescanning...');
     const stats = await scanLibrary();
@@ -480,10 +503,10 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
         });
 
         if (audiobook) {
-          // Restore progress
+          // Restore progress - use INSERT OR REPLACE to avoid duplicates
           await new Promise((resolve, reject) => {
             db.run(
-              `INSERT INTO playback_progress (audiobook_id, user_id, position, completed, updated_at)
+              `INSERT OR REPLACE INTO playback_progress (audiobook_id, user_id, position, completed, updated_at)
                VALUES (?, ?, ?, ?, ?)`,
               [audiobook.id, progress.user_id, progress.position, progress.completed, progress.updated_at],
               (err) => {
@@ -510,6 +533,9 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error in force rescan:', error);
     res.status(500).json({ error: error.message });
+  } finally {
+    forceRescanInProgress = false;
+    unlockScanning();  // Unlock periodic scans
   }
 });
 
