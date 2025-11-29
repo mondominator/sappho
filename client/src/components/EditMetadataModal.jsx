@@ -113,7 +113,10 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
     setFetchingChapters(true);
     setError('');
-    setSuccess('');
+    // Don't clear success message if called from apply flow
+    if (!skipParentRefresh) {
+      setSuccess('');
+    }
     try {
       const response = await fetchChaptersFromAudnexus(audiobook.id, asin);
       await loadChapters();
@@ -126,6 +129,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         onSave();
       }
     } catch (err) {
+      console.error('Chapter fetch error:', err);
       setError(err.response?.data?.error || 'Failed to fetch chapters');
     } finally {
       setFetchingChapters(false);
