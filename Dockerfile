@@ -6,6 +6,9 @@ RUN npm install
 COPY client/ ./
 RUN npm run build
 
+# Get tone binary from official image
+FROM sandreas/tone:v0.2.5 AS tone
+
 FROM node:18-alpine
 
 WORKDIR /app
@@ -15,6 +18,9 @@ ENV NODE_ENV=production
 
 # Install ffmpeg for m4b chapter extraction
 RUN apk add --no-cache ffmpeg
+
+# Copy tone binary for audiobook metadata embedding
+COPY --from=tone /usr/local/bin/tone /usr/local/bin/tone
 
 COPY package*.json ./
 RUN npm install --only=production
