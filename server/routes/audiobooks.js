@@ -775,13 +775,18 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       if (audiobook.author) metadataContent += `artist=${audiobook.author}\n`;
       if (audiobook.author) metadataContent += `album_artist=${audiobook.author}\n`;
       if (audiobook.narrator) metadataContent += `composer=${audiobook.narrator}\n`;
-      if (audiobook.description) metadataContent += `comment=${audiobook.description.replace(/\n/g, '\\n')}\n`;
+      if (audiobook.description) metadataContent += `description=${audiobook.description.replace(/\n/g, '\\n')}\n`;
       if (audiobook.genre) metadataContent += `genre=${audiobook.genre}\n`;
       if (audiobook.published_year) metadataContent += `date=${audiobook.published_year}\n`;
+      // Series info - use multiple tags for compatibility
       if (audiobook.series) {
         metadataContent += `album=${audiobook.series}\n`;
+        metadataContent += `show=${audiobook.series}\n`;  // Podcast/audiobook series tag
+        metadataContent += `series=${audiobook.series}\n`;  // Custom series tag
         if (audiobook.series_position) {
           metadataContent += `track=${audiobook.series_position}\n`;
+          metadataContent += `episode_sort=${audiobook.series_position}\n`;  // Podcast episode sort
+          metadataContent += `series-part=${audiobook.series_position}\n`;  // Custom series position
         }
       }
       if (audiobook.publisher) metadataContent += `publisher=${audiobook.publisher}\n`;
@@ -805,23 +810,29 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       fs.writeFileSync(metadataFile, metadataContent, 'utf8');
       console.log(`Created metadata file with ${chapters.length} chapters`);
 
-      // Use the metadata file
+      // Use the metadata file - map audio from input 0, metadata from input 1
       args.push('-i', metadataFile);
-      args.push('-map_metadata', '1');
-      args.push('-map_chapters', '1');
+      args.push('-map', '0');  // Map all streams from audio file
+      args.push('-map_metadata', '1');  // Map metadata from ffmetadata file
+      args.push('-map_chapters', '1');  // Map chapters from ffmetadata file
     } else {
       // For other formats or no chapters, just use -metadata flags
       if (audiobook.title) args.push('-metadata', `title=${audiobook.title}`);
       if (audiobook.author) args.push('-metadata', `artist=${audiobook.author}`);
       if (audiobook.author) args.push('-metadata', `album_artist=${audiobook.author}`);
       if (audiobook.narrator) args.push('-metadata', `composer=${audiobook.narrator}`);
-      if (audiobook.description) args.push('-metadata', `comment=${audiobook.description}`);
+      if (audiobook.description) args.push('-metadata', `description=${audiobook.description}`);
       if (audiobook.genre) args.push('-metadata', `genre=${audiobook.genre}`);
       if (audiobook.published_year) args.push('-metadata', `date=${audiobook.published_year}`);
+      // Series info - use multiple tags for compatibility
       if (audiobook.series) {
         args.push('-metadata', `album=${audiobook.series}`);
+        args.push('-metadata', `show=${audiobook.series}`);
+        args.push('-metadata', `series=${audiobook.series}`);
         if (audiobook.series_position) {
           args.push('-metadata', `track=${audiobook.series_position}`);
+          args.push('-metadata', `episode_sort=${audiobook.series_position}`);
+          args.push('-metadata', `series-part=${audiobook.series_position}`);
         }
       }
       if (audiobook.publisher) args.push('-metadata', `publisher=${audiobook.publisher}`);
