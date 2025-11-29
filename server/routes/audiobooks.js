@@ -147,6 +147,262 @@ router.get('/:id/chapters', authenticateToken, (req, res) => {
   );
 });
 
+// Update chapter titles (admin only)
+router.put('/:id/chapters', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { chapters } = req.body;
+
+  if (!chapters || !Array.isArray(chapters)) {
+    return res.status(400).json({ error: 'Chapters array required' });
+  }
+
+  try {
+    // Update each chapter title
+    for (const chapter of chapters) {
+      if (chapter.id && chapter.title !== undefined) {
+        await new Promise((resolve, reject) => {
+          db.run(
+            'UPDATE audiobook_chapters SET title = ? WHERE id = ? AND audiobook_id = ?',
+            [chapter.title, chapter.id, req.params.id],
+            (err) => {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+      }
+    }
+
+    res.json({ message: 'Chapters updated successfully' });
+  } catch (error) {
+    console.error('Error updating chapters:', error);
+    res.status(500).json({ error: 'Failed to update chapters' });
+  }
+});
+
+// Fetch chapters from Audnexus by ASIN (admin only)
+router.post('/:id/fetch-chapters', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { asin } = req.body;
+
+  if (!asin) {
+    return res.status(400).json({ error: 'ASIN is required' });
+  }
+
+  try {
+    // Get the audiobook's file path (needed for chapter records)
+    const audiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!audiobook || !audiobook.file_path) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    // Fetch chapters from Audnexus
+    const response = await fetch(`https://api.audnex.us/books/${asin}/chapters`);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return res.status(404).json({ error: 'No chapters found for this ASIN' });
+      }
+      return res.status(500).json({ error: 'Failed to fetch chapters from Audnexus' });
+    }
+
+    const data = await response.json();
+
+    if (!data.chapters || data.chapters.length === 0) {
+      return res.status(404).json({ error: 'No chapters found' });
+    }
+
+    // Delete existing chapters for this audiobook
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Insert new chapters (use audiobook's file_path for all chapters)
+    for (let i = 0; i < data.chapters.length; i++) {
+      const chapter = data.chapters[i];
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobook_chapters (audiobook_id, chapter_number, file_path, title, start_time, duration)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            req.params.id,
+            i + 1,
+            audiobook.file_path,
+            chapter.title || `Chapter ${i + 1}`,
+            Math.floor(chapter.startOffsetMs / 1000), // Convert ms to seconds
+            Math.floor(chapter.lengthMs / 1000) // Convert ms to seconds
+          ],
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+    }
+
+    // Update the ASIN in the audiobook record if not already set
+    await new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE audiobooks SET asin = ? WHERE id = ? AND (asin IS NULL OR asin = "")',
+        [asin, req.params.id],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    res.json({
+      message: `Successfully imported ${data.chapters.length} chapters`,
+      chapterCount: data.chapters.length
+    });
+  } catch (error) {
+    console.error('Error fetching chapters:', error);
+    res.status(500).json({ error: 'Failed to fetch chapters: ' + error.message });
+  }
+});
+
+// Search Audible catalog and get details from Audnexus (admin only)
+// Uses Audible's public catalog API (same as Audiobookshelf)
+router.get('/:id/search-audnexus', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { title, author, asin } = req.query;
+
+  try {
+    let asins = [];
+
+    // If ASIN provided directly, use it
+    if (asin && /^[A-Z0-9]{10}$/i.test(asin)) {
+      asins.push(asin.toUpperCase());
+    }
+    // If title looks like an ASIN, try it
+    else if (title && /^[A-Z0-9]{10}$/i.test(title)) {
+      asins.push(title.toUpperCase());
+    }
+    // Search Audible's catalog API
+    else if (title || author) {
+      const queryParams = new URLSearchParams({
+        num_results: '10',
+        products_sort_by: 'Relevance'
+      });
+      if (title) queryParams.append('title', title);
+      if (author) queryParams.append('author', author);
+
+      const searchUrl = `https://api.audible.com/1.0/catalog/products?${queryParams.toString()}`;
+      console.log(`[Audnexus Search] Searching Audible: ${searchUrl}`);
+
+      const searchResponse = await fetch(searchUrl, { timeout: 10000 });
+
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        if (searchData.products && searchData.products.length > 0) {
+          asins = searchData.products.map(p => p.asin).filter(Boolean);
+        }
+      } else {
+        console.log(`[Audnexus Search] Audible search failed: ${searchResponse.status}`);
+      }
+    }
+
+    if (asins.length === 0) {
+      return res.json({
+        results: [],
+        message: 'No audiobooks found. Try a different title or author.'
+      });
+    }
+
+    // Get full details from Audnexus for each ASIN
+    const results = [];
+    for (const bookAsin of asins.slice(0, 10)) {
+      try {
+        const response = await fetch(`https://api.audnex.us/books/${bookAsin}`);
+        if (response.ok) {
+          const book = await response.json();
+
+          // Extract genres and tags separately
+          const genres = book.genres?.filter(g => g.type === 'genre').map(g => g.name) || [];
+          const tags = book.genres?.filter(g => g.type === 'tag').map(g => g.name) || [];
+
+          // Extract year from releaseDate
+          const publishedYear = book.releaseDate ? parseInt(book.releaseDate.split('-')[0]) : null;
+
+          results.push({
+            // Core fields
+            asin: book.asin,
+            title: book.title,
+            subtitle: book.subtitle || null,
+            author: book.authors?.map(a => a.name).join(', ') || null,
+            narrator: book.narrators?.map(n => n.name).join(', ') || null,
+
+            // Series info
+            series: book.seriesPrimary?.name || null,
+            series_position: book.seriesPrimary?.position || null,
+
+            // Publication info
+            publisher: book.publisherName || null,
+            published_year: publishedYear,
+            copyright_year: book.copyright || null,
+            release_date: book.releaseDate || null,
+
+            // Identifiers
+            isbn: book.isbn || null,
+
+            // Content info
+            description: book.summary ? book.summary.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : null,
+            language: book.language || null,
+            runtime: book.runtimeLengthMin || null,
+            abridged: book.formatType === 'abridged' ? 1 : 0,
+
+            // Categories
+            genre: genres.join(', ') || null,
+            tags: tags.join(', ') || null,
+
+            // Rating
+            rating: book.rating || null,
+
+            // Cover
+            image: book.image || null,
+          });
+        }
+      } catch (err) {
+        console.log(`[Audnexus Search] Failed to get details for ${bookAsin}:`, err.message);
+      }
+    }
+
+    if (results.length === 0) {
+      return res.json({
+        results: [],
+        message: 'Found audiobooks on Audible but could not get details. Try again later.'
+      });
+    }
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Audible/Audnexus search error:', error);
+    res.status(500).json({ error: 'Failed to search: ' + error.message });
+  }
+});
+
 // Get all files in the audiobook's directory
 router.get('/:id/directory-files', authenticateToken, (req, res) => {
   db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
@@ -287,16 +543,32 @@ router.delete('/:id', authenticateToken, (req, res) => {
   });
 });
 
-// Update audiobook metadata
+// Update audiobook metadata (admin only)
 router.put('/:id', authenticateToken, (req, res) => {
-  const { title, author, narrator, description, genre, series, series_position, published_year } = req.body;
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const {
+    title, subtitle, author, narrator, description, genre, tags,
+    series, series_position, published_year, copyright_year,
+    publisher, isbn, asin, language, rating, abridged
+  } = req.body;
 
   db.run(
     `UPDATE audiobooks
-     SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
-         series = ?, series_position = ?, published_year = ?, updated_at = CURRENT_TIMESTAMP
+     SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
+         series = ?, series_position = ?, published_year = ?, copyright_year = ?,
+         publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
+         updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
-    [title, author, narrator, description, genre, series, series_position, published_year, req.params.id],
+    [
+      title, subtitle, author, narrator, description, genre, tags,
+      series, series_position, published_year, copyright_year,
+      publisher, isbn, asin, language, rating, abridged ? 1 : 0,
+      req.params.id
+    ],
     function (err) {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -308,6 +580,213 @@ router.put('/:id', authenticateToken, (req, res) => {
     }
   );
 });
+
+// Embed metadata into audio file tags (admin only)
+router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { execFile } = require('child_process');
+  const { promisify } = require('util');
+  const execFileAsync = promisify(execFile);
+
+  try {
+    // Get audiobook from database
+    const audiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    if (!fs.existsSync(audiobook.file_path)) {
+      return res.status(404).json({ error: 'Audio file not found on disk' });
+    }
+
+    const ext = path.extname(audiobook.file_path).toLowerCase();
+    const tempPath = audiobook.file_path + '.tmp' + ext;
+
+    // Build ffmpeg arguments for metadata embedding
+    const args = [
+      '-i', audiobook.file_path,
+      '-c', 'copy', // Copy streams without re-encoding
+    ];
+
+    // Add metadata tags
+    if (audiobook.title) args.push('-metadata', `title=${audiobook.title}`);
+    if (audiobook.author) args.push('-metadata', `artist=${audiobook.author}`);
+    if (audiobook.author) args.push('-metadata', `album_artist=${audiobook.author}`);
+    if (audiobook.narrator) args.push('-metadata', `composer=${audiobook.narrator}`);
+    if (audiobook.description) args.push('-metadata', `comment=${audiobook.description}`);
+    if (audiobook.genre) args.push('-metadata', `genre=${audiobook.genre}`);
+    if (audiobook.published_year) args.push('-metadata', `date=${audiobook.published_year}`);
+    if (audiobook.series) {
+      args.push('-metadata', `album=${audiobook.series}`);
+      if (audiobook.series_position) {
+        args.push('-metadata', `track=${audiobook.series_position}`);
+      }
+    }
+
+    // Output to temp file
+    args.push('-y', tempPath);
+
+    console.log(`Embedding metadata into ${audiobook.file_path}`);
+
+    // Run ffmpeg
+    await execFileAsync('ffmpeg', args, { timeout: 600000 }); // 10 min timeout
+
+    // Replace original with temp file
+    fs.renameSync(tempPath, audiobook.file_path);
+
+    console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
+    res.json({ message: 'Metadata embedded successfully' });
+  } catch (error) {
+    console.error('Error embedding metadata:', error);
+    // Clean up temp file if it exists
+    try {
+      const audiobook = await new Promise((resolve, reject) => {
+        db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+      if (audiobook) {
+        const ext = path.extname(audiobook.file_path).toLowerCase();
+        const tempPath = audiobook.file_path + '.tmp' + ext;
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+        }
+      }
+    } catch (e) { /* ignore cleanup errors */ }
+    res.status(500).json({ error: 'Failed to embed metadata: ' + error.message });
+  }
+});
+
+// Search Open Library for metadata (admin only)
+router.get('/:id/search-metadata', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { title, author } = req.query;
+
+  try {
+    // Search by title/author
+    if (!title && !author) {
+      return res.status(400).json({ error: 'Provide title or author to search' });
+    }
+
+    let allResults = [];
+
+    // Strategy 1: Search with both title and author if both provided
+    if (title && author) {
+      const params1 = new URLSearchParams();
+      params1.append('title', title);
+      params1.append('author', author);
+      params1.append('limit', '10');
+
+      const response1 = await fetch(`https://openlibrary.org/search.json?${params1.toString()}`);
+      if (response1.ok) {
+        const data1 = await response1.json();
+        if (data1.docs) {
+          allResults.push(...data1.docs);
+        }
+      }
+    }
+
+    // Strategy 2: General query search (more flexible matching)
+    const queryParts = [];
+    if (title) queryParts.push(title);
+    if (author) queryParts.push(author);
+    const query = queryParts.join(' ');
+
+    const params2 = new URLSearchParams();
+    params2.append('q', query);
+    params2.append('limit', '15');
+
+    const response2 = await fetch(`https://openlibrary.org/search.json?${params2.toString()}`);
+    if (response2.ok) {
+      const data2 = await response2.json();
+      if (data2.docs) {
+        // Add results not already in list
+        for (const doc of data2.docs) {
+          if (!allResults.find(r => r.key === doc.key)) {
+            allResults.push(doc);
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Title-only search if we have title (catches series books, alternate titles)
+    if (title && title.length > 3) {
+      // Extract potential series/book name by removing common patterns
+      const cleanTitle = title
+        .replace(/[:,]\s*(book|volume|part|#)\s*\d+/gi, '')
+        .replace(/\s*\([^)]*\)\s*/g, '')
+        .trim();
+
+      if (cleanTitle !== title && cleanTitle.length > 3) {
+        const params3 = new URLSearchParams();
+        params3.append('title', cleanTitle);
+        params3.append('limit', '10');
+
+        const response3 = await fetch(`https://openlibrary.org/search.json?${params3.toString()}`);
+        if (response3.ok) {
+          const data3 = await response3.json();
+          if (data3.docs) {
+            for (const doc of data3.docs) {
+              if (!allResults.find(r => r.key === doc.key)) {
+                allResults.push(doc);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (allResults.length === 0) {
+      return res.json({ results: [] });
+    }
+
+    // Format and deduplicate results, limit to 15
+    const results = allResults.slice(0, 15).map(book => formatOpenLibraryResult(book));
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Open Library search error:', error);
+    res.status(500).json({ error: 'Failed to search Open Library' });
+  }
+});
+
+// Helper function to format Open Library response
+function formatOpenLibraryResult(book) {
+  // Get cover URL if available
+  let cover_url = null;
+  if (book.cover_i) {
+    cover_url = `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`;
+  }
+
+  return {
+    key: book.key,
+    title: book.title,
+    author: book.author_name?.join(', ') || null,
+    narrator: null, // Open Library doesn't have narrator info
+    description: null, // Would need additional API call to get description
+    genre: book.subject?.slice(0, 3).join(', ') || null,
+    series: null, // Open Library doesn't have good series data
+    series_position: null,
+    published_year: book.first_publish_year || null,
+    cover_url: cover_url,
+    language: book.language?.includes('eng') ? 'en' : book.language?.[0] || 'en',
+  };
+}
 
 // Refresh metadata from file
 router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
