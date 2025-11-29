@@ -345,18 +345,18 @@ export default function Settings() {
             <tbody>
               {apiKeys.map((key) => (
                 <tr key={key.id}>
-                  <td className="key-name">{key.name}</td>
-                  <td className="key-prefix">
+                  <td className="key-name" data-label="Name">{key.name}</td>
+                  <td className="key-prefix" data-label="Key Prefix">
                     <code>{key.key_prefix}...</code>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={`status-badge ${key.is_active ? 'active' : 'inactive'}`}>
                       {key.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td>{formatDate(key.created_at)}</td>
-                  <td>{formatDate(key.expires_at)}</td>
-                  <td>{formatDate(key.last_used_at)}</td>
+                  <td data-label="Created">{formatDate(key.created_at)}</td>
+                  <td data-label="Expires">{formatDate(key.expires_at)}</td>
+                  <td data-label="Last Used">{formatDate(key.last_used_at)}</td>
                   <td className="actions">
                     <button
                       className="btn btn-small btn-secondary"
@@ -547,16 +547,16 @@ export default function Settings() {
           <tbody>
             {users.map((user) => (
               <tr key={user.id}>
-                <td>{user.username}</td>
-                <td>{user.email || '-'}</td>
-                <td>
+                <td data-label="Username">{user.username}</td>
+                <td data-label="Email">{user.email || '-'}</td>
+                <td data-label="Role">
                   {user.is_admin ? (
                     <span className="badge badge-admin">Admin</span>
                   ) : (
                     <span className="badge badge-user">User</span>
                   )}
                 </td>
-                <td>{formatDate(user.created_at)}</td>
+                <td data-label="Created">{formatDate(user.created_at)}</td>
                 <td>
                   <div className="action-buttons">
                     <button

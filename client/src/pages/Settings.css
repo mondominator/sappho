@@ -431,8 +431,35 @@
 }
 
 @media (max-width: 768px) {
+  .settings-page {
+    padding: 1rem 0.5rem;
+  }
+
   .settings-header {
     font-size: 2rem;
+    padding: 0 0.5rem;
+  }
+
+  .settings-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0 0.5rem;
+  }
+
+  .settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-button {
+    white-space: nowrap;
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .settings-section {
+    padding: 1.5rem 1rem;
   }
 
   .section-header {
@@ -441,16 +468,147 @@
     gap: 1rem;
   }
 
-  .api-keys-table {
-    font-size: 0.875rem;
+  .section-header h2 {
+    font-size: 1.5rem;
   }
 
+  /* Hide table headers and convert to card layout */
+  .api-keys-table table,
+  .api-keys-table thead,
+  .api-keys-table tbody,
+  .api-keys-table tr,
   .api-keys-table th,
   .api-keys-table td {
-    padding: 0.75rem 0.5rem;
+    display: block;
+  }
+
+  .api-keys-table thead {
+    display: none;
+  }
+
+  .api-keys-table tr {
+    background: #1f2937;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid #374151;
+  }
+
+  .api-keys-table td {
+    padding: 0.5rem 0;
+    border: none;
+    text-align: left;
+    position: relative;
+    padding-left: 45%;
+  }
+
+  .api-keys-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 40%;
+    padding-right: 10px;
+    font-weight: 600;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .api-keys-table .actions {
+    padding-left: 0;
+    padding-top: 0.75rem;
+    margin-top: 0.75rem;
+    border-top: 1px solid #374151;
+  }
+
+  .api-keys-table .actions::before {
+    display: none;
   }
 
   .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .actions button {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  /* Users table mobile styles */
+  .users-table table,
+  .users-table thead,
+  .users-table tbody,
+  .users-table tr,
+  .users-table th,
+  .users-table td {
+    display: block;
+  }
+
+  .users-table thead {
+    display: none;
+  }
+
+  .users-table tr {
+    background: #1f2937;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid #374151;
+  }
+
+  .users-table td {
+    padding: 0.5rem 0;
+    border: none;
+    text-align: left;
+    position: relative;
+    padding-left: 40%;
+  }
+
+  .users-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 35%;
+    padding-right: 10px;
+    font-weight: 600;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .users-table .action-buttons {
+    padding-left: 0;
+    padding-top: 0.75rem;
+    margin-top: 0.75rem;
+    border-top: 1px solid #374151;
+  }
+
+  .users-table .action-buttons::before {
+    display: none;
+  }
+
+  .action-buttons button {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .user-form-container {
+    padding: 1rem;
+  }
+
+  .form-actions {
     flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .btn {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9375rem;
   }
 }

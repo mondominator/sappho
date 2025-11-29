@@ -55,6 +55,15 @@ export const getAudiobook = (id) =>
 export const deleteAudiobook = (id) =>
   api.delete(`/audiobooks/${id}`);
 
+export const updateAudiobook = (id, metadata) =>
+  api.put(`/audiobooks/${id}`, metadata);
+
+export const embedMetadata = (id) =>
+  api.post(`/audiobooks/${id}/embed-metadata`);
+
+export const searchMetadata = (id, params) =>
+  api.get(`/audiobooks/${id}/search-metadata`, { params });
+
 export const uploadAudiobook = (file, metadata) => {
   const formData = new FormData();
   formData.append('audiobook', file);
@@ -99,6 +108,18 @@ export const clearProgress = (id) =>
 
 export const getChapters = (id) =>
   api.get(`/audiobooks/${id}/chapters`);
+
+export const updateChapters = (id, chapters) =>
+  api.put(`/audiobooks/${id}/chapters`, { chapters });
+
+export const fetchChaptersFromAudnexus = (id, asin) =>
+  api.post(`/audiobooks/${id}/fetch-chapters`, { asin });
+
+export const searchAudnexus = (id, params) =>
+  api.get(`/audiobooks/${id}/search-audnexus`, { params });
+
+export const refreshMetadata = (id) =>
+  api.post(`/audiobooks/${id}/refresh-metadata`);
 
 export const getDirectoryFiles = (id) =>
   api.get(`/audiobooks/${id}/directory-files`);

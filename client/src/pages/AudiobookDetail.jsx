@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles } from '../api';
+import EditMetadataModal from '../components/EditMetadataModal';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -13,6 +14,21 @@ export default function AudiobookDetail({ onPlay }) {
   const [loading, setLoading] = useState(true);
   const [showChapters, setShowChapters] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check admin status from JWT token
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setIsAdmin(!!payload.is_admin);
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     loadAudiobook();
@@ -351,6 +367,14 @@ export default function AudiobookDetail({ onPlay }) {
           <h1 className="detail-title">{audiobook.title}</h1>
 
           <div className="detail-actions">
+            {isAdmin && (
+              <button
+                className="btn btn-primary"
+                onClick={() => setShowEditModal(true)}
+              >
+                Edit
+              </button>
+            )}
             <button
               className="btn btn-success"
               onClick={handleMarkFinished}
@@ -449,6 +473,13 @@ export default function AudiobookDetail({ onPlay }) {
           )}
         </div>
       </div>
+
+      <EditMetadataModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        audiobook={audiobook}
+        onSave={loadAudiobook}
+      />
     </div>
   );
 }
