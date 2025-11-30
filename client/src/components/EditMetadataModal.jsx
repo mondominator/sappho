@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { updateAudiobook, embedMetadata, getChapters, updateChapters, refreshMetadata, fetchChaptersFromAudnexus, searchAudnexus } from '../api';
+import { updateAudiobook, embedMetadata, convertToM4B, getChapters, updateChapters, refreshMetadata, fetchChaptersFromAudnexus, searchAudnexus } from '../api';
 import './EditMetadataModal.css';
 
 export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }) {
@@ -24,6 +24,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
   });
   const [saving, setSaving] = useState(false);
   const [embedding, setEmbedding] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [fetchingChapters, setFetchingChapters] = useState(false);
@@ -357,8 +358,31 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     }
   };
 
+  const handleConvertToM4B = async () => {
+    if (!confirm('Convert this M4A file to M4B format? This will replace the original file.')) {
+      return;
+    }
+
+    setConverting(true);
+    setError('');
+    setSuccess('');
+    setStatusMessage('Converting to M4B format...');
+
+    try {
+      await convertToM4B(audiobook.id);
+      setStatusMessage('Done!');
+      setSuccess('Converted to M4B successfully');
+      onSave(); // Refresh parent to get updated file_path
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to convert to M4B');
+      setStatusMessage('');
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const handleClose = () => {
-    if (!saving && !embedding) {
+    if (!saving && !embedding && !converting) {
       setAudnexusResults([]);
       setShowAudnexusResults(false);
       setPendingResult(null);
@@ -374,7 +398,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal edit-metadata-modal" onClick={(e) => e.stopPropagation()}>
         {/* Loading Overlay */}
-        {(saving || embedding) && (
+        {(saving || embedding || converting) && (
           <div className="saving-overlay">
             <div className="saving-content">
               <div className="saving-spinner"></div>
@@ -809,7 +833,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={saving || embedding}
+                disabled={saving || embedding || converting}
               >
                 {saving && !embedding ? 'Saving...' : 'Save'}
               </button>
@@ -817,11 +841,22 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                 type="button"
                 className="btn btn-success"
                 onClick={handleEmbed}
-                disabled={saving || embedding}
+                disabled={saving || embedding || converting}
                 title="Save changes and write metadata to file tags"
               >
                 {embedding ? 'Embedding...' : 'Save & Embed'}
               </button>
+              {audiobook?.file_path?.toLowerCase().endsWith('.m4a') && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleConvertToM4B}
+                  disabled={saving || embedding || converting}
+                  title="Convert M4A file to M4B audiobook format"
+                >
+                  {converting ? 'Converting...' : 'Convert to M4B'}
+                </button>
+              )}
             </div>
           </form>
         )}
