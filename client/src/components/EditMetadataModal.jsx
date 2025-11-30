@@ -369,14 +369,19 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     setStatusMessage('Converting to M4B format...');
 
     try {
-      await convertToM4B(audiobook.id);
-      setStatusMessage('Done!');
-      setSuccess('Converted to M4B successfully');
+      const response = await convertToM4B(audiobook.id);
+      setStatusMessage('');
+      setSuccess(`Converted to M4B successfully! File is now at: ${response.data.newPath?.split('/').pop() || 'new location'}`);
       onSave(); // Refresh parent to get updated file_path
+
+      // Keep success message visible for a moment, then close
+      setTimeout(() => {
+        setConverting(false);
+        onClose();
+      }, 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to convert to M4B');
       setStatusMessage('');
-    } finally {
       setConverting(false);
     }
   };
@@ -415,6 +420,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         </div>
 
         {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">{success}</div>}
 
         {showAudnexusResults && audnexusResults.length > 0 ? (
           <div className="search-results">
