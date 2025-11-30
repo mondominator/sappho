@@ -674,7 +674,7 @@ router.delete('/:id', authenticateToken, (req, res) => {
 });
 
 // Update audiobook metadata (admin only)
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   // Check if user is admin
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -686,29 +686,123 @@ router.put('/:id', authenticateToken, (req, res) => {
     publisher, isbn, asin, language, rating, abridged
   } = req.body;
 
-  db.run(
-    `UPDATE audiobooks
-     SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
-         series = ?, series_position = ?, published_year = ?, copyright_year = ?,
-         publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-    [
-      title, subtitle, author, narrator, description, genre, tags,
-      series, series_position, published_year, copyright_year,
-      publisher, isbn, asin, language, rating, abridged ? 1 : 0,
-      req.params.id
-    ],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Audiobook not found' });
-      }
-      res.json({ message: 'Audiobook updated successfully' });
+  try {
+    // Get current audiobook to check if author/title changed
+    const currentBook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!currentBook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
     }
-  );
+
+    let newFilePath = currentBook.file_path;
+    let newCoverPath = currentBook.cover_path;
+    let fileReorganized = false;
+
+    // Check if author or title changed - if so, reorganize the file
+    const authorChanged = author && author !== currentBook.author;
+    const titleChanged = title && title !== currentBook.title;
+
+    if ((authorChanged || titleChanged) && fs.existsSync(currentBook.file_path)) {
+      const libraryPath = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+
+      // Sanitize folder names
+      const sanitize = (str) => (str || 'Unknown').replace(/[<>:"/\\|?*]/g, '_').trim();
+      const newAuthor = sanitize(author || currentBook.author || 'Unknown Author');
+      const newTitle = sanitize(title || currentBook.title || 'Unknown Title');
+
+      // Create new directory structure
+      const newAuthorDir = path.join(libraryPath, newAuthor);
+      const newBookDir = path.join(newAuthorDir, newTitle);
+
+      // Get current file info
+      const currentDir = path.dirname(currentBook.file_path);
+      const ext = path.extname(currentBook.file_path);
+      const newFileName = `${newTitle}${ext}`;
+      newFilePath = path.join(newBookDir, newFileName);
+
+      // Only move if the path would actually change
+      if (newFilePath !== currentBook.file_path) {
+        console.log(`Reorganizing audiobook: ${currentBook.file_path} -> ${newFilePath}`);
+
+        // Create new directory
+        if (!fs.existsSync(newBookDir)) {
+          fs.mkdirSync(newBookDir, { recursive: true });
+        }
+
+        // Move the audio file
+        fs.copyFileSync(currentBook.file_path, newFilePath);
+        fs.unlinkSync(currentBook.file_path);
+        fileReorganized = true;
+
+        // Move cover image if it exists and is in the same directory
+        if (currentBook.cover_path && fs.existsSync(currentBook.cover_path)) {
+          const coverExt = path.extname(currentBook.cover_path);
+          const newCoverName = `cover${coverExt}`;
+          newCoverPath = path.join(newBookDir, newCoverName);
+
+          if (newCoverPath !== currentBook.cover_path) {
+            fs.copyFileSync(currentBook.cover_path, newCoverPath);
+            fs.unlinkSync(currentBook.cover_path);
+          }
+        }
+
+        // Clean up old empty directories
+        try {
+          if (fs.existsSync(currentDir) && fs.readdirSync(currentDir).length === 0) {
+            fs.rmdirSync(currentDir);
+            // Also try to remove parent author dir if empty
+            const parentDir = path.dirname(currentDir);
+            if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
+              fs.rmdirSync(parentDir);
+            }
+          }
+        } catch (cleanupErr) {
+          console.log('Could not clean up empty directories:', cleanupErr.message);
+        }
+      }
+    }
+
+    // Update database with new metadata and file paths
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE audiobooks
+         SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
+             series = ?, series_position = ?, published_year = ?, copyright_year = ?,
+             publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
+             file_path = ?, cover_path = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          title, subtitle, author, narrator, description, genre, tags,
+          series, series_position, published_year, copyright_year,
+          publisher, isbn, asin, language, rating, abridged ? 1 : 0,
+          newFilePath, newCoverPath,
+          req.params.id
+        ],
+        function (err) {
+          if (err) reject(err);
+          else resolve(this.changes);
+        }
+      );
+    });
+
+    res.json({
+      message: fileReorganized
+        ? 'Audiobook updated and file reorganized successfully'
+        : 'Audiobook updated successfully',
+      fileReorganized,
+      newPath: fileReorganized ? newFilePath : undefined
+    });
+
+  } catch (error) {
+    console.error('Error updating audiobook:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Embed metadata into audio file tags using tone (admin only)
