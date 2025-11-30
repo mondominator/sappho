@@ -61,6 +61,9 @@ export const updateAudiobook = (id, metadata) =>
 export const embedMetadata = (id) =>
   api.post(`/audiobooks/${id}/embed-metadata`);
 
+export const convertToM4B = (id) =>
+  api.post(`/audiobooks/${id}/convert-to-m4b`);
+
 export const searchMetadata = (id, params) =>
   api.get(`/audiobooks/${id}/search-metadata`, { params });
 

@@ -768,20 +768,42 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         meta: {}
       };
 
-      if (audiobook.title) toneMetadata.meta.title = audiobook.title;
+      // Basic metadata
+      if (audiobook.title) {
+        toneMetadata.meta.title = audiobook.title;
+        toneMetadata.meta.sortTitle = audiobook.title.replace(/^(The|A|An)\s+/i, '');
+      }
+      if (audiobook.subtitle) toneMetadata.meta.subtitle = audiobook.subtitle;
       if (audiobook.author) {
         toneMetadata.meta.artist = audiobook.author;
         toneMetadata.meta.albumArtist = audiobook.author;
+        // Sort by last name if comma-separated, otherwise use as-is
+        const authorParts = audiobook.author.split(',');
+        toneMetadata.meta.sortArtist = authorParts.length > 1 ? audiobook.author : audiobook.author;
+        toneMetadata.meta.sortAlbumArtist = toneMetadata.meta.sortArtist;
       }
       if (audiobook.narrator) {
         toneMetadata.meta.narrator = audiobook.narrator;
         toneMetadata.meta.composer = audiobook.narrator;
+        toneMetadata.meta.sortComposer = audiobook.narrator;
       }
-      if (audiobook.description) toneMetadata.meta.description = audiobook.description;
+      if (audiobook.description) {
+        toneMetadata.meta.description = audiobook.description;
+        // Use longDescription for full text if description is long
+        if (audiobook.description.length > 255) {
+          toneMetadata.meta.longDescription = audiobook.description;
+        }
+      }
       if (audiobook.genre) toneMetadata.meta.genre = audiobook.genre;
       if (audiobook.published_year) toneMetadata.meta.publishingDate = String(audiobook.published_year);
       if (audiobook.publisher) toneMetadata.meta.publisher = audiobook.publisher;
       if (audiobook.copyright_year) toneMetadata.meta.copyright = String(audiobook.copyright_year);
+
+      // Set iTunes media type to Audiobook
+      toneMetadata.meta.itunesMediaType = 'Audiobook';
+
+      // Tags/grouping
+      if (audiobook.tags) toneMetadata.meta.group = audiobook.tags;
 
       // Series info - use movement tags (proper audiobook series tags)
       if (audiobook.series) {
@@ -789,16 +811,41 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         toneMetadata.meta.album = audiobook.series;
         toneMetadata.meta.sortAlbum = audiobook.series;
         if (audiobook.series_position) {
+          // movement is a string in tone's JSON format
           toneMetadata.meta.movement = String(audiobook.series_position);
           toneMetadata.meta.part = String(audiobook.series_position);
         }
       }
 
-      // Additional fields for ASIN, ISBN
-      if (audiobook.asin || audiobook.isbn) {
+      // Embed cover art if available
+      if (audiobook.cover_path && fs.existsSync(audiobook.cover_path)) {
+        try {
+          const coverData = fs.readFileSync(audiobook.cover_path);
+          const base64Cover = coverData.toString('base64');
+          const coverExt = path.extname(audiobook.cover_path).toLowerCase();
+          const mimetype = coverExt === '.png' ? 'image/png' : 'image/jpeg';
+
+          toneMetadata.meta.embeddedPictures = [{
+            type: 2,  // Front cover
+            code: 3,  // Front cover code
+            mimetype: mimetype,
+            data: base64Cover
+          }];
+          console.log(`Including cover art from ${audiobook.cover_path}`);
+        } catch (coverErr) {
+          console.log(`Could not read cover art: ${coverErr.message}`);
+        }
+      }
+
+      // Additional fields for ASIN, ISBN, language, rating, abridged
+      const hasAdditionalFields = audiobook.asin || audiobook.isbn || audiobook.language || audiobook.rating || audiobook.abridged;
+      if (hasAdditionalFields) {
         toneMetadata.meta.additionalFields = {};
-        if (audiobook.asin) toneMetadata.meta.additionalFields.asin = audiobook.asin;
-        if (audiobook.isbn) toneMetadata.meta.additionalFields.isbn = audiobook.isbn;
+        if (audiobook.asin) toneMetadata.meta.additionalFields.ASIN = audiobook.asin;
+        if (audiobook.isbn) toneMetadata.meta.additionalFields.ISBN = audiobook.isbn;
+        if (audiobook.language) toneMetadata.meta.additionalFields.LANGUAGE = audiobook.language;
+        if (audiobook.rating) toneMetadata.meta.additionalFields.RATING = audiobook.rating;
+        if (audiobook.abridged) toneMetadata.meta.additionalFields.ABRIDGED = audiobook.abridged ? 'Yes' : 'No';
       }
 
       // Add chapters if we have them
@@ -811,8 +858,16 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       }
 
       // Write JSON file
-      fs.writeFileSync(metadataJsonFile, JSON.stringify(toneMetadata, null, 2), 'utf8');
+      const jsonContent = JSON.stringify(toneMetadata, null, 2);
+      fs.writeFileSync(metadataJsonFile, jsonContent, 'utf8');
       console.log(`Created tone metadata JSON file with ${chapters.length} chapters`);
+      console.log(`Tone metadata JSON (without cover data): ${JSON.stringify({
+        ...toneMetadata,
+        meta: {
+          ...toneMetadata.meta,
+          embeddedPictures: toneMetadata.meta.embeddedPictures ? '[cover data omitted]' : undefined
+        }
+      }, null, 2)}`);
 
       // Build tone command with JSON file
       const args = ['tag', audiobook.file_path, `--meta-tone-json-file=${metadataJsonFile}`];
@@ -900,6 +955,99 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       }
     } catch (e) { /* ignore cleanup errors */ }
     res.status(500).json({ error: 'Failed to embed metadata: ' + error.message });
+  }
+});
+
+// Convert audiobook to M4B format (admin only)
+router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    const audiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    if (!fs.existsSync(audiobook.file_path)) {
+      return res.status(404).json({ error: 'Audio file not found on disk' });
+    }
+
+    const ext = path.extname(audiobook.file_path).toLowerCase();
+
+    // Only convert M4A files
+    if (ext === '.m4b') {
+      return res.status(400).json({ error: 'File is already M4B format' });
+    }
+
+    if (ext !== '.m4a') {
+      return res.status(400).json({ error: 'Only M4A files can be converted to M4B. For MP3 files, use a dedicated conversion tool.' });
+    }
+
+    const dir = path.dirname(audiobook.file_path);
+    const basename = path.basename(audiobook.file_path, ext);
+    const newPath = path.join(dir, `${basename}.m4b`);
+
+    console.log(`Converting ${audiobook.file_path} to M4B format...`);
+
+    // M4A and M4B are the same container format, just different extension
+    // We can use ffmpeg to copy streams without re-encoding
+    const args = [
+      '-i', audiobook.file_path,
+      '-c', 'copy',  // Copy all streams without re-encoding
+      '-f', 'ipod',  // Force M4B/M4A container format
+      '-y', newPath
+    ];
+
+    try {
+      await execFileAsync('ffmpeg', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 });
+    } catch (ffmpegError) {
+      console.error('FFmpeg conversion error:', ffmpegError.stderr);
+      throw new Error(`FFmpeg failed: ${ffmpegError.stderr || ffmpegError.message}`);
+    }
+
+    // Verify new file exists
+    if (!fs.existsSync(newPath)) {
+      throw new Error('Conversion completed but output file not found');
+    }
+
+    // Get new file size
+    const newStats = fs.statSync(newPath);
+
+    // Delete original M4A file
+    fs.unlinkSync(audiobook.file_path);
+
+    // Update database with new path
+    await new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE audiobooks SET file_path = ?, file_size = ? WHERE id = ?',
+        [newPath, newStats.size, req.params.id],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    console.log(`Successfully converted to M4B: ${newPath}`);
+
+    res.json({
+      message: 'Converted to M4B successfully',
+      newPath: newPath,
+      oldPath: audiobook.file_path
+    });
+
+  } catch (error) {
+    console.error('Error converting to M4B:', error);
+    res.status(500).json({ error: 'Failed to convert: ' + error.message });
   }
 });
 
