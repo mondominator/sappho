@@ -96,16 +96,16 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 version: '3.8'
 
 services:
-  sapho:
+  sappho:
     image: ghcr.io/mondominator/sappho:latest
-    container_name: sapho
+    container_name: sappho
     ports:
       - "3002:3002"
     environment:
       - JWT_SECRET=your-secure-random-string-here
       - NODE_ENV=production
     volumes:
-      - /path/to/appdata/sapho:/app/data
+      - /path/to/appdata/sappho:/app/data
       - /path/to/audiobooks:/app/data/audiobooks
       - /path/to/audiobooks/watch:/app/data/watch
     restart: unless-stopped
@@ -121,7 +121,7 @@ services:
 | `AUDIOBOOKS_DIR` | No | `/app/data/audiobooks` | Audiobook library path |
 | `WATCH_DIR` | No | `/app/data/watch` | Watch directory for auto-import |
 | `LIBRARY_SCAN_INTERVAL` | No | `5` | Minutes between library rescans for new audiobooks |
-| `DATABASE_PATH` | No | `/app/data/sapho.db` | SQLite database location |
+| `DATABASE_PATH` | No | `/app/data/sappho.db` | SQLite database location |
 
 ## Mobile Installation (Progressive Web App)
 
@@ -188,12 +188,13 @@ cd client && npm run dev
 
 ```
 /app/data/
-├── sapho.db              # SQLite database
+├── sappho.db             # SQLite database
 ├── audiobooks/           # Audiobook library (can mount existing library here)
 │   ├── Author Name/
 │   │   └── Book Title/
 │   │       ├── book.m4b
 │   │       └── cover.jpg
+├── covers/               # Downloaded cover images
 ├── watch/                # Drop audiobooks here for auto-import
 └── uploads/              # Temporary upload storage
 ```
@@ -212,13 +213,13 @@ Example Docker Compose for existing library:
 
 ```yaml
 services:
-  sapho:
+  sappho:
     image: ghcr.io/mondominator/sappho:latest
     environment:
       - LIBRARY_SCAN_INTERVAL=5  # Scan every 5 minutes (optional)
     volumes:
       - /path/to/your/existing/audiobooks:/app/data/audiobooks:ro  # Read-only mount
-      - /path/to/appdata/sapho:/app/data
+      - /path/to/appdata/sappho:/app/data
 ```
 
 The library scanner will:
