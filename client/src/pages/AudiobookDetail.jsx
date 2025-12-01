@@ -194,7 +194,7 @@ export default function AudiobookDetail({ onPlay }) {
           <div className="detail-cover" onClick={() => onPlay(audiobook, progress)}>
             {audiobook.cover_image ? (
               <img
-                src={getCoverUrl(audiobook.id)}
+                src={getCoverUrl(audiobook.id, audiobook.updated_at)}
                 alt={audiobook.title}
                 onError={(e) => e.target.src = '/placeholder-cover.png'}
               />
