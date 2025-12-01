@@ -21,6 +21,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     language: '',
     rating: '',
     abridged: false,
+    cover_url: '',  // URL to download new cover from
   });
   const [saving, setSaving] = useState(false);
   const [embedding, setEmbedding] = useState(false);
@@ -58,6 +59,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         language: audiobook.language || '',
         rating: audiobook.rating || '',
         abridged: !!audiobook.abridged,  // Convert 0/1 to boolean properly
+        cover_url: '',  // Reset cover URL when audiobook changes
       });
       setAudnexusResults([]);
       setShowAudnexusResults(false);
@@ -196,6 +198,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       language: pendingResult.language || prev.language,
       rating: pendingResult.rating || prev.rating,
       abridged: pendingResult.abridged !== undefined ? !!pendingResult.abridged : prev.abridged,
+      cover_url: pendingResult.image || prev.cover_url,  // Apply cover URL from search result
     }));
 
     // Only fetch chapters if it's an Audible result with an ASIN
@@ -288,6 +291,16 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       });
     }
 
+    // Handle cover image - check if pending result has an image URL
+    if (pendingResult.image) {
+      changes.push({
+        label: 'Cover',
+        oldValue: formData.cover_url ? 'Has cover' : '(no cover)',
+        newValue: 'New cover from search',
+        isNew: !formData.cover_url,
+      });
+    }
+
     return changes;
   };
 
@@ -305,7 +318,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
     setSaving(true);
     setError('');
-    setStatusMessage('Saving metadata to database...');
+    setStatusMessage(formData.cover_url ? 'Downloading cover and saving metadata...' : 'Saving metadata to database...');
 
     try {
       await updateAudiobook(audiobook.id, {

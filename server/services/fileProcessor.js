@@ -18,6 +18,24 @@ function cleanDescription(description) {
 
   let cleaned = description;
 
+  // Strip HTML tags
+  cleaned = cleaned.replace(/<[^>]*>/g, '');
+
+  // Decode common HTML entities
+  cleaned = cleaned
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(num))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
+  // Normalize whitespace (multiple spaces/newlines to single space)
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
   // Strategy 1: Check if the real description is AFTER chapter listings
   // Look for patterns like "End Credits [actual description]" or "Epilogue [actual description]"
   const afterCreditsMatch = cleaned.match(/(?:End\s+Credits|Epilogue|About\s+the\s+Author|Q&A\s+with\s+the\s+Author)\s+(.+)/is);
@@ -200,7 +218,8 @@ async function extractFileMetadata(filePath) {
       };
 
       // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
-      // Priority: movement name (proper audiobook tag) > explicit SERIES tag > grouping > show
+      // Priority: movement name (proper audiobook tag) > explicit SERIES tag > show
+      // Note: Removed ©grp (grouping) and ©st3 (subtitle) - often contain genres, not series
       const seriesTagPriority = [
         '©mvn',  // Movement Name - standard audiobook series tag (what tone writes)
         'movementName',  // Alternative movement name key
@@ -208,16 +227,26 @@ async function extractFileMetadata(filePath) {
         '----:com.apple.iTunes:series',
         '----:com.pilabor.tone:SERIES',
         '----:com.pilabor.tone:series',
-        '©grp',  // Grouping tag - often contains "Series Name #N"
         'tvsh',  // TV Show (sometimes used for series)
-        '©st3',  // Subtitle field
         'sosn',  // Sort show name
       ];
+
+      // Helper to check if a value looks like genre/category tags rather than a series name
+      const looksLikeGenres = (val) => {
+        if (!val) return true;
+        // If it contains multiple commas or semicolons, likely genre list
+        if ((val.match(/,/g) || []).length >= 2) return true;
+        if ((val.match(/;/g) || []).length >= 1) return true;
+        // Common genre keywords that wouldn't be in a series name
+        const genreKeywords = /\b(fiction|non-fiction|nonfiction|thriller|mystery|romance|fantasy|horror|biography|history|science|self-help|audiobook|novel|literature)\b/i;
+        if (genreKeywords.test(val)) return true;
+        return false;
+      };
 
       for (const tagId of seriesTagPriority) {
         const tag = mp4Tags.find(t => t.id === tagId);
         const val = getTagValue(tag);
-        if (val) {
+        if (val && !looksLikeGenres(val)) {
           series = val;
           break;
         }

@@ -92,9 +92,13 @@ export const getDownloadUrl = (id) => {
   return `${API_BASE}/audiobooks/${id}/download?token=${encodeURIComponent(token)}`;
 };
 
-export const getCoverUrl = (id) => {
+export const getCoverUrl = (id, cacheBust = null) => {
   const token = localStorage.getItem('token');
-  return `${API_BASE}/audiobooks/${id}/cover?token=${encodeURIComponent(token)}`;
+  let url = `${API_BASE}/audiobooks/${id}/cover?token=${encodeURIComponent(token)}`;
+  if (cacheBust) {
+    url += `&t=${encodeURIComponent(cacheBust)}`;
+  }
+  return url;
 };
 
 export const updateProgress = (id, position, completed = 0, state = 'playing', clientInfo = {}) =>

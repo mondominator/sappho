@@ -272,9 +272,9 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
       // Continue processing in background
       setImmediate(async () => {
         try {
-          // Get all audiobooks from database
+          // Get all audiobooks from database (include cover fields to preserve user-set covers)
           const audiobooks = await new Promise((resolve, reject) => {
-            db.all('SELECT id, file_path FROM audiobooks', (err, rows) => {
+            db.all('SELECT id, file_path, title, cover_path, cover_image FROM audiobooks', (err, rows) => {
               if (err) reject(err);
               else resolve(rows);
             });
@@ -297,9 +297,15 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
               // Extract fresh metadata
               const metadata = await extractFileMetadata(audiobook.file_path);
 
-              // Log cover info for debugging
-              if (metadata.cover_image) {
-                console.log(`Cover found for ${audiobook.title}: ${metadata.cover_image}`);
+              // Preserve user-downloaded covers (cover_path) - don't overwrite with extracted cover
+              // If cover_path exists and is valid, keep it; otherwise use extracted cover
+              let finalCoverImage = metadata.cover_image;
+              if (audiobook.cover_path && fs.existsSync(audiobook.cover_path)) {
+                // User has a custom cover, preserve it
+                finalCoverImage = audiobook.cover_path;
+                console.log(`Preserving user cover for ${audiobook.title}: ${audiobook.cover_path}`);
+              } else if (metadata.cover_image) {
+                console.log(`Using extracted cover for ${audiobook.title}: ${metadata.cover_image}`);
               }
 
               // Update database with all metadata fields including extended metadata
@@ -316,7 +322,7 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
                   [
                     metadata.title, metadata.author, metadata.narrator, metadata.description,
                     metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
-                    metadata.series, metadata.series_position, metadata.cover_image,
+                    metadata.series, metadata.series_position, finalCoverImage,
                     metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
                     metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
                     audiobook.id
@@ -494,7 +500,7 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
   // Continue processing in background
   setImmediate(async () => {
     try {
-      console.log('Force rescan: backing up user progress...');
+      console.log('Force rescan: backing up user data...');
 
       // Backup playback progress with file paths
       const progressBackup = await new Promise((resolve, reject) => {
@@ -510,6 +516,19 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
       });
 
       console.log(`Backed up progress for ${progressBackup.length} audiobooks`);
+
+      // Backup user-set covers (cover_path) - these are custom covers downloaded from search
+      const coverBackup = await new Promise((resolve, reject) => {
+        db.all(
+          `SELECT file_path, cover_path FROM audiobooks WHERE cover_path IS NOT NULL AND cover_path != ''`,
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+
+      console.log(`Backed up ${coverBackup.length} user-set covers`);
       console.log('Force rescan: clearing library metadata...');
 
       // Use a transaction-like approach - serialize all deletes
@@ -583,8 +602,52 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
         }
       }
 
+      // Restore user-set covers
+      console.log('Restoring user-set covers...');
+      let coversRestored = 0;
+      for (const cover of coverBackup) {
+        try {
+          // Verify cover file still exists
+          if (!fs.existsSync(cover.cover_path)) {
+            console.log(`Cover file no longer exists: ${cover.cover_path}`);
+            continue;
+          }
+
+          // Find audiobook by file path
+          const audiobook = await new Promise((resolve, reject) => {
+            db.get(
+              'SELECT id FROM audiobooks WHERE file_path = ?',
+              [cover.file_path],
+              (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+              }
+            );
+          });
+
+          if (audiobook) {
+            // Restore cover_path
+            await new Promise((resolve, reject) => {
+              db.run(
+                `UPDATE audiobooks SET cover_path = ?, cover_image = ? WHERE id = ?`,
+                [cover.cover_path, cover.cover_path, audiobook.id],
+                (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+            coversRestored++;
+            console.log(`Restored cover for audiobook ${audiobook.id}: ${cover.cover_path}`);
+          }
+        } catch (error) {
+          console.error(`Failed to restore cover for ${cover.file_path}:`, error.message);
+        }
+      }
+
       console.log(`✅ Force rescan complete: ${stats.imported} imported, ${stats.skipped} skipped, ${stats.errors} errors`);
       console.log(`✅ Restored progress for ${restored} audiobooks`);
+      console.log(`✅ Restored ${coversRestored} user-set covers`);
     } catch (error) {
       console.error('❌ Error in force rescan:', error);
     } finally {

@@ -6,6 +6,26 @@ const path = require('path');
 const { authenticateToken } = require('../auth');
 
 /**
+ * Strip HTML tags and decode HTML entities from text
+ */
+function sanitizeHtml(text) {
+  if (!text) return text;
+  return text
+    .replace(/<[^>]*>/g, '')  // Strip HTML tags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(num))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\s+/g, ' ')  // Normalize whitespace
+    .trim();
+}
+
+/**
  * Extract real client IP address from request
  * Checks X-Forwarded-For and other proxy headers first
  */
@@ -673,6 +693,66 @@ router.delete('/:id', authenticateToken, (req, res) => {
   });
 });
 
+// Helper function to download cover image from URL
+async function downloadCover(url, audiobookId) {
+  try {
+    const https = require('https');
+    const http = require('http');
+
+    const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
+    const coversDir = path.join(dataDir, 'covers');
+    if (!fs.existsSync(coversDir)) {
+      fs.mkdirSync(coversDir, { recursive: true });
+    }
+
+    // Determine extension from URL or default to jpg
+    const urlPath = new URL(url).pathname;
+    let ext = path.extname(urlPath).toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      ext = '.jpg';
+    }
+
+    const coverPath = path.join(coversDir, `audiobook_${audiobookId}${ext}`);
+
+    return new Promise((resolve, reject) => {
+      const protocol = url.startsWith('https') ? https : http;
+      const request = protocol.get(url, (response) => {
+        // Handle redirects
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          downloadCover(response.headers.location, audiobookId).then(resolve).catch(reject);
+          return;
+        }
+
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download cover: HTTP ${response.statusCode}`));
+          return;
+        }
+
+        const fileStream = fs.createWriteStream(coverPath);
+        response.pipe(fileStream);
+        fileStream.on('finish', () => {
+          fileStream.close();
+          console.log(`Downloaded cover to: ${coverPath}`);
+          resolve(coverPath);
+        });
+        fileStream.on('error', (err) => {
+          fs.unlink(coverPath, () => {}); // Clean up partial file
+          reject(err);
+        });
+      });
+
+      request.on('error', reject);
+      request.setTimeout(30000, () => {
+        request.destroy();
+        reject(new Error('Cover download timeout'));
+      });
+    });
+  } catch (error) {
+    console.error('Error downloading cover:', error);
+    return null;
+  }
+}
+
 // Update audiobook metadata (admin only)
 router.put('/:id', authenticateToken, async (req, res) => {
   // Check if user is admin
@@ -683,7 +763,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
   const {
     title, subtitle, author, narrator, description, genre, tags,
     series, series_position, published_year, copyright_year,
-    publisher, isbn, asin, language, rating, abridged
+    publisher, isbn, asin, language, rating, abridged, cover_url
   } = req.body;
 
   try {
@@ -767,6 +847,25 @@ router.put('/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Download cover from URL if provided
+    let newCoverImage = currentBook.cover_image;
+    if (cover_url) {
+      try {
+        console.log(`Downloading cover from URL: ${cover_url}`);
+        const downloadedCover = await downloadCover(cover_url, req.params.id);
+        if (downloadedCover) {
+          newCoverImage = downloadedCover;
+          // If no cover_path was set, use cover_image as the primary
+          if (!newCoverPath) {
+            newCoverPath = downloadedCover;
+          }
+        }
+      } catch (coverErr) {
+        console.error('Failed to download cover:', coverErr.message);
+        // Continue with update even if cover download fails
+      }
+    }
+
     // Update database with new metadata and file paths
     await new Promise((resolve, reject) => {
       db.run(
@@ -774,14 +873,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
          SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
              series = ?, series_position = ?, published_year = ?, copyright_year = ?,
              publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
-             file_path = ?, cover_path = ?,
+             file_path = ?, cover_path = ?, cover_image = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
-          title, subtitle, author, narrator, description, genre, tags,
+          title, subtitle, author, narrator, sanitizeHtml(description), genre, tags,
           series, series_position, published_year, copyright_year,
           publisher, isbn, asin, language, rating, abridged ? 1 : 0,
-          newFilePath, newCoverPath,
+          newFilePath, newCoverPath, newCoverImage,
           req.params.id
         ],
         function (err) {
