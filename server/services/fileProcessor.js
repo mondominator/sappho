@@ -301,15 +301,23 @@ async function extractFileMetadata(filePath) {
     if (nativeTags.iTunes || nativeTags.MP4) {
       const mp4Tags = nativeTags.iTunes || nativeTags.MP4 || [];
 
-      const narratorTag = mp4Tags.find(tag =>
-        tag.id === '©nrt' ||  // Standard narrator tag (what tone writes)
-        tag.id === 'narrator' ||  // Alternative narrator key
-        tag.id === '----:com.apple.iTunes:NARRATOR' ||
-        tag.id === '----:com.apple.iTunes:narrator' ||
-        tag.id === '----:com.pilabor.tone:NARRATOR' || // Tone/AudiobookShelf
-        tag.id === '----:com.pilabor.tone:narrator' ||
-        tag.id === 'soaa' // Sort album artist (sometimes narrator)
-      );
+      // Priority order: explicit narrator tags first, then custom tags
+      // Do NOT include soaa (sort album artist) - that's typically the author, not narrator
+      const narratorTagIds = [
+        '©nrt',  // Standard narrator tag (what tone writes) - HIGHEST PRIORITY
+        '----:com.apple.iTunes:NARRATOR',
+        '----:com.apple.iTunes:narrator',
+        '----:com.pilabor.tone:NARRATOR', // Tone/AudiobookShelf
+        '----:com.pilabor.tone:narrator',
+        'narrator',  // Alternative narrator key
+      ];
+
+      // Find the first matching tag in priority order
+      let narratorTag = null;
+      for (const tagId of narratorTagIds) {
+        narratorTag = mp4Tags.find(tag => tag.id === tagId);
+        if (narratorTag) break;
+      }
       if (narratorTag && narratorTag.value) {
         const val = Array.isArray(narratorTag.value) ? narratorTag.value[0] : narratorTag.value;
         if (typeof val === 'object' && val.text) {
