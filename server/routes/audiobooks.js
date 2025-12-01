@@ -914,12 +914,18 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         }
       }
 
-      // Embed cover art if available
-      if (audiobook.cover_path && fs.existsSync(audiobook.cover_path)) {
+      // Embed cover art if available (check cover_path first, then cover_image as fallback)
+      const coverFile = (audiobook.cover_path && fs.existsSync(audiobook.cover_path))
+        ? audiobook.cover_path
+        : (audiobook.cover_image && fs.existsSync(audiobook.cover_image))
+          ? audiobook.cover_image
+          : null;
+
+      if (coverFile) {
         try {
-          const coverData = fs.readFileSync(audiobook.cover_path);
+          const coverData = fs.readFileSync(coverFile);
           const base64Cover = coverData.toString('base64');
-          const coverExt = path.extname(audiobook.cover_path).toLowerCase();
+          const coverExt = path.extname(coverFile).toLowerCase();
           const mimetype = coverExt === '.png' ? 'image/png' : 'image/jpeg';
 
           toneMetadata.meta.embeddedPictures = [{
@@ -928,7 +934,7 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
             mimetype: mimetype,
             data: base64Cover
           }];
-          console.log(`Including cover art from ${audiobook.cover_path}`);
+          console.log(`Including cover art from ${coverFile}`);
         } catch (coverErr) {
           console.log(`Could not read cover art: ${coverErr.message}`);
         }
@@ -1501,18 +1507,23 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
 
 // Get cover art
 router.get('/:id/cover', authenticateToken, (req, res) => {
-  db.get('SELECT cover_image FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+  db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    if (!audiobook || !audiobook.cover_image) {
-      return res.status(404).json({ error: 'Cover image not found' });
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
     }
 
-    const coverPath = audiobook.cover_image;
+    // Check cover_path first (user-provided/external), then cover_image (extracted from audio)
+    const coverPath = (audiobook.cover_path && fs.existsSync(audiobook.cover_path))
+      ? audiobook.cover_path
+      : (audiobook.cover_image && fs.existsSync(audiobook.cover_image))
+        ? audiobook.cover_image
+        : null;
 
-    if (!fs.existsSync(coverPath)) {
-      return res.status(404).json({ error: 'Cover image file not found' });
+    if (!coverPath) {
+      return res.status(404).json({ error: 'Cover image not found' });
     }
 
     res.sendFile(path.resolve(coverPath));

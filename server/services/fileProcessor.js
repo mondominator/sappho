@@ -144,8 +144,32 @@ async function extractFileMetadata(filePath) {
 
     // Extract cover art if available
     let coverImagePath = null;
+
+    // First, try to extract embedded cover from audio file
     if (common.picture && common.picture.length > 0) {
       coverImagePath = await saveCoverArt(common.picture[0], filePath);
+      if (coverImagePath) {
+        console.log(`Extracted embedded cover to: ${coverImagePath}`);
+      }
+    }
+
+    // If no embedded cover, look for external cover files in the same directory
+    if (!coverImagePath) {
+      const audioDir = path.dirname(filePath);
+      const coverExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+      const coverNames = ['cover', 'folder', 'album', 'front'];
+
+      for (const name of coverNames) {
+        for (const ext of coverExtensions) {
+          const potentialCover = path.join(audioDir, `${name}${ext}`);
+          if (fs.existsSync(potentialCover)) {
+            coverImagePath = potentialCover;
+            console.log(`Found external cover: ${coverImagePath}`);
+            break;
+          }
+        }
+        if (coverImagePath) break;
+      }
     }
 
     // Extract series and series position from various possible tag locations
