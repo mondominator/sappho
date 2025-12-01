@@ -522,6 +522,25 @@ async function extractFileMetadata(filePath) {
       isbn = common.isrc;
     }
 
+    // Extract published year - prefer rldt (release date from tone) over ©day
+    // tone writes publishingDate to rldt tag, not ©day
+    let published_year = null;
+    if (iTunesTags.length > 0) {
+      const rldtTag = iTunesTags.find(t => t.id === 'rldt');
+      if (rldtTag && rldtTag.value) {
+        // rldt format is "2009-01-01" or "12-Dec-2023"
+        const rldtVal = String(rldtTag.value);
+        const yearMatch = rldtVal.match(/(\d{4})/);
+        if (yearMatch) {
+          published_year = parseInt(yearMatch[1], 10);
+        }
+      }
+    }
+    // Fallback to common.year (©day tag) if rldt not found
+    if (!published_year && common.year) {
+      published_year = common.year;
+    }
+
     return {
       title: title,
       author: common.artist || common.albumartist || null,
@@ -529,7 +548,7 @@ async function extractFileMetadata(filePath) {
       description: meaningfulDescription,
       duration: format.duration ? Math.round(format.duration) : null,
       genre: common.genre ? common.genre.join(', ') : null,
-      published_year: common.year || null,
+      published_year: published_year,
       isbn: isbn,
       series: series,
       series_position: seriesPosition,

@@ -57,7 +57,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         asin: audiobook.asin || '',
         language: audiobook.language || '',
         rating: audiobook.rating || '',
-        abridged: audiobook.abridged || false,
+        abridged: !!audiobook.abridged,  // Convert 0/1 to boolean properly
       });
       setAudnexusResults([]);
       setShowAudnexusResults(false);
@@ -195,7 +195,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       asin: pendingResult.asin || prev.asin,
       language: pendingResult.language || prev.language,
       rating: pendingResult.rating || prev.rating,
-      abridged: pendingResult.abridged !== undefined ? pendingResult.abridged : prev.abridged,
+      abridged: pendingResult.abridged !== undefined ? !!pendingResult.abridged : prev.abridged,
     }));
 
     // Only fetch chapters if it's an Audible result with an ASIN
@@ -235,27 +235,55 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       { key: 'description', label: 'Description' },
     ];
 
+    // Language normalization map (handle "english" vs "en", etc.)
+    const normalizeLanguage = (lang) => {
+      if (!lang) return '';
+      const lower = String(lang).toLowerCase().trim();
+      const langMap = {
+        'english': 'en', 'en': 'en',
+        'spanish': 'es', 'es': 'es',
+        'french': 'fr', 'fr': 'fr',
+        'german': 'de', 'de': 'de',
+        'italian': 'it', 'it': 'it',
+        'portuguese': 'pt', 'pt': 'pt',
+        'japanese': 'ja', 'ja': 'ja',
+        'chinese': 'zh', 'zh': 'zh',
+      };
+      return langMap[lower] || lower;
+    };
+
     const changes = [];
     for (const field of fields) {
       const newVal = pendingResult[field.key];
       const oldVal = formData[field.key];
 
-      if (newVal && newVal !== oldVal) {
+      // Convert both to strings for comparison to handle type differences (number vs string)
+      let newValStr = newVal != null ? String(newVal) : '';
+      let oldValStr = oldVal != null ? String(oldVal) : '';
+
+      // Normalize language values for comparison
+      if (field.key === 'language') {
+        newValStr = normalizeLanguage(newValStr);
+        oldValStr = normalizeLanguage(oldValStr);
+      }
+
+      if (newValStr && newValStr !== oldValStr) {
         changes.push({
           label: field.label,
-          oldValue: oldVal || '(empty)',
-          newValue: field.key === 'description' ? (newVal.slice(0, 100) + (newVal.length > 100 ? '...' : '')) : newVal,
-          isNew: !oldVal,
+          oldValue: oldValStr || '(empty)',
+          newValue: field.key === 'description' ? (newValStr.slice(0, 100) + (newValStr.length > 100 ? '...' : '')) : newValStr,
+          isNew: !oldValStr,
         });
       }
     }
 
-    // Handle abridged separately (boolean)
-    if (pendingResult.abridged !== undefined && pendingResult.abridged !== formData.abridged) {
+    // Handle abridged separately (boolean) - convert both to boolean for comparison
+    const pendingAbridged = !!pendingResult.abridged;
+    if (pendingResult.abridged !== undefined && pendingAbridged !== formData.abridged) {
       changes.push({
         label: 'Abridged',
         oldValue: formData.abridged ? 'Yes' : 'No',
-        newValue: pendingResult.abridged ? 'Yes' : 'No',
+        newValue: pendingAbridged ? 'Yes' : 'No',
         isNew: false,
       });
     }
