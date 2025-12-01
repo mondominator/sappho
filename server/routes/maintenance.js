@@ -297,19 +297,23 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
               // Extract fresh metadata
               const metadata = await extractFileMetadata(audiobook.file_path);
 
-              // Update database
+              // Update database with all metadata fields including extended metadata
               await new Promise((resolve, reject) => {
                 db.run(
                   `UPDATE audiobooks SET
                     title = ?, author = ?, narrator = ?, description = ?,
                     duration = ?, genre = ?, published_year = ?, isbn = ?,
                     series = ?, series_position = ?, cover_image = ?,
+                    tags = ?, publisher = ?, copyright_year = ?, asin = ?,
+                    language = ?, rating = ?, abridged = ?, subtitle = ?,
                     updated_at = CURRENT_TIMESTAMP
                   WHERE id = ?`,
                   [
                     metadata.title, metadata.author, metadata.narrator, metadata.description,
                     metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
                     metadata.series, metadata.series_position, metadata.cover_image,
+                    metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
+                    metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
                     audiobook.id
                   ],
                   (err) => {
