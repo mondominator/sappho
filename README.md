@@ -26,12 +26,17 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 
 ### 📚 Library Management
 - **Automatic Metadata Extraction** - Reads title, author, narrator, series, cover art, and more from ID3 and Vorbis tags
+- **Metadata Editing** - Edit audiobook details directly in the UI with full metadata support
+- **Audible/Google Books Search** - Search for metadata and cover art from Audible and Google Books
+- **Metadata Embedding** - Write metadata back to audio files (M4B/M4A with tone, MP3 with ffmpeg)
 - **Existing Library Import** - Mount your current audiobook collection and Sappho automatically detects and catalogs everything
 - **Watch Directory** - Drop audiobooks into a folder for automatic processing and import
 - **Periodic Scanning** - Automatically rescans library every 5 minutes (configurable) to detect new additions
+- **Force Rescan** - Re-extract all metadata while preserving user progress and custom covers
 - **Series & Author Organization** - Browse by series with proper ordering, or explore by author
 - **Multi-format Support** - Handles M4B, MP3, M4A, FLAC, OGG, and more
 - **Cover Art Extraction** - Automatically extracts and displays embedded cover images
+- **Cover Art Download** - Download and apply cover art from search results
 
 ### 🎧 Playback & Progress
 - **Modern Audio Player** - Beautiful, responsive player with chapter support
@@ -156,7 +161,7 @@ Sappho is a full-featured Progressive Web App (PWA) that can be installed on you
 ```bash
 # Clone the repository
 git clone https://github.com/mondominator/sappho.git
-cd sapho
+cd sappho
 
 # Build with Docker
 docker-compose build
@@ -239,14 +244,25 @@ The library scanner will:
 Sappho extracts metadata from:
 - **ID3v2 tags** (MP3, M4B, M4A)
 - **Vorbis comments** (FLAC, OGG)
-- **Custom fields**: Series, Narrator, Position
+- **iTunes/MP4 tags** - Including movement tags for series info
+- **Custom fields**: Series, Narrator, Position, ASIN
 
 Supported metadata fields:
-- Title, Author, Narrator
+- Title, Subtitle, Author, Narrator
 - Series, Series Position
-- Duration, Genre, Year
-- ISBN, Description
-- Cover Art
+- Duration, Genre, Year, Copyright Year
+- ISBN, ASIN, Publisher
+- Description (HTML automatically sanitized)
+- Language, Rating, Abridged status
+- Cover Art (embedded or external files)
+- Chapter information
+
+### Metadata Embedding
+
+Sappho can write metadata back to audio files:
+- **M4B/M4A files**: Uses [tone](https://github.com/sandreas/tone) for proper audiobook tags (movement name, narrator, etc.)
+- **MP3 files**: Uses ffmpeg for ID3v2 tags
+- **Cover art**: Embedded into the audio file for portability
 
 ## Technology Stack
 

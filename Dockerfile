@@ -28,7 +28,7 @@ RUN npm install --only=production
 COPY server/ ./server/
 COPY --from=frontend-builder /app/client/dist ./client/dist
 
-RUN mkdir -p /app/data/uploads /app/data/watch /app/data/audiobooks
+RUN mkdir -p /app/data/uploads /app/data/watch /app/data/audiobooks /app/data/covers
 
 EXPOSE 3002
 

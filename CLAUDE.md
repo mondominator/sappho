@@ -245,11 +245,38 @@ When playback position updates:
 
 ### Metadata Extraction Edge Cases
 
-- **Series detection**: Checks ID3 `TXXX:SERIES` frame, falls back to parsing title (e.g., "Book Title (Series #3)")
+- **Series detection**: Checks iTunes movement tags (`©mvn`), explicit SERIES tags, with genre/category filtering
+- **Genre filtering**: Values with multiple commas or genre keywords are skipped as series candidates
 - **Narrator**: Checks `TXXX:NARRATOR`, `PERFORMER`, `ARTIST` tags in order
-- **Cover art**: Extracts embedded image, saves as `cover_<audiobookId>.jpg` in audiobook dir
+- **Cover art**: Extracts embedded image, or looks for external cover.jpg/png in audiobook directory
 - **Duration**: Read from audio metadata, stored in seconds
 - **File size**: Used to estimate bitrate (`file_size / duration * 8 / 1000` = kbps)
+- **Description**: HTML tags are stripped and entities decoded during extraction
+
+### Metadata Embedding
+
+Sappho can write metadata back to audio files via POST `/api/audiobooks/:id/embed-metadata`:
+
+- **M4B/M4A files**: Uses `tone` CLI tool for proper audiobook tags:
+  - Movement name/index for series info
+  - Narrator field
+  - Long description
+  - Embedded cover art
+  - Chapter markers
+- **MP3 files**: Uses `ffmpeg` for ID3v2 tags
+
+### Force Rescan
+
+POST `/api/maintenance/force-rescan` clears and reimports all audiobooks:
+
+1. Backs up playback progress (by file path)
+2. Backs up user-set covers (cover_path)
+3. Deletes all audiobook records
+4. Rescans library from scratch
+5. Restores progress by matching file paths
+6. Restores user covers by matching file paths
+
+This preserves user data while getting fresh metadata extraction.
 
 ## Key Files Reference
 
