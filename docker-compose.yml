@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  sapho:
+  sappho:
     build: .
-    container_name: sapho
+    container_name: sappho
     ports:
       - "3003:3003"
     volumes:
