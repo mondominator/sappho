@@ -889,7 +889,10 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         }
       }
       if (audiobook.genre) toneMetadata.meta.genre = audiobook.genre;
-      if (audiobook.published_year) toneMetadata.meta.publishingDate = String(audiobook.published_year);
+      // publishingDate needs full ISO date format, not just year
+      if (audiobook.published_year) {
+        toneMetadata.meta.publishingDate = `${audiobook.published_year}-01-01`;
+      }
       if (audiobook.publisher) toneMetadata.meta.publisher = audiobook.publisher;
       if (audiobook.copyright_year) toneMetadata.meta.copyright = String(audiobook.copyright_year);
 
@@ -972,10 +975,16 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       try {
         const result = await execFileAsync('tone', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 });
         console.log('Tone output:', result.stdout);
+
+        // Tone prints errors to stdout and exits with code 0, so we need to check the output
+        if (result.stdout && result.stdout.includes('Could not')) {
+          console.error('Tone reported an error:', result.stdout);
+          throw new Error(`Tone failed: ${result.stdout}`);
+        }
       } catch (toneError) {
         console.error('Tone stderr:', toneError.stderr);
         console.error('Tone stdout:', toneError.stdout);
-        throw new Error(`Tone failed: ${toneError.stderr || toneError.message}`);
+        throw new Error(`Tone failed: ${toneError.stderr || toneError.stdout || toneError.message}`);
       }
 
       // Clean up JSON file
