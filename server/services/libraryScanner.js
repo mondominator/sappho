@@ -136,8 +136,10 @@ async function importAudiobook(filePath, userId = 1) {
       db.run(
         `INSERT INTO audiobooks
          (title, author, narrator, description, duration, file_path, file_size,
-          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
+          tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
+          created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           metadata.title,
           metadata.author,
@@ -154,6 +156,14 @@ async function importAudiobook(filePath, userId = 1) {
           metadata.cover_image,
           hasChapters ? 1 : 0,
           userId,
+          metadata.tags,
+          metadata.publisher,
+          metadata.copyright_year,
+          metadata.asin,
+          metadata.language,
+          metadata.rating,
+          metadata.abridged ? 1 : 0,
+          metadata.subtitle,
         ],
         function (err) {
           if (err) {
@@ -276,8 +286,10 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
       db.run(
         `INSERT INTO audiobooks
          (title, author, narrator, description, duration, file_path, file_size,
-          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
+          tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
+          created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           metadata.title,
           metadata.author,
@@ -293,6 +305,14 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
           metadata.series_position,
           metadata.cover_image,
           userId,
+          metadata.tags,
+          metadata.publisher,
+          metadata.copyright_year,
+          metadata.asin,
+          metadata.language,
+          metadata.rating,
+          metadata.abridged ? 1 : 0,
+          metadata.subtitle,
         ],
         function (err) {
           if (err) {
