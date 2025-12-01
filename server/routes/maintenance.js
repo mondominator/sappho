@@ -297,6 +297,11 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
               // Extract fresh metadata
               const metadata = await extractFileMetadata(audiobook.file_path);
 
+              // Log cover info for debugging
+              if (metadata.cover_image) {
+                console.log(`Cover found for ${audiobook.title}: ${metadata.cover_image}`);
+              }
+
               // Update database with all metadata fields including extended metadata
               await new Promise((resolve, reject) => {
                 db.run(

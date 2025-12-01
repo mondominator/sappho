@@ -368,7 +368,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       }
 
       // Then embed into file
-      setStatusMessage('Embedding metadata into audio file...');
+      setStatusMessage('Embedding metadata, chapters & cover into audio file...');
       await embedMetadata(audiobook.id);
 
       setStatusMessage('Done!');
