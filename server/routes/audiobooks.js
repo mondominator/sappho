@@ -1059,6 +1059,10 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
+  const { execFile } = require('child_process');
+  const { promisify } = require('util');
+  const execFileAsync = promisify(execFile);
+
   try {
     const audiobook = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
