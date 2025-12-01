@@ -427,6 +427,7 @@ async function extractFileMetadata(filePath) {
     }
 
     // Extract additional metadata fields from iTunes/MP4 tags
+    // Tone writes to ----:com.pilabor.tone:* format, standard iTunes uses ©* or ----:com.apple.iTunes:*
     let tags = null;
     let publisher = null;
     let copyright_year = null;
@@ -438,27 +439,39 @@ async function extractFileMetadata(filePath) {
     let subtitle = null;
 
     if (iTunesTags.length > 0) {
-      // Helper to get tag value
-      const getTagVal = (tagId) => {
-        const tag = iTunesTags.find(t => t.id === tagId);
-        if (!tag || !tag.value) return null;
-        const val = Array.isArray(tag.value) ? tag.value[0] : tag.value;
-        if (Buffer.isBuffer(val)) return val.toString('utf8');
-        if (typeof val === 'object' && val.text) return val.text;
-        return typeof val === 'string' || typeof val === 'number' ? val : null;
+      // Helper to get tag value from multiple possible tag IDs (first match wins)
+      const getTagValMulti = (tagIds) => {
+        for (const tagId of tagIds) {
+          const tag = iTunesTags.find(t => t.id === tagId);
+          if (tag && tag.value) {
+            const val = Array.isArray(tag.value) ? tag.value[0] : tag.value;
+            if (Buffer.isBuffer(val)) return val.toString('utf8');
+            if (typeof val === 'object' && val.text) return val.text;
+            if (typeof val === 'string' || typeof val === 'number') return val;
+          }
+        }
+        return null;
       };
 
-      // Tags/grouping (©grp)
-      tags = getTagVal('©grp');
+      // Tags/grouping - tone writes to group, standard uses ©grp
+      tags = getTagValMulti(['©grp', '----:com.pilabor.tone:GROUP']);
 
-      // Publisher (©pub)
-      publisher = getTagVal('©pub');
+      // Publisher - tone writes PUBLISHER, standard uses ©pub
+      publisher = getTagValMulti([
+        '----:com.pilabor.tone:PUBLISHER',
+        '©pub',
+        '----:com.apple.iTunes:PUBLISHER'
+      ]);
 
-      // Subtitle (©st3)
-      subtitle = getTagVal('©st3');
+      // Subtitle - tone writes SUBTITLE, standard uses ©st3
+      subtitle = getTagValMulti([
+        '----:com.pilabor.tone:SUBTITLE',
+        '©st3',
+        '----:com.apple.iTunes:SUBTITLE'
+      ]);
 
       // Copyright year (cprt) - extract year from string like "1985" or "©1985 Publisher"
-      const cprt = getTagVal('cprt');
+      const cprt = getTagValMulti(['cprt', '----:com.pilabor.tone:COPYRIGHT']);
       if (cprt) {
         const yearMatch = String(cprt).match(/\d{4}/);
         if (yearMatch) {
@@ -467,59 +480,40 @@ async function extractFileMetadata(filePath) {
       }
 
       // ISBN from additional fields
-      const isbnTag = iTunesTags.find(t =>
-        t.id === '----:com.apple.iTunes:ISBN' ||
-        t.id === 'ISBN' ||
-        t.id === '----:com.pilabor.tone:ISBN'
-      );
-      if (isbnTag && isbnTag.value) {
-        isbn = typeof isbnTag.value === 'string' ? isbnTag.value :
-               Buffer.isBuffer(isbnTag.value) ? isbnTag.value.toString('utf8') : null;
-      }
+      isbn = getTagValMulti([
+        '----:com.pilabor.tone:ISBN',
+        '----:com.apple.iTunes:ISBN',
+        'ISBN'
+      ]);
 
-      // ASIN from additional fields
-      const asinTag = iTunesTags.find(t =>
-        t.id === '----:com.apple.iTunes:ASIN' ||
-        t.id === 'ASIN' ||
-        t.id === '----:com.pilabor.tone:ASIN'
-      );
-      if (asinTag && asinTag.value) {
-        asin = typeof asinTag.value === 'string' ? asinTag.value :
-               Buffer.isBuffer(asinTag.value) ? asinTag.value.toString('utf8') : null;
-      }
+      // ASIN from additional fields - tone uses ASIN, Audible uses AUDIBLE_ASIN
+      asin = getTagValMulti([
+        '----:com.pilabor.tone:ASIN',
+        '----:com.pilabor.tone:AUDIBLE_ASIN',
+        '----:com.apple.iTunes:ASIN',
+        'ASIN'
+      ]);
 
       // Language from additional fields
-      const langTag = iTunesTags.find(t =>
-        t.id === '----:com.apple.iTunes:LANGUAGE' ||
-        t.id === '----:com.pilabor.tone:LANGUAGE'
-      );
-      if (langTag && langTag.value) {
-        language = typeof langTag.value === 'string' ? langTag.value :
-                   Buffer.isBuffer(langTag.value) ? langTag.value.toString('utf8') : null;
-      }
+      language = getTagValMulti([
+        '----:com.pilabor.tone:LANGUAGE',
+        '----:com.apple.iTunes:LANGUAGE'
+      ]);
 
       // Rating from additional fields
-      const ratingTag = iTunesTags.find(t =>
-        t.id === '----:com.apple.iTunes:RATING' ||
-        t.id === '----:com.pilabor.tone:RATING'
-      );
-      if (ratingTag && ratingTag.value) {
-        const ratingVal = typeof ratingTag.value === 'string' ? ratingTag.value :
-                          Buffer.isBuffer(ratingTag.value) ? ratingTag.value.toString('utf8') : null;
-        if (ratingVal) rating = ratingVal;
-      }
+      rating = getTagValMulti([
+        '----:com.pilabor.tone:RATING',
+        '----:com.apple.iTunes:RATING'
+      ]);
 
       // Abridged from additional fields
-      const abridgedTag = iTunesTags.find(t =>
-        t.id === '----:com.apple.iTunes:ABRIDGED' ||
-        t.id === '----:com.pilabor.tone:ABRIDGED'
-      );
-      if (abridgedTag && abridgedTag.value) {
-        const abridgedVal = typeof abridgedTag.value === 'string' ? abridgedTag.value :
-                            Buffer.isBuffer(abridgedTag.value) ? abridgedTag.value.toString('utf8') : null;
-        if (abridgedVal) {
-          abridged = abridgedVal.toLowerCase() === 'yes' || abridgedVal === '1' || abridgedVal === 'true';
-        }
+      const abridgedVal = getTagValMulti([
+        '----:com.pilabor.tone:ABRIDGED',
+        '----:com.apple.iTunes:ABRIDGED'
+      ]);
+      if (abridgedVal) {
+        const valLower = String(abridgedVal).toLowerCase();
+        abridged = valLower === 'yes' || valLower === '1' || valLower === 'true';
       }
     }
 
