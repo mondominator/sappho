@@ -119,12 +119,12 @@ async function importAudiobook(filePath, userId = 1) {
     // Get file stats
     const stats = fs.statSync(filePath);
 
-    // Check if this is an m4b file with chapters
+    // Check if this is an m4b or m4a file with chapters (both can have embedded chapters)
     const ext = path.extname(filePath).toLowerCase();
-    const isM4B = ext === '.m4b';
+    const canHaveChapters = ext === '.m4b' || ext === '.m4a';
     let chapters = null;
 
-    if (isM4B) {
+    if (canHaveChapters) {
       chapters = await extractM4BChapters(filePath);
     }
 
