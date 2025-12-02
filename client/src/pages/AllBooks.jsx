@@ -132,43 +132,39 @@ export default function AllBooks({ onPlay }) {
     return (
       <div
         key={book.id}
-        className={`book-card ${isFinished ? 'finished' : ''}`}
+        className="audiobook-card"
         onClick={() => navigate(`/audiobook/${book.id}`)}
       >
-        <div className="book-cover-container">
-          <img
-            src={getCoverUrl(book.id)}
-            alt={book.title}
-            className="book-cover"
-            onError={(e) => {
-              e.target.src = '/placeholder-cover.png';
-            }}
-          />
-          {progressPercent > 0 && !isFinished && (
-            <div className="progress-bar">
+        <div className="audiobook-cover">
+          {book.cover_image ? (
+            <img
+              src={getCoverUrl(book.id)}
+              alt={book.title}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div className="audiobook-cover-placeholder" style={{ display: book.cover_image ? 'none' : 'flex' }}>
+            <h3>{book.title}</h3>
+          </div>
+          {progressPercent > 0 && (
+            <div className="progress-bar-overlay">
               <div
-                className="progress-fill"
+                className={`progress-bar-fill ${isFinished ? 'completed' : ''}`}
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
           )}
-          {isFinished && (
-            <div className="finished-badge">✓</div>
-          )}
-        </div>
-        <div className="book-info">
-          <h3 className="book-title">{book.title}</h3>
-          <p className="book-author">{book.author}</p>
-          {book.series && (
-            <p className="book-series">
-              {book.series}
-              {book.series_position && ` #${book.series_position}`}
-            </p>
-          )}
-          <div className="book-meta">
-            {book.duration && (
-              <span className="book-duration">{formatDuration(book.duration)}</span>
-            )}
+          <div className="play-overlay">
+            <button
+              className="play-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onPlay) onPlay(book);
+              }}
+            />
           </div>
         </div>
       </div>
@@ -229,7 +225,7 @@ export default function AllBooks({ onPlay }) {
               </div>
             </div>
           </div>
-          <div className="books-grid">
+          <div className="audiobook-grid">
             {sortedAudiobooks.map(renderBookCard)}
           </div>
         </>
