@@ -589,10 +589,42 @@
   font-size: 0.85rem;
 }
 
-.preview-changes h4 {
-  margin: 0 0 0.75rem 0;
+.preview-changes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.preview-changes-header h4 {
+  margin: 0;
   color: #e5e7eb;
   font-size: 0.95rem;
+}
+
+.select-all-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.select-link {
+  background: none;
+  border: none;
+  color: #60a5fa;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.select-link:hover {
+  color: #93c5fd;
+}
+
+.select-divider {
+  color: #4b5563;
+  font-size: 0.8rem;
 }
 
 .changes-list {
@@ -606,12 +638,35 @@
 .change-item {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: #1f2937;
   border-radius: 6px;
   border-left: 3px solid;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.change-item:hover {
+  background: #263244;
+}
+
+.change-item.is-unchecked {
+  opacity: 0.5;
+  background: #1a1f2a;
+}
+
+.change-item.is-unchecked:hover {
+  opacity: 0.7;
+}
+
+.change-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .change-item.is-new {

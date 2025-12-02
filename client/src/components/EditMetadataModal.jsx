@@ -38,6 +38,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
   const [audnexusResults, setAudnexusResults] = useState([]);
   const [showAudnexusResults, setShowAudnexusResults] = useState(false);
   const [pendingResult, setPendingResult] = useState(null); // For preview before applying
+  const [selectedFields, setSelectedFields] = useState({}); // Track which fields to apply
 
   useEffect(() => {
     if (audiobook) {
@@ -173,49 +174,86 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     // Show preview instead of applying immediately
     setPendingResult(result);
     setShowAudnexusResults(false);
+    // Initialize all fields as selected (checked by default)
+    // We'll compute the actual changes and select all of them
+    const allFields = [
+      'title', 'subtitle', 'author', 'narrator', 'series', 'series_position',
+      'genre', 'tags', 'publisher', 'published_year', 'copyright_year',
+      'isbn', 'asin', 'language', 'rating', 'description', 'abridged', 'cover'
+    ];
+    const initialSelected = {};
+    allFields.forEach(key => { initialSelected[key] = true; });
+    setSelectedFields(initialSelected);
   };
 
   const handleApplyPendingResult = () => {
     if (!pendingResult) return;
 
-    // Apply ALL metadata from the selected result
+    // Count selected fields
+    const selectedCount = Object.values(selectedFields).filter(Boolean).length;
+    if (selectedCount === 0) {
+      setError('Please select at least one field to apply');
+      return;
+    }
+
+    // Apply only SELECTED metadata from the result
     // Use nullish coalescing for fields that should keep previous value only if new value is undefined
     // Use explicit checks for series fields to allow clearing them when new metadata doesn't have series
     setFormData(prev => ({
       ...prev,
-      title: pendingResult.title || prev.title,
-      subtitle: pendingResult.subtitle ?? prev.subtitle,
-      author: pendingResult.author || prev.author,
-      narrator: pendingResult.narrator ?? prev.narrator,
-      description: pendingResult.description ?? prev.description,
-      genre: pendingResult.genre ?? prev.genre,
-      tags: pendingResult.tags ?? prev.tags,
+      title: selectedFields.title ? (pendingResult.title || prev.title) : prev.title,
+      subtitle: selectedFields.subtitle ? (pendingResult.subtitle ?? prev.subtitle) : prev.subtitle,
+      author: selectedFields.author ? (pendingResult.author || prev.author) : prev.author,
+      narrator: selectedFields.narrator ? (pendingResult.narrator ?? prev.narrator) : prev.narrator,
+      description: selectedFields.description ? (pendingResult.description ?? prev.description) : prev.description,
+      genre: selectedFields.genre ? (pendingResult.genre ?? prev.genre) : prev.genre,
+      tags: selectedFields.tags ? (pendingResult.tags ?? prev.tags) : prev.tags,
       // Series fields: explicitly replace with new value (even if empty) to allow moving books between series
-      series: pendingResult.series ?? '',
-      series_position: pendingResult.series_position ?? '',
-      published_year: pendingResult.published_year ?? prev.published_year,
-      copyright_year: pendingResult.copyright_year ?? prev.copyright_year,
-      publisher: pendingResult.publisher ?? prev.publisher,
-      isbn: pendingResult.isbn ?? prev.isbn,
-      asin: pendingResult.asin ?? prev.asin,
-      language: pendingResult.language ?? prev.language,
-      rating: pendingResult.rating ?? prev.rating,
-      abridged: pendingResult.abridged !== undefined ? !!pendingResult.abridged : prev.abridged,
-      cover_url: pendingResult.image || prev.cover_url,  // Apply cover URL from search result
+      series: selectedFields.series ? (pendingResult.series ?? '') : prev.series,
+      series_position: selectedFields.series_position ? (pendingResult.series_position ?? '') : prev.series_position,
+      published_year: selectedFields.published_year ? (pendingResult.published_year ?? prev.published_year) : prev.published_year,
+      copyright_year: selectedFields.copyright_year ? (pendingResult.copyright_year ?? prev.copyright_year) : prev.copyright_year,
+      publisher: selectedFields.publisher ? (pendingResult.publisher ?? prev.publisher) : prev.publisher,
+      isbn: selectedFields.isbn ? (pendingResult.isbn ?? prev.isbn) : prev.isbn,
+      asin: selectedFields.asin ? (pendingResult.asin ?? prev.asin) : prev.asin,
+      language: selectedFields.language ? (pendingResult.language ?? prev.language) : prev.language,
+      rating: selectedFields.rating ? (pendingResult.rating ?? prev.rating) : prev.rating,
+      abridged: selectedFields.abridged ? (pendingResult.abridged !== undefined ? !!pendingResult.abridged : prev.abridged) : prev.abridged,
+      cover_url: selectedFields.cover ? (pendingResult.image || prev.cover_url) : prev.cover_url,
     }));
 
-    // Only fetch chapters if it's an Audible result with an ASIN
-    if (pendingResult.hasChapters && pendingResult.asin) {
+    // Only fetch chapters if it's an Audible result with an ASIN and ASIN is selected
+    if (pendingResult.hasChapters && pendingResult.asin && selectedFields.asin) {
       handleFetchChapters(pendingResult.asin, true); // Skip parent refresh to preserve form data
-      setSuccess('Metadata applied! Fetching chapters...');
+      setSuccess(`${selectedCount} field(s) applied! Fetching chapters...`);
     } else {
-      setSuccess('Metadata applied!');
+      setSuccess(`${selectedCount} field(s) applied!`);
     }
     setPendingResult(null);
+    setSelectedFields({});
   };
 
   const handleCancelPendingResult = () => {
     setPendingResult(null);
+    setSelectedFields({});
+  };
+
+  const handleToggleField = (fieldKey) => {
+    setSelectedFields(prev => ({
+      ...prev,
+      [fieldKey]: !prev[fieldKey]
+    }));
+    setError(''); // Clear any "select at least one field" error
+  };
+
+  const handleSelectAllFields = (selectAll) => {
+    const changes = getChanges();
+    const newSelected = {};
+    changes.forEach(change => {
+      newSelected[change.key] = selectAll;
+    });
+    setSelectedFields(prev => ({ ...prev, ...newSelected }));
+    setError(''); // Clear any "select at least one field" error
   };
 
   // Helper to get changes between current form and pending result
@@ -280,6 +318,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
       if (isChanging || isClearing) {
         changes.push({
+          key: field.key,
           label: field.label,
           oldValue: oldValStr || '(empty)',
           newValue: isClearing ? '(removed)' : (field.key === 'description' ? (newValStr.slice(0, 100) + (newValStr.length > 100 ? '...' : '')) : newValStr),
@@ -293,6 +332,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     const pendingAbridged = !!pendingResult.abridged;
     if (pendingResult.abridged !== undefined && pendingAbridged !== formData.abridged) {
       changes.push({
+        key: 'abridged',
         label: 'Abridged',
         oldValue: formData.abridged ? 'Yes' : 'No',
         newValue: pendingAbridged ? 'Yes' : 'No',
@@ -303,6 +343,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     // Handle cover image - check if pending result has an image URL
     if (pendingResult.image) {
       changes.push({
+        key: 'cover',
         label: 'Cover',
         oldValue: formData.cover_url ? 'Has cover' : '(no cover)',
         newValue: 'New cover from search',
@@ -536,13 +577,43 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
             </div>
 
             <div className="preview-changes">
-              <h4>Fields that will be updated:</h4>
+              <div className="preview-changes-header">
+                <h4>Select fields to update:</h4>
+                {getChanges().length > 0 && (
+                  <div className="select-all-controls">
+                    <button
+                      type="button"
+                      className="select-link"
+                      onClick={() => handleSelectAllFields(true)}
+                    >
+                      Select All
+                    </button>
+                    <span className="select-divider">|</span>
+                    <button
+                      type="button"
+                      className="select-link"
+                      onClick={() => handleSelectAllFields(false)}
+                    >
+                      Select None
+                    </button>
+                  </div>
+                )}
+              </div>
               {getChanges().length === 0 ? (
                 <p className="no-changes">No changes to apply (all fields match)</p>
               ) : (
                 <div className="changes-list">
                   {getChanges().map((change, idx) => (
-                    <div key={idx} className={`change-item ${change.isNew ? 'is-new' : 'is-update'}`}>
+                    <label
+                      key={idx}
+                      className={`change-item ${change.isNew ? 'is-new' : 'is-update'} ${!selectedFields[change.key] ? 'is-unchecked' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFields[change.key] || false}
+                        onChange={() => handleToggleField(change.key)}
+                        className="change-checkbox"
+                      />
                       <span className="change-label">{change.label}</span>
                       {change.isNew ? (
                         <span className="change-value new-value">{change.newValue}</span>
@@ -553,7 +624,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                           <span className="change-value new-value">{change.newValue}</span>
                         </>
                       )}
-                    </div>
+                    </label>
                   ))}
                 </div>
               )}
@@ -902,13 +973,13 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
               >
                 {embedding ? 'Embedding...' : 'Save & Embed'}
               </button>
-              {audiobook?.file_path?.toLowerCase().endsWith('.m4a') && (
+              {audiobook?.file_path && !audiobook.file_path.toLowerCase().endsWith('.m4b') && (
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={handleConvertToM4B}
                   disabled={saving || embedding || converting}
-                  title="Convert M4A file to M4B audiobook format"
+                  title="Convert to M4B audiobook format (supports MP3, M4A, OGG, FLAC)"
                 >
                   {converting ? 'Converting...' : 'Convert to M4B'}
                 </button>

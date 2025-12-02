@@ -82,6 +82,30 @@ export const uploadAudiobook = (file, metadata) => {
   });
 };
 
+export const uploadMultiFileAudiobook = (files, bookName = null) => {
+  const formData = new FormData();
+  // Sort files by name to maintain order
+  const sortedFiles = [...files].sort((a, b) =>
+    (a.webkitRelativePath || a.name).localeCompare(
+      b.webkitRelativePath || b.name,
+      undefined,
+      { numeric: true, sensitivity: 'base' }
+    )
+  );
+  sortedFiles.forEach(file => {
+    // Use webkitRelativePath to preserve folder structure info
+    formData.append('audiobooks', file, file.webkitRelativePath || file.name);
+  });
+  if (bookName) {
+    formData.append('bookName', bookName);
+  }
+  return api.post('/upload/multifile', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
 export const getStreamUrl = (id) => {
   const token = localStorage.getItem('token');
   return `${API_BASE}/audiobooks/${id}/stream?token=${encodeURIComponent(token)}`;

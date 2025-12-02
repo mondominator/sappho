@@ -1450,13 +1450,15 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
 
     const ext = path.extname(audiobook.file_path).toLowerCase();
 
-    // Only convert M4A files
+    // Check if already M4B
     if (ext === '.m4b') {
       return res.status(400).json({ error: 'File is already M4B format' });
     }
 
-    if (ext !== '.m4a') {
-      return res.status(400).json({ error: 'Only M4A files can be converted to M4B. For MP3 files, use a dedicated conversion tool.' });
+    // Supported formats for conversion
+    const supportedFormats = ['.m4a', '.mp3', '.mp4', '.ogg', '.flac'];
+    if (!supportedFormats.includes(ext)) {
+      return res.status(400).json({ error: `Unsupported format: ${ext}. Supported: ${supportedFormats.join(', ')}` });
     }
 
     const dir = path.dirname(audiobook.file_path);
@@ -1465,17 +1467,32 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
 
     console.log(`Converting ${audiobook.file_path} to M4B format...`);
 
-    // M4A and M4B are the same container format, just different extension
-    // We can use ffmpeg to copy streams without re-encoding
-    const args = [
-      '-i', audiobook.file_path,
-      '-c', 'copy',  // Copy all streams without re-encoding
-      '-f', 'ipod',  // Force M4B/M4A container format
-      '-y', newPath
-    ];
+    let args;
+    if (ext === '.m4a' || ext === '.mp4') {
+      // M4A/MP4 and M4B are the same container format, just different extension
+      // We can use ffmpeg to copy streams without re-encoding
+      args = [
+        '-i', audiobook.file_path,
+        '-c', 'copy',  // Copy all streams without re-encoding
+        '-f', 'ipod',  // Force M4B/M4A container format
+        '-y', newPath
+      ];
+    } else {
+      // For MP3, OGG, FLAC - need to re-encode to AAC
+      args = [
+        '-i', audiobook.file_path,
+        '-c:a', 'aac',           // Encode audio to AAC
+        '-b:a', '128k',          // 128kbps bitrate (good for audiobooks)
+        '-ar', '44100',          // 44.1kHz sample rate
+        '-ac', '1',              // Mono (typical for audiobooks, smaller file)
+        '-f', 'ipod',            // Force M4B container format
+        '-y', newPath
+      ];
+    }
 
     try {
-      await execFileAsync('ffmpeg', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 });
+      // Longer timeout for re-encoding (can take a while for large files)
+      await execFileAsync('ffmpeg', args, { timeout: 3600000, maxBuffer: 50 * 1024 * 1024 });
     } catch (ffmpegError) {
       console.error('FFmpeg conversion error:', ffmpegError.stderr);
       throw new Error(`FFmpeg failed: ${ffmpegError.stderr || ffmpegError.message}`);
