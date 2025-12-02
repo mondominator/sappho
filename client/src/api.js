@@ -135,7 +135,7 @@ export const markFinished = (id) =>
   api.post(`/audiobooks/${id}/progress`, { position: 0, completed: 1, state: 'stopped' });
 
 export const clearProgress = (id) =>
-  api.post(`/audiobooks/${id}/progress`, { position: 0, completed: 0, state: 'stopped' });
+  api.delete(`/audiobooks/${id}/progress`);
 
 export const getChapters = (id) =>
   api.get(`/audiobooks/${id}/chapters`);
