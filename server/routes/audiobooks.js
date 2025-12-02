@@ -1848,6 +1848,55 @@ router.get('/meta/authors', authenticateToken, (req, res) => {
   );
 });
 
+// Get genre category mappings (for client-side filtering)
+router.get('/meta/genre-mappings', authenticateToken, (req, res) => {
+  res.json(GENRE_MAPPINGS);
+});
+
+// Get all genres (normalized to major categories) with cover IDs
+router.get('/meta/genres', authenticateToken, (req, res) => {
+  db.all(
+    `SELECT id, genre, cover_image FROM audiobooks WHERE genre IS NOT NULL AND genre != ''`,
+    [],
+    (err, books) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // Build genre data with counts and cover IDs
+      const genreData = {};
+
+      books.forEach(book => {
+        // Normalize the genre string to get categories
+        const normalizedGenres = normalizeGenres(book.genre);
+        if (!normalizedGenres) return;
+
+        const categories = normalizedGenres.split(', ');
+        categories.forEach(genre => {
+          if (!genreData[genre]) {
+            genreData[genre] = {
+              genre,
+              count: 0,
+              cover_ids: []
+            };
+          }
+          genreData[genre].count++;
+          // Collect cover IDs (up to 4 for display)
+          if (book.cover_image && genreData[genre].cover_ids.length < 4) {
+            genreData[genre].cover_ids.push(book.id);
+          }
+        });
+      });
+
+      // Convert to array and sort by count descending
+      const genres = Object.values(genreData)
+        .sort((a, b) => b.count - a.count);
+
+      res.json(genres);
+    }
+  );
+});
+
 // Get recently added audiobooks
 router.get('/meta/recent', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;

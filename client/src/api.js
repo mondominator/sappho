@@ -137,6 +137,12 @@ export const getSeries = () =>
 export const getAuthors = () =>
   api.get('/audiobooks/meta/authors');
 
+export const getGenres = () =>
+  api.get('/audiobooks/meta/genres');
+
+export const getGenreMappings = () =>
+  api.get('/audiobooks/meta/genre-mappings');
+
 export const getRecentlyAdded = (limit = 10) =>
   api.get('/audiobooks/meta/recent', { params: { limit } });
 

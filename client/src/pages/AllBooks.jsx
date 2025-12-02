@@ -1,49 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getAudiobooks, getCoverUrl, getProgress } from '../api';
+import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings } from '../api';
 import './AllBooks.css';
 
 /**
- * Major bookstore genre categories with keyword mappings
+ * Normalize a genre string to major bookstore categories using mappings from server
  */
-const GENRE_MAPPINGS = {
-  'Mystery & Thriller': ['mystery', 'thriller', 'suspense', 'detective', 'crime', 'crime fiction', 'murder mystery', 'whodunit', 'noir', 'police procedural', 'legal thriller', 'psychological thriller', 'espionage', 'spy', 'cozy mystery'],
-  'Science Fiction': ['science fiction', 'sci-fi', 'scifi', 'sf', 'space opera', 'cyberpunk', 'dystopia', 'dystopian', 'post-apocalyptic', 'apocalyptic', 'alien', 'time travel', 'hard science fiction', 'soft science fiction', 'military science fiction'],
-  'Fantasy': ['fantasy', 'epic fantasy', 'high fantasy', 'urban fantasy', 'dark fantasy', 'sword and sorcery', 'paranormal', 'magic', 'dragons', 'wizards', 'mythological', 'fairy tale', 'folklore', 'grimdark', 'portal fantasy'],
-  'Romance': ['romance', 'romantic', 'love story', 'contemporary romance', 'historical romance', 'paranormal romance', 'romantic suspense', 'romantic comedy', 'rom-com', 'regency romance', 'erotic romance', 'clean romance'],
-  'Horror': ['horror', 'scary', 'supernatural horror', 'gothic', 'haunted', 'ghost story', 'zombies', 'vampires', 'occult', 'dark fiction'],
-  'Historical Fiction': ['historical fiction', 'historical novel', 'period drama', 'civil war', 'world war', 'medieval', 'victorian', 'ancient rome', 'ancient greece', 'tudor', 'regency'],
-  'Biography & Memoir': ['biography', 'memoir', 'autobiography', 'memoirs', 'biographies', 'personal narratives', 'life stories', 'biographical'],
-  'Self-Help': ['self-help', 'self help', 'personal development', 'personal growth', 'self-improvement', 'motivation', 'motivational', 'inspirational', 'success', 'happiness', 'mindfulness', 'productivity', 'habits'],
-  'Business & Finance': ['business', 'finance', 'economics', 'investing', 'entrepreneurship', 'management', 'leadership', 'marketing', 'money', 'career', 'real estate', 'stock market', 'personal finance', 'wealth'],
-  'History': ['american history', 'world history', 'military history', 'ancient history', 'modern history', 'european history', 'asian history', 'nonfiction history', 'non-fiction history'],
-  'Science & Technology': ['popular science', 'physics', 'chemistry', 'biology', 'astronomy', 'mathematics', 'engineering', 'computer science', 'artificial intelligence', 'nature', 'environment', 'ecology', 'evolution', 'neuroscience', 'medicine', 'nonfiction science', 'non-fiction science', 'science nonfiction', 'technology nonfiction'],
-  'Health & Wellness': ['health', 'wellness', 'fitness', 'nutrition', 'diet', 'exercise', 'mental health', 'psychology', 'meditation', 'yoga', 'healing', 'alternative medicine', 'holistic'],
-  'Religion & Spirituality': ['religion', 'spirituality', 'spiritual', 'christian', 'christianity', 'buddhism', 'buddhist', 'islam', 'jewish', 'judaism', 'faith', 'prayer', 'bible', 'theology', 'new age', 'metaphysical'],
-  'True Crime': ['true crime', 'true-crime', 'criminal', 'forensic', 'serial killer', 'cold case', 'investigation'],
-  'Comedy & Humor': ['comedy', 'humor', 'humorous', 'funny', 'satire', 'parody', 'wit', 'jokes', 'stand-up'],
-  'Young Adult': ['young adult', 'ya', 'teen', 'teenage', 'adolescent', 'coming of age', 'coming-of-age', 'juvenile fiction'],
-  'Children\'s': ['children', 'kids', 'juvenile', 'picture book', 'middle grade', 'chapter book', 'bedtime stories'],
-  'Classics': ['classic', 'classics', 'classic literature', 'classic fiction', 'literary classics', 'great books'],
-  'Poetry': ['poetry', 'poems', 'verse', 'poetic'],
-  'Drama': ['drama', 'plays', 'theater', 'theatre', 'dramatic'],
-  'Adventure': ['adventure', 'action', 'action & adventure', 'action-adventure', 'survival', 'exploration', 'quest'],
-  'Western': ['western', 'westerns', 'cowboy', 'frontier', 'wild west'],
-  'LitRPG': ['litrpg', 'lit-rpg', 'gamelit', 'game-lit', 'progression fantasy'],
-  'Erotica': ['erotica', 'erotic', 'adult fiction', 'steamy']
-};
-
-/**
- * Normalize a genre string to major bookstore categories
- */
-function normalizeGenreString(genreStr) {
-  if (!genreStr) return [];
+function normalizeGenreString(genreStr, genreMappings) {
+  if (!genreStr || !genreMappings) return [];
 
   const genres = genreStr.split(',').map(g => g.trim().toLowerCase()).filter(Boolean);
   const normalized = new Set();
 
   for (const genre of genres) {
-    for (const [category, keywords] of Object.entries(GENRE_MAPPINGS)) {
+    for (const [category, keywords] of Object.entries(genreMappings)) {
       for (const keyword of keywords) {
         if (genre === keyword || genre.includes(keyword)) {
           normalized.add(category);
@@ -61,29 +31,34 @@ export default function AllBooks({ onPlay }) {
   const [searchParams] = useSearchParams();
   const genreFilter = searchParams.get('genre');
   const [audiobooks, setAudiobooks] = useState([]);
+  const [genreMappings, setGenreMappings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('title');
   const [progressFilter, setProgressFilter] = useState('all');
 
   useEffect(() => {
-    loadAudiobooks();
+    loadData();
   }, []);
 
-  const loadAudiobooks = async () => {
+  const loadData = async () => {
     try {
-      const response = await getAudiobooks({ limit: 10000 });
-      setAudiobooks(response.data.audiobooks);
+      const [audiobooksRes, mappingsRes] = await Promise.all([
+        getAudiobooks({ limit: 10000 }),
+        getGenreMappings()
+      ]);
+      setAudiobooks(audiobooksRes.data.audiobooks);
+      setGenreMappings(mappingsRes.data);
     } catch (error) {
-      console.error('Error loading audiobooks:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   // Filter audiobooks based on genre filter (using normalized genres)
-  const genreFilteredAudiobooks = genreFilter
+  const genreFilteredAudiobooks = genreFilter && genreMappings
     ? audiobooks.filter(book => {
-        const normalizedGenres = normalizeGenreString(book.genre);
+        const normalizedGenres = normalizeGenreString(book.genre, genreMappings);
         return normalizedGenres.includes(genreFilter);
       })
     : audiobooks;
@@ -102,12 +77,12 @@ export default function AllBooks({ onPlay }) {
         return !hasProgress && !isFinished;
       case 'finished':
         return isFinished;
-      case 'all':
       default:
         return true;
     }
   });
 
+  // Sort audiobooks
   const sortedAudiobooks = [...filteredAudiobooks].sort((a, b) => {
     switch (sortBy) {
       case 'title':
@@ -115,72 +90,85 @@ export default function AllBooks({ onPlay }) {
       case 'author':
         return (a.author || '').localeCompare(b.author || '');
       case 'series':
-        if (!a.series && !b.series) return 0;
-        if (!a.series) return 1;
-        if (!b.series) return -1;
-        const seriesCompare = a.series.localeCompare(b.series);
+        // Sort by series name, then by position within series
+        const seriesCompare = (a.series || '').localeCompare(b.series || '');
         if (seriesCompare !== 0) return seriesCompare;
         return (a.series_position || 0) - (b.series_position || 0);
       case 'genre':
         return (a.genre || '').localeCompare(b.genre || '');
       case 'recent':
         return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      case 'duration':
+        return (a.duration || 0) - (b.duration || 0);
+      case 'progress':
+        // Sort by progress percentage
+        const aProgress = a.progress ? (a.progress.position / (a.duration || 1)) * 100 : 0;
+        const bProgress = b.progress ? (b.progress.position / (b.duration || 1)) * 100 : 0;
+        return bProgress - aProgress;
       default:
         return 0;
     }
   });
 
-  const handlePlay = async (book, e) => {
-    // On desktop, prevent navigation to detail page when clicking play button
-    // On mobile, both cover and button trigger play, so no need to stop propagation
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-      e.stopPropagation();
+  const formatDuration = (seconds) => {
+    if (!seconds) return '';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
     }
+    return `${minutes}m`;
+  };
 
-    try {
-      const progressResponse = await getProgress(book.id);
-      const progress = progressResponse.data;
-      onPlay(book, progress);
-    } catch (error) {
-      console.error('Error loading progress:', error);
-      onPlay(book, null);
-    }
+  const getProgressPercent = (book) => {
+    if (!book.progress || !book.duration) return 0;
+    return Math.round((book.progress.position / book.duration) * 100);
   };
 
   const renderBookCard = (book) => {
-    const coverUrl = getCoverUrl(book.id);
+    const progressPercent = getProgressPercent(book);
+    const isFinished = book.progress?.completed === 1;
 
     return (
-      <div key={book.id} className="audiobook-card" data-book-id={book.id}>
-        <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
-          {book.cover_image ? (
-            <img
-              src={coverUrl}
-              alt={book.title}
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-          ) : (
-            <div className="audiobook-cover-placeholder">
-              <h3>{book.title}</h3>
-            </div>
-          )}
-          {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
-            <div className="progress-bar-overlay">
+      <div
+        key={book.id}
+        className={`book-card ${isFinished ? 'finished' : ''}`}
+        onClick={() => navigate(`/audiobook/${book.id}`)}
+      >
+        <div className="book-cover-container">
+          <img
+            src={getCoverUrl(book.id)}
+            alt={book.title}
+            className="book-cover"
+            onError={(e) => {
+              e.target.src = '/placeholder-cover.png';
+            }}
+          />
+          {progressPercent > 0 && !isFinished && (
+            <div className="progress-bar">
               <div
-                className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
-                style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+                className="progress-fill"
+                style={{ width: `${progressPercent}%` }}
               />
             </div>
           )}
-          <div className="play-overlay">
-            <button
-              className="play-button"
-              onClick={(e) => handlePlay(book, e)}
-              aria-label={`Play ${book.title}`}
-            />
+          {isFinished && (
+            <div className="finished-badge">✓</div>
+          )}
+        </div>
+        <div className="book-info">
+          <h3 className="book-title">{book.title}</h3>
+          <p className="book-author">{book.author}</p>
+          {book.series && (
+            <p className="book-series">
+              {book.series}
+              {book.series_position && ` #${book.series_position}`}
+            </p>
+          )}
+          <div className="book-meta">
+            {book.duration && (
+              <span className="book-duration">{formatDuration(book.duration)}</span>
+            )}
           </div>
         </div>
       </div>
@@ -235,11 +223,13 @@ export default function AllBooks({ onPlay }) {
                   <option value="series">Series</option>
                   <option value="genre">Genre</option>
                   <option value="recent">Recently Added</option>
+                  <option value="duration">Duration</option>
+                  <option value="progress">Progress</option>
                 </select>
               </div>
             </div>
           </div>
-          <div className="audiobook-grid" data-book-count={sortedAudiobooks.length}>
+          <div className="books-grid">
             {sortedAudiobooks.map(renderBookCard)}
           </div>
         </>
