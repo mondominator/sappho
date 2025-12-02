@@ -1876,6 +1876,35 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
   );
 });
 
+// Clear/delete playback progress (removes the record entirely)
+router.delete('/:id/progress', authenticateToken, (req, res) => {
+  const audiobookId = req.params.id;
+  const userId = req.user.id;
+
+  db.run(
+    'DELETE FROM playback_progress WHERE user_id = ? AND audiobook_id = ?',
+    [userId, audiobookId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // Also stop any active session
+      const sessionManager = require('../services/sessionManager');
+      const websocketManager = require('../services/websocketManager');
+      const sessionId = `sapho-${userId}-${audiobookId}`;
+
+      const session = sessionManager.getSession(sessionId);
+      if (session) {
+        websocketManager.broadcastSessionUpdate(session, 'session.stop');
+        sessionManager.stopSession(sessionId);
+      }
+
+      res.json({ message: 'Progress cleared' });
+    }
+  );
+});
+
 // Get cover art
 router.get('/:id/cover', authenticateToken, (req, res) => {
   db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
