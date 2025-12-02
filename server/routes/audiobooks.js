@@ -852,6 +852,23 @@ router.get('/:id/directory-files', authenticateToken, (req, res) => {
   });
 });
 
+/**
+ * Get the appropriate MIME type for an audio file based on extension
+ */
+function getAudioMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes = {
+    '.mp3': 'audio/mpeg',
+    '.m4b': 'audio/mp4',
+    '.m4a': 'audio/mp4',
+    '.mp4': 'audio/mp4',
+    '.ogg': 'audio/ogg',
+    '.flac': 'audio/flac',
+    '.wav': 'audio/wav',
+  };
+  return mimeTypes[ext] || 'audio/mpeg';
+}
+
 // Stream audiobook
 router.get('/:id/stream', authenticateToken, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
@@ -871,6 +888,7 @@ router.get('/:id/stream', authenticateToken, (req, res) => {
     const stat = fs.statSync(filePath);
     const fileSize = stat.size;
     const range = req.headers.range;
+    const contentType = getAudioMimeType(filePath);
 
     if (range) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -882,14 +900,14 @@ router.get('/:id/stream', authenticateToken, (req, res) => {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
       };
       res.writeHead(206, head);
       file.pipe(res);
     } else {
       const head = {
         'Content-Length': fileSize,
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
       };
       res.writeHead(200, head);
       fs.createReadStream(filePath).pipe(res);
@@ -2165,7 +2183,6 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
          WHERE p2.user_id = ?
          AND (p2.completed = 1 OR p2.position > 0)
          AND a2.series = a.series
-         AND COALESCE(a2.series_index, a2.series_position, 0) < COALESCE(a.series_index, a.series_position, 0)
        )
        AND (p.position IS NULL OR p.position = 0)
        AND (p.completed IS NULL OR p.completed = 0)
