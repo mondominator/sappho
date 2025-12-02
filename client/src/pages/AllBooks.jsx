@@ -1,10 +1,65 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAudiobooks, getCoverUrl, getProgress } from '../api';
 import './AllBooks.css';
 
+/**
+ * Major bookstore genre categories with keyword mappings
+ */
+const GENRE_MAPPINGS = {
+  'Mystery & Thriller': ['mystery', 'thriller', 'suspense', 'detective', 'crime', 'crime fiction', 'murder mystery', 'whodunit', 'noir', 'police procedural', 'legal thriller', 'psychological thriller', 'espionage', 'spy', 'cozy mystery'],
+  'Science Fiction': ['science fiction', 'sci-fi', 'scifi', 'sf', 'space opera', 'cyberpunk', 'dystopia', 'dystopian', 'post-apocalyptic', 'apocalyptic', 'alien', 'time travel', 'hard science fiction', 'soft science fiction', 'military science fiction'],
+  'Fantasy': ['fantasy', 'epic fantasy', 'high fantasy', 'urban fantasy', 'dark fantasy', 'sword and sorcery', 'paranormal', 'magic', 'dragons', 'wizards', 'mythological', 'fairy tale', 'folklore', 'grimdark', 'portal fantasy'],
+  'Romance': ['romance', 'romantic', 'love story', 'contemporary romance', 'historical romance', 'paranormal romance', 'romantic suspense', 'romantic comedy', 'rom-com', 'regency romance', 'erotic romance', 'clean romance'],
+  'Horror': ['horror', 'scary', 'supernatural horror', 'gothic', 'haunted', 'ghost story', 'zombies', 'vampires', 'occult', 'dark fiction'],
+  'Historical Fiction': ['historical fiction', 'historical novel', 'period drama', 'civil war', 'world war', 'medieval', 'victorian', 'ancient rome', 'ancient greece', 'tudor', 'regency'],
+  'Biography & Memoir': ['biography', 'memoir', 'autobiography', 'memoirs', 'biographies', 'personal narratives', 'life stories', 'biographical'],
+  'Self-Help': ['self-help', 'self help', 'personal development', 'personal growth', 'self-improvement', 'motivation', 'motivational', 'inspirational', 'success', 'happiness', 'mindfulness', 'productivity', 'habits'],
+  'Business & Finance': ['business', 'finance', 'economics', 'investing', 'entrepreneurship', 'management', 'leadership', 'marketing', 'money', 'career', 'real estate', 'stock market', 'personal finance', 'wealth'],
+  'History': ['american history', 'world history', 'military history', 'ancient history', 'modern history', 'european history', 'asian history', 'nonfiction history', 'non-fiction history'],
+  'Science & Technology': ['popular science', 'physics', 'chemistry', 'biology', 'astronomy', 'mathematics', 'engineering', 'computer science', 'artificial intelligence', 'nature', 'environment', 'ecology', 'evolution', 'neuroscience', 'medicine', 'nonfiction science', 'non-fiction science', 'science nonfiction', 'technology nonfiction'],
+  'Health & Wellness': ['health', 'wellness', 'fitness', 'nutrition', 'diet', 'exercise', 'mental health', 'psychology', 'meditation', 'yoga', 'healing', 'alternative medicine', 'holistic'],
+  'Religion & Spirituality': ['religion', 'spirituality', 'spiritual', 'christian', 'christianity', 'buddhism', 'buddhist', 'islam', 'jewish', 'judaism', 'faith', 'prayer', 'bible', 'theology', 'new age', 'metaphysical'],
+  'True Crime': ['true crime', 'true-crime', 'criminal', 'forensic', 'serial killer', 'cold case', 'investigation'],
+  'Comedy & Humor': ['comedy', 'humor', 'humorous', 'funny', 'satire', 'parody', 'wit', 'jokes', 'stand-up'],
+  'Young Adult': ['young adult', 'ya', 'teen', 'teenage', 'adolescent', 'coming of age', 'coming-of-age', 'juvenile fiction'],
+  'Children\'s': ['children', 'kids', 'juvenile', 'picture book', 'middle grade', 'chapter book', 'bedtime stories'],
+  'Classics': ['classic', 'classics', 'classic literature', 'classic fiction', 'literary classics', 'great books'],
+  'Poetry': ['poetry', 'poems', 'verse', 'poetic'],
+  'Drama': ['drama', 'plays', 'theater', 'theatre', 'dramatic'],
+  'Adventure': ['adventure', 'action', 'action & adventure', 'action-adventure', 'survival', 'exploration', 'quest'],
+  'Western': ['western', 'westerns', 'cowboy', 'frontier', 'wild west'],
+  'LitRPG': ['litrpg', 'lit-rpg', 'gamelit', 'game-lit', 'progression fantasy'],
+  'Erotica': ['erotica', 'erotic', 'adult fiction', 'steamy']
+};
+
+/**
+ * Normalize a genre string to major bookstore categories
+ */
+function normalizeGenreString(genreStr) {
+  if (!genreStr) return [];
+
+  const genres = genreStr.split(',').map(g => g.trim().toLowerCase()).filter(Boolean);
+  const normalized = new Set();
+
+  for (const genre of genres) {
+    for (const [category, keywords] of Object.entries(GENRE_MAPPINGS)) {
+      for (const keyword of keywords) {
+        if (genre === keyword || genre.includes(keyword)) {
+          normalized.add(category);
+          break;
+        }
+      }
+    }
+  }
+
+  return Array.from(normalized);
+}
+
 export default function AllBooks({ onPlay }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const genreFilter = searchParams.get('genre');
   const [audiobooks, setAudiobooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('title');
@@ -25,8 +80,16 @@ export default function AllBooks({ onPlay }) {
     }
   };
 
+  // Filter audiobooks based on genre filter (using normalized genres)
+  const genreFilteredAudiobooks = genreFilter
+    ? audiobooks.filter(book => {
+        const normalizedGenres = normalizeGenreString(book.genre);
+        return normalizedGenres.includes(genreFilter);
+      })
+    : audiobooks;
+
   // Filter audiobooks based on progress filter
-  const filteredAudiobooks = audiobooks.filter(book => {
+  const filteredAudiobooks = genreFilteredAudiobooks.filter(book => {
     const isFinished = book.progress?.completed === 1;
     const hasProgress = book.progress && book.progress.position > 0;
 
@@ -138,8 +201,11 @@ export default function AllBooks({ onPlay }) {
       ) : (
         <>
           <div className="all-books-header">
-            <button className="back-button" onClick={() => navigate('/library')}>← Back</button>
-            <h2 className="all-books-count">{sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}</h2>
+            <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
+            <h2 className="all-books-count">
+              {genreFilter && <span className="genre-label">{genreFilter}: </span>}
+              {sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}
+            </h2>
             <div className="all-books-controls">
               <div className="all-books-filter">
                 <label htmlFor="filter-select">Show:</label>

@@ -55,6 +55,158 @@ function getClientIP(req) {
   return req.ip || req.connection.remoteAddress || null;
 }
 
+/**
+ * Major bookstore genre categories with keyword mappings
+ * Maps various genre/subject strings to standardized categories
+ */
+const GENRE_MAPPINGS = {
+  'Mystery & Thriller': [
+    'mystery', 'thriller', 'suspense', 'detective', 'crime', 'crime fiction',
+    'murder mystery', 'whodunit', 'noir', 'police procedural', 'legal thriller',
+    'psychological thriller', 'espionage', 'spy', 'cozy mystery'
+  ],
+  'Science Fiction': [
+    'science fiction', 'sci-fi', 'scifi', 'sf', 'space opera', 'cyberpunk',
+    'dystopia', 'dystopian', 'post-apocalyptic', 'apocalyptic', 'alien',
+    'time travel', 'hard science fiction', 'soft science fiction', 'military science fiction'
+  ],
+  'Fantasy': [
+    'fantasy', 'epic fantasy', 'high fantasy', 'urban fantasy', 'dark fantasy',
+    'sword and sorcery', 'paranormal', 'magic', 'dragons', 'wizards',
+    'mythological', 'fairy tale', 'folklore', 'grimdark', 'portal fantasy'
+  ],
+  'Romance': [
+    'romance', 'romantic', 'love story', 'contemporary romance', 'historical romance',
+    'paranormal romance', 'romantic suspense', 'romantic comedy', 'rom-com',
+    'regency romance', 'erotic romance', 'clean romance'
+  ],
+  'Horror': [
+    'horror', 'scary', 'supernatural horror', 'gothic', 'haunted',
+    'ghost story', 'zombies', 'vampires', 'occult', 'dark fiction'
+  ],
+  'Historical Fiction': [
+    'historical fiction', 'historical', 'history', 'historical novel',
+    'period drama', 'civil war', 'world war', 'medieval', 'victorian',
+    'ancient rome', 'ancient greece', 'tudor', 'regency'
+  ],
+  'Biography & Memoir': [
+    'biography', 'memoir', 'autobiography', 'memoirs', 'biographies',
+    'personal narratives', 'life stories', 'biographical'
+  ],
+  'Self-Help': [
+    'self-help', 'self help', 'personal development', 'personal growth',
+    'self-improvement', 'motivation', 'motivational', 'inspirational',
+    'success', 'happiness', 'mindfulness', 'productivity', 'habits'
+  ],
+  'Business & Finance': [
+    'business', 'finance', 'economics', 'investing', 'entrepreneurship',
+    'management', 'leadership', 'marketing', 'money', 'career',
+    'real estate', 'stock market', 'personal finance', 'wealth'
+  ],
+  'History': [
+    'american history', 'world history', 'military history',
+    'ancient history', 'modern history', 'european history', 'asian history',
+    'nonfiction history', 'non-fiction history'
+  ],
+  'Science & Technology': [
+    'popular science', 'physics', 'chemistry', 'biology', 'astronomy',
+    'mathematics', 'engineering', 'computer science', 'artificial intelligence',
+    'nature', 'environment', 'ecology', 'evolution', 'neuroscience', 'medicine',
+    'nonfiction science', 'non-fiction science', 'science nonfiction', 'technology nonfiction'
+  ],
+  'Health & Wellness': [
+    'health', 'wellness', 'fitness', 'nutrition', 'diet', 'exercise',
+    'mental health', 'psychology', 'meditation', 'yoga', 'healing',
+    'alternative medicine', 'holistic'
+  ],
+  'Religion & Spirituality': [
+    'religion', 'spirituality', 'spiritual', 'christian', 'christianity',
+    'buddhism', 'buddhist', 'islam', 'jewish', 'judaism', 'faith',
+    'prayer', 'bible', 'theology', 'new age', 'metaphysical'
+  ],
+  'True Crime': [
+    'true crime', 'true-crime', 'criminal', 'forensic', 'serial killer',
+    'cold case', 'investigation'
+  ],
+  'Comedy & Humor': [
+    'comedy', 'humor', 'humorous', 'funny', 'satire', 'parody',
+    'wit', 'jokes', 'stand-up'
+  ],
+  'Young Adult': [
+    'young adult', 'ya', 'teen', 'teenage', 'adolescent', 'coming of age',
+    'coming-of-age', 'juvenile fiction'
+  ],
+  'Children\'s': [
+    'children', 'kids', 'juvenile', 'picture book', 'middle grade',
+    'chapter book', 'bedtime stories'
+  ],
+  'Classics': [
+    'classic', 'classics', 'classic literature', 'classic fiction',
+    'literary classics', 'great books'
+  ],
+  'Poetry': [
+    'poetry', 'poems', 'verse', 'poetic'
+  ],
+  'Drama': [
+    'drama', 'plays', 'theater', 'theatre', 'dramatic'
+  ],
+  'Adventure': [
+    'adventure', 'action', 'action & adventure', 'action-adventure',
+    'survival', 'exploration', 'quest'
+  ],
+  'Western': [
+    'western', 'westerns', 'cowboy', 'frontier', 'wild west'
+  ],
+  'LitRPG': [
+    'litrpg', 'lit-rpg', 'gamelit', 'game-lit', 'progression fantasy'
+  ],
+  'Erotica': [
+    'erotica', 'erotic', 'adult fiction', 'steamy'
+  ]
+};
+
+/**
+ * Normalize a genre string to a major bookstore category
+ * Returns the first matching category, or null if no match
+ */
+function normalizeGenre(genreStr) {
+  if (!genreStr) return null;
+
+  const lower = genreStr.toLowerCase().trim();
+
+  for (const [category, keywords] of Object.entries(GENRE_MAPPINGS)) {
+    for (const keyword of keywords) {
+      if (lower === keyword || lower.includes(keyword)) {
+        return category;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Normalize a comma-separated genre string to major categories
+ * Returns unique categories, prioritized by mapping order
+ */
+function normalizeGenres(genreStr) {
+  if (!genreStr) return null;
+
+  const genres = genreStr.split(',').map(g => g.trim()).filter(Boolean);
+  const normalized = new Set();
+
+  for (const genre of genres) {
+    const category = normalizeGenre(genre);
+    if (category) {
+      normalized.add(category);
+    }
+  }
+
+  // Return up to 3 categories to keep it concise
+  const result = Array.from(normalized).slice(0, 3);
+  return result.length > 0 ? result.join(', ') : null;
+}
+
 // Get all audiobooks
 router.get('/', authenticateToken, (req, res) => {
   const { genre, author, series, search, limit = 50, offset = 0 } = req.query;
@@ -361,7 +513,7 @@ async function searchAudible(title, author, asin) {
             language: book.language || null,
             runtime: book.runtimeLengthMin || null,
             abridged: book.formatType === 'abridged' ? 1 : 0,
-            genre: genres.join(', ') || null,
+            genre: normalizeGenres(genres.join(', ')) || null,
             tags: tags.join(', ') || null,
             rating: book.rating || null,
             image: book.image || null,
@@ -428,7 +580,7 @@ async function searchGoogleBooks(title, author) {
             isbn: isbn,
             description: vol.description || null,
             language: vol.language || null,
-            genre: vol.categories?.join(', ') || null,
+            genre: normalizeGenres(vol.categories?.join(', ')) || null,
             rating: vol.averageRating?.toString() || null,
             image: vol.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
             hasChapters: false,
@@ -488,7 +640,7 @@ async function searchOpenLibrary(title, author) {
             isbn: doc.isbn?.[0] || null,
             description: null, // Would need another API call to get description
             language: doc.language?.[0] || null,
-            genre: doc.subject?.slice(0, 5).join(', ') || null,
+            genre: normalizeGenres(doc.subject?.slice(0, 10).join(', ')) || null,
             image: image,
             hasChapters: false,
           });
@@ -1374,7 +1526,7 @@ function formatOpenLibraryResult(book) {
     author: book.author_name?.join(', ') || null,
     narrator: null, // Open Library doesn't have narrator info
     description: null, // Would need additional API call to get description
-    genre: book.subject?.slice(0, 3).join(', ') || null,
+    genre: normalizeGenres(book.subject?.slice(0, 10).join(', ')) || null,
     series: null, // Open Library doesn't have good series data
     series_position: null,
     published_year: book.first_publish_year || null,

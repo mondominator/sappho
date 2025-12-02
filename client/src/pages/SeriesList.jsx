@@ -51,7 +51,7 @@ export default function SeriesList() {
       ) : (
         <>
           <div className="series-list-header">
-            <button className="back-button" onClick={() => navigate('/library')}>← Back</button>
+            <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
             <h2 className="series-list-count">{filteredSeries.length} {filteredSeries.length === 1 ? 'Series' : 'Series'}</h2>
           </div>
           <div className="series-grid">
