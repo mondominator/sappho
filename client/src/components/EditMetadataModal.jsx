@@ -179,24 +179,27 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     if (!pendingResult) return;
 
     // Apply ALL metadata from the selected result
+    // Use nullish coalescing for fields that should keep previous value only if new value is undefined
+    // Use explicit checks for series fields to allow clearing them when new metadata doesn't have series
     setFormData(prev => ({
       ...prev,
       title: pendingResult.title || prev.title,
-      subtitle: pendingResult.subtitle || prev.subtitle,
+      subtitle: pendingResult.subtitle ?? prev.subtitle,
       author: pendingResult.author || prev.author,
-      narrator: pendingResult.narrator || prev.narrator,
-      description: pendingResult.description || prev.description,
-      genre: pendingResult.genre || prev.genre,
-      tags: pendingResult.tags || prev.tags,
-      series: pendingResult.series || prev.series,
-      series_position: pendingResult.series_position || prev.series_position,
-      published_year: pendingResult.published_year || prev.published_year,
-      copyright_year: pendingResult.copyright_year || prev.copyright_year,
-      publisher: pendingResult.publisher || prev.publisher,
-      isbn: pendingResult.isbn || prev.isbn,
-      asin: pendingResult.asin || prev.asin,
-      language: pendingResult.language || prev.language,
-      rating: pendingResult.rating || prev.rating,
+      narrator: pendingResult.narrator ?? prev.narrator,
+      description: pendingResult.description ?? prev.description,
+      genre: pendingResult.genre ?? prev.genre,
+      tags: pendingResult.tags ?? prev.tags,
+      // Series fields: explicitly replace with new value (even if empty) to allow moving books between series
+      series: pendingResult.series ?? '',
+      series_position: pendingResult.series_position ?? '',
+      published_year: pendingResult.published_year ?? prev.published_year,
+      copyright_year: pendingResult.copyright_year ?? prev.copyright_year,
+      publisher: pendingResult.publisher ?? prev.publisher,
+      isbn: pendingResult.isbn ?? prev.isbn,
+      asin: pendingResult.asin ?? prev.asin,
+      language: pendingResult.language ?? prev.language,
+      rating: pendingResult.rating ?? prev.rating,
       abridged: pendingResult.abridged !== undefined ? !!pendingResult.abridged : prev.abridged,
       cover_url: pendingResult.image || prev.cover_url,  // Apply cover URL from search result
     }));
@@ -270,12 +273,18 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         oldValStr = normalizeLanguage(oldValStr);
       }
 
-      if (newValStr && newValStr !== oldValStr) {
+      // For series fields, show changes even when clearing (old has value, new is empty)
+      const isSeriesField = field.key === 'series' || field.key === 'series_position';
+      const isClearing = isSeriesField && oldValStr && !newValStr;
+      const isChanging = newValStr && newValStr !== oldValStr;
+
+      if (isChanging || isClearing) {
         changes.push({
           label: field.label,
           oldValue: oldValStr || '(empty)',
-          newValue: field.key === 'description' ? (newValStr.slice(0, 100) + (newValStr.length > 100 ? '...' : '')) : newValStr,
+          newValue: isClearing ? '(removed)' : (field.key === 'description' ? (newValStr.slice(0, 100) + (newValStr.length > 100 ? '...' : '')) : newValStr),
           isNew: !oldValStr,
+          isRemoval: isClearing,
         });
       }
     }

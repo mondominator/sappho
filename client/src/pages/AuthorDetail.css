@@ -1,162 +1,463 @@
-.author-detail {
-  padding: 2rem 1rem;
-  max-width: 1400px;
+.author-detail-page {
+  padding: 1.5rem;
+  max-width: 1600px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
-.back-button {
+/* Back button */
+.author-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 1.5rem;
+}
+
+.author-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Hero section */
+.author-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.author-hero-avatar {
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid rgba(96, 165, 250, 0.3);
+}
+
+.author-hero-letter {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #60a5fa;
+  text-transform: uppercase;
+}
+
+.author-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.author-hero-name {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.author-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.author-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.author-stat-label {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Series section */
+.author-series-section {
+  margin-bottom: 2.5rem;
+}
+
+.author-section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.author-section-title svg {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.series-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.series-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  background: rgba(96, 165, 250, 0.1);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 100px;
+  color: #60a5fa;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.series-tag:hover {
+  background: rgba(96, 165, 250, 0.2);
+  border-color: rgba(96, 165, 250, 0.4);
+  transform: translateY(-1px);
+}
+
+.series-tag-count {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  background: rgba(96, 165, 250, 0.2);
+  border-radius: 100px;
+  color: rgba(96, 165, 250, 0.8);
+}
+
+/* Books grid */
+.author-books-section {
   margin-bottom: 2rem;
 }
 
-.author-header {
-  margin-bottom: 3rem;
-}
-
-.author-name {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  color: #fff;
-}
-
-.author-stats {
-  display: flex;
-  gap: 2rem;
-  font-size: 1.1rem;
-  color: #9ca3af;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-}
-
-.author-series-list {
-  margin-bottom: 3rem;
-}
-
-.author-series-list h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-  color: #fff;
-}
-
-.series-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.series-chip {
-  padding: 0.5rem 1rem;
-  background: #374151;
-  color: #60a5fa;
-  border: 1px solid #4b5563;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.95rem;
-}
-
-.series-chip:hover {
-  background: #4b5563;
-  border-color: #60a5fa;
-  transform: translateY(-2px);
-}
-
-.author-books h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: #fff;
-}
-
-.audiobook-grid {
+.books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1.25rem;
 }
 
-.audiobook-card {
-  display: flex;
-  flex-direction: column;
-  background: #1f2937;
-  border-radius: 8px;
+/* Book card */
+.book-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
   overflow: hidden;
-  transition: transform 0.2s;
   cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.audiobook-card:hover {
+.book-card:hover {
   transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(96, 165, 250, 0.3);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3);
 }
 
-.audiobook-cover {
+.book-card-cover {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  background: #374151;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
 }
 
-.audiobook-cover img {
+.book-card-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
+  transition: transform 0.4s ease;
 }
 
-.audiobook-cover:hover img {
+.book-card:hover .book-card-cover img {
   transform: scale(1.05);
 }
 
-.audiobook-info {
-  padding: 20px;
-  flex: 1;
+.book-card-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }
 
-.audiobook-title {
-  font-size: 18px;
-  margin-bottom: 8px;
+.book-card-placeholder span {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Play button overlay */
+.book-play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.book-card:hover .book-play-overlay {
+  opacity: 1;
+}
+
+.book-play-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #60a5fa;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
   color: #fff;
 }
 
-.audiobook-series {
+.book-play-btn:hover {
+  transform: scale(1.1);
+  background: #3b82f6;
+}
+
+/* Progress bar on cover */
+.book-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.book-progress-fill {
+  height: 100%;
+  background: #60a5fa;
+  transition: width 0.3s ease;
+}
+
+.book-progress-fill.complete {
+  background: #22c55e;
+}
+
+/* Book info */
+.book-card-info {
+  padding: 0.875rem;
+}
+
+.book-card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-card-series {
+  font-size: 0.75rem;
   color: #60a5fa;
-  font-size: 13px;
-  margin-bottom: 4px;
-  font-weight: 500;
+  margin: 0 0 0.375rem 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.audiobook-narrator {
-  color: #6b7280;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-
-.audiobook-duration {
-  color: #4b5563;
-  font-size: 12px;
-}
-
-.audiobook-actions {
-  padding: 0 20px 20px;
+.book-card-meta {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
 }
 
-.audiobook-actions .btn {
-  flex: 1;
+.book-card-narrator {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
+.book-card-duration {
+  white-space: nowrap;
+}
+
+/* Empty state */
+.author-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Loading */
+.author-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Mobile Styles */
 @media (max-width: 768px) {
-  .author-name {
+  .author-detail-page {
+    padding: 1rem;
+    padding-top: 0.5rem;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0));
+  }
+
+  .author-back-btn {
+    margin-bottom: 1rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .author-hero {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .author-hero-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  .author-hero-letter {
     font-size: 2rem;
   }
 
-  .author-stats {
-    flex-direction: column;
+  .author-hero-name {
+    font-size: 1.75rem;
+  }
+
+  .author-hero-stats {
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  .author-stat {
+    align-items: center;
+  }
+
+  .author-stat-value {
+    font-size: 1.25rem;
+  }
+
+  .author-stat-label {
+    font-size: 0.75rem;
+  }
+
+  .author-series-section {
+    margin-bottom: 2rem;
+  }
+
+  .author-section-title {
+    font-size: 1.125rem;
+  }
+
+  .series-tags {
     gap: 0.5rem;
   }
 
-  .audiobook-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  .series-tag {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .books-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .book-card {
+    border-radius: 10px;
+  }
+
+  .book-card-info {
+    padding: 0.75rem;
+  }
+
+  .book-card-title {
+    font-size: 0.8125rem;
+  }
+
+  .book-card-series {
+    font-size: 0.6875rem;
+  }
+
+  .book-card-meta {
+    font-size: 0.6875rem;
+  }
+
+  /* Always show play overlay on mobile */
+  .book-play-overlay {
+    opacity: 0;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .book-play-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .author-hero-name {
+    font-size: 1.5rem;
+  }
+
+  .author-hero-stats {
+    gap: 1rem;
+  }
+
+  .books-grid {
+    gap: 0.625rem;
+  }
+
+  .book-card-info {
+    padding: 0.625rem;
+  }
+
+  .book-card-title {
+    font-size: 0.75rem;
   }
 }
