@@ -53,6 +53,7 @@ export default function AuthorsList() {
   return (
     <div className="authors-list-page">
       <div className="authors-header">
+        <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
         <h1>Authors</h1>
         <p className="authors-subtitle">
           {authorsList.length} {authorsList.length === 1 ? 'author' : 'authors'} · {getTotalBooks()} {getTotalBooks() === 1 ? 'book' : 'books'}
