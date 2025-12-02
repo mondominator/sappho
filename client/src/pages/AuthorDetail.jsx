@@ -25,100 +25,208 @@ export default function AuthorDetail({ onPlay }) {
   };
 
   const formatDuration = (seconds) => {
-    if (!seconds) return 'Unknown';
+    if (!seconds) return '';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
   };
 
   const getTotalDuration = () => {
     const total = audiobooks.reduce((sum, book) => sum + (book.duration || 0), 0);
     const hours = Math.floor(total / 3600);
-    return `${hours}h total`;
+    return hours;
   };
 
   const getUniqueSeries = () => {
-    const series = audiobooks
-      .filter(book => book.series)
-      .map(book => book.series);
-    return [...new Set(series)];
+    const seriesMap = new Map();
+    audiobooks.forEach(book => {
+      if (book.series) {
+        const count = seriesMap.get(book.series) || 0;
+        seriesMap.set(book.series, count + 1);
+      }
+    });
+    return Array.from(seriesMap.entries()).map(([series, count]) => ({ series, count }));
+  };
+
+  const getCompletedCount = () => {
+    return audiobooks.filter(book => book.progress >= 98).length;
+  };
+
+  const handlePlayBook = async (e, book) => {
+    e.stopPropagation();
+    try {
+      const progressResponse = await getProgress(book.id);
+      onPlay(book, progressResponse.data);
+    } catch (error) {
+      console.error('Error loading progress:', error);
+      onPlay(book, null);
+    }
   };
 
   if (loading) {
-    return <div className="loading">Loading author...</div>;
+    return (
+      <div className="author-detail-page">
+        <div className="author-loading">Loading author...</div>
+      </div>
+    );
   }
 
+  const uniqueSeries = getUniqueSeries();
+
   return (
-    <div className="author-detail container">
-      <button className="btn btn-secondary back-button" onClick={() => navigate(-1)}>
-        ← Back
+    <div className="author-detail-page">
+      <button className="author-back-btn" onClick={() => navigate(-1)}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Back
       </button>
 
-      <div className="author-header">
-        <h1 className="author-name">{name}</h1>
-        <div className="author-stats">
-          <span className="stat-item">{audiobooks.length} books</span>
-          {getUniqueSeries().length > 0 && (
-            <span className="stat-item">{getUniqueSeries().length} series</span>
-          )}
-          <span className="stat-item">{getTotalDuration()}</span>
+      {/* Hero Section */}
+      <div className="author-hero">
+        <div className="author-hero-avatar">
+          <span className="author-hero-letter">{name.charAt(0)}</span>
+        </div>
+        <div className="author-hero-info">
+          <h1 className="author-hero-name">{name}</h1>
+          <div className="author-hero-stats">
+            <div className="author-stat">
+              <span className="author-stat-value">{audiobooks.length}</span>
+              <span className="author-stat-label">{audiobooks.length === 1 ? 'Book' : 'Books'}</span>
+            </div>
+            {uniqueSeries.length > 0 && (
+              <div className="author-stat">
+                <span className="author-stat-value">{uniqueSeries.length}</span>
+                <span className="author-stat-label">{uniqueSeries.length === 1 ? 'Series' : 'Series'}</span>
+              </div>
+            )}
+            <div className="author-stat">
+              <span className="author-stat-value">{getTotalDuration()}</span>
+              <span className="author-stat-label">Hours</span>
+            </div>
+            {getCompletedCount() > 0 && (
+              <div className="author-stat">
+                <span className="author-stat-value">{getCompletedCount()}</span>
+                <span className="author-stat-label">Completed</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {getUniqueSeries().length > 0 && (
-        <div className="author-series-list">
-          <h2>Series</h2>
-          <div className="series-chips">
-            {getUniqueSeries().map(series => (
+      {/* Series Section */}
+      {uniqueSeries.length > 0 && (
+        <div className="author-series-section">
+          <h2 className="author-section-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            Series
+          </h2>
+          <div className="series-tags">
+            {uniqueSeries.map(({ series, count }) => (
               <button
                 key={series}
-                className="series-chip"
+                className="series-tag"
                 onClick={() => navigate(`/series/${encodeURIComponent(series)}`)}
               >
                 {series}
+                <span className="series-tag-count">{count}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <div className="author-books">
-        <h2>All Books</h2>
-        <div className="audiobook-grid">
-          {audiobooks.map((book) => (
-            <div key={book.id} className="audiobook-card">
-              {book.cover_image && (
-                <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
-                  <img src={getCoverUrl(book.id)} alt={book.title} onError={(e) => e.target.style.display = 'none'} />
+      {/* Books Section */}
+      <div className="author-books-section">
+        <h2 className="author-section-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          All Books
+        </h2>
+
+        {audiobooks.length === 0 ? (
+          <div className="author-empty">
+            <p>No audiobooks found for this author.</p>
+          </div>
+        ) : (
+          <div className="books-grid">
+            {audiobooks.map((book) => (
+              <div
+                key={book.id}
+                className="book-card"
+                onClick={() => navigate(`/audiobook/${book.id}`)}
+              >
+                <div className="book-card-cover">
+                  {book.cover_image ? (
+                    <img
+                      src={getCoverUrl(book.id, book.updated_at)}
+                      alt={book.title}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className="book-card-placeholder" style={{ display: book.cover_image ? 'none' : 'flex' }}>
+                    <span>{book.title}</span>
+                  </div>
+
+                  {/* Play overlay */}
+                  <div className="book-play-overlay">
+                    <button
+                      className="book-play-btn"
+                      onClick={(e) => handlePlayBook(e, book)}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Progress bar */}
+                  {book.progress > 0 && (
+                    <div className="book-progress-bar">
+                      <div
+                        className={`book-progress-fill ${book.progress >= 98 ? 'complete' : ''}`}
+                        style={{ width: `${Math.min(book.progress, 100)}%` }}
+                      ></div>
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="audiobook-info" onClick={() => navigate(`/audiobook/${book.id}`)}>
-                <h3 className="audiobook-title">{book.title}</h3>
-                {book.series && (
-                  <p className="audiobook-series">
-                    {book.series} {book.series_position && `#${book.series_position}`}
-                  </p>
-                )}
-                {book.narrator && <p className="audiobook-narrator">Narrated by {book.narrator}</p>}
-                <p className="audiobook-duration">{formatDuration(book.duration)}</p>
+
+                <div className="book-card-info">
+                  <h3 className="book-card-title">{book.title}</h3>
+                  {book.series && (
+                    <p className="book-card-series">
+                      {book.series}{book.series_position ? ` #${book.series_position}` : ''}
+                    </p>
+                  )}
+                  <div className="book-card-meta">
+                    {book.narrator && (
+                      <span className="book-card-narrator">{book.narrator}</span>
+                    )}
+                    {book.duration && (
+                      <>
+                        {book.narrator && <span>·</span>}
+                        <span className="book-card-duration">{formatDuration(book.duration)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="audiobook-actions">
-                <button className="btn btn-primary" onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const progressResponse = await getProgress(book.id);
-                    onPlay(book, progressResponse.data);
-                  } catch (error) {
-                    console.error('Error loading progress:', error);
-                    onPlay(book, null);
-                  }
-                }}>
-                  Play
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1663,20 +1663,35 @@ router.get('/meta/series', authenticateToken, (req, res) => {
   );
 });
 
-// Get all authors
+// Get all authors with cover IDs and completion stats
 router.get('/meta/authors', authenticateToken, (req, res) => {
+  const userId = req.user.id;
+
   db.all(
-    `SELECT DISTINCT author, COUNT(*) as book_count
-     FROM audiobooks
-     WHERE author IS NOT NULL
-     GROUP BY author
+    `SELECT
+       a.author,
+       COUNT(DISTINCT a.id) as book_count,
+       GROUP_CONCAT(DISTINCT a.id) as book_ids,
+       COUNT(DISTINCT CASE WHEN p.completed = 1 THEN a.id END) as completed_count
+     FROM audiobooks a
+     LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+     WHERE a.author IS NOT NULL
+     GROUP BY a.author
      ORDER BY author ASC`,
-    [],
+    [userId],
     (err, authors) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
-      res.json(authors);
+      // Convert comma-separated IDs to array and take first 4 for covers
+      const authorsWithCovers = authors.map(a => ({
+        ...a,
+        cover_ids: a.book_ids ? a.book_ids.split(',').slice(0, 4) : [],
+        completed_count: a.completed_count || 0
+      }));
+      // Remove book_ids from response
+      authorsWithCovers.forEach(a => delete a.book_ids);
+      res.json(authorsWithCovers);
     }
   );
 });

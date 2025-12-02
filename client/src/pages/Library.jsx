@@ -7,13 +7,13 @@ export default function Library({ onPlay }) {
   const navigate = useNavigate();
   const [audiobooks, setAudiobooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('categories'); // 'categories', 'authors', 'genres'
+  const [view, setView] = useState('categories'); // 'categories', 'genres'
   const [categories, setCategories] = useState({ series: [], authors: [], genres: [] });
 
   useEffect(() => {
     if (view === 'categories') {
       loadCategories();
-    } else if (view === 'authors' || view === 'genres') {
+    } else if (view === 'genres') {
       loadAudiobooks();
     }
   }, [view]);
@@ -77,7 +77,7 @@ export default function Library({ onPlay }) {
             <h3>Series</h3>
             <p>{categories.series.length} series</p>
           </div>
-          <div className="category-card" onClick={() => setView('authors')}>
+          <div className="category-card" onClick={() => navigate('/authors')}>
             <div className="category-icon">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -116,26 +116,7 @@ export default function Library({ onPlay }) {
     );
   }
 
-  // List views (authors, genres)
-  if (view === 'authors') {
-    return (
-      <div className="library-page container">
-        <div className="library-header">
-          <button className="back-button" onClick={() => setView('categories')}>← Back</button>
-          <h2 className="library-count">Authors</h2>
-        </div>
-        <div className="list-grid">
-          {categories.authors.map((author) => (
-            <div key={author.author} className="list-item" onClick={() => navigate(`/author/${encodeURIComponent(author.author)}`)}>
-              <h3>{author.author}</h3>
-              <p>{author.book_count} {author.book_count === 1 ? 'book' : 'books'}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  // Genres view
   if (view === 'genres') {
     return (
       <div className="library-page container">
