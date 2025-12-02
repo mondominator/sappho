@@ -4,7 +4,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../auth');
-const { processAudiobook } = require('../services/fileProcessor');
+const { processAudiobook, extractFileMetadata } = require('../services/fileProcessor');
+const db = require('../database');
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../data/uploads');
 
@@ -82,7 +83,7 @@ router.post('/', authenticateToken, upload.single('audiobook'), async (req, res)
   }
 });
 
-// Upload multiple audiobooks
+// Upload multiple audiobooks (each file as separate book)
 router.post('/batch', authenticateToken, upload.array('audiobooks', 10), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -111,6 +112,208 @@ router.post('/batch', authenticateToken, upload.array('audiobooks', 10), async (
     });
   } catch (error) {
     console.error('Batch upload error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Upload multiple files as a single audiobook (multi-file book with chapters)
+router.post('/multifile', authenticateToken, upload.array('audiobooks', 100), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const userId = req.user.id;
+    const bookName = req.body.bookName || null;
+    const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+
+    // Sort files by original name to maintain order
+    const sortedFiles = req.files.sort((a, b) =>
+      a.originalname.localeCompare(b.originalname, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    console.log(`Processing multi-file upload: ${sortedFiles.length} files`);
+
+    // Extract metadata from first file to get book info
+    const firstFileMetadata = await extractFileMetadata(sortedFiles[0].path);
+
+    // Use provided book name, or metadata title, or directory name from original path
+    let title = bookName || firstFileMetadata.title;
+
+    // If title looks like a chapter/part name, try to get a better title
+    if (title && /^(chapter|part|track|disc|cd)[\s_-]*\d+/i.test(title)) {
+      // Try to extract from the first file's original path
+      const originalPath = sortedFiles[0].originalname;
+      const pathParts = originalPath.split('/');
+      if (pathParts.length > 1) {
+        title = pathParts[0]; // Use folder name
+      }
+    }
+
+    const author = firstFileMetadata.author || 'Unknown Author';
+
+    // Create organized directory structure
+    const sanitize = (str) => str.replace(/[^a-z0-9\s]/gi, '_').trim();
+    const authorDir = path.join(audiobooksDir, sanitize(author));
+    const bookDir = path.join(authorDir, sanitize(title));
+
+    if (!fs.existsSync(bookDir)) {
+      fs.mkdirSync(bookDir, { recursive: true });
+    }
+
+    // Move all files to the book directory and collect chapter info
+    const chapterMetadata = [];
+    let totalDuration = 0;
+    let totalSize = 0;
+    const movedFiles = [];
+
+    for (let i = 0; i < sortedFiles.length; i++) {
+      const file = sortedFiles[i];
+      const ext = path.extname(file.originalname);
+      // Use original filename to preserve chapter naming
+      const originalBasename = path.basename(file.originalname, ext);
+      const newFilename = `${String(i + 1).padStart(2, '0')} - ${originalBasename}${ext}`;
+      const newPath = path.join(bookDir, newFilename);
+
+      // Move file
+      try {
+        fs.copyFileSync(file.path, newPath);
+        fs.unlinkSync(file.path);
+        movedFiles.push(newPath);
+      } catch (moveError) {
+        console.error(`Failed to move file ${file.originalname}:`, moveError);
+        // Clean up already moved files
+        for (const movedFile of movedFiles) {
+          if (fs.existsSync(movedFile)) fs.unlinkSync(movedFile);
+        }
+        throw new Error(`Failed to move file: ${moveError.message}`);
+      }
+
+      // Extract metadata for this chapter
+      const fileMetadata = await extractFileMetadata(newPath);
+      const stats = fs.statSync(newPath);
+
+      totalDuration += fileMetadata.duration || 0;
+      totalSize += stats.size;
+
+      chapterMetadata.push({
+        file_path: newPath,
+        duration: fileMetadata.duration || 0,
+        file_size: stats.size,
+        title: fileMetadata.title || originalBasename,
+      });
+    }
+
+    // Move cover if exists
+    let coverPath = firstFileMetadata.cover_image;
+    if (coverPath && fs.existsSync(coverPath)) {
+      const coverExt = path.extname(coverPath);
+      const newCoverPath = path.join(bookDir, `cover${coverExt}`);
+      try {
+        fs.copyFileSync(coverPath, newCoverPath);
+        coverPath = newCoverPath;
+      } catch (e) {
+        console.log('Could not move cover:', e.message);
+      }
+    }
+
+    // Save audiobook to database
+    const audiobook = await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO audiobooks
+         (title, author, narrator, description, duration, file_path, file_size,
+          genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
+          tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
+          created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          title,
+          author,
+          firstFileMetadata.narrator,
+          firstFileMetadata.description,
+          totalDuration,
+          movedFiles[0], // First file as reference
+          totalSize,
+          firstFileMetadata.genre,
+          firstFileMetadata.published_year,
+          firstFileMetadata.isbn,
+          firstFileMetadata.series,
+          firstFileMetadata.series_position,
+          coverPath,
+          userId,
+          firstFileMetadata.tags,
+          firstFileMetadata.publisher,
+          firstFileMetadata.copyright_year,
+          firstFileMetadata.asin,
+          firstFileMetadata.language,
+          firstFileMetadata.rating,
+          firstFileMetadata.abridged ? 1 : 0,
+          firstFileMetadata.subtitle,
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            const audiobookId = this.lastID;
+
+            // Calculate cumulative start times and insert chapters
+            let cumulativeTime = 0;
+            const chapterInsertPromises = chapterMetadata.map((chapter, index) => {
+              const startTime = cumulativeTime;
+              cumulativeTime += chapter.duration;
+
+              return new Promise((resolveChapter, rejectChapter) => {
+                db.run(
+                  `INSERT INTO audiobook_chapters
+                   (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    audiobookId,
+                    index + 1,
+                    chapter.file_path,
+                    chapter.duration,
+                    chapter.file_size,
+                    chapter.title,
+                    startTime,
+                  ],
+                  (err) => {
+                    if (err) rejectChapter(err);
+                    else resolveChapter();
+                  }
+                );
+              });
+            });
+
+            Promise.all(chapterInsertPromises)
+              .then(() => {
+                db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, book) => {
+                  if (err) reject(err);
+                  else resolve(book);
+                });
+              })
+              .catch(reject);
+          }
+        }
+      );
+    });
+
+    console.log(`Created multi-file audiobook: ${title} (${chapterMetadata.length} chapters)`);
+
+    res.json({
+      message: 'Multi-file audiobook uploaded successfully',
+      audiobook: audiobook,
+    });
+
+  } catch (error) {
+    console.error('Multi-file upload error:', error);
+    // Clean up any uploaded files on error
+    if (req.files) {
+      for (const file of req.files) {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      }
+    }
     res.status(500).json({ error: error.message });
   }
 });

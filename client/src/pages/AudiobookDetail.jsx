@@ -455,6 +455,15 @@ export default function AudiobookDetail({ onPlay }) {
               <span className="meta-value">{formatDuration(audiobook.duration)}</span>
             </div>
 
+            {audiobook.file_path && (
+              <div className="meta-item">
+                <span className="meta-label">Format</span>
+                <span className="meta-value">
+                  {audiobook.file_path.split('.').pop().toUpperCase()}
+                </span>
+              </div>
+            )}
+
             {progress && progress.position > 0 && (
               <div className="meta-item">
                 <span className="meta-label">Progress</span>
