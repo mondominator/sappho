@@ -13,7 +13,9 @@ function normalizeGenreString(genreStr, genreMappings) {
   const normalized = new Set();
 
   for (const genre of genres) {
-    for (const [category, keywords] of Object.entries(genreMappings)) {
+    for (const [category, data] of Object.entries(genreMappings)) {
+      // Handle both formats: { keywords: [...] } or just [...]
+      const keywords = Array.isArray(data) ? data : (data.keywords || []);
       for (const keyword of keywords) {
         if (genre === keyword || genre.includes(keyword)) {
           normalized.add(category);
@@ -47,7 +49,8 @@ export default function AllBooks({ onPlay }) {
         getGenreMappings()
       ]);
       setAudiobooks(audiobooksRes.data.audiobooks);
-      setGenreMappings(mappingsRes.data);
+      // Extract genres from response (server returns { genres: {...}, defaults: {...} })
+      setGenreMappings(mappingsRes.data.genres || mappingsRes.data);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
