@@ -296,7 +296,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                           <circle cx="12" cy="12" r="3"></circle>
                           <path d="M12 1v6m0 6v6"/>
                         </svg>
-                        Settings
+                        Admin
                       </button>
                       <button onClick={() => { onOpenUpload(); setShowUserMenu(false); }}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -375,7 +375,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M12 1v6m0 6v6"/>
                   </svg>
-                  <span>Settings</span>
+                  <span>Admin</span>
                 </button>
 
                 <button onClick={() => { onOpenUpload(); setShowMobileMenu(false); }}>

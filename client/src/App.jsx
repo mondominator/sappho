@@ -15,6 +15,7 @@ import Settings from './pages/Settings'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
 import UploadModal from './components/UploadModal'
+import { WebSocketProvider } from './contexts/WebSocketContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
 
@@ -219,17 +220,19 @@ function App() {
 
   return (
     <BrowserRouter>
-      <AppContent
-        token={token}
-        onLogout={handleLogout}
-        showUploadModal={showUploadModal}
-        setShowUploadModal={setShowUploadModal}
-        currentAudiobook={currentAudiobook}
-        setCurrentAudiobook={setCurrentAudiobook}
-        currentProgress={currentProgress}
-        setCurrentProgress={setCurrentProgress}
-        playAudiobook={playAudiobook}
-      />
+      <WebSocketProvider>
+        <AppContent
+          token={token}
+          onLogout={handleLogout}
+          showUploadModal={showUploadModal}
+          setShowUploadModal={setShowUploadModal}
+          currentAudiobook={currentAudiobook}
+          setCurrentAudiobook={setCurrentAudiobook}
+          currentProgress={currentProgress}
+          setCurrentProgress={setCurrentProgress}
+          playAudiobook={playAudiobook}
+        />
+      </WebSocketProvider>
     </BrowserRouter>
   )
 }

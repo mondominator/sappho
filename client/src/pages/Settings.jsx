@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { getApiKeys, createApiKey, updateApiKey, deleteApiKey, getUsers, createUser, updateUser, deleteUser } from '../api';
 import LibrarySettings from '../components/settings/LibrarySettings';
+import ServerSettings from '../components/settings/ServerSettings';
+import JobsSettings from '../components/settings/JobsSettings';
+import LogsSettings from '../components/settings/LogsSettings';
 import './Settings.css';
 
 export default function Settings() {
@@ -44,6 +47,7 @@ export default function Settings() {
     } else if (activeTab === 'users') {
       loadUsers();
     } else {
+      // For library, jobs, logs tabs - no initial loading needed
       setLoading(false);
     }
   }, [activeTab]);
@@ -203,7 +207,7 @@ export default function Settings() {
   };
 
   const renderTabContent = () => {
-    if (loading) {
+    if (loading && (activeTab === 'api-keys' || activeTab === 'users')) {
       return <div className="loading">Loading...</div>;
     }
 
@@ -220,6 +224,45 @@ export default function Settings() {
           );
         }
         return <LibrarySettings />;
+
+      case 'server':
+        if (!currentUser?.is_admin) {
+          return (
+            <div className="tab-content">
+              <div className="info-message">
+                <h3>Admin Access Required</h3>
+                <p>Only administrators can configure server settings.</p>
+              </div>
+            </div>
+          );
+        }
+        return <ServerSettings />;
+
+      case 'jobs':
+        if (!currentUser?.is_admin) {
+          return (
+            <div className="tab-content">
+              <div className="info-message">
+                <h3>Admin Access Required</h3>
+                <p>Only administrators can view background jobs.</p>
+              </div>
+            </div>
+          );
+        }
+        return <JobsSettings />;
+
+      case 'logs':
+        if (!currentUser?.is_admin) {
+          return (
+            <div className="tab-content">
+              <div className="info-message">
+                <h3>Admin Access Required</h3>
+                <p>Only administrators can view server logs.</p>
+              </div>
+            </div>
+          );
+        }
+        return <LogsSettings />;
 
       case 'api-keys':
         return renderApiKeysTab();
@@ -589,7 +632,7 @@ export default function Settings() {
 
   return (
     <div className="settings-page container">
-      <h1 className="settings-header">Settings</h1>
+      <h1 className="settings-header">Administration</h1>
 
       <div className="settings-tabs">
         <button
@@ -600,6 +643,24 @@ export default function Settings() {
         </button>
         {currentUser?.is_admin && (
           <>
+            <button
+              className={`tab-button ${activeTab === 'server' ? 'active' : ''}`}
+              onClick={() => setActiveTab('server')}
+            >
+              Server
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
+              onClick={() => setActiveTab('jobs')}
+            >
+              Jobs
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
+              onClick={() => setActiveTab('logs')}
+            >
+              Logs
+            </button>
             <button
               className={`tab-button ${activeTab === 'api-keys' ? 'active' : ''}`}
               onClick={() => setActiveTab('api-keys')}

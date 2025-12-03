@@ -527,6 +527,9 @@ async function scanLibrary() {
 let scanInterval = null;
 let isScanning = false;
 let scanningLocked = false;  // External lock for force rescan
+let lastScanTime = null;
+let lastScanResult = null;
+let scanIntervalMinutes = 5;
 
 function lockScanning() {
   scanningLocked = true;
@@ -540,6 +543,38 @@ function isScanningLocked() {
   return scanningLocked || isScanning;
 }
 
+/**
+ * Get job status for UI display
+ */
+function getJobStatus() {
+  const now = new Date();
+  let nextScanTime = null;
+
+  if (scanInterval && lastScanTime && !scanningLocked) {
+    nextScanTime = new Date(lastScanTime.getTime() + scanIntervalMinutes * 60 * 1000);
+  }
+
+  return {
+    libraryScan: {
+      name: 'Library Scanner',
+      description: 'Periodically scans for new audiobooks',
+      interval: `${scanIntervalMinutes} minutes`,
+      status: isScanning ? 'running' : (scanningLocked ? 'locked' : 'idle'),
+      lastRun: lastScanTime ? lastScanTime.toISOString() : null,
+      nextRun: nextScanTime ? nextScanTime.toISOString() : null,
+      lastResult: lastScanResult,
+    },
+    sessionCleanup: {
+      name: 'Session Cleanup',
+      description: 'Removes stale playback sessions',
+      interval: '15 seconds',
+      status: 'running',
+      lastRun: null, // SessionManager handles this internally
+      nextRun: null,
+    }
+  };
+}
+
 function startPeriodicScan(intervalMinutes = 5) {
   // Don't start if already running
   if (scanInterval) {
@@ -547,6 +582,7 @@ function startPeriodicScan(intervalMinutes = 5) {
     return;
   }
 
+  scanIntervalMinutes = intervalMinutes;
   const intervalMs = intervalMinutes * 60 * 1000;
   console.log(`Starting periodic library scan every ${intervalMinutes} minutes`);
 
@@ -555,9 +591,12 @@ function startPeriodicScan(intervalMinutes = 5) {
     if (!isScanning) {
       isScanning = true;
       try {
-        await scanLibrary();
+        const result = await scanLibrary();
+        lastScanTime = new Date();
+        lastScanResult = result;
       } catch (error) {
         console.error('Error in initial library scan:', error);
+        lastScanResult = { error: error.message };
       } finally {
         isScanning = false;
       }
@@ -574,9 +613,12 @@ function startPeriodicScan(intervalMinutes = 5) {
     isScanning = true;
     try {
       console.log('Starting periodic library scan...');
-      await scanLibrary();
+      const result = await scanLibrary();
+      lastScanTime = new Date();
+      lastScanResult = result;
     } catch (error) {
       console.error('Error in periodic library scan:', error);
+      lastScanResult = { error: error.message };
     } finally {
       isScanning = false;
     }
@@ -602,4 +644,5 @@ module.exports = {
   lockScanning,
   unlockScanning,
   isScanningLocked,
+  getJobStatus,
 };
