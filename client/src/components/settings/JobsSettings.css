@@ -1,0 +1,139 @@
+.jobs-settings .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.jobs-settings .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.jobs-settings .checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.jobs-settings .checkbox-inline input {
+  accent-color: #3b82f6;
+}
+
+.jobs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.job-card {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.job-card:hover {
+  border-color: #4b5563;
+}
+
+.job-card.running {
+  border-color: #22c55e;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), transparent);
+}
+
+.job-card.locked {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), transparent);
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.job-name {
+  font-weight: 600;
+  color: #f3f4f6;
+  font-size: 1rem;
+}
+
+.job-status-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.job-status-badge.idle {
+  background: #374151;
+  color: #9ca3af;
+}
+
+.job-status-badge.running {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  animation: pulse 2s infinite;
+}
+
+.job-status-badge.locked {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.job-description {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.job-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #374151;
+}
+
+.job-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.job-detail-label {
+  color: #6b7280;
+}
+
+.job-detail-value {
+  color: #d1d5db;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .jobs-settings .section-header {
+    flex-direction: column;
+  }
+
+  .jobs-settings .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .jobs-grid {
+    grid-template-columns: 1fr;
+  }
+}

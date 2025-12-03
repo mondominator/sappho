@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   sappho:
     build: .
@@ -13,7 +11,8 @@ services:
       - PORT=3003
       - JWT_SECRET=${JWT_SECRET:-change-this-secret}
       - DATABASE_PATH=/app/data/sapho.db
-      - UPLOAD_DIR=/app/data/uploads
-      - WATCH_DIR=/app/data/watch
+      - DATA_DIR=/app/data
       - AUDIOBOOKS_DIR=/app/data/audiobooks
+      - UPLOAD_DIR=/app/data/uploads
+      - LIBRARY_SCAN_INTERVAL=5
     restart: unless-stopped

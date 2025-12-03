@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress } from '../api';
+import { useWebSocket } from '../contexts/WebSocketContext';
 import './Home.css';
 
 export default function Home({ onPlay }) {
@@ -11,6 +12,7 @@ export default function Home({ onPlay }) {
   const [finished, setFinished] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const { subscribe, isConnected } = useWebSocket();
 
   useEffect(() => {
     const handleResize = () => {
@@ -21,11 +23,7 @@ export default function Home({ onPlay }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    loadSpecialSections();
-  }, []);
-
-  const loadSpecialSections = async () => {
+  const loadSpecialSections = useCallback(async () => {
     try {
       // Load sections individually with error handling for each
       const recentResponse = await getRecentlyAdded(10).catch(err => {
@@ -57,7 +55,45 @@ export default function Home({ onPlay }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadSpecialSections();
+  }, [loadSpecialSections]);
+
+  // Subscribe to real-time library updates
+  useEffect(() => {
+    // Refresh when a new book is added
+    const unsubAdd = subscribe('library.add', () => {
+      console.log('📚 New book added, refreshing home page');
+      loadSpecialSections();
+    });
+
+    // Refresh when a book is updated
+    const unsubUpdate = subscribe('library.update', () => {
+      console.log('📚 Book updated, refreshing home page');
+      loadSpecialSections();
+    });
+
+    // Refresh when a book is deleted
+    const unsubDelete = subscribe('library.delete', () => {
+      console.log('📚 Book deleted, refreshing home page');
+      loadSpecialSections();
+    });
+
+    // Refresh when progress changes (from another device)
+    const unsubProgress = subscribe('progress.update', () => {
+      console.log('📚 Progress updated, refreshing home page');
+      loadSpecialSections();
+    });
+
+    return () => {
+      unsubAdd();
+      unsubUpdate();
+      unsubDelete();
+      unsubProgress();
+    };
+  }, [subscribe, loadSpecialSections]);
 
   const handlePlay = async (book, e) => {
     e.stopPropagation();

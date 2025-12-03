@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { clearLibrary, scanLibrary, forceRescan, getServerLogs } from '../../api';
+import { scanLibrary, forceRescan } from '../../api';
 import './LibrarySettings.css';
 
 export default function LibrarySettings() {
@@ -12,54 +12,10 @@ export default function LibrarySettings() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [rescanning, setRescanning] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
-  const [logs, setLogs] = useState([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const logsEndRef = useRef(null);
-  const refreshInterval = useRef(null);
 
   useEffect(() => {
     loadSettings();
   }, []);
-
-  useEffect(() => {
-    if (autoRefresh && showLogs) {
-      refreshInterval.current = setInterval(loadLogs, 2000);
-    }
-    return () => {
-      if (refreshInterval.current) {
-        clearInterval(refreshInterval.current);
-      }
-    };
-  }, [autoRefresh, showLogs]);
-
-  useEffect(() => {
-    if (logsEndRef.current && showLogs) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logs, showLogs]);
-
-  const loadLogs = async () => {
-    try {
-      const result = await getServerLogs(200);
-      setLogs(result.data.logs);
-      // Auto-detect if scan is in progress
-      if (result.data.forceRescanInProgress || result.data.scanningLocked) {
-        setRescanning(result.data.forceRescanInProgress);
-      }
-    } catch (error) {
-      console.error('Error loading logs:', error);
-    }
-  };
-
-  const handleShowLogs = async () => {
-    setShowLogs(true);
-    setLogsLoading(true);
-    await loadLogs();
-    setLogsLoading(false);
-    setAutoRefresh(true);
-  };
 
   const loadSettings = async () => {
     try {
@@ -148,12 +104,12 @@ export default function LibrarySettings() {
     }
   };
 
-  const handleForceRescan = async () => {
-    if (!confirm('Force rescan will CLEAR the entire library database and reimport all audiobooks. User playback progress will be preserved. Are you sure?')) {
+  const handleForceRefresh = async () => {
+    if (!confirm('Force refresh will CLEAR the entire library database and reimport all audiobooks. User playback progress will be preserved. Are you sure?')) {
       return;
     }
 
-    if (!confirm('This action cannot be undone. Are you absolutely sure you want to force rescan?')) {
+    if (!confirm('This action cannot be undone. Are you absolutely sure you want to force refresh?')) {
       return;
     }
 
@@ -163,19 +119,18 @@ export default function LibrarySettings() {
 
       // Check if scan is running in background
       if (result.data.stats?.scanning) {
-        // Open logs panel to show progress
-        handleShowLogs();
+        alert('Force refresh started in background. Check the Logs tab for progress.');
       } else {
         const stats = result.data.stats;
-        alert(`Force rescan complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
+        alert(`Force refresh complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
         window.location.reload();
       }
     } catch (error) {
-      console.error('Error in force rescan:', error);
-      alert(error.response?.data?.error || 'Failed to force rescan');
+      console.error('Error in force refresh:', error);
+      alert(error.response?.data?.error || 'Failed to force refresh');
+    } finally {
       setRescanning(false);
     }
-    // Note: Don't reset rescanning here - let the logs polling detect when it's done
   };
 
   if (loading) {
@@ -258,7 +213,7 @@ export default function LibrarySettings() {
           <div>
             <h2>Library Management</h2>
             <p className="section-description">
-              Manually trigger a library scan to import new audiobooks immediately, or force rescan to clear and reimport everything.
+              Manually trigger a library scan to import new audiobooks immediately, or force refresh to clear and reimport everything.
             </p>
           </div>
         </div>
@@ -279,7 +234,7 @@ export default function LibrarySettings() {
           <div>
             <h2>Danger Zone</h2>
             <p className="section-description" style={{ color: '#fca5a5' }}>
-              Force rescan will clear the entire library database and reimport all audiobooks. Use this if you have
+              Force refresh will clear the entire library database and reimport all audiobooks. Use this if you have
               duplicate entries or corrupted data.
             </p>
           </div>
@@ -293,75 +248,11 @@ export default function LibrarySettings() {
         <button
           type="button"
           className="btn btn-danger"
-          onClick={handleForceRescan}
+          onClick={handleForceRefresh}
           disabled={rescanning}
         >
-          {rescanning ? 'Force Rescanning...' : 'Force Rescan Library'}
+          {rescanning ? 'Refreshing...' : 'Force Refresh Library'}
         </button>
-      </div>
-
-      <div className="settings-section" style={{ marginTop: '2rem' }}>
-        <div className="section-header">
-          <div>
-            <h2>Server Logs</h2>
-            <p className="section-description">
-              View recent server activity including scan progress and errors.
-            </p>
-          </div>
-        </div>
-        <div className="form-actions" style={{ marginBottom: '1rem' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={showLogs ? () => { setShowLogs(false); setAutoRefresh(false); } : handleShowLogs}
-          >
-            {showLogs ? 'Hide Logs' : 'View Logs'}
-          </button>
-          {showLogs && (
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={loadLogs}
-                disabled={logsLoading}
-              >
-                Refresh
-              </button>
-              <label className="checkbox-inline">
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
-                />
-                <span>Auto-refresh</span>
-              </label>
-            </>
-          )}
-        </div>
-        {showLogs && (
-          <div className="logs-container">
-            {logsLoading ? (
-              <div className="logs-loading">Loading logs...</div>
-            ) : logs.length === 0 ? (
-              <div className="logs-empty">No logs available</div>
-            ) : (
-              <div className="logs-list">
-                {logs.map((log, index) => (
-                  <div
-                    key={index}
-                    className={`log-entry ${log.level}`}
-                  >
-                    <span className="log-time">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className="log-message">{log.message}</span>
-                  </div>
-                ))}
-                <div ref={logsEndRef} />
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

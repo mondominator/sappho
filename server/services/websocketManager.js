@@ -138,6 +138,61 @@ class WebSocketManager {
   }
 
   /**
+   * Broadcast library update (new book, updated book, deleted book)
+   */
+  broadcastLibraryUpdate(eventType, audiobook) {
+    const message = {
+      type: eventType, // 'library.add', 'library.update', 'library.delete'
+      timestamp: new Date().toISOString(),
+      audiobook: audiobook ? {
+        id: audiobook.id,
+        title: audiobook.title,
+        author: audiobook.author,
+        series: audiobook.series,
+        cover_image: audiobook.cover_image,
+      } : null,
+    };
+
+    this.broadcast(message);
+  }
+
+  /**
+   * Broadcast progress update for a specific audiobook
+   */
+  broadcastProgressUpdate(userId, audiobookId, progress) {
+    const message = {
+      type: 'progress.update',
+      timestamp: new Date().toISOString(),
+      userId,
+      audiobookId,
+      progress: {
+        position: progress.position,
+        completed: progress.completed,
+        state: progress.state,
+      },
+    };
+
+    this.broadcast(message);
+  }
+
+  /**
+   * Broadcast job status update
+   */
+  broadcastJobUpdate(jobName, status, details = {}) {
+    const message = {
+      type: 'job.update',
+      timestamp: new Date().toISOString(),
+      job: {
+        name: jobName,
+        status,
+        ...details,
+      },
+    };
+
+    this.broadcast(message);
+  }
+
+  /**
    * Send message to specific client
    */
   sendToClient(ws, message) {

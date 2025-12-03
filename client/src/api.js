@@ -224,4 +224,14 @@ export const forceRescan = () =>
 export const getServerLogs = (limit = 100) =>
   api.get('/maintenance/logs', { params: { limit } });
 
+export const getBackgroundJobs = () =>
+  api.get('/maintenance/jobs');
+
+// Server Settings
+export const getServerSettings = () =>
+  api.get('/settings/server');
+
+export const updateServerSettings = (settings) =>
+  api.put('/settings/server', settings);
+
 export default api;

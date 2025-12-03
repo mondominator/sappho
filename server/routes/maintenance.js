@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
-const { scanLibrary, lockScanning, unlockScanning, isScanningLocked } = require('../services/libraryScanner');
+const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = require('../services/libraryScanner');
 
 // In-memory log buffer for UI viewing
 const LOG_BUFFER_SIZE = 500;
@@ -13,17 +13,73 @@ const logBuffer = [];
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
+/**
+ * Categorize log messages for better UI display
+ */
+function categorizeLogMessage(message) {
+  const lowerMsg = message.toLowerCase();
+
+  // Success indicators
+  if (message.includes('✅') || message.includes('✓') ||
+      lowerMsg.includes('complete') || lowerMsg.includes('success') ||
+      lowerMsg.includes('imported:') || lowerMsg.includes('created')) {
+    return 'success';
+  }
+
+  // Warning indicators
+  if (message.includes('⚠') || lowerMsg.includes('warning') ||
+      lowerMsg.includes('skipping') || lowerMsg.includes('skipped') ||
+      lowerMsg.includes('already exists') || lowerMsg.includes('not found')) {
+    return 'warning';
+  }
+
+  // Scan/Job related
+  if (lowerMsg.includes('scan') || lowerMsg.includes('scanning') ||
+      lowerMsg.includes('periodic') || lowerMsg.includes('starting') ||
+      lowerMsg.includes('processing')) {
+    return 'job';
+  }
+
+  // Import/Library related
+  if (lowerMsg.includes('import') || lowerMsg.includes('library') ||
+      lowerMsg.includes('audiobook') || lowerMsg.includes('metadata')) {
+    return 'library';
+  }
+
+  // WebSocket/Session related
+  if (lowerMsg.includes('websocket') || lowerMsg.includes('session') ||
+      lowerMsg.includes('🔌') || lowerMsg.includes('📡') ||
+      lowerMsg.includes('broadcast')) {
+    return 'websocket';
+  }
+
+  // Auth related
+  if (lowerMsg.includes('auth') || lowerMsg.includes('login') ||
+      lowerMsg.includes('token') || lowerMsg.includes('user')) {
+    return 'auth';
+  }
+
+  // Server/System
+  if (lowerMsg.includes('server') || lowerMsg.includes('listening') ||
+      lowerMsg.includes('initialized') || lowerMsg.includes('started')) {
+    return 'system';
+  }
+
+  return 'info';
+}
+
 // Intercept console.log and console.error
 console.log = (...args) => {
   const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  logBuffer.push({ timestamp: new Date().toISOString(), level: 'info', message });
+  const category = categorizeLogMessage(message);
+  logBuffer.push({ timestamp: new Date().toISOString(), level: 'info', category, message });
   if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
   originalConsoleLog.apply(console, args);
 };
 
 console.error = (...args) => {
   const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  logBuffer.push({ timestamp: new Date().toISOString(), level: 'error', message });
+  logBuffer.push({ timestamp: new Date().toISOString(), level: 'error', category: 'error', message });
   if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
   originalConsoleError.apply(console, args);
 };
@@ -42,6 +98,20 @@ router.get('/logs', authenticateToken, (req, res) => {
     total: logBuffer.length,
     forceRescanInProgress,
     scanningLocked: isScanningLocked()
+  });
+});
+
+// Get background jobs status
+router.get('/jobs', authenticateToken, (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const jobs = getJobStatus();
+
+  res.json({
+    jobs,
+    forceRefreshInProgress: forceRescanInProgress,
   });
 });
 
