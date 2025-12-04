@@ -32,7 +32,12 @@ app.use('/api/maintenance', require('./routes/maintenance'));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Sapho server is running' });
+  const packageJson = require('../package.json');
+  res.json({
+    status: 'ok',
+    message: 'Sapho server is running',
+    version: packageJson.version
+  });
 });
 
 // Serve static files from the client/dist directory
