@@ -1481,8 +1481,29 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     const dir = path.dirname(audiobook.file_path);
     const basename = path.basename(audiobook.file_path, ext);
     const newPath = path.join(dir, `${basename}.m4b`);
+    const tempCoverPath = path.join(dir, `${basename}_temp_cover.jpg`);
 
     console.log(`Converting ${audiobook.file_path} to M4B format...`);
+
+    // Try to extract cover art from the source file first (for MP3s with embedded art)
+    let hasCover = false;
+    if (ext === '.mp3') {
+      try {
+        await execFileAsync('ffmpeg', [
+          '-i', audiobook.file_path,
+          '-an',                    // No audio
+          '-vcodec', 'copy',        // Copy video stream (cover art)
+          '-y', tempCoverPath
+        ], { timeout: 30000 });
+        hasCover = fs.existsSync(tempCoverPath) && fs.statSync(tempCoverPath).size > 0;
+        if (hasCover) {
+          console.log('Extracted cover art from MP3 for re-embedding');
+        }
+      } catch (e) {
+        // No cover art or extraction failed - not critical
+        console.log('No embedded cover art found or extraction failed');
+      }
+    }
 
     let args;
     if (ext === '.m4a' || ext === '.mp4') {
@@ -1496,8 +1517,10 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
       ];
     } else {
       // For MP3, OGG, FLAC - need to re-encode to AAC
+      // Use -vn to strip any embedded cover art (video stream) - cover will be added with tone
       args = [
         '-i', audiobook.file_path,
+        '-vn',                   // Strip video/cover art (will be added back with tone)
         '-c:a', 'aac',           // Encode audio to AAC
         '-b:a', '128k',          // 128kbps bitrate (good for audiobooks)
         '-ar', '44100',          // 44.1kHz sample rate
@@ -1523,7 +1546,27 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     // Get new file size
     const newStats = fs.statSync(newPath);
 
-    // Delete original M4A file
+    // Re-embed cover art using tone if we extracted one
+    if (hasCover && fs.existsSync(tempCoverPath)) {
+      try {
+        console.log('Re-embedding cover art with tone...');
+        await execFileAsync('tone', [
+          'tag', newPath,
+          `--cover-front=${tempCoverPath}`
+        ], { timeout: 60000 });
+        console.log('Cover art embedded successfully');
+      } catch (e) {
+        console.error('Failed to embed cover art:', e.message);
+        // Not critical - continue without cover
+      } finally {
+        // Clean up temp cover
+        if (fs.existsSync(tempCoverPath)) {
+          fs.unlinkSync(tempCoverPath);
+        }
+      }
+    }
+
+    // Delete original file
     fs.unlinkSync(audiobook.file_path);
 
     // Update database with new path
