@@ -6,6 +6,15 @@ const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
 const websocketManager = require('./websocketManager');
 
+// Lazy load to avoid circular dependency
+let isDirectoryBeingConverted = null;
+const getConversionChecker = () => {
+  if (!isDirectoryBeingConverted) {
+    isDirectoryBeingConverted = require('../routes/audiobooks').isDirectoryBeingConverted;
+  }
+  return isDirectoryBeingConverted;
+};
+
 const execFileAsync = promisify(execFile);
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
@@ -124,6 +133,14 @@ function audiobookExistsInDirectory(filePath) {
  */
 async function importAudiobook(filePath, userId = 1) {
   try {
+    // Check if directory has an active conversion in progress
+    const dir = path.dirname(filePath);
+    const checkConversion = getConversionChecker();
+    if (checkConversion && checkConversion(dir)) {
+      console.log(`Skipping ${filePath} - conversion in progress in this directory`);
+      return null;
+    }
+
     // Check if already in database
     const exists = await fileExistsInDatabase(filePath);
     if (exists) {

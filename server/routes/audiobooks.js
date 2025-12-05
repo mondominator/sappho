@@ -5,6 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const { authenticateToken } = require('../auth');
 
+// Track directories with active conversions to prevent scanner interference
+const activeConversions = new Set();
+
+// Export for use by library scanner
+const isDirectoryBeingConverted = (dir) => activeConversions.has(dir);
+module.exports.isDirectoryBeingConverted = isDirectoryBeingConverted;
+
 /**
  * Strip HTML tags and decode HTML entities from text
  */
@@ -1483,6 +1490,8 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     const newPath = path.join(dir, `${basename}.m4b`);
     const tempCoverPath = path.join(dir, `${basename}_temp_cover.jpg`);
 
+    // Lock directory to prevent library scanner from interfering
+    activeConversions.add(dir);
     console.log(`Converting ${audiobook.file_path} to M4B format...`);
 
     // Try to extract cover art from the source file first (for MP3s with embedded art)
@@ -1583,6 +1592,9 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
 
     console.log(`Successfully converted to M4B: ${newPath}`);
 
+    // Unlock directory
+    activeConversions.delete(dir);
+
     res.json({
       message: 'Converted to M4B successfully',
       newPath: newPath,
@@ -1590,6 +1602,8 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
+    // Unlock directory on error
+    if (dir) activeConversions.delete(dir);
     console.error('Error converting to M4B:', error);
     res.status(500).json({ error: 'Failed to convert: ' + error.message });
   }
