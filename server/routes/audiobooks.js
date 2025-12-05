@@ -1928,6 +1928,13 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
               websocketManager.broadcastSessionUpdate(session, eventType);
             }
           }
+
+          // Broadcast progress update for cross-device sync (so other devices refresh their UI)
+          websocketManager.broadcastProgressUpdate(userId, audiobookId, {
+            position: parseInt(position),
+            completed: completed,
+            state: actualState,
+          });
         }
       });
 

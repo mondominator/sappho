@@ -4,6 +4,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
+const websocketManager = require('./websocketManager');
 
 const execFileAsync = promisify(execFile);
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
@@ -227,6 +228,8 @@ async function importAudiobook(filePath, userId = 1) {
                       reject(err);
                     } else {
                       console.log(`Imported: ${metadata.title} by ${metadata.author} (${chapters.length} chapters)`);
+                      // Broadcast to connected clients
+                      websocketManager.broadcastLibraryUpdate('library.add', audiobook);
                       resolve(audiobook);
                     }
                   });
@@ -241,6 +244,8 @@ async function importAudiobook(filePath, userId = 1) {
                   reject(err);
                 } else {
                   console.log(`Imported: ${metadata.title} by ${metadata.author}`);
+                  // Broadcast to connected clients
+                  websocketManager.broadcastLibraryUpdate('library.add', audiobook);
                   resolve(audiobook);
                 }
               });
@@ -386,6 +391,8 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
                     reject(err);
                   } else {
                     console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
+                    // Broadcast to connected clients
+                    websocketManager.broadcastLibraryUpdate('library.add', audiobook);
                     resolve(audiobook);
                   }
                 });
