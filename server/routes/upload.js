@@ -6,6 +6,7 @@ const fs = require('fs');
 const { authenticateToken } = require('../auth');
 const { processAudiobook, extractFileMetadata } = require('../services/fileProcessor');
 const db = require('../database');
+const websocketManager = require('../services/websocketManager');
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../data/uploads');
 
@@ -298,6 +299,9 @@ router.post('/multifile', authenticateToken, upload.array('audiobooks', 100), as
     });
 
     console.log(`Created multi-file audiobook: ${title} (${chapterMetadata.length} chapters)`);
+
+    // Broadcast to connected clients
+    websocketManager.broadcastLibraryUpdate('library.add', audiobook);
 
     res.json({
       message: 'Multi-file audiobook uploaded successfully',

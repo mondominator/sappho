@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../database');
 const { scrapeMetadata } = require('./metadataScraper');
+const websocketManager = require('./websocketManager');
 
 // music-metadata is ESM only, use dynamic import
 let parseFile;
@@ -746,6 +747,8 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
             if (err) {
               reject(err);
             } else {
+              // Broadcast to connected clients
+              websocketManager.broadcastLibraryUpdate('library.add', audiobook);
               resolve(audiobook);
             }
           });
