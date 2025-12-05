@@ -8,8 +8,12 @@ export default function AISettings() {
     openaiApiKey: '',
     openaiModel: 'gpt-4o-mini',
     geminiApiKey: '',
-    geminiModel: 'gemini-1.5-flash'
+    geminiModel: 'gemini-1.5-flash',
+    recapOffensiveMode: false,
+    recapCustomPrompt: ''
   });
+  const [defaultPrompt, setDefaultPrompt] = useState('');
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [originalSettings, setOriginalSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,8 +30,18 @@ export default function AISettings() {
       const response = await axios.get('/api/settings/ai', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setSettings(response.data.settings);
-      setOriginalSettings(response.data.settings);
+      const data = response.data.settings;
+      setSettings({
+        ...data,
+        recapOffensiveMode: data.recapOffensiveMode || false,
+        recapCustomPrompt: data.recapCustomPrompt || ''
+      });
+      setOriginalSettings({
+        ...data,
+        recapOffensiveMode: data.recapOffensiveMode || false,
+        recapCustomPrompt: data.recapCustomPrompt || ''
+      });
+      setDefaultPrompt(data.recapDefaultPrompt || '');
     } catch (error) {
       console.error('Error loading AI settings:', error);
     } finally {
@@ -81,7 +95,9 @@ export default function AISettings() {
            settings.openaiApiKey !== originalSettings.openaiApiKey ||
            settings.openaiModel !== originalSettings.openaiModel ||
            settings.geminiApiKey !== originalSettings.geminiApiKey ||
-           settings.geminiModel !== originalSettings.geminiModel;
+           settings.geminiModel !== originalSettings.geminiModel ||
+           settings.recapOffensiveMode !== originalSettings.recapOffensiveMode ||
+           settings.recapCustomPrompt !== originalSettings.recapCustomPrompt;
   };
 
   const hasApiKeyForProvider = () => {
@@ -217,6 +233,44 @@ export default function AISettings() {
           </div>
         )}
 
+        <div className="settings-section">
+          <h3>Recap Style</h3>
+
+          <div className="form-group checkbox-group">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={settings.recapOffensiveMode}
+                onChange={(e) => setSettings({ ...settings, recapOffensiveMode: e.target.checked })}
+              />
+              <span className="toggle-text">
+                <strong>Offensive Mode</strong>
+                <small>Crude, irreverent recaps with profanity. Like a drunk friend recapping the books at a party.</small>
+              </span>
+            </label>
+          </div>
+
+          <div className="form-group">
+            <label>
+              Custom Prompt
+              {settings.recapCustomPrompt && (
+                <span className="configured-badge">Custom</span>
+              )}
+            </label>
+            <p className="help-text" style={{ marginBottom: '8px' }}>
+              {settings.recapCustomPrompt ? 'Using custom prompt' : 'Using default prompt'}.
+              Click below to customize how recaps are generated.
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowPromptEditor(true)}
+            >
+              Edit Prompt
+            </button>
+          </div>
+        </div>
+
         {testResult && (
           <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -283,6 +337,52 @@ export default function AISettings() {
           </p>
         </div>
       </div>
+
+      {showPromptEditor && (
+        <div className="modal-overlay" onClick={() => setShowPromptEditor(false)}>
+          <div className="modal prompt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Custom Recap Prompt</h3>
+            <p className="modal-description">
+              Customize the system prompt used for generating series recaps.
+              Leave empty to use the default prompt.
+            </p>
+
+            <div className="form-group">
+              <textarea
+                className="input prompt-textarea"
+                value={settings.recapCustomPrompt}
+                onChange={(e) => setSettings({ ...settings, recapCustomPrompt: e.target.value })}
+                placeholder="Enter custom prompt..."
+                rows={12}
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSettings({ ...settings, recapCustomPrompt: defaultPrompt })}
+              >
+                Load Default
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => setSettings({ ...settings, recapCustomPrompt: '' })}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setShowPromptEditor(false)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

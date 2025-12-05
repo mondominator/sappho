@@ -175,12 +175,90 @@
   color: #d1d5db;
 }
 
+/* Toggle label for offensive mode */
+.toggle-label {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: #ef4444;
+}
+
+.toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.toggle-text strong {
+  color: #f3f4f6;
+  font-weight: 500;
+}
+
+.toggle-text small {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* Prompt editor modal */
+.prompt-modal {
+  max-width: 700px;
+  width: 90vw;
+}
+
+.prompt-modal .modal-description {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 300px;
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.prompt-modal .modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.prompt-modal .btn-danger {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+.prompt-modal .btn-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
 @media (max-width: 768px) {
   .ai-form .form-actions {
     flex-direction: column;
   }
 
   .ai-form .form-actions .btn {
+    width: 100%;
+  }
+
+  .prompt-modal .modal-actions {
+    flex-direction: column;
+  }
+
+  .prompt-modal .modal-actions .btn {
     width: 100%;
   }
 }
