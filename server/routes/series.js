@@ -181,27 +181,24 @@ router.get('/:seriesName/recap', authenticateToken, async (req, res) => {
     // Build prompt
     const booksNotRead = books.filter(b => b.completed !== 1 && b.position === 0);
 
-    const systemPrompt = `You are a helpful assistant that creates comprehensive, detailed book series recaps with FULL SPOILERS.
-Your goal is to help readers remember exactly what happened in books they've already read before continuing a series.
-The reader has ALREADY READ these books and wants SPECIFIC DETAILS - not vague references.
+    const systemPrompt = `You are recapping a book series for someone who has ALREADY READ the books and wants to remember what happened.
 
-Write a LONG, THOROUGH recap. Do not summarize briefly - give real detail. Aim for several paragraphs per book.
+CRITICAL: Be EXPLICIT and SPECIFIC. Never be vague.
+- BAD: "A major character dies" or "There is a betrayal" or "A secret is revealed"
+- GOOD: "Jon kills Daenerys to stop her from burning more cities" or "Snape kills Dumbledore on Dumbledore's own orders" or "Luke discovers Darth Vader is his father"
 
-Be SPECIFIC and DETAILED. Instead of "there was a betrayal", say "Character X betrayed Character Y by doing Z".
-For each completed book, include:
-- Main plot summary with specific events and outcomes
-- WHO dies and HOW they die (be explicit)
-- WHO betrays whom and exactly WHAT they did
-- Specific plot twists and revelations (name names, explain what happened)
-- Key romantic developments (who gets together, who breaks up, major relationship moments)
-- Important secrets that are revealed and what they actually were
-- Major battles, confrontations, or action sequences and their outcomes
-- How the book ended - what specifically happened in the climax and resolution
-- Cliffhangers and unresolved threads heading into the next book
+For completed books, explicitly state:
+- Character names and what specifically happens to them
+- Who dies and how (name them, describe the death)
+- Who betrays whom and what exactly they did
+- What secrets are revealed (state the actual secret)
+- Romantic relationships: who ends up together, who breaks up, key moments
+- How battles/confrontations end and who wins/loses
+- The actual ending and any cliffhangers
 
-IMPORTANT: Only include spoilers for books the reader has COMPLETED. Do NOT spoil books they haven't started yet.
+IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
 
-FORMAT: Write in plain text paragraphs only. Do NOT use markdown formatting like ** or ## or bullet points. Just write flowing paragraphs separated by blank lines.`;
+FORMAT: Plain text paragraphs only. No markdown, no ** or ##, no bullet points.`;
 
     const bookDescriptions = booksRead.map(b => {
       const status = b.completed ? 'completed' : 'in progress';
