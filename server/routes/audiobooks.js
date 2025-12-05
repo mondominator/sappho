@@ -350,16 +350,15 @@ router.get('/', authenticateToken, (req, res) => {
     }
 
     // Transform progress fields into nested object
-    const transformedAudiobooks = audiobooks.map(book => ({
-      ...book,
-      progress: book.progress_position !== null ? {
-        position: book.progress_position,
-        completed: book.progress_completed
-      } : null
-    }));
-    delete transformedAudiobooks.forEach(b => {
-      delete b.progress_position;
-      delete b.progress_completed;
+    const transformedAudiobooks = audiobooks.map(book => {
+      const { progress_position, progress_completed, ...rest } = book;
+      return {
+        ...rest,
+        progress: progress_position !== null ? {
+          position: progress_position,
+          completed: progress_completed
+        } : null
+      };
     });
 
     // Get total count
