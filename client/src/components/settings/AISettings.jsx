@@ -344,15 +344,14 @@ export default function AISettings() {
             <h3>Custom Recap Prompt</h3>
             <p className="modal-description">
               Customize the system prompt used for generating series recaps.
-              Leave empty to use the default prompt.
+              Edit the prompt below to change how recaps are generated.
             </p>
 
             <div className="form-group">
               <textarea
                 className="input prompt-textarea"
-                value={settings.recapCustomPrompt}
+                value={settings.recapCustomPrompt || defaultPrompt}
                 onChange={(e) => setSettings({ ...settings, recapCustomPrompt: e.target.value })}
-                placeholder="Enter custom prompt..."
                 rows={12}
               />
             </div>
@@ -360,17 +359,10 @@ export default function AISettings() {
             <div className="modal-actions">
               <button
                 type="button"
-                className="btn btn-secondary"
-                onClick={() => setSettings({ ...settings, recapCustomPrompt: defaultPrompt })}
-              >
-                Load Default
-              </button>
-              <button
-                type="button"
                 className="btn btn-danger"
                 onClick={() => setSettings({ ...settings, recapCustomPrompt: '' })}
               >
-                Clear
+                Reset to Default
               </button>
               <button
                 type="button"
