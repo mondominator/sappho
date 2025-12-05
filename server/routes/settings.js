@@ -347,6 +347,46 @@ router.put('/server', authenticateToken, requireAdmin, (req, res, next) => {
   router.handle(req, res, next);
 });
 
+// Default recap system prompt
+const DEFAULT_RECAP_PROMPT = `You are recapping a book series for someone who has ALREADY READ the books and wants to remember what happened.
+
+Write a THOROUGH recap - aim for at least 2-3 paragraphs per book covering all major plot points.
+
+CRITICAL: Be EXPLICIT and SPECIFIC. Never be vague.
+- BAD: "A major character dies" or "There is a betrayal" or "A secret is revealed"
+- GOOD: "Jon kills Daenerys to stop her from burning more cities" or "Snape kills Dumbledore on Dumbledore's own orders" or "Luke discovers Darth Vader is his father"
+
+For each completed book, cover:
+- The main plot and how it unfolds
+- Character names and what specifically happens to them
+- Who dies and how (name them, describe the death)
+- Who betrays whom and what exactly they did
+- What secrets are revealed (state the actual secret)
+- Romantic relationships: who ends up together, who breaks up, key moments
+- Major battles/confrontations and their outcomes
+- How the book ends and any cliffhangers leading to the next book
+
+IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
+
+FORMAT: Use markdown formatting for readability - bold (**text**) for character names and key events, headers (##) for book titles.`;
+
+// Offensive mode addition to prompt
+const OFFENSIVE_MODE_PROMPT = `
+
+STYLE: Be funny, irreverent, and use colorful language. Roast the characters and their decisions. Use profanity freely. Mock plot holes and clichés. Think of this as a drunk friend recapping the books at a party - entertaining, crude, but still hitting all the important plot points.`;
+
+// Get the current recap prompt (exported for use in series.js)
+const getRecapPrompt = () => {
+  const customPrompt = process.env.RECAP_CUSTOM_PROMPT;
+  const offensiveMode = process.env.RECAP_OFFENSIVE_MODE === 'true';
+
+  let prompt = customPrompt || DEFAULT_RECAP_PROMPT;
+  if (offensiveMode) {
+    prompt += OFFENSIVE_MODE_PROMPT;
+  }
+  return prompt;
+};
+
 // Get AI settings
 router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
@@ -354,7 +394,10 @@ router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
     openaiApiKey: process.env.OPENAI_API_KEY ? '••••••••' : '',
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     geminiApiKey: process.env.GEMINI_API_KEY ? '••••••••' : '',
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+    recapCustomPrompt: process.env.RECAP_CUSTOM_PROMPT || '',
+    recapOffensiveMode: process.env.RECAP_OFFENSIVE_MODE === 'true',
+    recapDefaultPrompt: DEFAULT_RECAP_PROMPT
   };
 
   res.json({ settings });
@@ -372,7 +415,7 @@ router.get('/ai/status', authenticateToken, (req, res) => {
 
 // Update AI settings
 router.put('/ai', authenticateToken, requireAdmin, (req, res) => {
-  const { aiProvider, openaiApiKey, openaiModel, geminiApiKey, geminiModel } = req.body;
+  const { aiProvider, openaiApiKey, openaiModel, geminiApiKey, geminiModel, recapCustomPrompt, recapOffensiveMode } = req.body;
   const updates = {};
 
   // Update provider
@@ -407,6 +450,17 @@ router.put('/ai', authenticateToken, requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'Invalid Gemini model selected' });
     }
     updates.GEMINI_MODEL = geminiModel;
+  }
+
+  // Recap prompt customization
+  if (recapCustomPrompt !== undefined) {
+    // Empty string means use default, otherwise save custom prompt
+    updates.RECAP_CUSTOM_PROMPT = recapCustomPrompt;
+  }
+
+  // Offensive mode toggle
+  if (recapOffensiveMode !== undefined) {
+    updates.RECAP_OFFENSIVE_MODE = recapOffensiveMode ? 'true' : 'false';
   }
 
   if (Object.keys(updates).length > 0) {
@@ -514,3 +568,4 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getRecapPrompt = getRecapPrompt;

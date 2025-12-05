@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../database');
 const crypto = require('crypto');
 const { authenticateToken } = require('../auth');
+const { getRecapPrompt } = require('./settings');
 
 // Helper to generate hash of books read for cache key
 const generateBooksHash = (books) => {
@@ -181,27 +182,8 @@ router.get('/:seriesName/recap', authenticateToken, async (req, res) => {
     // Build prompt
     const booksNotRead = books.filter(b => b.completed !== 1 && b.position === 0);
 
-    const systemPrompt = `You are recapping a book series for someone who has ALREADY READ the books and wants to remember what happened.
-
-Write a THOROUGH recap - aim for at least 2-3 paragraphs per book covering all major plot points.
-
-CRITICAL: Be EXPLICIT and SPECIFIC. Never be vague.
-- BAD: "A major character dies" or "There is a betrayal" or "A secret is revealed"
-- GOOD: "Jon kills Daenerys to stop her from burning more cities" or "Snape kills Dumbledore on Dumbledore's own orders" or "Luke discovers Darth Vader is his father"
-
-For each completed book, cover:
-- The main plot and how it unfolds
-- Character names and what specifically happens to them
-- Who dies and how (name them, describe the death)
-- Who betrays whom and what exactly they did
-- What secrets are revealed (state the actual secret)
-- Romantic relationships: who ends up together, who breaks up, key moments
-- Major battles/confrontations and their outcomes
-- How the book ends and any cliffhangers leading to the next book
-
-IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
-
-FORMAT: Use markdown formatting for readability - bold (**text**) for character names and key events, headers (##) for book titles.`;
+    // Get the system prompt from settings (supports custom prompt and offensive mode)
+    const systemPrompt = getRecapPrompt();
 
     const bookDescriptions = booksRead.map(b => {
       const status = b.completed ? 'completed' : 'in progress';
