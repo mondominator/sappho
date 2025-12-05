@@ -102,6 +102,23 @@ function fileExistsInDatabase(filePath) {
 }
 
 /**
+ * Check if another audiobook already exists in the same directory
+ * This prevents duplicates when files are converted (e.g., MP3 -> M4B)
+ */
+function audiobookExistsInDirectory(filePath) {
+  const dir = path.dirname(filePath);
+  return new Promise((resolve, reject) => {
+    db.get('SELECT id, file_path FROM audiobooks WHERE file_path LIKE ?', [`${dir}/%`], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
+      }
+    });
+  });
+}
+
+/**
  * Import a single-file audiobook into the database without moving it
  */
 async function importAudiobook(filePath, userId = 1) {
@@ -110,6 +127,13 @@ async function importAudiobook(filePath, userId = 1) {
     const exists = await fileExistsInDatabase(filePath);
     if (exists) {
       console.log(`Skipping ${filePath} - already in database`);
+      return null;
+    }
+
+    // Check if another audiobook exists in the same directory (e.g., converted file)
+    const existingInDir = await audiobookExistsInDirectory(filePath);
+    if (existingInDir) {
+      console.log(`Skipping ${filePath} - another audiobook already exists in this directory: ${existingInDir.file_path}`);
       return null;
     }
 
