@@ -4,13 +4,46 @@ const fs = require('fs');
 const path = require('path');
 const { authenticateToken, requireAdmin } = require('../auth');
 
-// Helper to update .env file
+// Get the persisted settings file path (inside DATA_DIR so it survives container restarts)
+const getSettingsPath = () => {
+  const dataDir = process.env.DATA_DIR || '/app/data';
+  return path.join(dataDir, 'settings.env');
+};
+
+// Load persisted settings on startup
+const loadPersistedSettings = () => {
+  const settingsPath = getSettingsPath();
+  if (fs.existsSync(settingsPath)) {
+    const content = fs.readFileSync(settingsPath, 'utf8');
+    for (const line of content.split('\n')) {
+      const match = line.match(/^([A-Z_]+)=(.*)$/);
+      if (match) {
+        const [, key, value] = match;
+        // Only set if not already set by environment (docker-compose takes priority)
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    }
+  }
+};
+
+// Load settings immediately when module loads
+loadPersistedSettings();
+
+// Helper to update persisted settings file
 const updateEnvFile = (updates) => {
-  const envPath = path.join(__dirname, '../../.env');
+  const settingsPath = getSettingsPath();
   let envContent = '';
 
-  if (fs.existsSync(envPath)) {
-    envContent = fs.readFileSync(envPath, 'utf8');
+  // Ensure data directory exists
+  const dataDir = path.dirname(settingsPath);
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  if (fs.existsSync(settingsPath)) {
+    envContent = fs.readFileSync(settingsPath, 'utf8');
   }
 
   const updateEnv = (content, key, value) => {
@@ -27,7 +60,7 @@ const updateEnvFile = (updates) => {
     process.env[key] = value;
   }
 
-  fs.writeFileSync(envPath, envContent);
+  fs.writeFileSync(settingsPath, envContent);
 };
 
 // Helper to validate directory path
@@ -42,31 +75,31 @@ const validateDirectory = (dir) => {
   }
 };
 
-// Track which env vars were set at startup (before any .env file changes)
+// Track which env vars were set at startup (before any settings file changes)
 // These are "locked" because they come from docker-compose or system environment
 const startupEnvVars = {};
 const ENV_VAR_KEYS = ['PORT', 'NODE_ENV', 'DATABASE_PATH', 'DATA_DIR', 'AUDIOBOOKS_DIR', 'UPLOAD_DIR', 'LIBRARY_SCAN_INTERVAL'];
 
 // Capture startup values - this runs once when the module loads
 (() => {
-  // Read .env file to see what's defined there
-  const envPath = path.join(__dirname, '../../.env');
-  const envFileVars = new Set();
+  // Read settings file to see what's defined there
+  const settingsPath = getSettingsPath();
+  const settingsFileVars = new Set();
 
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, 'utf8');
+  if (fs.existsSync(settingsPath)) {
+    const content = fs.readFileSync(settingsPath, 'utf8');
     for (const line of content.split('\n')) {
       const match = line.match(/^([A-Z_]+)=/);
       if (match) {
-        envFileVars.add(match[1]);
+        settingsFileVars.add(match[1]);
       }
     }
   }
 
-  // A variable is "locked" if it's set in process.env but NOT in .env file
+  // A variable is "locked" if it's set in process.env but NOT in settings file
   // This means it came from docker-compose, system env, or command line
   for (const key of ENV_VAR_KEYS) {
-    if (process.env[key] && !envFileVars.has(key)) {
+    if (process.env[key] && !settingsFileVars.has(key)) {
       startupEnvVars[key] = true;
     }
   }
