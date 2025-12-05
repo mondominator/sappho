@@ -201,7 +201,7 @@ For each completed book, cover:
 
 IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
 
-FORMAT: Plain text paragraphs only. No markdown, no ** or ##, no bullet points.`;
+FORMAT: Use markdown formatting for readability - bold (**text**) for character names and key events, headers (##) for book titles.`;
 
     const bookDescriptions = booksRead.map(b => {
       const status = b.completed ? 'completed' : 'in progress';
