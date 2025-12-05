@@ -181,15 +181,17 @@ router.get('/:seriesName/recap', authenticateToken, async (req, res) => {
     // Build prompt
     const booksNotRead = books.filter(b => b.completed !== 1 && b.position === 0);
 
-    const systemPrompt = `You are a helpful assistant that creates spoiler-free book series recaps.
-Your goal is to help readers remember where they left off in a series without spoiling books they haven't read yet.
+    const systemPrompt = `You are a helpful assistant that creates detailed book series recaps.
+Your goal is to help readers remember what happened in books they've already read before continuing a series.
+Include FULL SPOILERS for books marked as completed - the reader wants to be reminded of major plot points, twists, and revelations.
 Be concise but thorough. Focus on:
-- Main characters and their relationships
-- Key plot points and story arcs
-- Where things left off at the end of the last book read
-- Any ongoing mysteries or unresolved threads
+- Main characters and their development
+- Major plot points, twists, and revelations
+- Key deaths, betrayals, or relationship changes
+- How each book ended and where the story left off
+- Ongoing mysteries or cliffhangers heading into the next book
 
-IMPORTANT: Do NOT reveal any plot points, twists, or events from books the reader hasn't started yet.
+IMPORTANT: Only include spoilers for books the reader has COMPLETED. Do NOT spoil books they haven't started yet.
 Format your response in clear paragraphs, not bullet points.`;
 
     const bookDescriptions = booksRead.map(b => {
@@ -201,14 +203,14 @@ Format your response in clear paragraphs, not bullet points.`;
       ? `\n\nBOOKS NOT YET READ (DO NOT SPOIL): ${booksNotRead.map(b => `"${b.title}"`).join(', ')}`
       : '';
 
-    const prompt = `Please provide a recap of the "${seriesName}" series by ${books[0].author || 'Unknown Author'}.
+    const prompt = `Please provide a detailed recap of the "${seriesName}" series by ${books[0].author || 'Unknown Author'}.
 
 The reader has read/is reading the following books:
 
 ${bookDescriptions}
 ${booksToAvoid}
 
-Provide a helpful recap to refresh their memory before continuing the series. Remember: no spoilers for unread books!`;
+Provide a thorough recap including major plot points, twists, and revelations from COMPLETED books. The reader wants to remember what happened before continuing. Only avoid spoilers for books not yet started.`;
 
     // Call AI provider
     const recap = await callAI(prompt, systemPrompt);
