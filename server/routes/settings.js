@@ -314,4 +314,170 @@ router.put('/server', authenticateToken, requireAdmin, (req, res, next) => {
   router.handle(req, res, next);
 });
 
+// Get AI settings
+router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
+  const settings = {
+    aiProvider: process.env.AI_PROVIDER || 'openai',
+    openaiApiKey: process.env.OPENAI_API_KEY ? '••••••••' : '',
+    openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    geminiApiKey: process.env.GEMINI_API_KEY ? '••••••••' : '',
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+  };
+
+  res.json({ settings });
+});
+
+// Check if AI is configured (public endpoint for UI)
+router.get('/ai/status', authenticateToken, (req, res) => {
+  const provider = process.env.AI_PROVIDER || 'openai';
+  const hasApiKey = provider === 'gemini'
+    ? !!process.env.GEMINI_API_KEY
+    : !!process.env.OPENAI_API_KEY;
+
+  res.json({ configured: hasApiKey, provider });
+});
+
+// Update AI settings
+router.put('/ai', authenticateToken, requireAdmin, (req, res) => {
+  const { aiProvider, openaiApiKey, openaiModel, geminiApiKey, geminiModel } = req.body;
+  const updates = {};
+
+  // Update provider
+  if (aiProvider) {
+    if (!['openai', 'gemini'].includes(aiProvider)) {
+      return res.status(400).json({ error: 'Invalid AI provider' });
+    }
+    updates.AI_PROVIDER = aiProvider;
+  }
+
+  // Only update API key if it's not the masked placeholder
+  if (openaiApiKey && !openaiApiKey.includes('••••')) {
+    updates.OPENAI_API_KEY = openaiApiKey;
+  }
+
+  if (openaiModel) {
+    const validModels = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+    if (!validModels.includes(openaiModel)) {
+      return res.status(400).json({ error: 'Invalid OpenAI model selected' });
+    }
+    updates.OPENAI_MODEL = openaiModel;
+  }
+
+  // Gemini settings
+  if (geminiApiKey && !geminiApiKey.includes('••••')) {
+    updates.GEMINI_API_KEY = geminiApiKey;
+  }
+
+  if (geminiModel) {
+    const validGeminiModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro'];
+    if (!validGeminiModels.includes(geminiModel)) {
+      return res.status(400).json({ error: 'Invalid Gemini model selected' });
+    }
+    updates.GEMINI_MODEL = geminiModel;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    updateEnvFile(updates);
+  }
+
+  res.json({ message: 'AI settings updated successfully' });
+});
+
+// Test AI connection
+router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
+  const { aiProvider, openaiApiKey, openaiModel, geminiApiKey, geminiModel } = req.body;
+
+  const provider = aiProvider || process.env.AI_PROVIDER || 'openai';
+
+  if (provider === 'gemini') {
+    // Test Gemini
+    const apiKey = (geminiApiKey && !geminiApiKey.includes('••••'))
+      ? geminiApiKey
+      : process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'No Gemini API key provided' });
+    }
+
+    const model = geminiModel || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: 'Say "Connection successful!" in exactly those words.'
+            }]
+          }],
+          generationConfig: {
+            maxOutputTokens: 20
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return res.status(400).json({
+          error: error.error?.message || 'Gemini API request failed'
+        });
+      }
+
+      const data = await response.json();
+      res.json({
+        message: `Connection successful! Model: ${model}`,
+        response: data.candidates?.[0]?.content?.parts?.[0]?.text
+      });
+    } catch (error) {
+      console.error('Gemini test error:', error);
+      res.status(500).json({ error: 'Failed to connect to Gemini API' });
+    }
+  } else {
+    // Test OpenAI
+    const apiKey = (openaiApiKey && !openaiApiKey.includes('••••'))
+      ? openaiApiKey
+      : process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'No OpenAI API key provided' });
+    }
+
+    const model = openaiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: 'Say "Connection successful!" in exactly those words.' }],
+          max_tokens: 20
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return res.status(400).json({
+          error: error.error?.message || 'API request failed'
+        });
+      }
+
+      const data = await response.json();
+      res.json({
+        message: `Connection successful! Model: ${model}`,
+        response: data.choices[0]?.message?.content
+      });
+    } catch (error) {
+      console.error('OpenAI test error:', error);
+      res.status(500).json({ error: 'Failed to connect to OpenAI API' });
+    }
+  }
+});
+
 module.exports = router;

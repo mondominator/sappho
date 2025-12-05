@@ -4,6 +4,7 @@ import LibrarySettings from '../components/settings/LibrarySettings';
 import ServerSettings from '../components/settings/ServerSettings';
 import JobsSettings from '../components/settings/JobsSettings';
 import LogsSettings from '../components/settings/LogsSettings';
+import AISettings from '../components/settings/AISettings';
 import './Settings.css';
 
 export default function Settings() {
@@ -263,6 +264,19 @@ export default function Settings() {
           );
         }
         return <LogsSettings />;
+
+      case 'ai':
+        if (!currentUser?.is_admin) {
+          return (
+            <div className="tab-content">
+              <div className="info-message">
+                <h3>Admin Access Required</h3>
+                <p>Only administrators can configure AI settings.</p>
+              </div>
+            </div>
+          );
+        }
+        return <AISettings />;
 
       case 'api-keys':
         return renderApiKeysTab();
@@ -660,6 +674,12 @@ export default function Settings() {
               onClick={() => setActiveTab('logs')}
             >
               Logs
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
+              onClick={() => setActiveTab('ai')}
+            >
+              AI
             </button>
             <button
               className={`tab-button ${activeTab === 'api-keys' ? 'active' : ''}`}

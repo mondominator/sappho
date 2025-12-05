@@ -29,6 +29,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/maintenance', require('./routes/maintenance'));
+app.use('/api/series', require('./routes/series'));
 
 // Health check
 app.get('/api/health', (req, res) => {
