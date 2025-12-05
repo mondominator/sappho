@@ -181,18 +181,22 @@ router.get('/:seriesName/recap', authenticateToken, async (req, res) => {
     // Build prompt
     const booksNotRead = books.filter(b => b.completed !== 1 && b.position === 0);
 
-    const systemPrompt = `You are a helpful assistant that creates detailed book series recaps.
-Your goal is to help readers remember what happened in books they've already read before continuing a series.
-Include FULL SPOILERS for books marked as completed - the reader wants to be reminded of major plot points, twists, and revelations.
-Be concise but thorough. Focus on:
-- Main characters and their development
-- Major plot points, twists, and revelations
-- Key deaths, betrayals, or relationship changes
-- How each book ended and where the story left off
-- Ongoing mysteries or cliffhangers heading into the next book
+    const systemPrompt = `You are a helpful assistant that creates detailed book series recaps with FULL SPOILERS.
+Your goal is to help readers remember exactly what happened in books they've already read before continuing a series.
+The reader has ALREADY READ these books and wants SPECIFIC DETAILS - not vague references.
+
+Be SPECIFIC and DETAILED. Instead of "there was a betrayal", say "Character X betrayed Character Y by doing Z".
+Include:
+- WHO dies and HOW they die
+- WHO betrays whom and WHAT they did
+- Specific plot twists and revelations (name names, explain what happened)
+- Key romantic developments (who gets together, who breaks up)
+- Important secrets that are revealed and what they were
+- How each book ended - what specifically happened in the climax
+- Cliffhangers and unresolved threads heading into the next book
 
 IMPORTANT: Only include spoilers for books the reader has COMPLETED. Do NOT spoil books they haven't started yet.
-Format your response in clear paragraphs, not bullet points.`;
+Format your response in clear paragraphs. Be thorough - the reader wants a real refresher, not a teaser.`;
 
     const bookDescriptions = booksRead.map(b => {
       const status = b.completed ? 'completed' : 'in progress';
