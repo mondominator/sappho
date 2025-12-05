@@ -183,18 +183,21 @@ router.get('/:seriesName/recap', authenticateToken, async (req, res) => {
 
     const systemPrompt = `You are recapping a book series for someone who has ALREADY READ the books and wants to remember what happened.
 
+Write a THOROUGH recap - aim for at least 2-3 paragraphs per book covering all major plot points.
+
 CRITICAL: Be EXPLICIT and SPECIFIC. Never be vague.
 - BAD: "A major character dies" or "There is a betrayal" or "A secret is revealed"
 - GOOD: "Jon kills Daenerys to stop her from burning more cities" or "Snape kills Dumbledore on Dumbledore's own orders" or "Luke discovers Darth Vader is his father"
 
-For completed books, explicitly state:
+For each completed book, cover:
+- The main plot and how it unfolds
 - Character names and what specifically happens to them
 - Who dies and how (name them, describe the death)
 - Who betrays whom and what exactly they did
 - What secrets are revealed (state the actual secret)
 - Romantic relationships: who ends up together, who breaks up, key moments
-- How battles/confrontations end and who wins/loses
-- The actual ending and any cliffhangers
+- Major battles/confrontations and their outcomes
+- How the book ends and any cliffhangers leading to the next book
 
 IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
 
