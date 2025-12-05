@@ -70,6 +70,12 @@ A modern, self-hosted audiobook server with a beautiful web interface and native
 - **Smart Sorting** - Sort by title, author, date added, duration, or progress
 - **Detailed Metadata** - View comprehensive information including ISBN, publication year, genre, duration
 - **Author & Series Pages** - Dedicated pages showing all works by an author or books in a series
+- **Genre Browsing** - Browse audiobooks by genre with color-coded categories
+
+### 🤖 AI Features
+- **Catch Me Up (Series Recap)** - AI-powered series recaps summarizing what happened in previous books
+- **Multiple AI Providers** - Choose between OpenAI (GPT-4) or Google Gemini (free tier available)
+- **Smart Caching** - Recaps are cached and only regenerated when your progress changes
 
 ### 🎨 User Interface
 - **Modern Design** - Sleek, translucent glass-morphism UI with smooth animations
@@ -122,6 +128,11 @@ services:
 | `WATCH_DIR` | No | `/app/data/watch` | Watch directory for auto-import |
 | `LIBRARY_SCAN_INTERVAL` | No | `5` | Minutes between library rescans for new audiobooks |
 | `DATABASE_PATH` | No | `/app/data/sappho.db` | SQLite database location |
+| `AI_PROVIDER` | No | `openai` | AI provider for series recaps (`openai` or `gemini`) |
+| `OPENAI_API_KEY` | No | - | OpenAI API key for Catch Me Up feature |
+| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
+| `GEMINI_API_KEY` | No | - | Google Gemini API key (free tier available) |
+| `GEMINI_MODEL` | No | `gemini-1.5-flash` | Gemini model to use |
 
 ## Mobile Installation (Progressive Web App)
 
@@ -290,8 +301,8 @@ Sappho is actively being developed! Here are some features planned for future re
 - [ ] Collections and custom playlists
 - [ ] Library sharing between users
 - [ ] Podcast support
-- [ ] Mobile apps (native iOS/Android)
-- [ ] Chromecast/AirPlay support
+- [x] Mobile apps (native iOS/Android) - **Android app available!**
+- [x] Chromecast/AirPlay support - **Chromecast supported in Android app**
 - [ ] Audiobook ratings and reviews
 - [ ] Multi-language support
 
