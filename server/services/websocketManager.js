@@ -73,7 +73,7 @@ class WebSocketManager {
       });
       console.log(`✅ WebSocket client authenticated (JWT): ${decoded.username}`);
       return;
-    } catch (jwtError) {
+    } catch (_jwtError) {
       // JWT failed, try API key
     }
 

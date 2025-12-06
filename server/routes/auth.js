@@ -125,7 +125,7 @@ router.post('/logout', authenticateToken, (req, res) => {
       logout(req.token);
     }
     res.json({ message: 'Logged out successfully' });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to logout' });
   }
 });
@@ -135,7 +135,7 @@ router.post('/logout-all', authenticateToken, (req, res) => {
   try {
     invalidateUserTokens(req.user.id);
     res.json({ message: 'Logged out from all devices successfully' });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to logout from all devices' });
   }
 });

@@ -90,7 +90,7 @@ async function extractM4BChapters(filePath) {
       end_time: parseFloat(chapter.end_time) || 0,
       duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
     }));
-  } catch (error) {
+  } catch (_error) {
     console.log(`No chapters found in ${path.basename(filePath)} or ffprobe not available`);
     return null;
   }
@@ -368,7 +368,7 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
 
             // Calculate cumulative start times for each chapter
             let cumulativeTime = 0;
-            const chaptersWithStartTimes = chapterMetadata.map((chapter, index) => {
+            const chaptersWithStartTimes = chapterMetadata.map((chapter, _index) => {
               const chapterWithStart = {
                 ...chapter,
                 start_time: cumulativeTime
@@ -423,7 +423,7 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
       );
     });
   } catch (error) {
-    console.error(`Error importing multi-file audiobook:`, error.message);
+    console.error('Error importing multi-file audiobook:', error.message);
     return null;
   }
 }
@@ -595,7 +595,7 @@ function isScanningLocked() {
  * Get job status for UI display
  */
 function getJobStatus() {
-  const now = new Date();
+  const _now = new Date();
   let nextScanTime = null;
 
   if (scanInterval && lastScanTime && !scanningLocked) {

@@ -70,7 +70,7 @@ const validateDirectory = (dir) => {
       fs.mkdirSync(dir, { recursive: true });
     }
     return true;
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 };

@@ -37,7 +37,7 @@ async function up(db) {
   });
 }
 
-async function down(db) {
+async function down(_db) {
   console.log('Cannot drop columns in SQLite without table recreation');
   return Promise.resolve();
 }
