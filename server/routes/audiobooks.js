@@ -9,7 +9,7 @@ const { authenticateToken, authenticateMediaToken } = require('../auth');
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
   const random = crypto.randomBytes(8).toString('hex');
-  return `sapho-${userId}-${audiobookId}-${random}`;
+  return `sappho-${userId}-${audiobookId}-${random}`;
 }
 
 // SECURITY: Map to track active session IDs per user/audiobook pair

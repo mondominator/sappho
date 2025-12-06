@@ -188,7 +188,7 @@ export default function ServerSettings() {
               className="input mono"
               value={settings.databasePath}
               onChange={(e) => setSettings({ ...settings, databasePath: e.target.value })}
-              placeholder="/app/data/sapho.db"
+              placeholder="/app/data/sappho.db"
               disabled={isLocked('databasePath')}
             />
             {isLocked('databasePath') ? (
@@ -361,7 +361,7 @@ export default function ServerSettings() {
               <tr>
                 <td><code>DATABASE_PATH</code></td>
                 <td>Path to SQLite database</td>
-                <td>/app/data/sapho.db</td>
+                <td>/app/data/sappho.db</td>
               </tr>
               <tr>
                 <td><code>DATA_DIR</code></td>

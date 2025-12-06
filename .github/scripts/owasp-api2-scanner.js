@@ -357,7 +357,7 @@ function checkSessionIDs() {
   const hasRandomSessionId = /generateSessionId|crypto\.randomBytes.*session|getOrCreateSessionId/.test(content);
 
   // Check for predictable session ID pattern (only flag if no random generation)
-  if (!hasRandomSessionId && /sessionId\s*=\s*`sapho-\$\{userId\}-\$\{audiobookId\}`/.test(content)) {
+  if (!hasRandomSessionId && /sessionId\s*=\s*`sappho-\$\{userId\}-\$\{audiobookId\}`/.test(content)) {
     const line = findLineNumber(content, 'sessionId');
     addFinding(
       'API2-010',

@@ -1,5 +1,5 @@
 {
-  "name": "sapho",
+  "name": "sappho",
   "version": "0.1.0",
   "description": "Audiobook server with streaming, metadata scraping, and library management",
   "main": "server/index.js",

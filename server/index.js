@@ -67,7 +67,7 @@ app.get('/api/health', (req, res) => {
   const packageJson = require('../package.json');
   res.json({
     status: 'ok',
-    message: 'Sapho server is running',
+    message: 'Sappho server is running',
     version: packageJson.version
   });
 });
@@ -132,7 +132,7 @@ async function initialize() {
 
     // Start server immediately (don't wait for library scan)
     const server = app.listen(PORT, () => {
-      console.log(`Sapho server running on port ${PORT}`);
+      console.log(`Sappho server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 

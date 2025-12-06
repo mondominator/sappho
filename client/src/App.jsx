@@ -20,6 +20,17 @@ import { WebSocketProvider } from './contexts/WebSocketContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
 
+// Scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, currentAudiobook, setCurrentAudiobook, currentProgress, setCurrentProgress, playAudiobook }) {
   const location = useLocation();
   const playerRef = useRef();
@@ -246,6 +257,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <WebSocketProvider>
         <AppContent
           token={token}

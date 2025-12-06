@@ -65,7 +65,7 @@ class SessionManager {
       audioCodec,
       container,
       bitrate: this.estimateBitrate(audiobook.file_size, audiobook.duration),
-      transcoding: false, // Sapho doesn't transcode
+      transcoding: false, // Sappho doesn't transcode
     };
 
     this.sessions.set(sessionId, session);
