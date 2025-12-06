@@ -1456,6 +1456,12 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
   const { promisify } = require('util');
   const execFileAsync = promisify(execFile);
 
+  // Declare these outside try block so they're accessible in catch for cleanup
+  let dir = null;
+  let tempPath = null;
+  let tempCoverPath = null;
+  let finalPath = null;
+
   try {
     const audiobook = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
@@ -1485,10 +1491,11 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: `Unsupported format: ${ext}. Supported: ${supportedFormats.join(', ')}` });
     }
 
-    const dir = path.dirname(audiobook.file_path);
+    dir = path.dirname(audiobook.file_path);
     const basename = path.basename(audiobook.file_path, ext);
-    const newPath = path.join(dir, `${basename}.m4b`);
-    const tempCoverPath = path.join(dir, `${basename}_temp_cover.jpg`);
+    finalPath = path.join(dir, `${basename}.m4b`);
+    tempPath = path.join(dir, `${basename}_converting.m4b`);  // Temp file during conversion
+    tempCoverPath = path.join(dir, `${basename}_temp_cover.jpg`);
 
     // Lock directory to prevent library scanner from interfering
     activeConversions.add(dir);
@@ -1522,7 +1529,7 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
         '-i', audiobook.file_path,
         '-c', 'copy',  // Copy all streams without re-encoding
         '-f', 'ipod',  // Force M4B/M4A container format
-        '-y', newPath
+        '-y', tempPath  // Write to temp file first
       ];
     } else {
       // For MP3, OGG, FLAC - need to re-encode to AAC
@@ -1535,7 +1542,7 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
         '-ar', '44100',          // 44.1kHz sample rate
         '-ac', '1',              // Mono (typical for audiobooks, smaller file)
         '-f', 'ipod',            // Force M4B container format
-        '-y', newPath
+        '-y', tempPath  // Write to temp file first
       ];
     }
 
@@ -1547,20 +1554,17 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
       throw new Error(`FFmpeg failed: ${ffmpegError.stderr || ffmpegError.message}`);
     }
 
-    // Verify new file exists
-    if (!fs.existsSync(newPath)) {
+    // Verify temp file exists
+    if (!fs.existsSync(tempPath)) {
       throw new Error('Conversion completed but output file not found');
     }
-
-    // Get new file size
-    const newStats = fs.statSync(newPath);
 
     // Re-embed cover art using tone if we extracted one
     if (hasCover && fs.existsSync(tempCoverPath)) {
       try {
         console.log('Re-embedding cover art with tone...');
         await execFileAsync('tone', [
-          'tag', newPath,
+          'tag', tempPath,
           `--meta-cover-file=${tempCoverPath}`
         ], { timeout: 60000 });
         console.log('Cover art embedded successfully');
@@ -1575,14 +1579,19 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
       }
     }
 
-    // Delete original file
+    // Get new file size before rename
+    const newStats = fs.statSync(tempPath);
+
+    // All successful - now rename temp to final and delete original
+    // This is the atomic-ish operation that commits the conversion
+    fs.renameSync(tempPath, finalPath);
     fs.unlinkSync(audiobook.file_path);
 
     // Update database with new path
     await new Promise((resolve, reject) => {
       db.run(
         'UPDATE audiobooks SET file_path = ?, file_size = ? WHERE id = ?',
-        [newPath, newStats.size, req.params.id],
+        [finalPath, newStats.size, req.params.id],
         (err) => {
           if (err) reject(err);
           else resolve();
@@ -1590,14 +1599,14 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
       );
     });
 
-    console.log(`Successfully converted to M4B: ${newPath}`);
+    console.log(`Successfully converted to M4B: ${finalPath}`);
 
     // Unlock directory
     activeConversions.delete(dir);
 
     res.json({
       message: 'Converted to M4B successfully',
-      newPath: newPath,
+      newPath: finalPath,
       oldPath: audiobook.file_path
     });
 
@@ -1605,13 +1614,13 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     // Unlock directory on error
     if (dir) activeConversions.delete(dir);
 
-    // Clean up partial M4B file if it was created
-    if (newPath && fs.existsSync(newPath)) {
+    // Clean up temp M4B file if it was created
+    if (tempPath && fs.existsSync(tempPath)) {
       try {
-        fs.unlinkSync(newPath);
-        console.log('Cleaned up partial M4B file after conversion failure');
+        fs.unlinkSync(tempPath);
+        console.log('Cleaned up temp M4B file after conversion failure');
       } catch (cleanupErr) {
-        console.error('Failed to clean up partial M4B:', cleanupErr.message);
+        console.error('Failed to clean up temp M4B:', cleanupErr.message);
       }
     }
 
