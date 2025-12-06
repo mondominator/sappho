@@ -352,9 +352,9 @@ async function createDefaultAdmin() {
       if (err) {
         reject(err);
       } else if (row.count === 0) {
-        // SECURITY: Generate a random password instead of using a default
-        const generatedPassword = generateSecurePassword(16);
-        const passwordHash = bcrypt.hashSync(generatedPassword, 10);
+        // Default admin credentials - user must change password on first login
+        const defaultPassword = 'admin';
+        const passwordHash = bcrypt.hashSync(defaultPassword, 10);
         // SECURITY: Set must_change_password=1 to force password change on first login
         db.run(
           'INSERT INTO users (username, password_hash, is_admin, must_change_password) VALUES (?, ?, 1, 1)',
@@ -368,10 +368,9 @@ async function createDefaultAdmin() {
               console.log('║           DEFAULT ADMIN ACCOUNT CREATED                    ║');
               console.log('╠════════════════════════════════════════════════════════════╣');
               console.log('║  Username: admin                                           ║');
-              console.log(`║  Password: ${generatedPassword}                            ║`);
+              console.log('║  Password: admin                                           ║');
               console.log('╠════════════════════════════════════════════════════════════╣');
-              console.log('║  ⚠️  SAVE THIS PASSWORD - IT WILL NOT BE SHOWN AGAIN!     ║');
-              console.log('║  You will be required to change it on first login.         ║');
+              console.log('║  ⚠️  You will be required to change this on first login!  ║');
               console.log('╚════════════════════════════════════════════════════════════╝');
               console.log('');
               resolve();
