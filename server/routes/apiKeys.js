@@ -46,12 +46,16 @@ router.post('/', authenticateToken, (req, res) => {
   const { key, prefix, hash } = generateApiKey();
   const permissionsStr = permissions || 'read';
 
-  let expiresAt = null;
-  if (expires_in_days && expires_in_days > 0) {
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + expires_in_days);
-    expiresAt = expiry.toISOString();
-  }
+  // SECURITY: Default and maximum expiration for API keys
+  const DEFAULT_EXPIRY_DAYS = 90;
+  const MAX_EXPIRY_DAYS = 365;
+
+  let expiryDays = expires_in_days || DEFAULT_EXPIRY_DAYS;
+  expiryDays = Math.min(Math.max(1, expiryDays), MAX_EXPIRY_DAYS);
+
+  const expiry = new Date();
+  expiry.setDate(expiry.getDate() + expiryDays);
+  const expiresAt = expiry.toISOString();
 
   db.run(
     `INSERT INTO api_keys (name, key_hash, key_prefix, user_id, permissions, expires_at)

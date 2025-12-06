@@ -16,9 +16,99 @@ if (JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
+// SECURITY: Token blacklist for logout/revocation (in-memory, clears on restart)
+// For production, consider using Redis for persistence across restarts
+const tokenBlacklist = new Map();
+
+// Clean up expired tokens from blacklist every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [tokenHash, expiry] of tokenBlacklist.entries()) {
+    if (expiry < now) {
+      tokenBlacklist.delete(tokenHash);
+    }
+  }
+}, 60 * 60 * 1000);
+
+// SECURITY: Account lockout tracking (in-memory)
+const failedAttempts = new Map(); // username -> { count, lockedUntil }
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+// SECURITY: Dummy hash for constant-time comparison (prevents timing attacks)
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-safety', 10);
+
+/**
+ * Check if a token is blacklisted
+ */
+function isTokenBlacklisted(token) {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  return tokenBlacklist.has(tokenHash);
+}
+
+/**
+ * Add a token to the blacklist
+ */
+function blacklistToken(token, expiresAt) {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  tokenBlacklist.set(tokenHash, expiresAt);
+}
+
+/**
+ * Invalidate all tokens for a user by adding a marker
+ * This is checked during token verification
+ */
+function invalidateUserTokens(userId) {
+  // Store the invalidation timestamp
+  const key = `user_invalidation_${userId}`;
+  tokenBlacklist.set(key, Date.now());
+}
+
+/**
+ * Check if account is locked
+ */
+function isAccountLocked(username) {
+  const record = failedAttempts.get(username);
+  if (!record) return false;
+  if (record.lockedUntil && record.lockedUntil > Date.now()) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Record a failed login attempt
+ */
+function recordFailedAttempt(username) {
+  const record = failedAttempts.get(username) || { count: 0, lockedUntil: null };
+  record.count++;
+  if (record.count >= MAX_FAILED_ATTEMPTS) {
+    record.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    console.warn(`SECURITY: Account "${username}" locked for 15 minutes after ${MAX_FAILED_ATTEMPTS} failed attempts`);
+  }
+  failedAttempts.set(username, record);
+}
+
+/**
+ * Clear failed attempts on successful login
+ */
+function clearFailedAttempts(username) {
+  failedAttempts.delete(username);
+}
+
+/**
+ * Get remaining lockout time in seconds
+ */
+function getLockoutRemaining(username) {
+  const record = failedAttempts.get(username);
+  if (!record || !record.lockedUntil) return 0;
+  const remaining = Math.ceil((record.lockedUntil - Date.now()) / 1000);
+  return remaining > 0 ? remaining : 0;
+}
+
 // Middleware to verify JWT token or API key
 function authenticateToken(req, res, next) {
-  // Check for token in header first, then query parameter
+  // SECURITY: Only accept token from Authorization header, not query string
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1];
 
@@ -27,21 +117,45 @@ function authenticateToken(req, res, next) {
     return authenticateApiKey(token, req, res, next);
   }
 
-  // If no token in header, check query parameter
-  if (!token && req.query.token) {
-    token = req.query.token;
-  }
-
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  // SECURITY: Check if token is blacklisted (logged out)
+  if (isTokenBlacklisted(token)) {
+    return res.status(403).json({ error: 'Token has been revoked' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
-    req.user = user;
-    next();
+
+    // SECURITY: Check if user's tokens were invalidated after this token was issued
+    const invalidationKey = `user_invalidation_${decoded.id}`;
+    const invalidationTime = tokenBlacklist.get(invalidationKey);
+    if (invalidationTime && decoded.iat * 1000 < invalidationTime) {
+      return res.status(403).json({ error: 'Token has been invalidated. Please log in again.' });
+    }
+
+    // SECURITY: Fetch current user state from database instead of trusting JWT claims
+    db.get('SELECT id, username, is_admin FROM users WHERE id = ?', [decoded.id], (dbErr, user) => {
+      if (dbErr) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (!user) {
+        return res.status(403).json({ error: 'User not found' });
+      }
+
+      // Use fresh data from DB, not stale JWT claims
+      req.user = {
+        id: user.id,
+        username: user.username,
+        is_admin: user.is_admin
+      };
+      req.token = token;
+      next();
+    });
   });
 }
 
@@ -102,9 +216,36 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// SECURITY: Password complexity validation
+function validatePassword(password) {
+  const errors = [];
+  if (password.length < 12) {
+    errors.push('Password must be at least 12 characters long');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    errors.push('Password must contain at least one special character');
+  }
+  return errors;
+}
+
 // Register new user
 async function register(username, password, email = null) {
   return new Promise((resolve, reject) => {
+    // SECURITY: Validate password complexity
+    const passwordErrors = validatePassword(password);
+    if (passwordErrors.length > 0) {
+      return reject(new Error(passwordErrors.join('. ')));
+    }
+
     // Hash password
     const passwordHash = bcrypt.hashSync(password, 10);
 
@@ -129,30 +270,58 @@ async function register(username, password, email = null) {
 // Login user
 async function login(username, password) {
   return new Promise((resolve, reject) => {
+    // SECURITY: Check for account lockout
+    if (isAccountLocked(username)) {
+      const remaining = getLockoutRemaining(username);
+      return reject(new Error(`Account is locked. Try again in ${remaining} seconds.`));
+    }
+
     db.get(
       'SELECT id, username, password_hash, is_admin FROM users WHERE username = ?',
       [username],
       (err, user) => {
         if (err) {
-          reject(err);
-        } else if (!user) {
-          reject(new Error('Invalid username or password'));
-        } else {
-          const isValid = bcrypt.compareSync(password, user.password_hash);
-          if (!isValid) {
-            reject(new Error('Invalid username or password'));
-          } else {
-            const token = jwt.sign(
-              { id: user.id, username: user.username, is_admin: user.is_admin },
-              JWT_SECRET,
-              { expiresIn: '7d' }
-            );
-            resolve({ token, user: { id: user.id, username: user.username, is_admin: user.is_admin } });
-          }
+          return reject(err);
         }
+
+        // SECURITY: Always perform bcrypt comparison to prevent timing attacks
+        const hashToCompare = user ? user.password_hash : DUMMY_HASH;
+        const isValid = bcrypt.compareSync(password, hashToCompare);
+
+        if (!user || !isValid) {
+          // Record failed attempt
+          recordFailedAttempt(username);
+          return reject(new Error('Invalid username or password'));
+        }
+
+        // Clear failed attempts on successful login
+        clearFailedAttempts(username);
+
+        // SECURITY: Don't include is_admin in JWT - fetch from DB on each request
+        const token = jwt.sign(
+          { id: user.id, username: user.username },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        resolve({ token, user: { id: user.id, username: user.username, is_admin: user.is_admin } });
       }
     );
   });
+}
+
+// Logout - invalidate the current token
+function logout(token) {
+  try {
+    const decoded = jwt.decode(token);
+    if (decoded && decoded.exp) {
+      // Add to blacklist until expiry
+      blacklistToken(token, decoded.exp * 1000);
+      return true;
+    }
+  } catch (e) {
+    // Token decode failed, ignore
+  }
+  return false;
 }
 
 // Generate a secure random password
@@ -210,5 +379,11 @@ module.exports = {
   requireAdmin,
   register,
   login,
+  logout,
   createDefaultAdmin,
+  validatePassword,
+  blacklistToken,
+  invalidateUserTokens,
+  isAccountLocked,
+  getLockoutRemaining,
 };

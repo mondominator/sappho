@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { authenticateToken } = require('../auth');
+const { authenticateToken, validatePassword, invalidateUserTokens } = require('../auth');
 
 // Configure multer for avatar upload
 const storage = multer.diskStorage({
@@ -312,8 +312,10 @@ router.put('/password', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Current password and new password are required' });
   }
 
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  // SECURITY: Validate password complexity
+  const passwordErrors = validatePassword(newPassword);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ error: passwordErrors.join('. ') });
   }
 
   // Get user's current password hash
@@ -343,7 +345,13 @@ router.put('/password', authenticateToken, (req, res) => {
           if (err) {
             return res.status(500).json({ error: err.message });
           }
-          res.json({ message: 'Password updated successfully' });
+
+          // SECURITY: Invalidate all existing tokens after password change
+          invalidateUserTokens(req.user.id);
+
+          res.json({
+            message: 'Password updated successfully. Please log in again on all devices.'
+          });
         }
       );
     }
