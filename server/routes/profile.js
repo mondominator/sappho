@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, validatePassword, invalidateUserTokens } = require('../auth');
+const { authenticateToken, authenticateMediaToken, validatePassword, invalidateUserTokens } = require('../auth');
 
 // Configure multer for avatar upload
 const storage = multer.diskStorage({
@@ -259,8 +259,8 @@ router.put('/', authenticateToken, upload.single('avatar'), (req, res) => {
   );
 });
 
-// Get avatar
-router.get('/avatar', authenticateToken, (req, res) => {
+// Get avatar (uses media token for img src compatibility)
+router.get('/avatar', authenticateMediaToken, (req, res) => {
   db.get(
     'SELECT avatar FROM users WHERE id = ?',
     [req.user.id],
