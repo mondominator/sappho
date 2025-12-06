@@ -15,7 +15,7 @@ export default function Login({ onLogin }) {
 
     try {
       const response = await login(username, password);
-      onLogin(response.data.token);
+      onLogin(response.data.token, response.data.must_change_password);
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
     } finally {
