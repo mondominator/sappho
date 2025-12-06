@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const db = require('../database');
 const fs = require('fs');
 const path = require('path');
-const { authenticateToken } = require('../auth');
+const { authenticateToken, authenticateMediaToken } = require('../auth');
 
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
@@ -898,8 +898,8 @@ function getAudioMimeType(filePath) {
   return mimeTypes[ext] || 'audio/mpeg';
 }
 
-// Stream audiobook
-router.get('/:id/stream', authenticateToken, (req, res) => {
+// Stream audiobook (uses authenticateMediaToken to allow query string tokens for <audio> tags)
+router.get('/:id/stream', authenticateMediaToken, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -2046,8 +2046,8 @@ router.delete('/:id/progress', authenticateToken, (req, res) => {
   );
 });
 
-// Get cover art
-router.get('/:id/cover', authenticateToken, (req, res) => {
+// Get cover art (uses authenticateMediaToken to allow query string tokens for <img> tags)
+router.get('/:id/cover', authenticateMediaToken, (req, res) => {
   db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
     if (err) {
       return res.status(500).json({ error: err.message });

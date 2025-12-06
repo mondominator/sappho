@@ -121,6 +121,35 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
+  return verifyToken(token, req, res, next);
+}
+
+// Middleware for media endpoints (covers, streaming) that need query string tokens
+// This is necessary because <img> and <audio> tags cannot send Authorization headers
+function authenticateMediaToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  let token = authHeader && authHeader.split(' ')[1];
+
+  // Fall back to query string token for media requests
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
+  // Check if it's an API key (starts with 'sapho_')
+  if (token && token.startsWith('sapho_')) {
+    return authenticateApiKey(token, req, res, next);
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  return verifyToken(token, req, res, next);
+}
+
+// Shared token verification logic
+function verifyToken(token, req, res, next) {
+
   // SECURITY: Check if token is blacklisted (logged out)
   if (isTokenBlacklisted(token)) {
     return res.status(403).json({ error: 'Token has been revoked' });
@@ -386,6 +415,7 @@ async function createDefaultAdmin() {
 
 module.exports = {
   authenticateToken,
+  authenticateMediaToken,
   requireAdmin,
   register,
   login,

@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3001;
 // SECURITY: Configure allowed origins for CORS
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'];
 
 const corsOptions = {
   origin: function (origin, callback) {
