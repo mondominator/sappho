@@ -113,7 +113,7 @@ router.get('/all', authenticateToken, requireAdmin, (req, res) => {
     nodeEnv: process.env.NODE_ENV || 'development',
 
     // Paths
-    databasePath: process.env.DATABASE_PATH || '/app/data/sapho.db',
+    databasePath: process.env.DATABASE_PATH || '/app/data/sappho.db',
     dataDir: process.env.DATA_DIR || '/app/data',
     audiobooksDir: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
     uploadDir: process.env.UPLOAD_DIR || '/app/data/uploads',
@@ -312,7 +312,7 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
     port: process.env.PORT || '3001',
     nodeEnv: process.env.NODE_ENV || 'development',
-    databasePath: process.env.DATABASE_PATH || '/app/data/sapho.db',
+    databasePath: process.env.DATABASE_PATH || '/app/data/sappho.db',
     dataDir: process.env.DATA_DIR || '/app/data',
     audiobooksDir: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
     uploadDir: process.env.UPLOAD_DIR || '/app/data/uploads',
