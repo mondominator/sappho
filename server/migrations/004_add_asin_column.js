@@ -18,7 +18,7 @@ async function up(db) {
   });
 }
 
-async function down(db) {
+async function down(_db) {
   // SQLite doesn't support DROP COLUMN directly, so we'd need to recreate the table
   // For simplicity, we'll just leave the column
   console.log('Cannot drop ASIN column in SQLite without table recreation');

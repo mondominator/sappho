@@ -1,4 +1,4 @@
-const sqlite3 = require('sqlite3').verbose();
+const _sqlite3 = require('sqlite3').verbose();
 
 /**
  * Migration to add start_time column to audiobook_chapters table for m4b chapter support
@@ -18,8 +18,8 @@ function up(db) {
   });
 }
 
-function down(db) {
-  return new Promise((resolve, reject) => {
+function down(_db) {
+  return new Promise((resolve, _reject) => {
     // SQLite doesn't support dropping columns easily, so we'd need to recreate the table
     // For now, just resolve
     resolve();

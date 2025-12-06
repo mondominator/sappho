@@ -590,7 +590,7 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
       // Backup user-set covers (cover_path) - these are custom covers downloaded from search
       const coverBackup = await new Promise((resolve, reject) => {
         db.all(
-          `SELECT file_path, cover_path FROM audiobooks WHERE cover_path IS NOT NULL AND cover_path != ''`,
+          'SELECT file_path, cover_path FROM audiobooks WHERE cover_path IS NOT NULL AND cover_path != \'\'',
           (err, rows) => {
             if (err) reject(err);
             else resolve(rows || []);
@@ -699,7 +699,7 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
             // Restore cover_path
             await new Promise((resolve, reject) => {
               db.run(
-                `UPDATE audiobooks SET cover_path = ?, cover_image = ? WHERE id = ?`,
+                'UPDATE audiobooks SET cover_path = ?, cover_image = ? WHERE id = ?',
                 [cover.cover_path, cover.cover_path, audiobook.id],
                 (err) => {
                   if (err) reject(err);

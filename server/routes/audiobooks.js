@@ -746,7 +746,7 @@ async function searchOpenLibrary(title, author) {
         for (const doc of data.docs.slice(0, 10)) {
           // Open Library has series info in some cases
           let series = null;
-          let seriesPosition = null;
+          const seriesPosition = null;
 
           // Try to get series from the first_series field or parse from title
           if (doc.series) {
@@ -920,7 +920,7 @@ router.get('/:id/stream', authenticateMediaToken, (req, res) => {
     const contentType = getAudioMimeType(filePath);
 
     if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
+      const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       const chunksize = (end - start) + 1;
@@ -1463,7 +1463,7 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       if (tempPath && fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
       }
-    } catch (e) { /* ignore cleanup errors */ }
+    } catch (_e) { /* ignore cleanup errors */ }
     res.status(500).json({ error: 'Failed to embed metadata: ' + error.message });
   }
 });
@@ -1538,7 +1538,7 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
         if (hasCover) {
           console.log('Extracted cover art from MP3 for re-embedding');
         }
-      } catch (e) {
+      } catch (_e) {
         // No cover art or extraction failed - not critical
         console.log('No embedded cover art found or extraction failed');
       }
@@ -1651,7 +1651,7 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     if (tempCoverPath && fs.existsSync(tempCoverPath)) {
       try {
         fs.unlinkSync(tempCoverPath);
-      } catch (cleanupErr) {
+      } catch (_cleanupErr) {
         // Ignore cleanup errors
       }
     }
@@ -1676,7 +1676,7 @@ router.get('/:id/search-metadata', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Provide title or author to search' });
     }
 
-    let allResults = [];
+    const allResults = [];
 
     // Strategy 1: Search with both title and author if both provided
     if (title && author) {
@@ -2150,7 +2150,7 @@ router.get('/meta/genre-mappings', authenticateToken, (req, res) => {
 // Get all genres (normalized to major categories) with cover IDs
 router.get('/meta/genres', authenticateToken, (req, res) => {
   db.all(
-    `SELECT id, genre, cover_image FROM audiobooks WHERE genre IS NOT NULL AND genre != ''`,
+    'SELECT id, genre, cover_image FROM audiobooks WHERE genre IS NOT NULL AND genre != \'\'',
     [],
     (err, books) => {
       if (err) {

@@ -1,5 +1,5 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const _sqlite3 = require('sqlite3').verbose();
+const _path = require('path');
 
 /**
  * Migration to add chapters table for multi-file audiobooks

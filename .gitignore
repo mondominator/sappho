@@ -42,3 +42,6 @@ temp/
 # Security audit reports
 OWASP-*.md
 OWASP-*.pdf
+
+# Test coverage
+coverage/

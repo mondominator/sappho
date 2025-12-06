@@ -437,7 +437,7 @@ async function extractFileMetadata(filePath) {
     // Priority: iTunes long description (ldes) > common.description > iTunes description (desc)
     // DO NOT use comment tags as they often contain chapter listings
     let rawDescription = null;
-    let descriptionSource = null;
+    let _descriptionSource = null;
 
     // Check iTunes/MP4 tags for long description or description fields
     if (iTunesTags.length > 0) {
@@ -447,13 +447,13 @@ async function extractFileMetadata(filePath) {
         const val = Array.isArray(ldesTag.value) ? ldesTag.value[0] : ldesTag.value;
         if (typeof val === 'string') {
           rawDescription = val;
-          descriptionSource = 'iTunes:' + ldesTag.id;
+          _descriptionSource = 'iTunes:' + ldesTag.id;
         } else if (typeof val === 'object' && val.text) {
           rawDescription = val.text;
-          descriptionSource = 'iTunes:' + ldesTag.id;
+          _descriptionSource = 'iTunes:' + ldesTag.id;
         } else if (Buffer.isBuffer(val)) {
           rawDescription = val.toString('utf8');
-          descriptionSource = 'iTunes:' + ldesTag.id;
+          _descriptionSource = 'iTunes:' + ldesTag.id;
         }
       }
     }
@@ -461,7 +461,7 @@ async function extractFileMetadata(filePath) {
     // Fall back to common.description if no iTunes description found
     if (!rawDescription && common.description) {
       rawDescription = Array.isArray(common.description) ? common.description.join(' ') : common.description;
-      descriptionSource = 'common.description';
+      _descriptionSource = 'common.description';
     }
     // DO NOT fall back to comment tags - they often contain chapter listings
 

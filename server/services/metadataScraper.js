@@ -51,7 +51,7 @@ async function scrapeGoogleBooks(title, author) {
 }
 
 // Placeholder for future Audible scraping
-async function scrapeAudible(title, author) {
+async function scrapeAudible(_title, _author) {
   // This would require web scraping or unofficial API
   // Not implemented in basic version
   return null;

@@ -12,7 +12,7 @@ module.exports = {
   up: (db) => {
     return new Promise((resolve, reject) => {
       db.run(
-        `ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`,
+        'ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0',
         (err) => {
           if (err) {
             // Column might already exist
@@ -31,8 +31,8 @@ module.exports = {
     });
   },
 
-  down: (db) => {
-    return new Promise((resolve, reject) => {
+  down: (_db) => {
+    return new Promise((resolve, _reject) => {
       // SQLite doesn't support DROP COLUMN directly
       // Would need to recreate table - skipping for simplicity
       console.log('Rollback not supported for this migration');
