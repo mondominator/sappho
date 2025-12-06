@@ -3,7 +3,18 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const db = require('./database');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+// SECURITY: JWT_SECRET must be explicitly configured - no default fallback
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  console.error('Please set a strong secret: export JWT_SECRET=$(openssl rand -base64 32)');
+  process.exit(1);
+}
+
+if (JWT_SECRET.length < 32) {
+  console.error('FATAL: JWT_SECRET must be at least 32 characters long.');
+  process.exit(1);
+}
 
 // Middleware to verify JWT token or API key
 function authenticateToken(req, res, next) {
@@ -144,6 +155,17 @@ async function login(username, password) {
   });
 }
 
+// Generate a secure random password
+function generateSecurePassword(length = 16) {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+  const randomBytes = crypto.randomBytes(length);
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += charset[randomBytes[i] % charset.length];
+  }
+  return password;
+}
+
 // Create default admin user if no users exist
 async function createDefaultAdmin() {
   return new Promise((resolve, reject) => {
@@ -151,7 +173,9 @@ async function createDefaultAdmin() {
       if (err) {
         reject(err);
       } else if (row.count === 0) {
-        const passwordHash = bcrypt.hashSync('admin', 10);
+        // SECURITY: Generate a random password instead of using a default
+        const generatedPassword = generateSecurePassword(16);
+        const passwordHash = bcrypt.hashSync(generatedPassword, 10);
         db.run(
           'INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)',
           ['admin', passwordHash],
@@ -159,8 +183,17 @@ async function createDefaultAdmin() {
             if (err) {
               reject(err);
             } else {
-              console.log('Default admin user created (username: admin, password: admin)');
-              console.log('PLEASE CHANGE THE DEFAULT PASSWORD!');
+              console.log('');
+              console.log('╔════════════════════════════════════════════════════════════╗');
+              console.log('║           DEFAULT ADMIN ACCOUNT CREATED                    ║');
+              console.log('╠════════════════════════════════════════════════════════════╣');
+              console.log('║  Username: admin                                           ║');
+              console.log(`║  Password: ${generatedPassword}                            ║`);
+              console.log('╠════════════════════════════════════════════════════════════╣');
+              console.log('║  ⚠️  SAVE THIS PASSWORD - IT WILL NOT BE SHOWN AGAIN!     ║');
+              console.log('║  Change it after first login via Profile > Security        ║');
+              console.log('╚════════════════════════════════════════════════════════════╝');
+              console.log('');
               resolve();
             }
           }

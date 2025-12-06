@@ -38,3 +38,7 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Security audit reports
+OWASP-*.md
+OWASP-*.pdf

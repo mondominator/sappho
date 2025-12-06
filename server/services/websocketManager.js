@@ -2,7 +2,9 @@ const WebSocket = require('ws');
 const url = require('url');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+// SECURITY: JWT_SECRET is validated at startup in auth.js
+// This will throw if auth.js hasn't been loaded first (which is fine - it means misconfiguration)
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * WebSocket Manager - Broadcasts real-time session updates
