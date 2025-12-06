@@ -1,0 +1,278 @@
+name: Security Checks (OWASP API2:2023)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+
+jobs:
+  # Job 1: OWASP API2:2023 Broken Authentication Checks
+  owasp-api2-authentication:
+    name: API2 - Broken Authentication
+    runs-on: ubuntu-latest
+    outputs:
+      critical_count: ${{ steps.scan.outputs.critical_count }}
+      high_count: ${{ steps.scan.outputs.high_count }}
+      medium_count: ${{ steps.scan.outputs.medium_count }}
+      low_count: ${{ steps.scan.outputs.low_count }}
+      findings: ${{ steps.scan.outputs.findings }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run OWASP API2:2023 Scanner
+        id: scan
+        run: node .github/scripts/owasp-api2-scanner.js
+        continue-on-error: true
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owasp-api2-report
+          path: .security-reports/
+          retention-days: 30
+
+      - name: Check for Critical/High/Medium Findings
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "::error::Security check failed - Critical, High, or Medium vulnerabilities detected"
+          exit 1
+
+  # Job 2: Dependency Vulnerability Scan
+  dependency-scan:
+    name: Dependency Vulnerabilities
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          npm ci --ignore-scripts
+          cd client && npm ci --ignore-scripts
+
+      - name: Run npm audit (Server)
+        id: audit-server
+        run: |
+          echo "## Server Dependencies" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=high --json > server-audit.json 2>&1 || true
+          VULNS=$(cat server-audit.json | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
+          echo "high_critical=$VULNS" >> $GITHUB_OUTPUT
+          if [ "$VULNS" -gt "0" ]; then
+            echo "::warning::Server has $VULNS high/critical vulnerabilities"
+            npm audit --audit-level=high || true
+          fi
+        continue-on-error: true
+
+      - name: Run npm audit (Client)
+        id: audit-client
+        run: |
+          cd client
+          echo "## Client Dependencies" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=high --json > ../client-audit.json 2>&1 || true
+          VULNS=$(cat ../client-audit.json | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
+          echo "high_critical=$VULNS" >> $GITHUB_OUTPUT
+          if [ "$VULNS" -gt "0" ]; then
+            echo "::warning::Client has $VULNS high/critical vulnerabilities"
+            npm audit --audit-level=high || true
+          fi
+        continue-on-error: true
+
+      - name: Upload Audit Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-audit
+          path: |
+            server-audit.json
+            client-audit.json
+          retention-days: 30
+
+  # Job 3: Secret Scanning
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  # Job 4: CodeQL Analysis
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
+
+  # Job 5: Create Issues for Low Severity Findings
+  create-issues:
+    name: Create Issues for Low Severity
+    runs-on: ubuntu-latest
+    needs: owasp-api2-authentication
+    if: needs.owasp-api2-authentication.outputs.low_count > 0 && github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Security Report
+        uses: actions/download-artifact@v4
+        with:
+          name: owasp-api2-report
+          path: .security-reports/
+
+      - name: Create Issues for Low Severity Findings
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read findings
+            const reportPath = path.join('.security-reports', 'owasp-api2-findings.json');
+            if (!fs.existsSync(reportPath)) {
+              console.log('No findings report found');
+              return;
+            }
+
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const lowFindings = report.findings.filter(f => f.severity === 'LOW');
+
+            if (lowFindings.length === 0) {
+              console.log('No low severity findings');
+              return;
+            }
+
+            // Get existing issues
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,low'
+            });
+
+            const existingTitles = existingIssues.map(i => i.title);
+
+            for (const finding of lowFindings) {
+              const title = `[SECURITY] ${finding.title} (${finding.cwe})`;
+
+              // Check if issue already exists
+              if (existingTitles.some(t => t.includes(finding.id) || t.includes(finding.title))) {
+                console.log(`Issue already exists for ${finding.id}: ${finding.title}`);
+                continue;
+              }
+
+              const body = `## OWASP API2:2023 - Broken Authentication
+
+            ### Severity: ${finding.severity}
+
+            ### Finding ID: ${finding.id}
+
+            ### Description
+            ${finding.description}
+
+            ### Location
+            - File: \`${finding.file}\`
+            - Line: ${finding.line}
+
+            ### CWE Reference
+            [${finding.cwe}](https://cwe.mitre.org/data/definitions/${finding.cwe.replace('CWE-', '')}.html)
+
+            ### Recommendation
+            ${finding.recommendation}
+
+            ---
+            *This issue was automatically created by the security pipeline.*
+            *Detected on: ${new Date().toISOString()}*`;
+
+              try {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: title,
+                  body: body,
+                  labels: ['security', 'low']
+                });
+                console.log(`Created issue: ${title}`);
+              } catch (error) {
+                console.error(`Failed to create issue for ${finding.id}: ${error.message}`);
+              }
+            }
+
+  # Job 6: Security Summary
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [owasp-api2-authentication, dependency-scan, secret-scan, codeql-analysis]
+    if: always()
+
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## OWASP API2:2023 - Broken Authentication" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 Critical | ${{ needs.owasp-api2-authentication.outputs.critical_count || 0 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟠 High | ${{ needs.owasp-api2-authentication.outputs.high_count || 0 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 Medium | ${{ needs.owasp-api2-authentication.outputs.medium_count || 0 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔵 Low | ${{ needs.owasp-api2-authentication.outputs.low_count || 0 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API2 Authentication | ${{ needs.owasp-api2-authentication.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Detection | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL Analysis | ${{ needs.codeql-analysis.result }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Overall Status
+        if: needs.owasp-api2-authentication.result == 'failure'
+        run: |
+          echo "::error::Security checks failed. Please review and fix the vulnerabilities."
+          exit 1
