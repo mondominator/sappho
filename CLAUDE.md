@@ -90,11 +90,15 @@ docker-compose down
 
 4. **Authentication** (`server/auth.js`):
    - JWT-based authentication with configurable secret (`JWT_SECRET` env var)
-   - Two token types:
+   - Three authentication middlewares:
+     - **`authenticateToken()`** - Standard Bearer token auth via Authorization header
+     - **`authenticateMediaToken()`** - Query string token auth for media endpoints (covers, streams, avatars)
+     - **API key validation** - Long-lived keys for external integrations (e.g., OpsDec)
+   - Token types:
      - **Session tokens** - Short-lived, returned on login for browser/app use
-     - **API keys** - Long-lived, managed via `/api/api-keys` for external integrations (e.g., OpsDec)
-   - Middleware: `authenticateToken()` validates both token types
-   - Default admin created on first startup (credentials logged to console)
+     - **API keys** - Long-lived, managed via `/api/api-keys` for external integrations
+   - Default admin created on first startup with password "admin" (forced password change on first login)
+   - Password requirements: 12+ characters, uppercase, lowercase, number, special character
 
 5. **Session Management** (`services/sessionManager.js`):
    - In-memory tracking of active playback sessions (not persisted to DB)
@@ -226,11 +230,20 @@ Located in `server/migrations/`:
 
 ### Authentication Middleware
 
-`authenticateToken()` in `server/auth.js`:
+Two authentication middlewares in `server/auth.js`:
+
+**`authenticateToken()`** - For API endpoints:
 - Checks `Authorization: Bearer <token>` header
 - Validates JWT signature with `JWT_SECRET`
 - Distinguishes between session tokens and API keys by payload structure
 - Sets `req.user` object with user info for downstream handlers
+- **Security**: Does NOT accept query string tokens (OWASP API2:2023 compliance)
+
+**`authenticateMediaToken()`** - For media endpoints (covers, streams, avatars):
+- Accepts token via query string (`?token=...`) for `<img>` and `<audio>` tag compatibility
+- Falls back to Authorization header if no query token
+- Used for: `/api/audiobooks/:id/cover`, `/api/audiobooks/:id/stream`, `/api/profile/avatar`
+- **Note**: Query string tokens are logged in server access logs - acceptable tradeoff for media delivery
 
 ### Session Broadcasting
 
@@ -292,6 +305,51 @@ This preserves user data while getting fresh metadata extraction.
 - `server/routes/sessions.js` - Query active sessions (for OpsDec integration)
 - `client/src/pages/Player.jsx` - Audio player component with progress sync
 
+## CI/CD Pipeline
+
+### Workflows (`.github/workflows/`)
+
+**`security.yml`** - Security Checks (runs on PRs to main):
+- **API2 - Broken Authentication**: OWASP API2:2023 scanner checks for auth vulnerabilities
+- **Dependency Vulnerabilities**: npm audit for high/critical issues
+- **Secret Detection**: Gitleaks scans for leaked secrets
+- **CodeQL Analysis**: Static analysis for JavaScript security issues
+- Required status check for merging to main (branch protection enabled)
+
+**`docker.yml`** - Build Docker Image (runs on all pushes):
+- Builds on every push to any branch
+- Tags with branch name (e.g., `ghcr.io/mondominator/sappho:feature-branch`)
+- On main branch, also tags as `latest`
+- Pushes to GitHub Container Registry (ghcr.io)
+
+### Branch Protection
+
+Main branch requires:
+- "API2 - Broken Authentication" check to pass before merge
+- Strict mode: branch must be up to date with main
+
+### Security Scanner
+
+Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
+- Scans for broken authentication patterns
+- Checks: hardcoded credentials, weak JWT config, missing auth middleware
+- Intentionally allows `authenticateMediaToken` for query string tokens on media endpoints
+- Fails CI on Critical/High/Medium findings
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3001 | Server port |
+| `JWT_SECRET` | (required) | Secret for signing JWTs |
+| `DATABASE_PATH` | `/app/data/sapho.db` | SQLite database location |
+| `AUDIOBOOKS_DIR` | `/app/data/audiobooks` | Audiobook library path |
+| `UPLOAD_DIR` | `/app/data/uploads` | Temporary upload directory |
+| `LIBRARY_SCAN_INTERVAL` | 5 | Minutes between library scans |
+| `CORS_ORIGINS` | `http://localhost:3000,...` | Comma-separated allowed origins |
+
+**CORS Configuration**: When deploying behind a reverse proxy with a custom domain, set `CORS_ORIGINS` to your domain (e.g., `https://audiobooks.example.com`).
+
 ## Common Pitfalls
 
 1. **Docker cache issues**: Always rebuild with `--no-cache` after code changes
@@ -304,3 +362,5 @@ This preserves user data while getting fresh metadata extraction.
    - Ensure `getClientIP()` is used in progress update handler
 6. **Library not scanning**: Check `LIBRARY_SCAN_INTERVAL` env var, verify audiobooks directory is mounted correctly
 7. **Duplicate audiobooks**: Scanner checks file path - moving files will create duplicates; use maintenance endpoint to clean up
+8. **CORS errors**: Set `CORS_ORIGINS` env var to your domain when using a reverse proxy
+9. **Admin locked out**: Default admin password is "admin" - must be changed on first login
