@@ -1,0 +1,46 @@
+# Gitleaks configuration for Sappho
+# https://github.com/gitleaks/gitleaks
+
+title = "Sappho Secret Detection"
+
+[extend]
+useDefault = true
+
+# Additional rules for API keys and secrets
+[[rules]]
+id = "sappho-api-key"
+description = "Sappho API Key"
+regex = '''sapho_[a-zA-Z0-9]{64}'''
+keywords = ["sapho_"]
+
+[[rules]]
+id = "jwt-secret-in-code"
+description = "Hardcoded JWT Secret"
+regex = '''JWT_SECRET\s*=\s*['"][^'"]{10,}['"]'''
+keywords = ["JWT_SECRET"]
+
+[[rules]]
+id = "bcrypt-hash"
+description = "Bcrypt Hash (potential password)"
+regex = '''\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}'''
+
+# Allowlist for false positives
+[allowlist]
+description = "Allowlisted files and patterns"
+
+paths = [
+  '''\.github/scripts/.*''',
+  '''\.gitleaks\.toml''',
+  '''package-lock\.json''',
+  '''client/package-lock\.json''',
+  '''OWASP-.*\.md''',
+  '''\.security-reports/.*''',
+]
+
+# Allow example/documentation patterns
+regexes = [
+  '''default-secret-change-in-production''',  # Known example in docs
+  '''your-secret-here''',
+  '''<your.*secret>''',
+  '''example.*key''',
+]

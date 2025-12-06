@@ -1,9 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const db = require('../database');
 const fs = require('fs');
 const path = require('path');
-const { authenticateToken } = require('../auth');
+const { authenticateToken, authenticateMediaToken } = require('../auth');
+
+// SECURITY: Generate unique session IDs with random component
+function generateSessionId(userId, audiobookId) {
+  const random = crypto.randomBytes(8).toString('hex');
+  return `sapho-${userId}-${audiobookId}-${random}`;
+}
+
+// SECURITY: Map to track active session IDs per user/audiobook pair
+const activeSessionIds = new Map(); // key: `${userId}-${audiobookId}`, value: sessionId
+
+function getOrCreateSessionId(userId, audiobookId) {
+  const key = `${userId}-${audiobookId}`;
+  if (!activeSessionIds.has(key)) {
+    activeSessionIds.set(key, generateSessionId(userId, audiobookId));
+  }
+  return activeSessionIds.get(key);
+}
+
+function clearSessionId(userId, audiobookId) {
+  const key = `${userId}-${audiobookId}`;
+  activeSessionIds.delete(key);
+}
 
 // Track directories with active conversions to prevent scanner interference
 const activeConversions = new Set();
@@ -875,8 +898,8 @@ function getAudioMimeType(filePath) {
   return mimeTypes[ext] || 'audio/mpeg';
 }
 
-// Stream audiobook
-router.get('/:id/stream', authenticateToken, (req, res) => {
+// Stream audiobook (uses authenticateMediaToken to allow query string tokens for <audio> tags)
+router.get('/:id/stream', authenticateMediaToken, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -1932,7 +1955,8 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
       const sessionManager = require('../services/sessionManager');
       const websocketManager = require('../services/websocketManager');
 
-      const sessionId = `sapho-${userId}-${audiobookId}`;
+      // SECURITY: Use random session ID instead of predictable pattern
+      const sessionId = getOrCreateSessionId(userId, audiobookId);
 
       // Get audiobook details for session tracking
       db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
@@ -1949,6 +1973,8 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
             }
             // Remove from active sessions (so /api/sessions won't return it)
             sessionManager.stopSession(sessionId);
+            // Clear the session ID mapping
+            clearSessionId(userId, audiobookId);
           } else {
             // Update session for playing/paused states
             const session = sessionManager.updateSession({
@@ -2002,12 +2028,17 @@ router.delete('/:id/progress', authenticateToken, (req, res) => {
       // Also stop any active session
       const sessionManager = require('../services/sessionManager');
       const websocketManager = require('../services/websocketManager');
-      const sessionId = `sapho-${userId}-${audiobookId}`;
+      // SECURITY: Use the tracked session ID, not a predictable one
+      const sessionKey = `${userId}-${audiobookId}`;
+      const sessionId = activeSessionIds.get(sessionKey);
 
-      const session = sessionManager.getSession(sessionId);
-      if (session) {
-        websocketManager.broadcastSessionUpdate(session, 'session.stop');
-        sessionManager.stopSession(sessionId);
+      if (sessionId) {
+        const session = sessionManager.getSession(sessionId);
+        if (session) {
+          websocketManager.broadcastSessionUpdate(session, 'session.stop');
+          sessionManager.stopSession(sessionId);
+        }
+        clearSessionId(userId, audiobookId);
       }
 
       res.json({ message: 'Progress cleared' });
@@ -2015,8 +2046,8 @@ router.delete('/:id/progress', authenticateToken, (req, res) => {
   );
 });
 
-// Get cover art
-router.get('/:id/cover', authenticateToken, (req, res) => {
+// Get cover art (uses authenticateMediaToken to allow query string tokens for <img> tags)
+router.get('/:id/cover', authenticateMediaToken, (req, res) => {
   db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
     if (err) {
       return res.status(500).json({ error: err.message });
