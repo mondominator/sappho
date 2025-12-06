@@ -77,7 +77,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
         const payload = JSON.parse(atob(token.split('.')[1]));
         setUser(payload);
 
-        // Fetch user profile to get avatar
+        // Fetch user profile to get avatar and up-to-date is_admin status
         fetch('/api/profile', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -89,7 +89,8 @@ export default function Navigation({ onLogout, onOpenUpload }) {
             setUser(prev => ({
               ...prev,
               avatar: profile.avatar ? `/api/profile/avatar?token=${encodeURIComponent(token)}&t=${Date.now()}` : null,
-              display_name: profile.display_name
+              display_name: profile.display_name,
+              is_admin: profile.is_admin  // Update from server to reflect promotions/demotions
             }));
           })
           .catch(err => console.error('Error fetching profile:', err));
