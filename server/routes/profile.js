@@ -336,10 +336,10 @@ router.put('/password', authenticateToken, (req, res) => {
         return res.status(401).json({ error: 'Current password is incorrect' });
       }
 
-      // Hash new password and update
+      // Hash new password and update, also clear must_change_password flag
       const newPasswordHash = bcrypt.hashSync(newPassword, 10);
       db.run(
-        'UPDATE users SET password_hash = ? WHERE id = ?',
+        'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?',
         [newPasswordHash, req.user.id],
         function (err) {
           if (err) {

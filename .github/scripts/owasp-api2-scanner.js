@@ -128,7 +128,10 @@ function checkDefaultCredentials() {
   // Check if using secure random password generation
   const usesSecurePassword = /generateSecurePassword|crypto\.randomBytes.*password/i.test(content);
 
-  // Check for hardcoded admin password (only flag if NOT using secure generation)
+  // Check if password change is forced on first login
+  const forcesPasswordChange = /must_change_password\s*[=:]\s*1|must_change_password.*true/i.test(content);
+
+  // Check for hardcoded admin password (only flag if NOT using secure generation with forced change)
   if (!usesSecurePassword &&
       /hashSync\s*\(\s*['"`]admin['"`]/.test(content) &&
       /username.*admin/.test(content)) {
@@ -141,7 +144,22 @@ function checkDefaultCredentials() {
       'server/auth.js',
       line,
       'Default admin user is created with predictable credentials (admin/admin).',
-      'Generate a random password on first startup or require explicit admin setup.'
+      'Generate a random password on first startup and force password change on first login.'
+    );
+  }
+
+  // Warn if secure password is used but no forced change (downgrade to LOW)
+  if (usesSecurePassword && !forcesPasswordChange) {
+    const line = findLineNumber(content, 'generateSecurePassword') ||
+                 findLineNumber(content, 'createDefaultAdmin');
+    addFinding(
+      'API2-002',
+      'Default Admin Password Not Forced to Change',
+      SEVERITY.LOW,
+      'server/auth.js',
+      line,
+      'Default admin password is randomly generated but user is not forced to change it on first login.',
+      'Set must_change_password=1 for default admin and enforce password change in login flow.'
     );
   }
 }

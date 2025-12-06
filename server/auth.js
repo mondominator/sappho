@@ -277,7 +277,7 @@ async function login(username, password) {
     }
 
     db.get(
-      'SELECT id, username, password_hash, is_admin FROM users WHERE username = ?',
+      'SELECT id, username, password_hash, is_admin, must_change_password FROM users WHERE username = ?',
       [username],
       (err, user) => {
         if (err) {
@@ -303,7 +303,17 @@ async function login(username, password) {
           JWT_SECRET,
           { expiresIn: '7d' }
         );
-        resolve({ token, user: { id: user.id, username: user.username, is_admin: user.is_admin } });
+
+        // SECURITY: Include must_change_password flag in response
+        resolve({
+          token,
+          user: {
+            id: user.id,
+            username: user.username,
+            is_admin: user.is_admin
+          },
+          must_change_password: !!user.must_change_password
+        });
       }
     );
   });
@@ -345,8 +355,9 @@ async function createDefaultAdmin() {
         // SECURITY: Generate a random password instead of using a default
         const generatedPassword = generateSecurePassword(16);
         const passwordHash = bcrypt.hashSync(generatedPassword, 10);
+        // SECURITY: Set must_change_password=1 to force password change on first login
         db.run(
-          'INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)',
+          'INSERT INTO users (username, password_hash, is_admin, must_change_password) VALUES (?, ?, 1, 1)',
           ['admin', passwordHash],
           function (err) {
             if (err) {
@@ -360,7 +371,7 @@ async function createDefaultAdmin() {
               console.log(`║  Password: ${generatedPassword}                            ║`);
               console.log('╠════════════════════════════════════════════════════════════╣');
               console.log('║  ⚠️  SAVE THIS PASSWORD - IT WILL NOT BE SHOWN AGAIN!     ║');
-              console.log('║  Change it after first login via Profile > Security        ║');
+              console.log('║  You will be required to change it on first login.         ║');
               console.log('╚════════════════════════════════════════════════════════════╝');
               console.log('');
               resolve();

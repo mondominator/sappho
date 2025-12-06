@@ -29,26 +29,12 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// SECURITY: Helmet for security headers
+// SECURITY: Helmet for security headers (disabled CSP for SPA compatibility)
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "wss:", "ws:"],
-      mediaSrc: ["'self'", "blob:"],
-      objectSrc: ["'none'"],
-      frameAncestors: ["'none'"],
-    },
-  },
-  crossOriginEmbedderPolicy: false, // Required for audio streaming
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-  },
+  contentSecurityPolicy: false, // Disabled - Vite build uses dynamic imports
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
 }));
 
 // Middleware
