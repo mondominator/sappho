@@ -110,7 +110,7 @@ function getLockoutRemaining(username) {
 function authenticateToken(req, res, next) {
   // SECURITY: Only accept token from Authorization header, not query string
   const authHeader = req.headers['authorization'];
-  let token = authHeader && authHeader.split(' ')[1];
+  const token = authHeader && authHeader.split(' ')[1];
 
   // Check if it's an API key (starts with 'sapho_')
   if (token && token.startsWith('sapho_')) {
@@ -195,7 +195,7 @@ function authenticateApiKey(apiKey, req, res, next) {
 
   // Look up the API key in the database
   db.get(
-    `SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1`,
+    'SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1',
     [keyHash],
     (err, key) => {
       if (err) {
@@ -357,14 +357,14 @@ function logout(token) {
       blacklistToken(token, decoded.exp * 1000);
       return true;
     }
-  } catch (e) {
+  } catch (_e) {
     // Token decode failed, ignore
   }
   return false;
 }
 
 // Generate a secure random password
-function generateSecurePassword(length = 16) {
+function _generateSecurePassword(length = 16) {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
   const randomBytes = crypto.randomBytes(length);
   let password = '';

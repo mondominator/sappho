@@ -7,7 +7,7 @@ const db = require('../database');
 // music-metadata is ESM only, use dynamic import
 let parseFile;
 
-const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+const _audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 const coversDir = path.join(__dirname, '../../data/covers');
 
 async function saveCoverArt(picture, audioFilePath) {
@@ -98,7 +98,7 @@ async function processAllAudiobooks() {
 
       // Wait a bit for all database updates to complete
       setTimeout(() => {
-        console.log(`\nProcessing complete!`);
+        console.log('\nProcessing complete!');
         console.log(`Total: ${rows.length}`);
         console.log(`Processed: ${processed}`);
         console.log(`Updated with covers: ${updated}`);

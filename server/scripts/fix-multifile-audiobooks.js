@@ -100,7 +100,7 @@ async function consolidateGroup(books) {
         [title, totalDuration, totalSize, primaryBook.id],
         (err) => {
           if (err) {
-            console.error(`Error updating primary book:`, err);
+            console.error('Error updating primary book:', err);
             return reject(err);
           }
 
@@ -141,7 +141,7 @@ async function consolidateGroup(books) {
                         `DELETE FROM audiobooks WHERE id IN (${idsToDelete.join(',')})`,
                         (err) => {
                           if (err) {
-                            console.error(`Error deleting duplicate entries:`, err);
+                            console.error('Error deleting duplicate entries:', err);
                             reject(err);
                           } else {
                             console.log(`  Deleted ${idsToDelete.length} duplicate entries`);

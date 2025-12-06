@@ -74,7 +74,7 @@ async function up(db) {
   });
 }
 
-async function down(db) {
+async function down(_db) {
   // No way to rollback cleaned descriptions, so this is a no-op
   console.log('Cannot rollback description cleaning migration');
   return Promise.resolve();

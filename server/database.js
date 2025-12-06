@@ -117,32 +117,32 @@ function initializeDatabase() {
     `);
 
     // Migrations: Add new columns if they don't exist
-    db.all("PRAGMA table_info(users)", (err, columns) => {
+    db.all('PRAGMA table_info(users)', (err, columns) => {
       if (!err) {
         const columnNames = columns.map(col => col.name);
         if (!columnNames.includes('display_name')) {
-          db.run("ALTER TABLE users ADD COLUMN display_name TEXT");
+          db.run('ALTER TABLE users ADD COLUMN display_name TEXT');
           console.log('Added display_name column to users table');
         }
         if (!columnNames.includes('avatar')) {
-          db.run("ALTER TABLE users ADD COLUMN avatar TEXT");
+          db.run('ALTER TABLE users ADD COLUMN avatar TEXT');
           console.log('Added avatar column to users table');
         }
       }
     });
 
     // Add series_index column as an alias for series_position
-    db.all("PRAGMA table_info(audiobooks)", (err, columns) => {
+    db.all('PRAGMA table_info(audiobooks)', (err, columns) => {
       if (!err) {
         const columnNames = columns.map(col => col.name);
         if (!columnNames.includes('series_index')) {
-          db.run("ALTER TABLE audiobooks ADD COLUMN series_index REAL", (err) => {
+          db.run('ALTER TABLE audiobooks ADD COLUMN series_index REAL', (err) => {
             if (err) {
               console.error('Error adding series_index column:', err);
             } else {
               console.log('Added series_index column to audiobooks table');
               // Copy series_position values to series_index
-              db.run("UPDATE audiobooks SET series_index = series_position WHERE series_position IS NOT NULL", (err) => {
+              db.run('UPDATE audiobooks SET series_index = series_position WHERE series_position IS NOT NULL', (err) => {
                 if (err) {
                   console.error('Error migrating series_position to series_index:', err);
                 } else {

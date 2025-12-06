@@ -11,7 +11,13 @@
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "test": "jest",
+    "test:unit": "jest tests/unit --coverage",
+    "test:integration": "jest tests/integration --coverage",
+    "test:docker": "jest tests/docker",
+    "test:all": "jest --coverage",
+    "lint": "eslint server/"
   },
   "keywords": [
     "audiobook",
@@ -36,6 +42,10 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.1.4"
   }
 }
