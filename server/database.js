@@ -10,6 +10,11 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+let dbReadyResolve;
+const dbReady = new Promise((resolve) => {
+  dbReadyResolve = resolve;
+});
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database:', err);
@@ -31,6 +36,7 @@ function initializeDatabase() {
         display_name TEXT,
         avatar TEXT,
         is_admin INTEGER DEFAULT 0,
+        must_change_password INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -153,6 +159,11 @@ function initializeDatabase() {
     runMigrations();
 
     console.log('Database initialized');
+
+    // Signal that database is ready
+    if (dbReadyResolve) {
+      dbReadyResolve();
+    }
   });
 }
 
@@ -185,4 +196,6 @@ function runMigrations() {
   }
 }
 
+// Export both the db instance and the ready promise
+db.ready = dbReady;
 module.exports = db;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
+import ForcePasswordChange from './components/ForcePasswordChange'
 import Home from './pages/Home'
 import Library from './pages/Library'
 import AllBooks from './pages/AllBooks'
@@ -77,6 +78,9 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'))
+  const [mustChangePassword, setMustChangePassword] = useState(() => {
+    return localStorage.getItem('mustChangePassword') === 'true';
+  })
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [currentAudiobook, setCurrentAudiobook] = useState(() => {
     try {
@@ -107,18 +111,27 @@ function App() {
     }
   })
 
-  // Validate token on mount
+  // Validate token on mount and check for forced password change
   useEffect(() => {
     if (token) {
-      getProfile().catch((error) => {
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          // Token is invalid/expired - clear state
-          console.log('Token expired, logging out');
-          setToken(null);
-          setCurrentAudiobook(null);
-          setCurrentProgress(null);
-        }
-      });
+      getProfile()
+        .then((response) => {
+          // Check if user must change password
+          if (response.data.must_change_password) {
+            localStorage.setItem('mustChangePassword', 'true');
+            setMustChangePassword(true);
+          }
+        })
+        .catch((error) => {
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            // Token is invalid/expired - clear state
+            console.log('Token expired, logging out');
+            setToken(null);
+            setMustChangePassword(false);
+            setCurrentAudiobook(null);
+            setCurrentProgress(null);
+          }
+        });
     }
   }, [token]);
 
@@ -182,9 +195,16 @@ function App() {
     fetchLatestProgress();
   }, []); // Run only once on mount
 
-  const handleLogin = (newToken) => {
+  const handleLogin = (newToken, mustChange = false) => {
     localStorage.setItem('token', newToken)
     setToken(newToken)
+    if (mustChange) {
+      localStorage.setItem('mustChangePassword', 'true')
+      setMustChangePassword(true)
+    } else {
+      localStorage.removeItem('mustChangePassword')
+      setMustChangePassword(false)
+    }
     // Reset URL to home page on login
     window.history.replaceState(null, '', '/')
   }
@@ -195,7 +215,9 @@ function App() {
     localStorage.removeItem('currentProgress')
     localStorage.removeItem('playerPlaying')
     localStorage.removeItem('currentAudiobookId')
+    localStorage.removeItem('mustChangePassword')
     setToken(null)
+    setMustChangePassword(false)
     setCurrentAudiobook(null)
     setCurrentProgress(null)
     // Force a page reload to ensure clean logout
@@ -216,6 +238,10 @@ function App() {
 
   if (!token) {
     return <Login onLogin={handleLogin} />
+  }
+
+  if (mustChangePassword) {
+    return <ForcePasswordChange onLogout={handleLogout} />
   }
 
   return (

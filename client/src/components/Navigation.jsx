@@ -73,30 +73,24 @@ export default function Navigation({ onLogout, onOpenUpload }) {
   const loadUserProfile = () => {
     const token = localStorage.getItem('token');
     if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUser(payload);
-
-        // Fetch user profile to get avatar and up-to-date is_admin status
-        fetch('/api/profile', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+      // Fetch user profile from server (don't rely on JWT claims for is_admin)
+      fetch('/api/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(res => res.json())
+        .then(profile => {
+          console.log('Profile data:', profile);
+          setUser({
+            id: profile.id,
+            username: profile.username,
+            avatar: profile.avatar ? `/api/profile/avatar?token=${encodeURIComponent(token)}&t=${Date.now()}` : null,
+            display_name: profile.display_name,
+            is_admin: profile.is_admin
+          });
         })
-          .then(res => res.json())
-          .then(profile => {
-            console.log('Profile data:', profile);
-            setUser(prev => ({
-              ...prev,
-              avatar: profile.avatar ? `/api/profile/avatar?token=${encodeURIComponent(token)}&t=${Date.now()}` : null,
-              display_name: profile.display_name,
-              is_admin: profile.is_admin  // Update from server to reflect promotions/demotions
-            }));
-          })
-          .catch(err => console.error('Error fetching profile:', err));
-      } catch (error) {
-        console.error('Error decoding token:', error);
-      }
+        .catch(err => console.error('Error fetching profile:', err));
     }
   };
 

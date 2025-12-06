@@ -1,9 +1,6 @@
-name: Security Checks (OWASP API2:2023)
+name: Security Checks
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -145,103 +142,7 @@ jobs:
         with:
           category: "/language:javascript"
 
-  # Job 5: Create Issues for Low Severity Findings
-  create-issues:
-    name: Create Issues for Low Severity
-    runs-on: ubuntu-latest
-    needs: owasp-api2-authentication
-    if: needs.owasp-api2-authentication.outputs.low_count > 0 && github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Security Report
-        uses: actions/download-artifact@v4
-        with:
-          name: owasp-api2-report
-          path: .security-reports/
-
-      - name: Create Issues for Low Severity Findings
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-
-            // Read findings
-            const reportPath = path.join('.security-reports', 'owasp-api2-findings.json');
-            if (!fs.existsSync(reportPath)) {
-              console.log('No findings report found');
-              return;
-            }
-
-            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-            const lowFindings = report.findings.filter(f => f.severity === 'LOW');
-
-            if (lowFindings.length === 0) {
-              console.log('No low severity findings');
-              return;
-            }
-
-            // Get existing issues
-            const { data: existingIssues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'security,low'
-            });
-
-            const existingTitles = existingIssues.map(i => i.title);
-
-            for (const finding of lowFindings) {
-              const title = `[SECURITY] ${finding.title} (${finding.cwe})`;
-
-              // Check if issue already exists
-              if (existingTitles.some(t => t.includes(finding.id) || t.includes(finding.title))) {
-                console.log(`Issue already exists for ${finding.id}: ${finding.title}`);
-                continue;
-              }
-
-              const body = `## OWASP API2:2023 - Broken Authentication
-
-            ### Severity: ${finding.severity}
-
-            ### Finding ID: ${finding.id}
-
-            ### Description
-            ${finding.description}
-
-            ### Location
-            - File: \`${finding.file}\`
-            - Line: ${finding.line}
-
-            ### CWE Reference
-            [${finding.cwe}](https://cwe.mitre.org/data/definitions/${finding.cwe.replace('CWE-', '')}.html)
-
-            ### Recommendation
-            ${finding.recommendation}
-
-            ---
-            *This issue was automatically created by the security pipeline.*
-            *Detected on: ${new Date().toISOString()}*`;
-
-              try {
-                await github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  title: title,
-                  body: body,
-                  labels: ['security', 'low']
-                });
-                console.log(`Created issue: ${title}`);
-              } catch (error) {
-                console.error(`Failed to create issue for ${finding.id}: ${error.message}`);
-              }
-            }
-
-  # Job 6: Security Summary
+  # Job 5: Security Summary
   security-summary:
     name: Security Summary
     runs-on: ubuntu-latest

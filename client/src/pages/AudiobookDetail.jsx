@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles } from '../api';
+import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile } from '../api';
 import EditMetadataModal from '../components/EditMetadataModal';
 import './AudiobookDetail.css';
 
@@ -17,17 +17,17 @@ export default function AudiobookDetail({ onPlay }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Check admin status from JWT token
+  // Check admin status from profile API
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    const checkAdminStatus = async () => {
       try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setIsAdmin(!!payload.is_admin);
+        const response = await getProfile();
+        setIsAdmin(!!response.data.is_admin);
       } catch (error) {
-        console.error('Error decoding token:', error);
+        console.error('Error checking admin status:', error);
       }
-    }
+    };
+    checkAdminStatus();
   }, []);
 
   useEffect(() => {
