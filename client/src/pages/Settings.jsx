@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getApiKeys, createApiKey, updateApiKey, deleteApiKey, getUsers, createUser, updateUser, deleteUser } from '../api';
+import { getApiKeys, createApiKey, updateApiKey, deleteApiKey, getUsers, createUser, updateUser, deleteUser, getProfile } from '../api';
 import LibrarySettings from '../components/settings/LibrarySettings';
 import ServerSettings from '../components/settings/ServerSettings';
 import JobsSettings from '../components/settings/JobsSettings';
@@ -30,16 +30,27 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    // Decode JWT to get current user info
-    const token = localStorage.getItem('token');
-    if (token) {
+    // Fetch current user profile from server to get up-to-date is_admin status
+    // This ensures admin tabs appear immediately after promotion without re-login
+    const loadCurrentUser = async () => {
       try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setCurrentUser(payload);
+        const response = await getProfile();
+        setCurrentUser(response.data);
       } catch (error) {
-        console.error('Error decoding token:', error);
+        console.error('Error loading profile:', error);
+        // Fallback to JWT decoding if profile fetch fails
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setCurrentUser(payload);
+          } catch (e) {
+            console.error('Error decoding token:', e);
+          }
+        }
       }
-    }
+    };
+    loadCurrentUser();
   }, []);
 
   useEffect(() => {
