@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getApiKeys, createApiKey, updateApiKey, deleteApiKey, getUsers, createUser, updateUser, deleteUser, getProfile } from '../api';
 import LibrarySettings from '../components/settings/LibrarySettings';
 import ServerSettings from '../components/settings/ServerSettings';
@@ -8,6 +9,7 @@ import AISettings from '../components/settings/AISettings';
 import './Settings.css';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('library');
   const [apiKeys, setApiKeys] = useState([]);
   const [users, setUsers] = useState([]);
@@ -18,6 +20,7 @@ export default function Settings() {
   const [newKeyData, setNewKeyData] = useState(null);
   const [copiedKey, setCopiedKey] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [accessChecked, setAccessChecked] = useState(false);
 
   // User management state
   const [showUserForm, setShowUserForm] = useState(false);
@@ -31,27 +34,25 @@ export default function Settings() {
 
   useEffect(() => {
     // Fetch current user profile from server to get up-to-date is_admin status
-    // This ensures admin tabs appear immediately after promotion without re-login
+    // Redirect non-admins away from this page
     const loadCurrentUser = async () => {
       try {
         const response = await getProfile();
         setCurrentUser(response.data);
+        // Redirect non-admins to home page
+        if (!response.data.is_admin) {
+          navigate('/', { replace: true });
+          return;
+        }
+        setAccessChecked(true);
       } catch (error) {
         console.error('Error loading profile:', error);
-        // Fallback to JWT decoding if profile fetch fails
-        const token = localStorage.getItem('token');
-        if (token) {
-          try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setCurrentUser(payload);
-          } catch (e) {
-            console.error('Error decoding token:', e);
-          }
-        }
+        // Redirect on error - can't verify admin status
+        navigate('/', { replace: true });
       }
     };
     loadCurrentUser();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (activeTab === 'api-keys') {
@@ -225,76 +226,19 @@ export default function Settings() {
 
     switch (activeTab) {
       case 'library':
-        if (!currentUser?.is_admin) {
-          return (
-            <div className="tab-content">
-              <div className="info-message">
-                <h3>Admin Access Required</h3>
-                <p>Only administrators can configure library settings.</p>
-              </div>
-            </div>
-          );
-        }
         return <LibrarySettings />;
-
       case 'server':
-        if (!currentUser?.is_admin) {
-          return (
-            <div className="tab-content">
-              <div className="info-message">
-                <h3>Admin Access Required</h3>
-                <p>Only administrators can configure server settings.</p>
-              </div>
-            </div>
-          );
-        }
         return <ServerSettings />;
-
       case 'jobs':
-        if (!currentUser?.is_admin) {
-          return (
-            <div className="tab-content">
-              <div className="info-message">
-                <h3>Admin Access Required</h3>
-                <p>Only administrators can view background jobs.</p>
-              </div>
-            </div>
-          );
-        }
         return <JobsSettings />;
-
       case 'logs':
-        if (!currentUser?.is_admin) {
-          return (
-            <div className="tab-content">
-              <div className="info-message">
-                <h3>Admin Access Required</h3>
-                <p>Only administrators can view server logs.</p>
-              </div>
-            </div>
-          );
-        }
         return <LogsSettings />;
-
       case 'ai':
-        if (!currentUser?.is_admin) {
-          return (
-            <div className="tab-content">
-              <div className="info-message">
-                <h3>Admin Access Required</h3>
-                <p>Only administrators can configure AI settings.</p>
-              </div>
-            </div>
-          );
-        }
         return <AISettings />;
-
       case 'api-keys':
         return renderApiKeysTab();
-
       case 'users':
         return renderUsersTab();
-
       default:
         return null;
     }
@@ -655,6 +599,15 @@ export default function Settings() {
     </div>
   );
 
+  // Don't render anything until access is verified
+  if (!accessChecked) {
+    return (
+      <div className="settings-page container">
+        <div className="loading">Verifying access...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="settings-page container">
       <h1 className="settings-header">Administration</h1>
@@ -666,46 +619,42 @@ export default function Settings() {
         >
           Library
         </button>
-        {currentUser?.is_admin && (
-          <>
-            <button
-              className={`tab-button ${activeTab === 'server' ? 'active' : ''}`}
-              onClick={() => setActiveTab('server')}
-            >
-              Server
-            </button>
-            <button
-              className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
-              onClick={() => setActiveTab('jobs')}
-            >
-              Jobs
-            </button>
-            <button
-              className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
-              onClick={() => setActiveTab('logs')}
-            >
-              Logs
-            </button>
-            <button
-              className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
-              onClick={() => setActiveTab('ai')}
-            >
-              AI
-            </button>
-            <button
-              className={`tab-button ${activeTab === 'api-keys' ? 'active' : ''}`}
-              onClick={() => setActiveTab('api-keys')}
-            >
-              API Keys
-            </button>
-            <button
-              className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('users')}
-            >
-              Users
-            </button>
-          </>
-        )}
+        <button
+          className={`tab-button ${activeTab === 'server' ? 'active' : ''}`}
+          onClick={() => setActiveTab('server')}
+        >
+          Server
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('jobs')}
+        >
+          Jobs
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('logs')}
+        >
+          Logs
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          AI
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'api-keys' ? 'active' : ''}`}
+          onClick={() => setActiveTab('api-keys')}
+        >
+          API Keys
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
+          onClick={() => setActiveTab('users')}
+        >
+          Users
+        </button>
       </div>
 
       <div className="settings-content">
