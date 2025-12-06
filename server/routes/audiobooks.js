@@ -1604,6 +1604,26 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
   } catch (error) {
     // Unlock directory on error
     if (dir) activeConversions.delete(dir);
+
+    // Clean up partial M4B file if it was created
+    if (newPath && fs.existsSync(newPath)) {
+      try {
+        fs.unlinkSync(newPath);
+        console.log('Cleaned up partial M4B file after conversion failure');
+      } catch (cleanupErr) {
+        console.error('Failed to clean up partial M4B:', cleanupErr.message);
+      }
+    }
+
+    // Clean up temp cover file if it exists
+    if (tempCoverPath && fs.existsSync(tempCoverPath)) {
+      try {
+        fs.unlinkSync(tempCoverPath);
+      } catch (cleanupErr) {
+        // Ignore cleanup errors
+      }
+    }
+
     console.error('Error converting to M4B:', error);
     res.status(500).json({ error: 'Failed to convert: ' + error.message });
   }
