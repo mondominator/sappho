@@ -250,7 +250,7 @@ export default function Settings() {
         <div>
           <h2>API Keys</h2>
           <p className="section-description">
-            API keys allow external applications to access your Sapho library.
+            API keys allow external applications to access your Sappho library.
             Keep your API keys secure and never share them publicly.
           </p>
         </div>

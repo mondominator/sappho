@@ -52,7 +52,7 @@ class WebSocketManager {
       // Send initial connection success message
       this.sendToClient(ws, {
         type: 'connected',
-        message: 'Successfully connected to Sapho notifications',
+        message: 'Successfully connected to Sappho notifications',
       });
     });
 

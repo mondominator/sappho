@@ -342,7 +342,7 @@ Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
 |----------|---------|-------------|
 | `PORT` | 3001 | Server port |
 | `JWT_SECRET` | (required) | Secret for signing JWTs |
-| `DATABASE_PATH` | `/app/data/sapho.db` | SQLite database location |
+| `DATABASE_PATH` | `/app/data/sappho.db` | SQLite database location |
 | `AUDIOBOOKS_DIR` | `/app/data/audiobooks` | Audiobook library path |
 | `UPLOAD_DIR` | `/app/data/uploads` | Temporary upload directory |
 | `LIBRARY_SCAN_INTERVAL` | 5 | Minutes between library scans |

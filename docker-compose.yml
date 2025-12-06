@@ -10,7 +10,7 @@ services:
       - NODE_ENV=production
       - PORT=3003
       - JWT_SECRET=${JWT_SECRET:-change-this-secret}
-      - DATABASE_PATH=/app/data/sapho.db
+      - DATABASE_PATH=/app/data/sappho.db
       - DATA_DIR=/app/data
       - AUDIOBOOKS_DIR=/app/data/audiobooks
       - UPLOAD_DIR=/app/data/uploads
