@@ -364,3 +364,10 @@ Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
 7. **Duplicate audiobooks**: Scanner checks file path - moving files will create duplicates; use maintenance endpoint to clean up
 8. **CORS errors**: Set `CORS_ORIGINS` env var to your domain when using a reverse proxy
 9. **Admin locked out**: Default admin password is "admin" - must be changed on first login
+
+## Working with Issues
+
+When reviewing or commenting on GitHub issues:
+- **Always verify the actual code** before stating whether something is fixed or not fixed
+- Do not rely on assumptions or previous comments - check the implementation directly
+- Use Grep/Read tools to confirm the current state of the codebase before closing issues
