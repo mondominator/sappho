@@ -371,3 +371,12 @@ When reviewing or commenting on GitHub issues:
 - **Always verify the actual code** before stating whether something is fixed or not fixed
 - Do not rely on assumptions or previous comments - check the implementation directly
 - Use Grep/Read tools to confirm the current state of the codebase before closing issues
+
+### Security Issues
+
+For security vulnerabilities, use **GitHub Security Advisories** instead of regular issues:
+1. Go to the repository's "Security" tab
+2. Click "Advisories" → "New draft security advisory"
+3. This keeps vulnerability details private until a fix is released
+
+Private vulnerability reporting is enabled - external researchers can report issues privately via the Security tab.
