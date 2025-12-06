@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
+const db = require('./database');
 const { createDefaultAdmin } = require('./auth');
 const { startPeriodicScan } = require('./services/libraryScanner');
 
@@ -122,6 +123,9 @@ if (fs.existsSync(distPath)) {
 // Initialize
 async function initialize() {
   try {
+    // Wait for database to be ready before proceeding
+    await db.ready;
+
     // Create default admin user if needed
     await createDefaultAdmin();
 
