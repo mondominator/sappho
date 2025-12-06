@@ -1561,7 +1561,7 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
         console.log('Re-embedding cover art with tone...');
         await execFileAsync('tone', [
           'tag', newPath,
-          `--cover-front=${tempCoverPath}`
+          `--meta-cover-file=${tempCoverPath}`
         ], { timeout: 60000 });
         console.log('Cover art embedded successfully');
       } catch (e) {
