@@ -41,7 +41,7 @@ const upload = multer({
 // Get profile
 router.get('/', authenticateToken, (req, res) => {
   db.get(
-    'SELECT id, username, email, display_name, avatar, is_admin, created_at FROM users WHERE id = ?',
+    'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
     [req.user.id],
     (err, user) => {
       if (err) {
@@ -50,7 +50,10 @@ router.get('/', authenticateToken, (req, res) => {
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json(user);
+      res.json({
+        ...user,
+        must_change_password: !!user.must_change_password
+      });
     }
   );
 });
