@@ -111,7 +111,7 @@ router.post('/audiobook/:audiobookId', authenticateToken, (req, res) => {
       } else {
         // Create new rating
         db.run(
-          `INSERT INTO user_ratings (user_id, audiobook_id, rating, review) VALUES (?, ?, ?, ?)`,
+          'INSERT INTO user_ratings (user_id, audiobook_id, rating, review) VALUES (?, ?, ?, ?)',
           [req.user.id, audiobookId, rating || null, review || null],
           function(err) {
             if (err) {
