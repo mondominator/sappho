@@ -178,7 +178,7 @@ async function restoreBackup(backupPath, options = {}) {
         if (fileName === 'manifest.json') {
           const content = await entry.buffer();
           results.manifest = JSON.parse(content.toString());
-        } else if (fileName === 'sappho.db' && restoreDatabase) {
+        } else if ((fileName === 'sappho.db' || fileName === 'sapho.db') && restoreDatabase) {
           // Backup current database first
           if (fs.existsSync(DATABASE_PATH)) {
             const backupName = DATABASE_PATH + '.pre-restore';
