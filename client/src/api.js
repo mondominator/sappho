@@ -227,6 +227,9 @@ export const getServerLogs = (limit = 100) =>
 export const getBackgroundJobs = () =>
   api.get('/maintenance/jobs');
 
+export const getLibraryStatistics = () =>
+  api.get('/maintenance/statistics');
+
 // Server Settings
 export const getServerSettings = () =>
   api.get('/settings/server');

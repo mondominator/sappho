@@ -603,7 +603,7 @@ function getJobStatus() {
   }
 
   return {
-    libraryScan: {
+    libraryScanner: {
       name: 'Library Scanner',
       description: 'Periodically scans for new audiobooks',
       interval: `${scanIntervalMinutes} minutes`,
@@ -611,6 +611,7 @@ function getJobStatus() {
       lastRun: lastScanTime ? lastScanTime.toISOString() : null,
       nextRun: nextScanTime ? nextScanTime.toISOString() : null,
       lastResult: lastScanResult,
+      canTrigger: true,
     },
     sessionCleanup: {
       name: 'Session Cleanup',
@@ -619,6 +620,7 @@ function getJobStatus() {
       status: 'running',
       lastRun: null, // SessionManager handles this internally
       nextRun: null,
+      canTrigger: false,
     }
   };
 }

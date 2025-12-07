@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { getBackgroundJobs } from '../../api';
+import { getBackgroundJobs, scanLibrary } from '../../api';
 import './JobsSettings.css';
 
 export default function JobsSettings() {
   const [jobs, setJobs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [runningJob, setRunningJob] = useState(null);
 
   const loadJobs = async () => {
     try {
@@ -15,6 +16,26 @@ export default function JobsSettings() {
       console.error('Error loading jobs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRunNow = async (jobKey) => {
+    if (runningJob) return;
+
+    try {
+      setRunningJob(jobKey);
+
+      if (jobKey === 'libraryScanner') {
+        await scanLibrary(false);
+      }
+
+      // Reload jobs to get updated status
+      await loadJobs();
+    } catch (error) {
+      console.error('Error running job:', error);
+      alert('Failed to trigger job: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setRunningJob(null);
     }
   };
 
@@ -100,6 +121,18 @@ export default function JobsSettings() {
                   </div>
                 )}
               </div>
+              {job.canTrigger && (
+                <div className="job-actions">
+                  <button
+                    type="button"
+                    className="btn btn-small btn-primary"
+                    onClick={() => handleRunNow(key)}
+                    disabled={job.status !== 'idle' || runningJob === key}
+                  >
+                    {runningJob === key ? 'Starting...' : 'Run Now'}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
