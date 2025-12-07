@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { uploadAudiobook, uploadMultiFileAudiobook } from '../api';
 import './UploadModal.css';
 
@@ -10,8 +11,11 @@ export default function UploadModal({ isOpen, onClose }) {
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState({});
   const [uploadMode, setUploadMode] = useState('files'); // 'files' or 'folder'
+  const [overallProgress, setOverallProgress] = useState(null); // { percent, speed, eta, loaded, total }
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
+  const cancelTokenRef = useRef(null);
+  const uploadStartTimeRef = useRef(null);
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -30,6 +34,7 @@ export default function UploadModal({ isOpen, onClose }) {
       setFiles(audioFiles);
       setError('');
       setUploadProgress({});
+      setOverallProgress(null);
     }
   };
 
@@ -50,6 +55,7 @@ export default function UploadModal({ isOpen, onClose }) {
       setFiles(audioFiles);
       setError('');
       setUploadProgress({});
+      setOverallProgress(null);
     }
   };
 
@@ -60,37 +66,47 @@ export default function UploadModal({ isOpen, onClose }) {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
+  const formatSpeed = (bytesPerSecond) => {
+    if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`;
+    if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+    return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
+  };
+
+  const formatEta = (seconds) => {
+    if (!seconds || seconds === Infinity) return '--:--';
+    if (seconds < 60) return `${Math.ceil(seconds)}s`;
+    if (seconds < 3600) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.ceil(seconds % 60);
+      return `${mins}m ${secs}s`;
+    }
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.ceil((seconds % 3600) / 60);
+    return `${hours}h ${mins}m`;
+  };
+
   const getTotalSize = () => {
     return files.reduce((sum, file) => sum + file.size, 0);
   };
 
-  // Group files by their directory path (for folder uploads)
-  const groupFilesByDirectory = () => {
-    const groups = {};
+  const handleProgressUpdate = useCallback((progressEvent) => {
+    const { loaded, total } = progressEvent;
+    const percent = Math.round((loaded * 100) / total);
 
-    files.forEach(file => {
-      // webkitRelativePath contains the folder structure
-      const relativePath = file.webkitRelativePath || file.name;
-      const parts = relativePath.split('/');
+    const now = Date.now();
+    const elapsed = (now - uploadStartTimeRef.current) / 1000; // seconds
+    const speed = elapsed > 0 ? loaded / elapsed : 0;
+    const remaining = total - loaded;
+    const eta = speed > 0 ? remaining / speed : 0;
 
-      // Get the immediate parent folder name, or 'root' if no folder
-      let groupKey;
-      if (parts.length > 1) {
-        // Use the first folder level as the group key
-        groupKey = parts[0];
-      } else {
-        // No folder structure, use filename without extension as key
-        groupKey = file.name.replace(/\.[^.]+$/, '');
-      }
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
-      groups[groupKey].push(file);
+    setOverallProgress({
+      percent,
+      speed,
+      eta,
+      loaded,
+      total
     });
-
-    return groups;
-  };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,6 +117,8 @@ export default function UploadModal({ isOpen, onClose }) {
 
     setUploading(true);
     setError('');
+    uploadStartTimeRef.current = Date.now();
+    cancelTokenRef.current = axios.CancelToken.source();
 
     try {
       if (uploadMode === 'folder') {
@@ -112,7 +130,10 @@ export default function UploadModal({ isOpen, onClose }) {
         });
 
         try {
-          const response = await uploadMultiFileAudiobook(files, folderName);
+          const response = await uploadMultiFileAudiobook(files, folderName, {
+            onProgress: handleProgressUpdate,
+            cancelToken: cancelTokenRef.current.token
+          });
           const audiobookId = response.data?.audiobook?.id;
 
           setUploadProgress({
@@ -120,6 +141,7 @@ export default function UploadModal({ isOpen, onClose }) {
           });
 
           setFiles([]);
+          setOverallProgress(null);
           onClose();
           // Navigate to the new audiobook's detail page
           if (audiobookId) {
@@ -128,25 +150,63 @@ export default function UploadModal({ isOpen, onClose }) {
             navigate('/');
           }
         } catch (err) {
-          setUploadProgress({
-            [folderName]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
-          });
-          setError(err.response?.data?.error || 'Upload failed');
+          if (axios.isCancel(err)) {
+            setUploadProgress({
+              [folderName]: { status: 'cancelled' }
+            });
+            setError('Upload cancelled');
+          } else {
+            setUploadProgress({
+              [folderName]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
+            });
+            setError(err.response?.data?.error || 'Upload failed');
+          }
         }
       } else {
         // Individual file uploads - each file becomes a separate audiobook
         const results = [];
+        let totalLoaded = 0;
+        const totalSize = getTotalSize();
 
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
+          const fileStartLoaded = totalLoaded;
 
           setUploadProgress(prev => ({
             ...prev,
-            [file.name]: { status: 'uploading' }
+            [file.name]: { status: 'uploading', percent: 0 }
           }));
 
           try {
-            const response = await uploadAudiobook(file);
+            const response = await uploadAudiobook(file, null, {
+              onProgress: (progressEvent) => {
+                const filePercent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [file.name]: { status: 'uploading', percent: filePercent }
+                }));
+
+                // Calculate overall progress
+                const currentTotalLoaded = fileStartLoaded + progressEvent.loaded;
+                const overallPercent = Math.round((currentTotalLoaded * 100) / totalSize);
+                const now = Date.now();
+                const elapsed = (now - uploadStartTimeRef.current) / 1000;
+                const speed = elapsed > 0 ? currentTotalLoaded / elapsed : 0;
+                const remaining = totalSize - currentTotalLoaded;
+                const eta = speed > 0 ? remaining / speed : 0;
+
+                setOverallProgress({
+                  percent: overallPercent,
+                  speed,
+                  eta,
+                  loaded: currentTotalLoaded,
+                  total: totalSize
+                });
+              },
+              cancelToken: cancelTokenRef.current.token
+            });
+
+            totalLoaded += file.size;
             const audiobookId = response.data?.audiobook?.id;
             setUploadProgress(prev => ({
               ...prev,
@@ -154,20 +214,34 @@ export default function UploadModal({ isOpen, onClose }) {
             }));
             results.push({ name: file.name, success: true, audiobookId });
           } catch (err) {
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.name]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
-            }));
-            results.push({ name: file.name, success: false, error: err.response?.data?.error });
+            if (axios.isCancel(err)) {
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.name]: { status: 'cancelled' }
+              }));
+              results.push({ name: file.name, success: false, cancelled: true });
+              setError('Upload cancelled');
+              break; // Stop processing remaining files
+            } else {
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.name]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
+              }));
+              results.push({ name: file.name, success: false, error: err.response?.data?.error });
+            }
           }
         }
 
         const successResults = results.filter(r => r.success);
         const successCount = successResults.length;
-        const failCount = results.filter(r => !r.success).length;
+        const failCount = results.filter(r => !r.success && !r.cancelled).length;
+        const cancelledCount = results.filter(r => r.cancelled).length;
 
-        if (failCount === 0 && successCount > 0) {
+        if (cancelledCount > 0) {
+          // Upload was cancelled, don't navigate
+        } else if (failCount === 0 && successCount > 0) {
           setFiles([]);
+          setOverallProgress(null);
           onClose();
           // If single file uploaded, navigate to its detail page
           if (successCount === 1 && successResults[0].audiobookId) {
@@ -177,15 +251,87 @@ export default function UploadModal({ isOpen, onClose }) {
             navigate('/');
           }
         } else if (successCount > 0) {
-          alert(`Uploaded ${successCount} audiobook${successCount !== 1 ? 's' : ''}, ${failCount} failed. Check the list for details.`);
-        } else {
+          // Some succeeded, some failed - don't close, show status
+        } else if (failCount > 0) {
           setError('All uploads failed. Check the list for details.');
         }
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Upload failed');
+      if (!axios.isCancel(err)) {
+        setError(err.response?.data?.error || 'Upload failed');
+      }
     } finally {
       setUploading(false);
+      cancelTokenRef.current = null;
+    }
+  };
+
+  const handleCancel = () => {
+    if (cancelTokenRef.current) {
+      cancelTokenRef.current.cancel('Upload cancelled by user');
+    }
+  };
+
+  const handleRetry = async (fileName) => {
+    const file = files.find(f => f.name === fileName);
+    if (!file) return;
+
+    setUploading(true);
+    uploadStartTimeRef.current = Date.now();
+    cancelTokenRef.current = axios.CancelToken.source();
+
+    setUploadProgress(prev => ({
+      ...prev,
+      [file.name]: { status: 'uploading', percent: 0 }
+    }));
+
+    try {
+      const response = await uploadAudiobook(file, null, {
+        onProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: { status: 'uploading', percent }
+          }));
+
+          const now = Date.now();
+          const elapsed = (now - uploadStartTimeRef.current) / 1000;
+          const speed = elapsed > 0 ? progressEvent.loaded / elapsed : 0;
+          const remaining = progressEvent.total - progressEvent.loaded;
+          const eta = speed > 0 ? remaining / speed : 0;
+
+          setOverallProgress({
+            percent,
+            speed,
+            eta,
+            loaded: progressEvent.loaded,
+            total: progressEvent.total
+          });
+        },
+        cancelToken: cancelTokenRef.current.token
+      });
+
+      setUploadProgress(prev => ({
+        ...prev,
+        [file.name]: { status: 'success' }
+      }));
+      setOverallProgress(null);
+      setError('');
+    } catch (err) {
+      if (axios.isCancel(err)) {
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: { status: 'cancelled' }
+        }));
+      } else {
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
+        }));
+      }
+    } finally {
+      setUploading(false);
+      cancelTokenRef.current = null;
     }
   };
 
@@ -194,6 +340,7 @@ export default function UploadModal({ isOpen, onClose }) {
       setFiles([]);
       setError('');
       setUploadProgress({});
+      setOverallProgress(null);
       setUploadMode('files');
       onClose();
     }
@@ -207,10 +354,13 @@ export default function UploadModal({ isOpen, onClose }) {
   const clearFiles = () => {
     setFiles([]);
     setUploadProgress({});
+    setOverallProgress(null);
     setError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (folderInputRef.current) folderInputRef.current.value = '';
   };
+
+  const hasFailedUploads = Object.values(uploadProgress).some(p => p.status === 'error');
 
   if (!isOpen) return null;
 
@@ -227,97 +377,125 @@ export default function UploadModal({ isOpen, onClose }) {
         <form onSubmit={handleSubmit} className="upload-form">
           {error && <div className="error-message">{error}</div>}
 
+          {/* Overall progress bar during upload */}
+          {uploading && overallProgress && (
+            <div className="overall-progress">
+              <div className="progress-header">
+                <span className="progress-percent">{overallProgress.percent}%</span>
+                <span className="progress-details">
+                  {formatFileSize(overallProgress.loaded)} / {formatFileSize(overallProgress.total)}
+                </span>
+              </div>
+              <div className="progress-bar-container">
+                <div
+                  className="progress-bar-fill"
+                  style={{ width: `${overallProgress.percent}%` }}
+                />
+              </div>
+              <div className="progress-footer">
+                <span className="progress-speed">{formatSpeed(overallProgress.speed)}</span>
+                <span className="progress-eta">ETA: {formatEta(overallProgress.eta)}</span>
+              </div>
+            </div>
+          )}
+
           {/* Upload mode toggle */}
-          <div className="upload-mode-toggle">
-            <button
-              type="button"
-              className={`mode-btn ${uploadMode === 'files' ? 'active' : ''}`}
-              onClick={() => { setUploadMode('files'); clearFiles(); }}
-              disabled={uploading}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                <polyline points="13 2 13 9 20 9"></polyline>
-              </svg>
-              Files
-            </button>
-            <button
-              type="button"
-              className={`mode-btn ${uploadMode === 'folder' ? 'active' : ''}`}
-              onClick={() => { setUploadMode('folder'); clearFiles(); }}
-              disabled={uploading}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
-              Folder
-            </button>
-          </div>
+          {!uploading && (
+            <div className="upload-mode-toggle">
+              <button
+                type="button"
+                className={`mode-btn ${uploadMode === 'files' ? 'active' : ''}`}
+                onClick={() => { setUploadMode('files'); clearFiles(); }}
+                disabled={uploading}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                  <polyline points="13 2 13 9 20 9"></polyline>
+                </svg>
+                Files
+              </button>
+              <button
+                type="button"
+                className={`mode-btn ${uploadMode === 'folder' ? 'active' : ''}`}
+                onClick={() => { setUploadMode('folder'); clearFiles(); }}
+                disabled={uploading}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Folder
+              </button>
+            </div>
+          )}
 
-          <div className="file-input-container">
-            {/* Hidden file input for multiple files */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              id="file-input"
-              accept=".mp3,.m4a,.m4b,.mp4,.ogg,.flac"
-              onChange={handleFileChange}
-              disabled={uploading}
-              multiple
-              style={{ display: 'none' }}
-            />
-            {/* Hidden folder input */}
-            <input
-              ref={folderInputRef}
-              type="file"
-              id="folder-input"
-              accept=".mp3,.m4a,.m4b,.mp4,.ogg,.flac"
-              onChange={handleFolderChange}
-              disabled={uploading}
-              webkitdirectory=""
-              directory=""
-              multiple
-              style={{ display: 'none' }}
-            />
+          {!uploading && (
+            <div className="file-input-container">
+              {/* Hidden file input for multiple files */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                id="file-input"
+                accept=".mp3,.m4a,.m4b,.mp4,.ogg,.flac"
+                onChange={handleFileChange}
+                disabled={uploading}
+                multiple
+                style={{ display: 'none' }}
+              />
+              {/* Hidden folder input */}
+              <input
+                ref={folderInputRef}
+                type="file"
+                id="folder-input"
+                accept=".mp3,.m4a,.m4b,.mp4,.ogg,.flac"
+                onChange={handleFolderChange}
+                disabled={uploading}
+                webkitdirectory=""
+                directory=""
+                multiple
+                style={{ display: 'none' }}
+              />
 
-            <label
-              htmlFor={uploadMode === 'folder' ? 'folder-input' : 'file-input'}
-              className="file-input-label"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              <span className="file-label-text">
-                {files.length > 0
-                  ? `${files.length} file${files.length !== 1 ? 's' : ''} selected`
-                  : uploadMode === 'folder'
-                    ? 'Click to select a folder'
-                    : 'Click to select audiobook files'
-                }
-              </span>
-              <span className="file-label-hint">
-                {uploadMode === 'folder'
-                  ? 'Select a folder containing audiobook files'
-                  : 'Select one or more audiobook files (MP3, M4B, M4A, etc.)'
-                }
-              </span>
-            </label>
-          </div>
+              <label
+                htmlFor={uploadMode === 'folder' ? 'folder-input' : 'file-input'}
+                className="file-input-label"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span className="file-label-text">
+                  {files.length > 0
+                    ? `${files.length} file${files.length !== 1 ? 's' : ''} selected`
+                    : uploadMode === 'folder'
+                      ? 'Click to select a folder'
+                      : 'Click to select audiobook files'
+                  }
+                </span>
+                <span className="file-label-hint">
+                  {uploadMode === 'folder'
+                    ? 'Select a folder containing audiobook files'
+                    : 'Select one or more audiobook files (MP3, M4B, M4A, etc.)'
+                  }
+                </span>
+              </label>
+            </div>
+          )}
 
           {files.length > 0 && (
             <div className="files-list">
               <div className="files-list-header">
                 <span>{files.length} file{files.length !== 1 ? 's' : ''} ({formatFileSize(getTotalSize())})</span>
-                <button
-                  type="button"
-                  className="clear-files-btn"
-                  onClick={clearFiles}
-                  disabled={uploading}
-                >
-                  Clear all
-                </button>
+                {!uploading && (
+                  <button
+                    type="button"
+                    className="clear-files-btn"
+                    onClick={clearFiles}
+                    disabled={uploading}
+                  >
+                    Clear all
+                  </button>
+                )}
               </div>
               <div className="files-list-items">
                 {files.map((file, index) => (
@@ -327,18 +505,44 @@ export default function UploadModal({ isOpen, onClose }) {
                         {file.webkitRelativePath || file.name}
                       </span>
                       <span className="file-item-size">{formatFileSize(file.size)}</span>
+                      {uploadProgress[file.name]?.status === 'uploading' && uploadProgress[file.name]?.percent !== undefined && (
+                        <div className="file-progress-bar">
+                          <div
+                            className="file-progress-fill"
+                            style={{ width: `${uploadProgress[file.name].percent}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="file-item-actions">
                       {uploadProgress[file.name]?.status === 'uploading' && (
-                        <span className="file-status uploading">Uploading...</span>
+                        <span className="file-status uploading">
+                          {uploadProgress[file.name]?.percent !== undefined
+                            ? `${uploadProgress[file.name].percent}%`
+                            : 'Uploading...'}
+                        </span>
                       )}
                       {uploadProgress[file.name]?.status === 'success' && (
                         <span className="file-status success">Done</span>
                       )}
                       {uploadProgress[file.name]?.status === 'error' && (
-                        <span className="file-status error" title={uploadProgress[file.name]?.error}>
-                          Failed
-                        </span>
+                        <>
+                          <span className="file-status error" title={uploadProgress[file.name]?.error}>
+                            Failed
+                          </span>
+                          {!uploading && (
+                            <button
+                              type="button"
+                              className="retry-btn"
+                              onClick={() => handleRetry(file.name)}
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {uploadProgress[file.name]?.status === 'cancelled' && (
+                        <span className="file-status cancelled">Cancelled</span>
                       )}
                       {!uploading && !uploadProgress[file.name]?.status && (
                         <button
@@ -357,17 +561,24 @@ export default function UploadModal({ isOpen, onClose }) {
           )}
 
           <div className="modal-actions">
-            <button type="submit" className="btn btn-primary" disabled={uploading || files.length === 0}>
-              {uploading ? 'Uploading...' : `Upload ${files.length > 0 ? files.length : ''} File${files.length !== 1 ? 's' : ''}`}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleClose}
-              disabled={uploading}
-            >
-              Cancel
-            </button>
+            {uploading ? (
+              <button type="button" className="btn btn-danger" onClick={handleCancel}>
+                Cancel Upload
+              </button>
+            ) : (
+              <>
+                <button type="submit" className="btn btn-primary" disabled={files.length === 0}>
+                  Upload {files.length > 0 ? files.length : ''} File{files.length !== 1 ? 's' : ''}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleClose}
+                >
+                  Close
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>
