@@ -1,0 +1,277 @@
+.collection-detail-page {
+  padding: 2rem 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.collection-header {
+  margin-bottom: 2rem;
+}
+
+.back-button {
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1.5rem;
+  display: inline-block;
+}
+
+.back-button:hover {
+  background: #374151;
+  border-color: #3b82f6;
+}
+
+.collection-info h1 {
+  font-size: 2rem;
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-weight: 700;
+}
+
+.collection-info .description {
+  color: #9ca3af;
+  font-size: 1rem;
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.collection-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.edit-btn {
+  background: none;
+  border: 1px solid #374151;
+  color: #9ca3af;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-btn:hover {
+  background: #374151;
+  color: #fff;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.edit-form input,
+.edit-form textarea {
+  width: 100%;
+  padding: 0.75rem;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.edit-form input:focus,
+.edit-form textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.edit-form textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.empty-books {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+}
+
+.empty-books p {
+  margin: 0.5rem 0;
+}
+
+.books-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.book-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 0.75rem;
+  transition: all 0.2s;
+}
+
+.book-item:hover {
+  background: #374151;
+  border-color: #4b5563;
+}
+
+.book-item.dragging {
+  opacity: 0.5;
+  border-color: #3b82f6;
+}
+
+.drag-handle {
+  color: #6b7280;
+  cursor: grab;
+  font-size: 1.25rem;
+  padding: 0 0.25rem;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.book-cover {
+  flex-shrink: 0;
+  width: 60px;
+  height: 90px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  transition: width 0.3s;
+}
+
+.book-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.book-title {
+  font-size: 1rem;
+  color: #fff;
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-author {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin: 0 0 0.25rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-duration {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.remove-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0;
+}
+
+.book-item:hover .remove-btn {
+  opacity: 1;
+}
+
+.remove-btn:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 18px;
+  color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+  .collection-detail-page {
+    padding: 1rem;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0));
+  }
+
+  .collection-info h1 {
+    font-size: 1.5rem;
+  }
+
+  .book-cover {
+    width: 50px;
+    height: 75px;
+  }
+
+  .book-title {
+    font-size: 0.9375rem;
+  }
+
+  .book-author {
+    font-size: 0.8125rem;
+  }
+
+  .drag-handle {
+    display: none;
+  }
+
+  .remove-btn {
+    opacity: 1;
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+}

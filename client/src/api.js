@@ -294,4 +294,32 @@ export const getDuplicates = () =>
 export const mergeDuplicates = (keepId, deleteIds, deleteFiles = false) =>
   api.post('/maintenance/duplicates/merge', { keepId, deleteIds, deleteFiles });
 
+// Collections
+export const getCollections = () =>
+  api.get('/collections');
+
+export const createCollection = (name, description) =>
+  api.post('/collections', { name, description });
+
+export const getCollection = (id) =>
+  api.get(`/collections/${id}`);
+
+export const updateCollection = (id, name, description) =>
+  api.put(`/collections/${id}`, { name, description });
+
+export const deleteCollection = (id) =>
+  api.delete(`/collections/${id}`);
+
+export const addToCollection = (collectionId, audiobookId) =>
+  api.post(`/collections/${collectionId}/items`, { audiobook_id: audiobookId });
+
+export const removeFromCollection = (collectionId, audiobookId) =>
+  api.delete(`/collections/${collectionId}/items/${audiobookId}`);
+
+export const reorderCollection = (collectionId, order) =>
+  api.put(`/collections/${collectionId}/items/reorder`, { order });
+
+export const getCollectionsForBook = (bookId) =>
+  api.get(`/collections/for-book/${bookId}`);
+
 export default api;

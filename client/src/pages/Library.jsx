@@ -246,7 +246,7 @@ export default function Library({ onPlay }) {
           </div>
         </div>
 
-        {/* Favorites Card */}
+        {/* Reading List Card */}
         <div
           className="category-card"
           onClick={() => navigate('/all-books?favorites=true')}
@@ -265,12 +265,13 @@ export default function Library({ onPlay }) {
           <div className="category-card-content">
             <div className="category-icon-wrapper favorites">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
               </svg>
             </div>
             <div className="category-text">
-              <h3>Favorites</h3>
-              <p>{stats.totalFavorites} starred</p>
+              <h3>Reading List</h3>
+              <p>{stats.totalFavorites} books</p>
             </div>
             <div className="category-arrow">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
