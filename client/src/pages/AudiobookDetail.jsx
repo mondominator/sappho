@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite } from '../api';
+import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite, getRating, setRating } from '../api';
 import EditMetadataModal from '../components/EditMetadataModal';
 import AddToCollectionModal from '../components/AddToCollectionModal';
+import StarRating from '../components/StarRating';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -19,6 +20,7 @@ export default function AudiobookDetail({ onPlay }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [userRating, setUserRating] = useState(null);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -38,17 +40,19 @@ export default function AudiobookDetail({ onPlay }) {
 
   const loadAudiobook = async () => {
     try {
-      const [bookResponse, progressResponse, chaptersResponse, filesResponse] = await Promise.all([
+      const [bookResponse, progressResponse, chaptersResponse, filesResponse, ratingResponse] = await Promise.all([
         getAudiobook(id),
         getProgress(id),
         getChapters(id).catch(() => ({ data: [] })),
-        getDirectoryFiles(id).catch(() => ({ data: [] }))
+        getDirectoryFiles(id).catch(() => ({ data: [] })),
+        getRating(id).catch(() => ({ data: null }))
       ]);
       setAudiobook(bookResponse.data);
       setProgress(progressResponse.data);
       setChapters(chaptersResponse.data || []);
       setDirectoryFiles(filesResponse.data || []);
       setIsFavorite(!!bookResponse.data.is_favorite);
+      setUserRating(ratingResponse.data?.rating || null);
     } catch (error) {
       console.error('Error loading audiobook:', error);
     } finally {
@@ -158,6 +162,15 @@ export default function AudiobookDetail({ onPlay }) {
       setIsFavorite(response.data.is_favorite);
     } catch (error) {
       console.error('Error toggling favorite:', error);
+    }
+  };
+
+  const handleRatingChange = async (newRating) => {
+    try {
+      await setRating(audiobook.id, newRating, null);
+      setUserRating(newRating);
+    } catch (error) {
+      console.error('Error setting rating:', error);
     }
   };
 
@@ -334,6 +347,15 @@ export default function AudiobookDetail({ onPlay }) {
 
         <div className="detail-info">
           <h1 className="detail-title">{audiobook.title}</h1>
+
+          <div className="detail-rating">
+            <StarRating
+              rating={userRating}
+              onRate={handleRatingChange}
+              size="medium"
+              showLabel={true}
+            />
+          </div>
 
           <div className="detail-actions">
             <button

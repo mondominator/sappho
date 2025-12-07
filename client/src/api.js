@@ -322,4 +322,23 @@ export const reorderCollection = (collectionId, order) =>
 export const getCollectionsForBook = (bookId) =>
   api.get(`/collections/for-book/${bookId}`);
 
+// Ratings
+export const getRating = (audiobookId) =>
+  api.get(`/ratings/audiobook/${audiobookId}`);
+
+export const getAllRatings = (audiobookId) =>
+  api.get(`/ratings/audiobook/${audiobookId}/all`);
+
+export const getAverageRating = (audiobookId) =>
+  api.get(`/ratings/audiobook/${audiobookId}/average`);
+
+export const setRating = (audiobookId, rating, review) =>
+  api.post(`/ratings/audiobook/${audiobookId}`, { rating, review });
+
+export const deleteRating = (audiobookId) =>
+  api.delete(`/ratings/audiobook/${audiobookId}`);
+
+export const getMyRatings = () =>
+  api.get('/ratings/my-ratings');
+
 export default api;
