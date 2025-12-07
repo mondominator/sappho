@@ -15,7 +15,7 @@ Sappho is a modern, self-hosted audiobook streaming server with automatic metada
 
 ## Development Commands
 
-**IMPORTANT: This project is containerized and runs in Docker in production. For local development, you can run it directly with npm commands below.**
+**IMPORTANT: This project is containerized. The production server pulls from `ghcr.io/mondominator/sappho:latest`. To deploy changes: push to GitHub, merge PR, then pull new image on server with `docker pull ghcr.io/mondominator/sappho:latest && docker-compose up -d`.**
 
 ### Running the Application
 
