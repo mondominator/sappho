@@ -67,7 +67,7 @@ export const convertToM4B = (id) =>
 export const searchMetadata = (id, params) =>
   api.get(`/audiobooks/${id}/search-metadata`, { params });
 
-export const uploadAudiobook = (file, metadata) => {
+export const uploadAudiobook = (file, metadata, { onProgress, cancelToken } = {}) => {
   const formData = new FormData();
   formData.append('audiobook', file);
   if (metadata) {
@@ -79,10 +79,12 @@ export const uploadAudiobook = (file, metadata) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    onUploadProgress: onProgress,
+    cancelToken,
   });
 };
 
-export const uploadMultiFileAudiobook = (files, bookName = null) => {
+export const uploadMultiFileAudiobook = (files, bookName = null, { onProgress, cancelToken } = {}) => {
   const formData = new FormData();
   // Sort files by name to maintain order
   const sortedFiles = [...files].sort((a, b) =>
@@ -103,6 +105,8 @@ export const uploadMultiFileAudiobook = (files, bookName = null) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    onUploadProgress: onProgress,
+    cancelToken,
   });
 };
 
