@@ -651,4 +651,117 @@
   .detail-metadata {
     order: 4;
   }
+
+  /* Mobile Progress Section - Android Style */
+  .mobile-progress-section {
+    display: block;
+    order: 3;
+    margin-top: 1.5rem;
+  }
+
+  .mobile-section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.75rem 0;
+  }
+
+  .mobile-progress-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+
+  .mobile-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .mobile-progress-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .mobile-progress-time {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #fff;
+  }
+
+  .mobile-progress-total {
+    font-size: 0.875rem;
+    color: #9ca3af;
+  }
+
+  .mobile-progress-completed {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #10b981;
+  }
+
+  .mobile-progress-percent {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #3b82f6;
+  }
+
+  .mobile-progress-bar {
+    height: 6px;
+    background: #374151;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .mobile-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+    transition: width 0.3s ease;
+  }
+
+  .mobile-current-chapter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .mobile-chapter-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+    padding-right: 0.5rem;
+  }
+
+  .mobile-chapter-label {
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }
+
+  .mobile-chapter-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-chapter-position {
+    font-size: 0.875rem;
+    color: #9ca3af;
+    flex-shrink: 0;
+  }
+}
+
+/* Hide mobile progress section on desktop */
+.mobile-progress-section {
+  display: none;
 }
