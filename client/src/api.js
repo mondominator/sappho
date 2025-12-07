@@ -270,4 +270,17 @@ export const uploadAndRestoreBackup = (file, options = {}) => {
 export const applyBackupRetention = (keepCount = 7) =>
   api.post('/backup/retention', { keepCount });
 
+// Favorites
+export const getFavorites = () =>
+  api.get('/audiobooks/favorites');
+
+export const toggleFavorite = (id) =>
+  api.post(`/audiobooks/${id}/favorite/toggle`);
+
+export const addFavorite = (id) =>
+  api.post(`/audiobooks/${id}/favorite`);
+
+export const removeFavorite = (id) =>
+  api.delete(`/audiobooks/${id}/favorite`);
+
 export default api;
