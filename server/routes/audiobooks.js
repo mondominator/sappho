@@ -2877,7 +2877,6 @@ router.post('/batch/mark-finished', authenticateToken, async (req, res) => {
   }
 
   try {
-    const placeholders = audiobook_ids.map(() => '?').join(',');
     let successCount = 0;
 
     for (const audiobookId of audiobook_ids) {

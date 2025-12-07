@@ -431,6 +431,139 @@
   color: #e5e7eb;
 }
 
+/* Selection Mode Styles */
+.series-detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.series-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.selection-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.selection-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.selection-mode-btn.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.selection-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.select-all-btn,
+.deselect-all-btn {
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.select-all-btn:hover,
+.deselect-all-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.deselect-all-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Card selection styles */
+.series-books-grid .audiobook-card.selection-mode {
+  cursor: pointer;
+}
+
+.series-books-grid .audiobook-card.selection-mode::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.series-books-grid .audiobook-card.selection-mode:hover::after {
+  opacity: 1;
+}
+
+.series-books-grid .audiobook-card.selected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(59, 130, 246, 0.3);
+  opacity: 1;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.series-books-grid .audiobook-card.selected {
+  outline: 3px solid #3b82f6;
+  outline-offset: -3px;
+}
+
+.selection-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+}
+
+.selection-checkbox input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+}
+
+/* Padding for action bar when visible */
+.series-books-grid.has-action-bar {
+  padding-bottom: 80px;
+}
+
 @media (max-width: 768px) {
   .series-detail-page {
     padding-top: 0 !important;
@@ -438,6 +571,40 @@
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     margin: 0 !important;
+  }
+
+  .series-detail-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .series-detail-actions {
+    width: 100%;
+  }
+
+  .selection-mode-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .selection-controls {
+    width: 100%;
+  }
+
+  .select-all-btn,
+  .deselect-all-btn {
+    flex: 1;
+    text-align: center;
+  }
+
+  .selection-checkbox {
+    top: 4px;
+    left: 4px;
+  }
+
+  .selection-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
   }
 
   .back-button-modern {
