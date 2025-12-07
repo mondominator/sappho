@@ -302,7 +302,7 @@ export default function AllBooks({ onPlay }) {
           <div className="all-books-header">
             <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
             <h2 className="all-books-count">
-              {favoritesOnly && <span className="genre-label">Favorites: </span>}
+              {favoritesOnly && <span className="genre-label">Reading List: </span>}
               {genreFilter && <span className="genre-label">{genreFilter}: </span>}
               {sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}
             </h2>
