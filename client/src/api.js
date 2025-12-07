@@ -237,4 +237,37 @@ export const getServerSettings = () =>
 export const updateServerSettings = (settings) =>
   api.put('/settings/server', settings);
 
+// Backup (admin only)
+export const getBackups = () =>
+  api.get('/backup');
+
+export const createBackup = (includeCovers = true) =>
+  api.post('/backup', { includeCovers });
+
+export const downloadBackup = (filename) => {
+  const token = localStorage.getItem('token');
+  return `${API_BASE}/backup/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
+};
+
+export const deleteBackup = (filename) =>
+  api.delete(`/backup/${encodeURIComponent(filename)}`);
+
+export const restoreBackup = (filename, options = {}) =>
+  api.post(`/backup/restore/${encodeURIComponent(filename)}`, options);
+
+export const uploadAndRestoreBackup = (file, options = {}) => {
+  const formData = new FormData();
+  formData.append('backup', file);
+  formData.append('restoreDatabase', options.restoreDatabase ?? true);
+  formData.append('restoreCovers', options.restoreCovers ?? true);
+  return api.post('/backup/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+export const applyBackupRetention = (keepCount = 7) =>
+  api.post('/backup/retention', { keepCount });
+
 export default api;
