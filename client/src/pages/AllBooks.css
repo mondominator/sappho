@@ -117,6 +117,26 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.sort-order-btn {
+  padding: 0.5rem 0.75rem;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+}
+
+.sort-order-btn:hover {
+  border-color: #3b82f6;
+  background: #374151;
+}
+
 .audiobook-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

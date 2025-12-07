@@ -3,8 +3,8 @@
   top: 0;
   left: 0;
   right: 0;
-  background: #1a1a1a;
-  border-bottom: 1px solid #2a2a2a;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
   z-index: 50;
 }
 
@@ -77,7 +77,7 @@
 }
 
 .nav-link {
-  color: #9ca3af;
+  color: var(--text-secondary);
   text-decoration: none;
   font-weight: 500;
   transition: all 0.2s ease;
@@ -91,13 +91,13 @@
 }
 
 .nav-link:hover {
-  color: #fff;
-  background: rgba(75, 85, 99, 0.3);
-  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-primary);
 }
 
 .nav-link.active {
-  color: #fff;
+  color: var(--text-primary);
   background: rgba(59, 130, 246, 0.15);
   border-color: rgba(59, 130, 246, 0.3);
 }
@@ -112,9 +112,9 @@
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: #374151;
+  background: var(--bg-tertiary);
   border: none;
-  color: #9ca3af;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -124,8 +124,8 @@
 }
 
 .icon-button:hover {
-  background: #4b5563;
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .user-menu {
@@ -185,10 +185,10 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: #1f2937;
-  border: 1px solid #374151;
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 25px var(--shadow-color);
   min-width: 180px;
   overflow: hidden;
   z-index: 100;
@@ -202,13 +202,13 @@
   padding: 12px 16px;
   background: transparent;
   border: none;
-  color: #e5e7eb;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .user-dropdown button:last-child {
@@ -216,8 +216,8 @@
 }
 
 .user-dropdown button:hover {
-  background: #374151;
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* Logo styling */
@@ -318,10 +318,10 @@
 }
 
 .mobile-menu-dropdown {
-  background: #1f2937;
-  border: 1px solid #374151;
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 40px var(--shadow-color);
   min-width: 200px;
   max-width: 280px;
   overflow: hidden;
@@ -333,9 +333,9 @@
   align-items: center;
   gap: 10px;
   padding: 1rem;
-  background: #111827;
-  border-bottom: 1px solid #374151;
-  color: #fff;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-secondary);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -347,13 +347,13 @@
   padding: 14px 16px;
   background: transparent;
   border: none;
-  color: #e5e7eb;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   font-size: 15px;
   font-weight: 500;
   transition: all 0.2s;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .mobile-menu-dropdown button:last-child {
@@ -361,7 +361,7 @@
 }
 
 .mobile-menu-dropdown button:active {
-  background: #374151;
+  background: var(--bg-hover);
 }
 
 .mobile-menu-dropdown button.logout-button {
@@ -376,7 +376,7 @@
   /* Keep navigation at top on mobile */
   .navigation {
     bottom: auto;
-    border-bottom: 1px solid #2a2a2a;
+    border-bottom: 1px solid var(--border-primary);
     border-top: none;
     z-index: 1000;
   }

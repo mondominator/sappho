@@ -35,8 +35,22 @@ export default function AllBooks({ onPlay }) {
   const [audiobooks, setAudiobooks] = useState([]);
   const [genreMappings, setGenreMappings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState('title');
-  const [progressFilter, setProgressFilter] = useState('all');
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('sortBy') || 'title');
+  const [sortOrder, setSortOrder] = useState(() => localStorage.getItem('sortOrder') || 'asc');
+  const [progressFilter, setProgressFilter] = useState(() => localStorage.getItem('progressFilter') || 'all');
+
+  // Save preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem('sortBy', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('sortOrder', sortOrder);
+  }, [sortOrder]);
+
+  useEffect(() => {
+    localStorage.setItem('progressFilter', progressFilter);
+  }, [progressFilter]);
 
   useEffect(() => {
     loadData();
@@ -87,30 +101,56 @@ export default function AllBooks({ onPlay }) {
 
   // Sort audiobooks
   const sortedAudiobooks = [...filteredAudiobooks].sort((a, b) => {
+    let result = 0;
+
     switch (sortBy) {
       case 'title':
-        return (a.title || '').localeCompare(b.title || '');
+        result = (a.title || '').localeCompare(b.title || '');
+        break;
       case 'author':
-        return (a.author || '').localeCompare(b.author || '');
+        result = (a.author || '').localeCompare(b.author || '');
+        break;
+      case 'narrator':
+        result = (a.narrator || '').localeCompare(b.narrator || '');
+        break;
       case 'series':
         // Sort by series name, then by position within series
         const seriesCompare = (a.series || '').localeCompare(b.series || '');
-        if (seriesCompare !== 0) return seriesCompare;
-        return (a.series_position || 0) - (b.series_position || 0);
+        if (seriesCompare !== 0) {
+          result = seriesCompare;
+        } else {
+          result = (a.series_position || 0) - (b.series_position || 0);
+        }
+        break;
       case 'genre':
-        return (a.genre || '').localeCompare(b.genre || '');
+        result = (a.genre || '').localeCompare(b.genre || '');
+        break;
       case 'recent':
-        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        result = new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        break;
+      case 'year':
+        result = (a.year || 0) - (b.year || 0);
+        break;
       case 'duration':
-        return (a.duration || 0) - (b.duration || 0);
+        result = (a.duration || 0) - (b.duration || 0);
+        break;
       case 'progress':
         // Sort by progress percentage
         const aProgress = a.progress ? (a.progress.position / (a.duration || 1)) * 100 : 0;
         const bProgress = b.progress ? (b.progress.position / (b.duration || 1)) * 100 : 0;
-        return bProgress - aProgress;
+        result = aProgress - bProgress;
+        break;
+      case 'recently-played':
+        const aPlayed = a.progress?.updated_at ? new Date(a.progress.updated_at) : new Date(0);
+        const bPlayed = b.progress?.updated_at ? new Date(b.progress.updated_at) : new Date(0);
+        result = bPlayed - aPlayed;
+        break;
       default:
-        return 0;
+        result = 0;
     }
+
+    // Apply sort order (desc reverses the result)
+    return sortOrder === 'desc' ? -result : result;
   });
 
   const formatDuration = (seconds) => {
@@ -219,12 +259,22 @@ export default function AllBooks({ onPlay }) {
                 >
                   <option value="title">Title</option>
                   <option value="author">Author</option>
+                  <option value="narrator">Narrator</option>
                   <option value="series">Series</option>
                   <option value="genre">Genre</option>
-                  <option value="recent">Recently Added</option>
+                  <option value="recent">Date Added</option>
+                  <option value="year">Year Published</option>
                   <option value="duration">Duration</option>
                   <option value="progress">Progress</option>
+                  <option value="recently-played">Recently Played</option>
                 </select>
+                <button
+                  className="sort-order-btn"
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                >
+                  {sortOrder === 'asc' ? '↑' : '↓'}
+                </button>
               </div>
             </div>
           </div>

@@ -1,3 +1,30 @@
+/* Theme Variables */
+:root {
+  /* Dark theme (default) */
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #1f2937;
+  --bg-card: #1a1a1a;
+  --bg-input: #1f1f1f;
+  --bg-hover: #374151;
+
+  --text-primary: #e0e7f1;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  --border-primary: #2a2a2a;
+  --border-secondary: #374151;
+
+  --accent-primary: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+
+  --shadow-color: rgba(0, 0, 0, 0.4);
+}
+
+
 * {
   margin: 0;
   padding: 0;
@@ -12,8 +39,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0a0e1a;
-  color: #e0e7f1;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
   /* Prevent pull-to-refresh on mobile */
   overscroll-behavior-y: contain;
   /* Support safe areas on notched devices */
@@ -89,13 +117,13 @@ body {
 }
 
 .btn-secondary {
-  background: #374151;
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .btn-secondary:hover,
 .btn-secondary:active {
-  background: #4b5563;
+  background: var(--border-secondary);
 }
 
 .btn-danger {
@@ -111,10 +139,10 @@ body {
 .input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #374151;
+  border: 1px solid var(--border-secondary);
   border-radius: 6px;
-  background: #1f1f1f;
-  color: #fff;
+  background: var(--bg-input);
+  color: var(--text-primary);
   font-size: 16px; /* Prevent zoom on iOS */
   min-height: 44px; /* Touch target size */
 }
@@ -131,15 +159,15 @@ body {
 }
 
 .card {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   padding: 20px;
 }
 
 .audiobook-card {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   overflow: hidden;
   transition: all 0.2s;
@@ -147,7 +175,7 @@ body {
 }
 
 .audiobook-card:hover {
-  border-color: #3b82f6;
+  border-color: var(--accent-primary);
   transform: translateY(-2px);
 }
 
@@ -156,8 +184,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: #1a1a1a;
-  border-top: 1px solid #2a2a2a;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-primary);
   padding: 20px;
   z-index: 100;
 }

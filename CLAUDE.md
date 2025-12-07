@@ -380,3 +380,4 @@ For security vulnerabilities, use **GitHub Security Advisories** instead of regu
 3. This keeps vulnerability details private until a fix is released
 
 Private vulnerability reporting is enabled - external researchers can report issues privately via the Security tab.
+- don't bypass merge rules in the future. always work on new branch and merge back in via pr / mr.
