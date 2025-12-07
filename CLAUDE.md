@@ -382,3 +382,4 @@ For security vulnerabilities, use **GitHub Security Advisories** instead of regu
 Private vulnerability reporting is enabled - external researchers can report issues privately via the Security tab.
 - don't bypass merge rules in the future. always work on new branch and merge back in via pr / mr.
 - don't use automerge and wait for pipelines to give you results before moving onto something else or declaring success
+- wait for me to test before shipping

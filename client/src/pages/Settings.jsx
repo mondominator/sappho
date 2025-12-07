@@ -8,6 +8,7 @@ import LogsSettings from '../components/settings/LogsSettings';
 import AISettings from '../components/settings/AISettings';
 import StatisticsSettings from '../components/settings/StatisticsSettings';
 import BackupSettings from '../components/settings/BackupSettings';
+import DuplicatesSettings from '../components/settings/DuplicatesSettings';
 import './Settings.css';
 
 export default function Settings() {
@@ -237,6 +238,8 @@ export default function Settings() {
         return <StatisticsSettings />;
       case 'backup':
         return <BackupSettings />;
+      case 'duplicates':
+        return <DuplicatesSettings />;
       case 'logs':
         return <LogsSettings />;
       case 'ai':
@@ -648,6 +651,12 @@ export default function Settings() {
           onClick={() => setActiveTab('backup')}
         >
           Backup
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'duplicates' ? 'active' : ''}`}
+          onClick={() => setActiveTab('duplicates')}
+        >
+          Duplicates
         </button>
         <button
           className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
