@@ -287,4 +287,11 @@ export const addFavorite = (id) =>
 export const removeFavorite = (id) =>
   api.delete(`/audiobooks/${id}/favorite`);
 
+// Duplicates
+export const getDuplicates = () =>
+  api.get('/maintenance/duplicates');
+
+export const mergeDuplicates = (keepId, deleteIds, deleteFiles = false) =>
+  api.post('/maintenance/duplicates/merge', { keepId, deleteIds, deleteFiles });
+
 export default api;
