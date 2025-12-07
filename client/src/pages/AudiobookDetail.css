@@ -155,8 +155,13 @@
   order: 1;
 }
 
-.detail-actions {
+.detail-rating {
   order: 2;
+  margin: 0.75rem 0 1rem;
+}
+
+.detail-actions {
+  order: 3;
 }
 
 .detail-description {
