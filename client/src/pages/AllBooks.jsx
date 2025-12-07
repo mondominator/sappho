@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings } from '../api';
+import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings, getProfile } from '../api';
+import BatchActionBar from '../components/BatchActionBar';
 import './AllBooks.css';
 
 /**
@@ -43,6 +44,9 @@ export default function AllBooks({ onPlay }) {
   const [dateAddedFilter, setDateAddedFilter] = useState(() => localStorage.getItem('dateAddedFilter') || 'all');
   const [narratorFilter, setNarratorFilter] = useState(() => localStorage.getItem('narratorFilter') || 'all');
   const [showFilters, setShowFilters] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Save preferences to localStorage
   useEffect(() => {
@@ -71,6 +75,7 @@ export default function AllBooks({ onPlay }) {
 
   useEffect(() => {
     loadData();
+    loadProfile();
   }, [favoritesOnly]);
 
   const loadData = async () => {
@@ -87,6 +92,49 @@ export default function AllBooks({ onPlay }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadProfile = async () => {
+    try {
+      const response = await getProfile();
+      setIsAdmin(response.data.is_admin === 1);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectedIds(new Set());
+    }
+    setSelectionMode(!selectionMode);
+  };
+
+  const toggleBookSelection = (bookId) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookId)) {
+        newSet.delete(bookId);
+      } else {
+        newSet.add(bookId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(sortedAudiobooks.map(b => b.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchActionComplete = (message) => {
+    alert(message);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    loadData();
   };
 
   // Get unique narrators for filter dropdown
@@ -243,13 +291,32 @@ export default function AllBooks({ onPlay }) {
   const renderBookCard = (book) => {
     const progressPercent = getProgressPercent(book);
     const isFinished = book.progress?.completed === 1;
+    const isSelected = selectedIds.has(book.id);
+
+    const handleCardClick = () => {
+      if (selectionMode) {
+        toggleBookSelection(book.id);
+      } else {
+        navigate(`/audiobook/${book.id}`);
+      }
+    };
 
     return (
       <div
         key={book.id}
-        className="audiobook-card"
-        onClick={() => navigate(`/audiobook/${book.id}`)}
+        className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
+        onClick={handleCardClick}
       >
+        {selectionMode && (
+          <div className="selection-checkbox">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleBookSelection(book.id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
         <div className="audiobook-cover">
           {book.cover_image ? (
             <img
@@ -272,15 +339,17 @@ export default function AllBooks({ onPlay }) {
               />
             </div>
           )}
-          <div className="play-overlay">
-            <button
-              className="play-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onPlay) onPlay(book);
-              }}
-            />
-          </div>
+          {!selectionMode && (
+            <div className="play-overlay">
+              <button
+                className="play-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onPlay) onPlay(book);
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -307,6 +376,23 @@ export default function AllBooks({ onPlay }) {
               {sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}
             </h2>
             <div className="all-books-controls">
+              <button
+                className={`selection-mode-btn ${selectionMode ? 'active' : ''}`}
+                onClick={toggleSelectionMode}
+                title={selectionMode ? 'Exit selection mode' : 'Select multiple books'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 11 12 14 22 4"></polyline>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                {selectionMode ? 'Cancel' : 'Select'}
+              </button>
+              {selectionMode && (
+                <div className="selection-controls">
+                  <button onClick={selectAll} className="select-all-btn">Select All</button>
+                  <button onClick={deselectAll} className="deselect-all-btn" disabled={selectedIds.size === 0}>Deselect All</button>
+                </div>
+              )}
               <button
                 className={`filters-toggle-btn ${showFilters ? 'active' : ''} ${activeFilterCount > 0 ? 'has-filters' : ''}`}
                 onClick={() => setShowFilters(!showFilters)}
@@ -420,9 +506,20 @@ export default function AllBooks({ onPlay }) {
               )}
             </div>
           )}
-          <div className="audiobook-grid">
+          <div className={`audiobook-grid ${selectionMode && selectedIds.size > 0 ? 'has-action-bar' : ''}`}>
             {sortedAudiobooks.map(renderBookCard)}
           </div>
+          {selectionMode && selectedIds.size > 0 && (
+            <BatchActionBar
+              selectedIds={Array.from(selectedIds)}
+              onActionComplete={handleBatchActionComplete}
+              onClose={() => {
+                setSelectedIds(new Set());
+                setSelectionMode(false);
+              }}
+              isAdmin={isAdmin}
+            />
+          )}
         </>
       )}
     </div>

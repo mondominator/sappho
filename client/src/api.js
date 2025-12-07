@@ -341,4 +341,23 @@ export const deleteRating = (audiobookId) =>
 export const getMyRatings = () =>
   api.get('/ratings/my-ratings');
 
+// Batch Actions
+export const batchMarkFinished = (audiobookIds) =>
+  api.post('/audiobooks/batch/mark-finished', { audiobook_ids: audiobookIds });
+
+export const batchClearProgress = (audiobookIds) =>
+  api.post('/audiobooks/batch/clear-progress', { audiobook_ids: audiobookIds });
+
+export const batchAddToReadingList = (audiobookIds) =>
+  api.post('/audiobooks/batch/add-to-reading-list', { audiobook_ids: audiobookIds });
+
+export const batchRemoveFromReadingList = (audiobookIds) =>
+  api.post('/audiobooks/batch/remove-from-reading-list', { audiobook_ids: audiobookIds });
+
+export const batchAddToCollection = (audiobookIds, collectionId) =>
+  api.post('/audiobooks/batch/add-to-collection', { audiobook_ids: audiobookIds, collection_id: collectionId });
+
+export const batchDelete = (audiobookIds, deleteFiles = false) =>
+  api.post('/audiobooks/batch/delete', { audiobook_ids: audiobookIds, delete_files: deleteFiles });
+
 export default api;

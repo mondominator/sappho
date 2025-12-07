@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { getAudiobooks, getCoverUrl, getProgress } from '../api';
+import { getAudiobooks, getCoverUrl, getProgress, getProfile } from '../api';
+import BatchActionBar from '../components/BatchActionBar';
 import './SeriesDetail.css';
 
 export default function SeriesDetail({ onPlay }) {
@@ -14,13 +15,19 @@ export default function SeriesDetail({ onPlay }) {
   const [recapError, setRecapError] = useState(null);
   const [recapExpanded, setRecapExpanded] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadSeriesBooks();
     checkAiStatus();
+    loadProfile();
     setRecap(null);
     setRecapExpanded(false);
     setRecapError(null);
+    setSelectionMode(false);
+    setSelectedIds(new Set());
   }, [name]);
 
   const checkAiStatus = async () => {
@@ -34,6 +41,49 @@ export default function SeriesDetail({ onPlay }) {
       console.error('Error checking AI status:', error);
       setAiConfigured(false);
     }
+  };
+
+  const loadProfile = async () => {
+    try {
+      const response = await getProfile();
+      setIsAdmin(response.data.is_admin === 1);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectedIds(new Set());
+    }
+    setSelectionMode(!selectionMode);
+  };
+
+  const toggleBookSelection = (bookId) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookId)) {
+        newSet.delete(bookId);
+      } else {
+        newSet.add(bookId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(audiobooks.map(b => b.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchActionComplete = (message) => {
+    alert(message);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    loadSeriesBooks();
   };
 
   const loadSeriesBooks = async () => {
@@ -104,46 +154,73 @@ export default function SeriesDetail({ onPlay }) {
     return [...new Set(authors)];
   };
 
-  const renderBookCard = (book) => (
-    <div key={book.id} className="audiobook-card">
-      <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
-        {book.cover_image ? (
-          <img src={getCoverUrl(book.id)} alt={book.title} onError={(e) => e.target.style.display = 'none'} />
-        ) : (
-          <div className="audiobook-cover-placeholder">
-            <h3>{book.title}</h3>
-          </div>
-        )}
-        {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
-          <div className="progress-bar-overlay">
-            <div
-              className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
-              style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+  const renderBookCard = (book) => {
+    const isSelected = selectedIds.has(book.id);
+
+    const handleCardClick = () => {
+      if (selectionMode) {
+        toggleBookSelection(book.id);
+      } else {
+        navigate(`/audiobook/${book.id}`);
+      }
+    };
+
+    return (
+      <div
+        key={book.id}
+        className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
+      >
+        {selectionMode && (
+          <div className="selection-checkbox">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleBookSelection(book.id)}
+              onClick={(e) => e.stopPropagation()}
             />
           </div>
         )}
-        {book.series_position && (
-          <div className="series-badge">#{book.series_position}</div>
-        )}
-        <div className="play-overlay">
-          <button
-            className="play-button"
-            onClick={async (e) => {
-              e.stopPropagation();
-              try {
-                const progressResponse = await getProgress(book.id);
-                onPlay(book, progressResponse.data);
-              } catch (error) {
-                console.error('Error loading progress:', error);
-                onPlay(book, null);
-              }
-            }}
-            aria-label={`Play ${book.title}`}
-          />
+        <div className="audiobook-cover" onClick={handleCardClick}>
+          {book.cover_image ? (
+            <img src={getCoverUrl(book.id)} alt={book.title} onError={(e) => e.target.style.display = 'none'} />
+          ) : (
+            <div className="audiobook-cover-placeholder">
+              <h3>{book.title}</h3>
+            </div>
+          )}
+          {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
+            <div className="progress-bar-overlay">
+              <div
+                className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
+                style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+              />
+            </div>
+          )}
+          {book.series_position && (
+            <div className="series-badge">#{book.series_position}</div>
+          )}
+          {!selectionMode && (
+            <div className="play-overlay">
+              <button
+                className="play-button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const progressResponse = await getProgress(book.id);
+                    onPlay(book, progressResponse.data);
+                  } catch (error) {
+                    console.error('Error loading progress:', error);
+                    onPlay(book, null);
+                  }
+                }}
+                aria-label={`Play ${book.title}`}
+              />
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) {
     return <div className="loading">Loading series...</div>;
@@ -159,7 +236,28 @@ export default function SeriesDetail({ onPlay }) {
       </button>
 
       <div className="series-detail-header">
-        <h1 className="series-detail-name">{name}</h1>
+        <div className="series-detail-title-row">
+          <h1 className="series-detail-name">{name}</h1>
+          <div className="series-detail-actions">
+            <button
+              className={`selection-mode-btn ${selectionMode ? 'active' : ''}`}
+              onClick={toggleSelectionMode}
+              title={selectionMode ? 'Exit selection mode' : 'Select multiple books'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 11 12 14 22 4"></polyline>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+              {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+            {selectionMode && (
+              <div className="selection-controls">
+                <button onClick={selectAll} className="select-all-btn">Select All</button>
+                <button onClick={deselectAll} className="deselect-all-btn" disabled={selectedIds.size === 0}>Deselect All</button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="series-detail-stats">
           <span className="stat-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -285,9 +383,21 @@ export default function SeriesDetail({ onPlay }) {
         </div>
       )}
 
-      <div className="series-books-grid">
+      <div className={`series-books-grid ${selectionMode && selectedIds.size > 0 ? 'has-action-bar' : ''}`}>
         {audiobooks.map(renderBookCard)}
       </div>
+
+      {selectionMode && selectedIds.size > 0 && (
+        <BatchActionBar
+          selectedIds={Array.from(selectedIds)}
+          onActionComplete={handleBatchActionComplete}
+          onClose={() => {
+            setSelectedIds(new Set());
+            setSelectionMode(false);
+          }}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   );
 }
