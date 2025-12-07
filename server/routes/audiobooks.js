@@ -2282,12 +2282,23 @@ router.get('/meta/in-progress/all', authenticateToken, (req, res) => {
   );
 });
 
-// Get "up next" books - next book in series after currently listening books
+// Get "up next" books - next unstarted book in series where user has started or completed books
 router.get('/meta/up-next', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
 
+  // Find the next UNSTARTED book in each series where user has progress on any book
+  // This excludes books that are in-progress (those appear in "Continue Listening")
   db.all(
-    `WITH RankedBooks AS (
+    `WITH SeriesWithProgress AS (
+       -- Find series where user has progress (completed OR in-progress)
+       SELECT DISTINCT a.series
+       FROM audiobooks a
+       INNER JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+       WHERE a.series IS NOT NULL AND a.series != ''
+       AND (p.completed = 1 OR p.position > 0)
+     ),
+     NextUnstartedBooks AS (
+       -- For each such series, find the first book that has NO progress at all
        SELECT a.*,
               p.position as progress_position,
               p.completed as progress_completed,
@@ -2296,21 +2307,13 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
                 ORDER BY COALESCE(a.series_index, a.series_position, 0) ASC
               ) as row_num
        FROM audiobooks a
+       INNER JOIN SeriesWithProgress s ON a.series = s.series
        LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-       WHERE a.series IS NOT NULL AND a.series != ''
-       AND (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
-       AND EXISTS (
-         SELECT 1
-         FROM audiobooks a2
-         INNER JOIN playback_progress p2 ON a2.id = p2.audiobook_id
-         WHERE p2.user_id = ?
-         AND (p2.completed = 1 OR p2.position > 0)
-         AND a2.series = a.series
-       )
+       WHERE (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
        AND (p.position IS NULL OR p.position = 0)
        AND (p.completed IS NULL OR p.completed = 0)
      )
-     SELECT * FROM RankedBooks
+     SELECT * FROM NextUnstartedBooks
      WHERE row_num = 1
      ORDER BY series ASC
      LIMIT ?`,
