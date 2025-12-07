@@ -10,6 +10,27 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+// Handle legacy database migration (sapho.db -> sappho.db)
+// Early versions used misspelled "sapho.db" - migrate if found
+if (!process.env.DATABASE_PATH) {
+  const legacyDbPath = path.join(dbDir, 'sapho.db');
+
+  if (!fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
+    console.log('='.repeat(60));
+    console.log('MIGRATING LEGACY DATABASE');
+    console.log('Found old database: sapho.db');
+    console.log('Renaming to: sappho.db');
+    try {
+      fs.renameSync(legacyDbPath, dbPath);
+      console.log('Migration successful!');
+    } catch (err) {
+      console.error('Migration failed:', err.message);
+      console.log('Falling back to legacy database path');
+    }
+    console.log('='.repeat(60));
+  }
+}
+
 let dbReadyResolve;
 const dbReady = new Promise((resolve) => {
   dbReadyResolve = resolve;
