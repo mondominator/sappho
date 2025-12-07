@@ -105,11 +105,11 @@ export default function LibrarySettings() {
   };
 
   const handleForceRefresh = async () => {
-    if (!confirm('Force refresh will CLEAR the entire library database and reimport all audiobooks. User playback progress will be preserved. Are you sure?')) {
+    if (!confirm('Library refresh will CLEAR the entire library database and reimport all audiobooks. User playback progress will be preserved. Are you sure?')) {
       return;
     }
 
-    if (!confirm('This action cannot be undone. Are you absolutely sure you want to force refresh?')) {
+    if (!confirm('This action cannot be undone. Are you absolutely sure you want to refresh the library?')) {
       return;
     }
 
@@ -119,15 +119,15 @@ export default function LibrarySettings() {
 
       // Check if scan is running in background
       if (result.data.stats?.scanning) {
-        alert('Force refresh started in background. Check the Logs tab for progress.');
+        alert('Library refresh started in background. Check the Logs tab for progress.');
       } else {
         const stats = result.data.stats;
-        alert(`Force refresh complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
+        alert(`Library refresh complete!\nImported: ${stats.imported}\nTotal files: ${stats.totalFiles}`);
         window.location.reload();
       }
     } catch (error) {
-      console.error('Error in force refresh:', error);
-      alert(error.response?.data?.error || 'Failed to force refresh');
+      console.error('Error in library refresh:', error);
+      alert(error.response?.data?.error || 'Failed to refresh library');
     } finally {
       setRescanning(false);
     }
@@ -213,7 +213,7 @@ export default function LibrarySettings() {
           <div>
             <h2>Library Management</h2>
             <p className="section-description">
-              Manually trigger a library scan to import new audiobooks immediately, or force refresh to clear and reimport everything.
+              Manually trigger a library scan to import new audiobooks immediately, or refresh the library to clear and reimport everything.
             </p>
           </div>
         </div>
@@ -234,7 +234,7 @@ export default function LibrarySettings() {
           <div>
             <h2>Danger Zone</h2>
             <p className="section-description" style={{ color: '#fca5a5' }}>
-              Force refresh will clear the entire library database and reimport all audiobooks. Use this if you have
+              Library refresh will clear the entire library database and reimport all audiobooks. Use this if you have
               duplicate entries or corrupted data.
             </p>
           </div>
@@ -251,7 +251,7 @@ export default function LibrarySettings() {
           onClick={handleForceRefresh}
           disabled={rescanning}
         >
-          {rescanning ? 'Refreshing...' : 'Force Refresh Library'}
+          {rescanning ? 'Refreshing...' : 'Refresh Library'}
         </button>
       </div>
     </div>

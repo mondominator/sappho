@@ -1,0 +1,208 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getCollection, updateCollection, removeFromCollection, reorderCollection, getCoverUrl } from '../api';
+import './CollectionDetail.css';
+
+export default function CollectionDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [collection, setCollection] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
+  useEffect(() => {
+    loadCollection();
+  }, [id]);
+
+  const loadCollection = async () => {
+    try {
+      const response = await getCollection(id);
+      setCollection(response.data);
+      setEditName(response.data.name);
+      setEditDescription(response.data.description || '');
+    } catch (error) {
+      console.error('Error loading collection:', error);
+      if (error.response?.status === 404) {
+        navigate('/collections');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editName.trim() || saving) return;
+
+    setSaving(true);
+    try {
+      const response = await updateCollection(id, editName.trim(), editDescription.trim());
+      setCollection({ ...collection, ...response.data });
+      setEditing(false);
+    } catch (error) {
+      console.error('Error updating collection:', error);
+      alert('Failed to update collection');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveBook = async (bookId) => {
+    if (!confirm('Remove this book from the collection?')) return;
+
+    try {
+      await removeFromCollection(id, bookId);
+      setCollection({
+        ...collection,
+        books: collection.books.filter(b => b.id !== bookId)
+      });
+    } catch (error) {
+      console.error('Error removing book:', error);
+      alert('Failed to remove book');
+    }
+  };
+
+  const handleDragStart = (index) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newBooks = [...collection.books];
+    const [draggedItem] = newBooks.splice(draggedIndex, 1);
+    newBooks.splice(index, 0, draggedItem);
+
+    setCollection({ ...collection, books: newBooks });
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = async () => {
+    if (draggedIndex === null) return;
+
+    setDraggedIndex(null);
+
+    // Save new order
+    try {
+      await reorderCollection(id, collection.books.map(b => b.id));
+    } catch (error) {
+      console.error('Error saving order:', error);
+      // Reload to get correct order
+      loadCollection();
+    }
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return '';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  };
+
+  const getProgress = (book) => {
+    if (book.progress_completed) return 100;
+    if (!book.progress_position || !book.duration) return 0;
+    return Math.round((book.progress_position / book.duration) * 100);
+  };
+
+  if (loading) {
+    return <div className="loading">Loading collection...</div>;
+  }
+
+  if (!collection) {
+    return <div className="empty-state">Collection not found</div>;
+  }
+
+  return (
+    <div className="collection-detail-page container">
+      <div className="collection-header">
+        <button className="back-button" onClick={() => navigate('/collections')}>← Collections</button>
+
+        {editing ? (
+          <div className="edit-form">
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Collection name"
+              autoFocus
+            />
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="Description (optional)"
+              rows={2}
+            />
+            <div className="edit-actions">
+              <button className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={!editName.trim() || saving}>
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="collection-info">
+            <h1>{collection.name}</h1>
+            {collection.description && <p className="description">{collection.description}</p>}
+            <div className="collection-meta">
+              <span>{collection.books?.length || 0} books</span>
+              <button className="edit-btn" onClick={() => setEditing(true)}>Edit</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {collection.books?.length === 0 ? (
+        <div className="empty-books">
+          <p>No books in this collection yet.</p>
+          <p>Browse your library and add books using the + button on book covers.</p>
+        </div>
+      ) : (
+        <div className="books-list">
+          {collection.books.map((book, index) => (
+            <div
+              key={book.id}
+              className={`book-item ${draggedIndex === index ? 'dragging' : ''}`}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="drag-handle">⋮⋮</div>
+              <div className="book-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
+                <img
+                  src={getCoverUrl(book.id)}
+                  alt={book.title}
+                  onError={(e) => e.target.src = '/placeholder-cover.png'}
+                />
+                {getProgress(book) > 0 && (
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${getProgress(book)}%` }} />
+                  </div>
+                )}
+              </div>
+              <div className="book-info" onClick={() => navigate(`/audiobook/${book.id}`)}>
+                <h3 className="book-title">{book.title}</h3>
+                <p className="book-author">{book.author || 'Unknown Author'}</p>
+                {book.duration && (
+                  <span className="book-duration">{formatDuration(book.duration)}</span>
+                )}
+              </div>
+              <button
+                className="remove-btn"
+                onClick={() => handleRemoveBook(book.id)}
+                title="Remove from collection"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
