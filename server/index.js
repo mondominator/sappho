@@ -62,6 +62,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/series', require('./routes/series'));
 app.use('/api/backup', require('./routes/backup'));
+app.use('/api/collections', require('./routes/collections'));
 
 // Health check
 app.get('/api/health', (req, res) => {
