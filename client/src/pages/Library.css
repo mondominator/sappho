@@ -169,6 +169,12 @@
   color: #fff;
 }
 
+.category-icon-wrapper.favorites {
+  background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%);
+  box-shadow: 0 4px 15px rgba(250, 204, 21, 0.3);
+  color: #fff;
+}
+
 /* Category Text */
 .category-text {
   flex: 1;

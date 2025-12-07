@@ -321,4 +321,20 @@
     padding-bottom: calc(33.333vw - 0.5rem) !important;
     flex-shrink: 0 !important;
   }
+
+  /* Make Favorites section scroll horizontally on mobile with standard size */
+  .favorites-section .horizontal-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  .favorites-section .audiobook-card {
+    width: calc(33.333vw - 0.5rem) !important;
+    min-width: calc(33.333vw - 0.5rem) !important;
+    height: 0 !important;
+    padding-bottom: calc(33.333vw - 0.5rem) !important;
+    flex-shrink: 0 !important;
+  }
 }

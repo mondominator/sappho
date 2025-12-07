@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile } from '../api';
+import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite } from '../api';
 import EditMetadataModal from '../components/EditMetadataModal';
 import './AudiobookDetail.css';
 
@@ -16,6 +16,7 @@ export default function AudiobookDetail({ onPlay }) {
   const [showFiles, setShowFiles] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -45,6 +46,7 @@ export default function AudiobookDetail({ onPlay }) {
       setProgress(progressResponse.data);
       setChapters(chaptersResponse.data || []);
       setDirectoryFiles(filesResponse.data || []);
+      setIsFavorite(!!bookResponse.data.is_favorite);
     } catch (error) {
       console.error('Error loading audiobook:', error);
     } finally {
@@ -146,6 +148,15 @@ export default function AudiobookDetail({ onPlay }) {
       chapters.slice(0, index).reduce((sum, ch) => sum + (ch.duration || 0), 0);
     const chapterProgress = { ...progress, position: startTime };
     onPlay(audiobook, chapterProgress);
+  };
+
+  const handleToggleFavorite = async () => {
+    try {
+      const response = await toggleFavorite(audiobook.id);
+      setIsFavorite(response.data.is_favorite);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   };
 
   if (loading) {
@@ -323,6 +334,16 @@ export default function AudiobookDetail({ onPlay }) {
           <h1 className="detail-title">{audiobook.title}</h1>
 
           <div className="detail-actions">
+            <button
+              className={`btn btn-favorite ${isFavorite ? 'active' : ''}`}
+              onClick={handleToggleFavorite}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              {isFavorite ? 'Favorited' : 'Favorite'}
+            </button>
             {isAdmin && (
               <button className="btn btn-primary" onClick={() => setShowEditModal(true)}>Edit</button>
             )}
