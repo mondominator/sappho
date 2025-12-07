@@ -2883,11 +2883,10 @@ router.post('/batch/mark-finished', authenticateToken, async (req, res) => {
     for (const audiobookId of audiobook_ids) {
       await new Promise((resolve, reject) => {
         db.run(
-          `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, state, updated_at)
-           VALUES (?, ?, 0, 1, 'stopped', CURRENT_TIMESTAMP)
+          `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
+           VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
            ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
              completed = 1,
-             state = 'stopped',
              updated_at = CURRENT_TIMESTAMP`,
           [userId, audiobookId],
           function(err) {
