@@ -1731,7 +1731,9 @@ router.get('/:id/search-metadata', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { title, author } = req.query;
+  // Ensure query params are strings (prevent type confusion from arrays)
+  const title = Array.isArray(req.query.title) ? req.query.title[0] : req.query.title;
+  const author = Array.isArray(req.query.author) ? req.query.author[0] : req.query.author;
 
   try {
     // Search by title/author
