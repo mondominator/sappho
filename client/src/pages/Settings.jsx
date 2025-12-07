@@ -6,6 +6,7 @@ import ServerSettings from '../components/settings/ServerSettings';
 import JobsSettings from '../components/settings/JobsSettings';
 import LogsSettings from '../components/settings/LogsSettings';
 import AISettings from '../components/settings/AISettings';
+import StatisticsSettings from '../components/settings/StatisticsSettings';
 import './Settings.css';
 
 export default function Settings() {
@@ -231,6 +232,8 @@ export default function Settings() {
         return <ServerSettings />;
       case 'jobs':
         return <JobsSettings />;
+      case 'statistics':
+        return <StatisticsSettings />;
       case 'logs':
         return <LogsSettings />;
       case 'ai':
@@ -630,6 +633,12 @@ export default function Settings() {
           onClick={() => setActiveTab('jobs')}
         >
           Jobs
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'statistics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('statistics')}
+        >
+          Statistics
         </button>
         <button
           className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}

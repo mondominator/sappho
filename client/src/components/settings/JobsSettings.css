@@ -123,6 +123,24 @@
   text-align: right;
 }
 
+.job-actions {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #374151;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.job-actions .btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.job-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .jobs-settings .section-header {
     flex-direction: column;
