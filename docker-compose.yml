@@ -15,4 +15,5 @@ services:
       - AUDIOBOOKS_DIR=/app/data/audiobooks
       - UPLOAD_DIR=/app/data/uploads
       - LIBRARY_SCAN_INTERVAL=5
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://192.168.86.250:3003
     restart: unless-stopped

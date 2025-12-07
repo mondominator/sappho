@@ -11,12 +11,12 @@
 }
 
 .profile-card {
-  background: rgba(31, 41, 55, 0.6);
+  background: var(--bg-card);
   backdrop-filter: blur(8px);
   border-radius: 16px;
   padding: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 8px 32px var(--shadow-color);
 }
 
 .profile-form {
@@ -718,3 +718,4 @@
     font-size: 0.65rem;
   }
 }
+
