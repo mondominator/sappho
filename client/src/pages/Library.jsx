@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAudiobooks, getSeries, getAuthors } from '../api';
+import { getAudiobooks, getSeries, getAuthors, getFavorites } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import './Library.css';
 
@@ -11,16 +11,18 @@ export default function Library({ onPlay }) {
     totalBooks: 0,
     totalSeries: 0,
     totalAuthors: 0,
-    totalDuration: 0
+    totalDuration: 0,
+    totalFavorites: 0
   });
   const { subscribe } = useWebSocket();
 
   const loadStats = useCallback(async () => {
     try {
-      const [seriesRes, authorsRes, audiobooksRes] = await Promise.all([
+      const [seriesRes, authorsRes, audiobooksRes, favoritesRes] = await Promise.all([
         getSeries(),
         getAuthors(),
-        getAudiobooks({ limit: 10000 })
+        getAudiobooks({ limit: 10000 }),
+        getFavorites().catch(() => ({ data: [] }))
       ]);
 
       // Calculate total duration
@@ -32,7 +34,8 @@ export default function Library({ onPlay }) {
         totalBooks: audiobooksRes.data.audiobooks.length,
         totalSeries: seriesRes.data.length,
         totalAuthors: authorsRes.data.length,
-        totalDuration
+        totalDuration,
+        totalFavorites: favoritesRes.data.length
       });
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -234,6 +237,40 @@ export default function Library({ onPlay }) {
             <div className="category-text">
               <h3>Genres</h3>
               <p>Browse by category</p>
+            </div>
+            <div className="category-arrow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Favorites Card */}
+        <div
+          className="category-card"
+          onClick={() => navigate('/all-books?favorites=true')}
+        >
+          <div className="category-card-bg">
+            <svg viewBox="0 0 200 200" className="category-bg-pattern">
+              <defs>
+                <linearGradient id="grad-favorites" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#facc15" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.1" />
+                </linearGradient>
+              </defs>
+              <circle cx="140" cy="60" r="70" fill="url(#grad-favorites)" />
+            </svg>
+          </div>
+          <div className="category-card-content">
+            <div className="category-icon-wrapper favorites">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+            </div>
+            <div className="category-text">
+              <h3>Favorites</h3>
+              <p>{stats.totalFavorites} starred</p>
             </div>
             <div className="category-arrow">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

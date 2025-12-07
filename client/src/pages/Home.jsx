@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress } from '../api';
+import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress, getFavorites, toggleFavorite } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import './Home.css';
 
@@ -10,6 +10,7 @@ export default function Home({ onPlay }) {
   const [inProgress, setInProgress] = useState([]);
   const [upNext, setUpNext] = useState([]);
   const [finished, setFinished] = useState([]);
+  const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const { subscribe, isConnected } = useWebSocket();
@@ -46,10 +47,16 @@ export default function Home({ onPlay }) {
         return { data: [] };
       });
 
+      const favoritesResponse = await getFavorites().catch(err => {
+        console.error('Error loading favorites:', err);
+        return { data: [] };
+      });
+
       setRecentlyAdded(recentResponse.data);
       setInProgress(progressResponse.data);
       setUpNext(upNextResponse.data);
       setFinished(finishedResponse.data);
+      setFavorites(favoritesResponse.data);
     } catch (error) {
       console.error('Error loading special sections:', error);
     } finally {
@@ -178,7 +185,16 @@ export default function Home({ onPlay }) {
         </div>
       )}
 
-      {inProgress.length === 0 && recentlyAdded.length === 0 && upNext.length === 0 && finished.length === 0 && (
+      {favorites.length > 0 && (
+        <div className="horizontal-section favorites-section">
+          <h2>Favorites</h2>
+          <div className="horizontal-scroll">
+            {favorites.map(renderBookCard)}
+          </div>
+        </div>
+      )}
+
+      {inProgress.length === 0 && recentlyAdded.length === 0 && upNext.length === 0 && finished.length === 0 && favorites.length === 0 && (
         <div className="empty-state">
           <p>No audiobooks found.</p>
           <p>Upload some audiobooks or drop them in the watch directory!</p>

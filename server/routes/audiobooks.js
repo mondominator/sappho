@@ -342,14 +342,16 @@ function normalizeGenres(genreStr) {
 
 // Get all audiobooks
 router.get('/', authenticateToken, (req, res) => {
-  const { genre, author, series, search, limit = 50, offset = 0 } = req.query;
+  const { genre, author, series, search, favorites, limit = 50, offset = 0 } = req.query;
   const userId = req.user.id;
 
-  let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed
+  let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+                      CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
                FROM audiobooks a
                LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+               LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
                WHERE 1=1`;
-  const params = [userId];
+  const params = [userId, userId];
 
   if (genre) {
     query += ' AND a.genre LIKE ?';
@@ -371,6 +373,10 @@ router.get('/', authenticateToken, (req, res) => {
     params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
   }
 
+  if (favorites === 'true') {
+    query += ' AND f.id IS NOT NULL';
+  }
+
   query += ' ORDER BY a.title ASC LIMIT ? OFFSET ?';
   params.push(parseInt(limit), parseInt(offset));
 
@@ -381,9 +387,10 @@ router.get('/', authenticateToken, (req, res) => {
 
     // Transform progress fields into nested object
     const transformedAudiobooks = audiobooks.map(book => {
-      const { progress_position, progress_completed, ...rest } = book;
+      const { progress_position, progress_completed, is_favorite, ...rest } = book;
       return {
         ...rest,
+        is_favorite: !!is_favorite,
         progress: progress_position !== null ? {
           position: progress_position,
           completed: progress_completed
@@ -392,26 +399,30 @@ router.get('/', authenticateToken, (req, res) => {
     });
 
     // Get total count
-    let countQuery = 'SELECT COUNT(*) as total FROM audiobooks WHERE 1=1';
-    const countParams = [];
+    let countQuery = favorites === 'true'
+      ? `SELECT COUNT(*) as total FROM audiobooks a
+         INNER JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+         WHERE 1=1`
+      : 'SELECT COUNT(*) as total FROM audiobooks a WHERE 1=1';
+    const countParams = favorites === 'true' ? [userId] : [];
 
     if (genre) {
-      countQuery += ' AND genre LIKE ?';
+      countQuery += ' AND a.genre LIKE ?';
       countParams.push(`%${genre}%`);
     }
 
     if (author) {
-      countQuery += ' AND author LIKE ?';
+      countQuery += ' AND a.author LIKE ?';
       countParams.push(`%${author}%`);
     }
 
     if (series) {
-      countQuery += ' AND series LIKE ?';
+      countQuery += ' AND a.series LIKE ?';
       countParams.push(`%${series}%`);
     }
 
     if (search) {
-      countQuery += ' AND (title LIKE ? OR author LIKE ? OR narrator LIKE ? OR series LIKE ?)';
+      countQuery += ' AND (a.title LIKE ? OR a.author LIKE ? OR a.narrator LIKE ? OR a.series LIKE ?)';
       countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
@@ -433,7 +444,20 @@ router.get('/:id', authenticateToken, (req, res) => {
     if (!audiobook) {
       return res.status(404).json({ error: 'Audiobook not found' });
     }
-    res.json(audiobook);
+
+    // Check if audiobook is in user's favorites
+    db.get(
+      'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, req.params.id],
+      (err, favorite) => {
+        if (err) {
+          console.error('Error checking favorite status:', err);
+          // Don't fail the whole request, just skip favorite status
+          return res.json(audiobook);
+        }
+        res.json({ ...audiobook, is_favorite: !!favorite });
+      }
+    );
   });
 });
 
@@ -2373,6 +2397,171 @@ router.get('/meta/finished', authenticateToken, (req, res) => {
       });
 
       res.json(transformedAudiobooks);
+    }
+  );
+});
+
+// ============================================
+// FAVORITES ENDPOINTS
+// ============================================
+
+// Get all favorites for the current user
+router.get('/favorites', authenticateToken, (req, res) => {
+  db.all(
+    `SELECT a.*,
+            p.position as progress_position,
+            p.completed as progress_completed,
+            f.created_at as favorited_at
+     FROM user_favorites f
+     INNER JOIN audiobooks a ON f.audiobook_id = a.id
+     LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+     WHERE f.user_id = ?
+     ORDER BY f.created_at DESC`,
+    [req.user.id, req.user.id],
+    (err, audiobooks) => {
+      if (err) {
+        console.error('Error fetching favorites:', err);
+        return res.status(500).json({ error: 'Failed to fetch favorites' });
+      }
+
+      // Transform progress fields into nested object
+      const transformedAudiobooks = audiobooks.map(book => ({
+        ...book,
+        is_favorite: true,
+        progress: {
+          position: book.progress_position,
+          completed: book.progress_completed
+        }
+      }));
+      transformedAudiobooks.forEach(b => {
+        delete b.progress_position;
+        delete b.progress_completed;
+      });
+
+      res.json(transformedAudiobooks);
+    }
+  );
+});
+
+// Check if a specific audiobook is a favorite
+router.get('/:id/favorite', authenticateToken, (req, res) => {
+  const audiobookId = parseInt(req.params.id);
+
+  db.get(
+    'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+    [req.user.id, audiobookId],
+    (err, row) => {
+      if (err) {
+        console.error('Error checking favorite status:', err);
+        return res.status(500).json({ error: 'Failed to check favorite status' });
+      }
+
+      res.json({ is_favorite: !!row });
+    }
+  );
+});
+
+// Add audiobook to favorites
+router.post('/:id/favorite', authenticateToken, (req, res) => {
+  const audiobookId = parseInt(req.params.id);
+
+  // First check if audiobook exists
+  db.get('SELECT id FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+    if (err) {
+      console.error('Error checking audiobook:', err);
+      return res.status(500).json({ error: 'Failed to add favorite' });
+    }
+
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    // Add to favorites (IGNORE if already exists)
+    db.run(
+      'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+      [req.user.id, audiobookId],
+      function(err) {
+        if (err) {
+          console.error('Error adding favorite:', err);
+          return res.status(500).json({ error: 'Failed to add favorite' });
+        }
+
+        res.json({ success: true, is_favorite: true });
+      }
+    );
+  });
+});
+
+// Remove audiobook from favorites
+router.delete('/:id/favorite', authenticateToken, (req, res) => {
+  const audiobookId = parseInt(req.params.id);
+
+  db.run(
+    'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+    [req.user.id, audiobookId],
+    function(err) {
+      if (err) {
+        console.error('Error removing favorite:', err);
+        return res.status(500).json({ error: 'Failed to remove favorite' });
+      }
+
+      res.json({ success: true, is_favorite: false });
+    }
+  );
+});
+
+// Toggle favorite status (convenience endpoint)
+router.post('/:id/favorite/toggle', authenticateToken, (req, res) => {
+  const audiobookId = parseInt(req.params.id);
+
+  // Check current status
+  db.get(
+    'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+    [req.user.id, audiobookId],
+    (err, row) => {
+      if (err) {
+        console.error('Error checking favorite status:', err);
+        return res.status(500).json({ error: 'Failed to toggle favorite' });
+      }
+
+      if (row) {
+        // Currently a favorite - remove it
+        db.run(
+          'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+          [req.user.id, audiobookId],
+          function(err) {
+            if (err) {
+              console.error('Error removing favorite:', err);
+              return res.status(500).json({ error: 'Failed to remove favorite' });
+            }
+            res.json({ success: true, is_favorite: false });
+          }
+        );
+      } else {
+        // Not a favorite - add it (but first check audiobook exists)
+        db.get('SELECT id FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+          if (err) {
+            console.error('Error checking audiobook:', err);
+            return res.status(500).json({ error: 'Failed to add favorite' });
+          }
+
+          if (!audiobook) {
+            return res.status(404).json({ error: 'Audiobook not found' });
+          }
+
+          db.run(
+            'INSERT INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+            [req.user.id, audiobookId],
+            function(err) {
+              if (err) {
+                console.error('Error adding favorite:', err);
+                return res.status(500).json({ error: 'Failed to add favorite' });
+              }
+              res.json({ success: true, is_favorite: true });
+            }
+          );
+        });
+      }
     }
   );
 });

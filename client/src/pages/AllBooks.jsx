@@ -32,6 +32,7 @@ export default function AllBooks({ onPlay }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const genreFilter = searchParams.get('genre');
+  const favoritesOnly = searchParams.get('favorites') === 'true';
   const [audiobooks, setAudiobooks] = useState([]);
   const [genreMappings, setGenreMappings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,12 +71,12 @@ export default function AllBooks({ onPlay }) {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [favoritesOnly]);
 
   const loadData = async () => {
     try {
       const [audiobooksRes, mappingsRes] = await Promise.all([
-        getAudiobooks({ limit: 10000 }),
+        getAudiobooks({ limit: 10000, favorites: favoritesOnly }),
         getGenreMappings()
       ]);
       setAudiobooks(audiobooksRes.data.audiobooks);
@@ -301,6 +302,7 @@ export default function AllBooks({ onPlay }) {
           <div className="all-books-header">
             <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
             <h2 className="all-books-count">
+              {favoritesOnly && <span className="genre-label">Favorites: </span>}
               {genreFilter && <span className="genre-label">{genreFilter}: </span>}
               {sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}
             </h2>
