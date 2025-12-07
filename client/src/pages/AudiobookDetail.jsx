@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite } from '../api';
 import EditMetadataModal from '../components/EditMetadataModal';
+import AddToCollectionModal from '../components/AddToCollectionModal';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -17,6 +18,7 @@ export default function AudiobookDetail({ onPlay }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -344,6 +346,18 @@ export default function AudiobookDetail({ onPlay }) {
               </svg>
               {isFavorite ? 'Favorited' : 'Favorite'}
             </button>
+            <button
+              className="btn btn-collection"
+              onClick={() => setShowCollectionModal(true)}
+              title="Add to collection"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                <line x1="12" y1="11" x2="12" y2="17"></line>
+                <line x1="9" y1="14" x2="15" y2="14"></line>
+              </svg>
+              Collection
+            </button>
             {isAdmin && (
               <button className="btn btn-primary" onClick={() => setShowEditModal(true)}>Edit</button>
             )}
@@ -420,6 +434,13 @@ export default function AudiobookDetail({ onPlay }) {
         onClose={() => setShowEditModal(false)}
         audiobook={audiobook}
         onSave={loadAudiobook}
+      />
+
+      <AddToCollectionModal
+        isOpen={showCollectionModal}
+        onClose={() => setShowCollectionModal(false)}
+        audiobookId={audiobook.id}
+        audiobookTitle={audiobook.title}
       />
     </div>
   );

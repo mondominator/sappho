@@ -565,6 +565,25 @@
   flex-shrink: 0;
 }
 
+.detail-actions .btn-collection {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.detail-actions .btn-collection:hover {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: rgba(139, 92, 246, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-actions .btn-collection svg {
+  flex-shrink: 0;
+}
+
 .btn-large {
   padding: 0.875rem 2rem;
   font-size: 1rem;
