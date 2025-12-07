@@ -260,16 +260,16 @@ function App() {
       <ScrollToTop />
       <WebSocketProvider>
         <AppContent
-          token={token}
-          onLogout={handleLogout}
-          showUploadModal={showUploadModal}
-          setShowUploadModal={setShowUploadModal}
-          currentAudiobook={currentAudiobook}
-          setCurrentAudiobook={setCurrentAudiobook}
-          currentProgress={currentProgress}
-          setCurrentProgress={setCurrentProgress}
-          playAudiobook={playAudiobook}
-        />
+        token={token}
+        onLogout={handleLogout}
+        showUploadModal={showUploadModal}
+        setShowUploadModal={setShowUploadModal}
+        currentAudiobook={currentAudiobook}
+        setCurrentAudiobook={setCurrentAudiobook}
+        currentProgress={currentProgress}
+        setCurrentProgress={setCurrentProgress}
+        playAudiobook={playAudiobook}
+      />
       </WebSocketProvider>
     </BrowserRouter>
   )
