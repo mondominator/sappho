@@ -2859,4 +2859,298 @@ router.delete('/:id/recap', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// Batch Actions
+// ============================================
+
+// Batch mark as finished
+router.post('/batch/mark-finished', authenticateToken, async (req, res) => {
+  const { audiobook_ids } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+    return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
+  }
+
+  if (audiobook_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 audiobooks per batch' });
+  }
+
+  try {
+    let successCount = 0;
+
+    for (const audiobookId of audiobook_ids) {
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
+           VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
+           ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+             completed = 1,
+             updated_at = CURRENT_TIMESTAMP`,
+          [userId, audiobookId],
+          function(err) {
+            if (err) reject(err);
+            else {
+              successCount++;
+              resolve();
+            }
+          }
+        );
+      });
+    }
+
+    res.json({ success: true, count: successCount });
+  } catch (error) {
+    console.error('Error in batch mark finished:', error);
+    res.status(500).json({ error: 'Failed to mark audiobooks as finished' });
+  }
+});
+
+// Batch clear progress
+router.post('/batch/clear-progress', authenticateToken, async (req, res) => {
+  const { audiobook_ids } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+    return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
+  }
+
+  if (audiobook_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 audiobooks per batch' });
+  }
+
+  try {
+    const placeholders = audiobook_ids.map(() => '?').join(',');
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `DELETE FROM playback_progress WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+        [userId, ...audiobook_ids],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.changes);
+        }
+      );
+    });
+
+    res.json({ success: true, count: audiobook_ids.length });
+  } catch (error) {
+    console.error('Error in batch clear progress:', error);
+    res.status(500).json({ error: 'Failed to clear progress' });
+  }
+});
+
+// Batch add to reading list (favorites)
+router.post('/batch/add-to-reading-list', authenticateToken, async (req, res) => {
+  const { audiobook_ids } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+    return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
+  }
+
+  if (audiobook_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 audiobooks per batch' });
+  }
+
+  try {
+    let successCount = 0;
+
+    for (const audiobookId of audiobook_ids) {
+      await new Promise((resolve, reject) => {
+        db.run(
+          'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+          [userId, audiobookId],
+          function(err) {
+            if (err) reject(err);
+            else {
+              if (this.changes > 0) successCount++;
+              resolve();
+            }
+          }
+        );
+      });
+    }
+
+    res.json({ success: true, count: successCount });
+  } catch (error) {
+    console.error('Error in batch add to reading list:', error);
+    res.status(500).json({ error: 'Failed to add to reading list' });
+  }
+});
+
+// Batch remove from reading list
+router.post('/batch/remove-from-reading-list', authenticateToken, async (req, res) => {
+  const { audiobook_ids } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+    return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
+  }
+
+  if (audiobook_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 audiobooks per batch' });
+  }
+
+  try {
+    const placeholders = audiobook_ids.map(() => '?').join(',');
+
+    const result = await new Promise((resolve, reject) => {
+      db.run(
+        `DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+        [userId, ...audiobook_ids],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.changes);
+        }
+      );
+    });
+
+    res.json({ success: true, count: result });
+  } catch (error) {
+    console.error('Error in batch remove from reading list:', error);
+    res.status(500).json({ error: 'Failed to remove from reading list' });
+  }
+});
+
+// Batch add to collection
+router.post('/batch/add-to-collection', authenticateToken, async (req, res) => {
+  const { audiobook_ids, collection_id } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+    return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
+  }
+
+  if (!collection_id) {
+    return res.status(400).json({ error: 'collection_id is required' });
+  }
+
+  if (audiobook_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 audiobooks per batch' });
+  }
+
+  try {
+    // Verify collection belongs to user
+    const collection = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id FROM collections WHERE id = ? AND user_id = ?',
+        [collection_id, userId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    // Get current max position
+    const maxPos = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT MAX(position) as max_pos FROM collection_items WHERE collection_id = ?',
+        [collection_id],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row?.max_pos || 0);
+        }
+      );
+    });
+
+    let successCount = 0;
+    let position = maxPos;
+
+    for (const audiobookId of audiobook_ids) {
+      position++;
+      await new Promise((resolve, reject) => {
+        db.run(
+          'INSERT OR IGNORE INTO collection_items (collection_id, audiobook_id, position) VALUES (?, ?, ?)',
+          [collection_id, audiobookId, position],
+          function(err) {
+            if (err) reject(err);
+            else {
+              if (this.changes > 0) successCount++;
+              resolve();
+            }
+          }
+        );
+      });
+    }
+
+    res.json({ success: true, count: successCount });
+  } catch (error) {
+    console.error('Error in batch add to collection:', error);
+    res.status(500).json({ error: 'Failed to add to collection' });
+  }
+});
+
+// Batch delete (admin only)
+router.post('/batch/delete', authenticateToken, async (req, res) => {
+  const { audiobook_ids, delete_files } = req.body;
+
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+    return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
+  }
+
+  if (audiobook_ids.length > 100) {
+    return res.status(400).json({ error: 'Maximum 100 audiobooks per batch' });
+  }
+
+  try {
+    let successCount = 0;
+    const errors = [];
+
+    for (const audiobookId of audiobook_ids) {
+      try {
+        // Get audiobook info first
+        const audiobook = await new Promise((resolve, reject) => {
+          db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+
+        if (!audiobook) {
+          errors.push({ id: audiobookId, error: 'Not found' });
+          continue;
+        }
+
+        // Delete from database
+        await new Promise((resolve, reject) => {
+          db.run('DELETE FROM audiobooks WHERE id = ?', [audiobookId], function(err) {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+        // Optionally delete files
+        if (delete_files && audiobook.file_path) {
+          try {
+            if (fs.existsSync(audiobook.file_path)) {
+              fs.unlinkSync(audiobook.file_path);
+            }
+          } catch (fileErr) {
+            console.error(`Failed to delete file for audiobook ${audiobookId}:`, fileErr);
+          }
+        }
+
+        successCount++;
+      } catch (err) {
+        errors.push({ id: audiobookId, error: err.message });
+      }
+    }
+
+    res.json({ success: true, count: successCount, errors: errors.length > 0 ? errors : undefined });
+  } catch (error) {
+    console.error('Error in batch delete:', error);
+    res.status(500).json({ error: 'Failed to delete audiobooks' });
+  }
+});
+
 module.exports = router;
