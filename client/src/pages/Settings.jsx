@@ -7,6 +7,7 @@ import JobsSettings from '../components/settings/JobsSettings';
 import LogsSettings from '../components/settings/LogsSettings';
 import AISettings from '../components/settings/AISettings';
 import StatisticsSettings from '../components/settings/StatisticsSettings';
+import BackupSettings from '../components/settings/BackupSettings';
 import './Settings.css';
 
 export default function Settings() {
@@ -234,6 +235,8 @@ export default function Settings() {
         return <JobsSettings />;
       case 'statistics':
         return <StatisticsSettings />;
+      case 'backup':
+        return <BackupSettings />;
       case 'logs':
         return <LogsSettings />;
       case 'ai':
@@ -639,6 +642,12 @@ export default function Settings() {
           onClick={() => setActiveTab('statistics')}
         >
           Statistics
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'backup' ? 'active' : ''}`}
+          onClick={() => setActiveTab('backup')}
+        >
+          Backup
         </button>
         <button
           className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
