@@ -435,6 +435,45 @@ router.get('/', authenticateToken, (req, res) => {
   });
 });
 
+// Get all favorites for the current user
+// NOTE: This route MUST be defined before /:id to avoid being matched as an ID
+router.get('/favorites', authenticateToken, (req, res) => {
+  db.all(
+    `SELECT a.*,
+            p.position as progress_position,
+            p.completed as progress_completed,
+            f.created_at as favorited_at
+     FROM user_favorites f
+     INNER JOIN audiobooks a ON f.audiobook_id = a.id
+     LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+     WHERE f.user_id = ?
+     ORDER BY f.created_at DESC`,
+    [req.user.id, req.user.id],
+    (err, audiobooks) => {
+      if (err) {
+        console.error('Error fetching favorites:', err);
+        return res.status(500).json({ error: 'Failed to fetch favorites' });
+      }
+
+      // Transform progress fields into nested object
+      const transformedAudiobooks = audiobooks.map(book => ({
+        ...book,
+        is_favorite: true,
+        progress: {
+          position: book.progress_position,
+          completed: book.progress_completed
+        }
+      }));
+      transformedAudiobooks.forEach(b => {
+        delete b.progress_position;
+        delete b.progress_completed;
+      });
+
+      res.json(transformedAudiobooks);
+    }
+  );
+});
+
 // Get single audiobook
 router.get('/:id', authenticateToken, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
@@ -1961,6 +2000,12 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
   const audiobookId = req.params.id;
   const userId = req.user.id;
 
+  // Don't save progress until user has listened for at least 5 seconds
+  // (unless marking as completed). This prevents tiny accidental progress.
+  if (position < 5 && !completed) {
+    return res.json({ success: true, skipped: true, message: 'Progress not saved until 5 seconds' });
+  }
+
   // Update progress in database
   db.run(
     `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
@@ -2258,7 +2303,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
     `SELECT a.*, p.position as progress_position, p.completed as progress_completed, p.updated_at as last_played
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
-     WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 20
+     WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 5
      ORDER BY p.updated_at DESC
      LIMIT ?`,
     [req.user.id, limit],
@@ -2293,7 +2338,7 @@ router.get('/meta/in-progress/all', authenticateToken, (req, res) => {
     `SELECT a.*, p.position, p.updated_at as last_played, p.user_id
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
-     WHERE p.completed = 0 AND p.position >= 20
+     WHERE p.completed = 0 AND p.position >= 5
      ORDER BY p.updated_at DESC
      LIMIT ?`,
     [limit],
@@ -2402,46 +2447,8 @@ router.get('/meta/finished', authenticateToken, (req, res) => {
 });
 
 // ============================================
-// FAVORITES ENDPOINTS
+// FAVORITES ENDPOINTS (/:id routes only - /favorites GET is defined earlier)
 // ============================================
-
-// Get all favorites for the current user
-router.get('/favorites', authenticateToken, (req, res) => {
-  db.all(
-    `SELECT a.*,
-            p.position as progress_position,
-            p.completed as progress_completed,
-            f.created_at as favorited_at
-     FROM user_favorites f
-     INNER JOIN audiobooks a ON f.audiobook_id = a.id
-     LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-     WHERE f.user_id = ?
-     ORDER BY f.created_at DESC`,
-    [req.user.id, req.user.id],
-    (err, audiobooks) => {
-      if (err) {
-        console.error('Error fetching favorites:', err);
-        return res.status(500).json({ error: 'Failed to fetch favorites' });
-      }
-
-      // Transform progress fields into nested object
-      const transformedAudiobooks = audiobooks.map(book => ({
-        ...book,
-        is_favorite: true,
-        progress: {
-          position: book.progress_position,
-          completed: book.progress_completed
-        }
-      }));
-      transformedAudiobooks.forEach(b => {
-        delete b.progress_position;
-        delete b.progress_completed;
-      });
-
-      res.json(transformedAudiobooks);
-    }
-  );
-});
 
 // Check if a specific audiobook is a favorite
 router.get('/:id/favorite', authenticateToken, (req, res) => {
