@@ -253,9 +253,21 @@ async function extractFileMetadata(filePath) {
         }
       }
 
+      // If no series found from primary tags, check ©grp (grouping) as fallback
+      // But only if it looks like a series (contains #N pattern) rather than genres
+      if (!series) {
+        const grpTag = mp4Tags.find(t => t.id === '©grp');
+        const grpVal = getTagValue(grpTag);
+        // Check if grouping tag contains series pattern like "Series Name #5"
+        if (grpVal && /\s*#\d+/.test(grpVal)) {
+          series = grpVal;
+        }
+      }
+
       if (series) {
         // If series contains "#N" pattern, extract series name and position
         // Example: "The Eden Chronicles #1" -> series: "The Eden Chronicles", position: 1
+        // Example: "Red Rising #5" -> series: "Red Rising", position: 5
         const seriesMatch = series.match(/^(.+?)\s*#(\d+(?:\.\d+)?)$/);
         if (seriesMatch) {
           series = seriesMatch[1].trim();
