@@ -219,8 +219,8 @@ async function extractFileMetadata(filePath) {
       };
 
       // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
-      // Priority: movement name (proper audiobook tag) > explicit SERIES tag > show
-      // Note: Removed ©grp (grouping) and ©st3 (subtitle) - often contain genres, not series
+      // Priority: movement name (proper audiobook tag) > explicit SERIES tag > grouping > show
+      // Note: ©grp (grouping) is checked with genre filtering to avoid false positives
       const seriesTagPriority = [
         '©mvn',  // Movement Name - standard audiobook series tag (what tone writes)
         'movementName',  // Alternative movement name key
@@ -228,6 +228,7 @@ async function extractFileMetadata(filePath) {
         '----:com.apple.iTunes:series',
         '----:com.pilabor.tone:SERIES',
         '----:com.pilabor.tone:series',
+        '©grp',  // Grouping - commonly used for series (filtered by looksLikeGenres)
         'tvsh',  // TV Show (sometimes used for series)
         'sosn',  // Sort show name
       ];
