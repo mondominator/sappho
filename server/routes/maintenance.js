@@ -756,6 +756,37 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
       });
 
       console.log(`Backed up ${coverBackup.length} user-set covers`);
+
+      // Backup user favorites with file paths
+      const favoritesBackup = await new Promise((resolve, reject) => {
+        db.all(
+          `SELECT uf.user_id, uf.created_at, a.file_path
+           FROM user_favorites uf
+           JOIN audiobooks a ON uf.audiobook_id = a.id`,
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+
+      console.log(`Backed up ${favoritesBackup.length} user favorites`);
+
+      // Backup user ratings with file paths
+      const ratingsBackup = await new Promise((resolve, reject) => {
+        db.all(
+          `SELECT ur.user_id, ur.rating, ur.review, ur.created_at, ur.updated_at, a.file_path
+           FROM user_ratings ur
+           JOIN audiobooks a ON ur.audiobook_id = a.id`,
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+
+      console.log(`Backed up ${ratingsBackup.length} user ratings`);
+
       console.log('Force rescan: clearing library metadata...');
 
       // Use a transaction-like approach - serialize all deletes
@@ -872,9 +903,85 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
         }
       }
 
+      // Restore user favorites
+      console.log('Restoring user favorites...');
+      let favoritesRestored = 0;
+      for (const favorite of favoritesBackup) {
+        try {
+          // Find audiobook by file path
+          const audiobook = await new Promise((resolve, reject) => {
+            db.get(
+              'SELECT id FROM audiobooks WHERE file_path = ?',
+              [favorite.file_path],
+              (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+              }
+            );
+          });
+
+          if (audiobook) {
+            // Restore favorite
+            await new Promise((resolve, reject) => {
+              db.run(
+                `INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id, created_at)
+                 VALUES (?, ?, ?)`,
+                [favorite.user_id, audiobook.id, favorite.created_at],
+                (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+            favoritesRestored++;
+          }
+        } catch (error) {
+          console.error(`Failed to restore favorite for ${favorite.file_path}:`, error.message);
+        }
+      }
+
+      // Restore user ratings
+      console.log('Restoring user ratings...');
+      let ratingsRestored = 0;
+      for (const rating of ratingsBackup) {
+        try {
+          // Find audiobook by file path
+          const audiobook = await new Promise((resolve, reject) => {
+            db.get(
+              'SELECT id FROM audiobooks WHERE file_path = ?',
+              [rating.file_path],
+              (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+              }
+            );
+          });
+
+          if (audiobook) {
+            // Restore rating
+            await new Promise((resolve, reject) => {
+              db.run(
+                `INSERT OR REPLACE INTO user_ratings (user_id, audiobook_id, rating, review, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [rating.user_id, audiobook.id, rating.rating, rating.review, rating.created_at, rating.updated_at],
+                (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+            ratingsRestored++;
+          }
+        } catch (error) {
+          console.error(`Failed to restore rating for ${rating.file_path}:`, error.message);
+        }
+      }
+
       console.log(`✅ Force rescan complete: ${stats.imported} imported, ${stats.skipped} skipped, ${stats.errors} errors`);
       console.log(`✅ Restored progress for ${restored} audiobooks`);
       console.log(`✅ Restored ${coversRestored} user-set covers`);
+      console.log(`✅ Restored ${favoritesRestored} user favorites`);
+      console.log(`✅ Restored ${ratingsRestored} user ratings`);
     } catch (error) {
       console.error('❌ Error in force rescan:', error);
     } finally {
