@@ -1,11 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
 const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = require('../services/libraryScanner');
+
+// SECURITY: Rate limiter for debug endpoints to prevent abuse
+const debugLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
+  message: { error: 'Too many debug requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // In-memory log buffer for UI viewing
 const LOG_BUFFER_SIZE = 500;
@@ -1216,7 +1226,7 @@ router.post('/duplicates/merge', authenticateToken, async (req, res) => {
 
 // Diagnostic endpoint to inspect raw metadata from an audiobook file
 // This helps debug why certain tags (like series) might not be extracted
-router.get('/debug-metadata/:id', authenticateToken, async (req, res) => {
+router.get('/debug-metadata/:id', debugLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
