@@ -1214,4 +1214,106 @@ router.post('/duplicates/merge', authenticateToken, async (req, res) => {
   }
 });
 
+// Diagnostic endpoint to inspect raw metadata from an audiobook file
+// This helps debug why certain tags (like series) might not be extracted
+router.get('/debug-metadata/:id', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    const audiobookId = parseInt(req.params.id);
+
+    // Get audiobook from database
+    const audiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    if (!audiobook.file_path || !fs.existsSync(audiobook.file_path)) {
+      return res.status(404).json({ error: 'Audio file not found', file_path: audiobook.file_path });
+    }
+
+    // Parse the audio file to get raw metadata
+    const mm = await import('music-metadata');
+    const rawMetadata = await mm.parseFile(audiobook.file_path);
+
+    // Also get our extracted metadata for comparison
+    const extractedMetadata = await extractFileMetadata(audiobook.file_path);
+
+    // Extract just the relevant series-related tags for easier debugging
+    const nativeTags = rawMetadata.native || {};
+    const seriesRelatedTags = {};
+
+    // Check all tag formats for series-related info
+    for (const [format, tags] of Object.entries(nativeTags)) {
+      const relevantTags = tags.filter(tag =>
+        tag.id.toLowerCase().includes('series') ||
+        tag.id.toLowerCase().includes('mvn') ||
+        tag.id.toLowerCase().includes('mvi') ||
+        tag.id.toLowerCase().includes('movement') ||
+        tag.id.toLowerCase().includes('part') ||
+        tag.id.toLowerCase().includes('tvsh') ||
+        tag.id.toLowerCase().includes('sosn') ||
+        tag.id.toLowerCase().includes('grp') ||
+        tag.id.toLowerCase().includes('st3') ||
+        tag.id === 'tves' ||
+        tag.id === 'tvsn' ||
+        tag.id === 'disk'
+      );
+      if (relevantTags.length > 0) {
+        seriesRelatedTags[format] = relevantTags;
+      }
+    }
+
+    res.json({
+      audiobook: {
+        id: audiobook.id,
+        title: audiobook.title,
+        author: audiobook.author,
+        series: audiobook.series,
+        series_position: audiobook.series_position,
+        file_path: audiobook.file_path,
+      },
+      extracted_metadata: {
+        series: extractedMetadata.series,
+        series_position: extractedMetadata.series_position,
+        title: extractedMetadata.title,
+        author: extractedMetadata.author,
+      },
+      common_tags: {
+        title: rawMetadata.common.title,
+        artist: rawMetadata.common.artist,
+        album: rawMetadata.common.album,
+        albumartist: rawMetadata.common.albumartist,
+        movementName: rawMetadata.common.movementName,
+        movementIndex: rawMetadata.common.movementIndex,
+        disk: rawMetadata.common.disk,
+        track: rawMetadata.common.track,
+      },
+      series_related_native_tags: seriesRelatedTags,
+      all_native_tag_formats: Object.keys(nativeTags),
+      // Include first 50 native tags from each format for detailed inspection
+      native_tags_sample: Object.fromEntries(
+        Object.entries(nativeTags).map(([format, tags]) => [
+          format,
+          tags.slice(0, 50).map(t => ({
+            id: t.id,
+            value: Buffer.isBuffer(t.value) ? `<Buffer ${t.value.length} bytes>` : t.value
+          }))
+        ])
+      ),
+    });
+  } catch (error) {
+    console.error('Error debugging metadata:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
