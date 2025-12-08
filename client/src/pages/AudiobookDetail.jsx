@@ -209,11 +209,18 @@ export default function AudiobookDetail({ onPlay }) {
     if (refreshingMetadata) return;
     setRefreshingMetadata(true);
     try {
-      await refreshMetadata(audiobook.id);
+      const response = await refreshMetadata(audiobook.id);
       await loadAudiobook();
+      // Show success message with what was updated
+      const updatedFields = response.data?.updated_fields || [];
+      if (updatedFields.length > 0) {
+        alert(`Metadata refreshed! Updated: ${updatedFields.join(', ')}`);
+      } else {
+        alert('Metadata refreshed from file');
+      }
     } catch (error) {
       console.error('Error refreshing metadata:', error);
-      alert('Failed to refresh metadata');
+      alert('Failed to refresh metadata: ' + (error.response?.data?.error || error.message));
     } finally {
       setRefreshingMetadata(false);
     }
