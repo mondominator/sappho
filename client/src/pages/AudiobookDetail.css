@@ -146,18 +146,117 @@
   gap: 2rem;
 }
 
+/* Title row with Catch Me Up button */
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
 .detail-title {
   font-size: 2.5rem;
   margin: 0;
   line-height: 1.2;
   color: #fff;
   font-weight: 700;
-  order: 1;
+  flex: 1;
+  min-width: 200px;
 }
 
+/* Inline Catch Me Up button next to title */
+.catch-me-up-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+}
+
+.catch-me-up-inline:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.catch-me-up-inline.loading {
+  background: rgba(99, 102, 241, 0.3);
+  cursor: default;
+}
+
+.recap-spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Desktop recap section */
+.desktop-recap-section {
+  margin-top: -1rem;
+}
+
+/* Rating section under cover */
+.detail-rating-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(17, 24, 39, 0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rating-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.your-rating-label {
+  color: #9ca3af;
+}
+
+.tap-to-rate {
+  color: #6b7280;
+}
+
+.rating-separator {
+  color: #4b5563;
+}
+
+.average-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #e5e7eb;
+  font-weight: 500;
+}
+
+.average-rating svg {
+  flex-shrink: 0;
+}
+
+/* Old detail-rating - hide on desktop, show on mobile as fallback */
 .detail-rating {
-  order: 2;
-  margin: 0.75rem 0 1rem;
+  display: none;
 }
 
 .detail-actions {
@@ -589,6 +688,35 @@
   flex-shrink: 0;
 }
 
+.detail-actions .btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.detail-actions .btn-refresh:hover {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: rgba(74, 222, 128, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.detail-actions .btn-refresh:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.detail-actions .btn-refresh svg {
+  flex-shrink: 0;
+}
+
+.detail-actions .btn-refresh svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
 .btn-large {
   padding: 0.875rem 2rem;
   font-size: 1rem;
@@ -642,6 +770,19 @@
     display: none;
   }
 
+  .detail-title-row {
+    display: none;
+  }
+
+  /* Hide inline catch me up on mobile - use the one in cover container */
+  .catch-me-up-inline {
+    display: none !important;
+  }
+
+  .desktop-recap-section {
+    display: none !important;
+  }
+
   .detail-metadata {
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -662,9 +803,14 @@
     order: 1;
   }
 
+  .detail-rating-section {
+    order: 2;
+    margin-top: 1rem;
+  }
+
   .detail-play-button {
     display: flex !important;
-    order: 2;
+    order: 3;
   }
 
   .detail-info {
