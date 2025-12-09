@@ -11,6 +11,7 @@ export default function CollectionDetail() {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editIsPublic, setEditIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
 
@@ -24,6 +25,7 @@ export default function CollectionDetail() {
       setCollection(response.data);
       setEditName(response.data.name);
       setEditDescription(response.data.description || '');
+      setEditIsPublic(response.data.is_public === 1);
     } catch (error) {
       console.error('Error loading collection:', error);
       if (error.response?.status === 404) {
@@ -39,7 +41,9 @@ export default function CollectionDetail() {
 
     setSaving(true);
     try {
-      const response = await updateCollection(id, editName.trim(), editDescription.trim());
+      // Only pass is_public if user is the owner
+      const isPublicValue = collection.is_owner === 1 ? editIsPublic : collection.is_public === 1;
+      const response = await updateCollection(id, editName.trim(), editDescription.trim(), isPublicValue);
       setCollection({ ...collection, ...response.data });
       setEditing(false);
     } catch (error) {
@@ -137,6 +141,31 @@ export default function CollectionDetail() {
               placeholder="Description (optional)"
               rows={2}
             />
+            {/* Only owner can change visibility */}
+            {collection.is_owner === 1 && (
+              <div className="visibility-toggle">
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={editIsPublic}
+                    onChange={(e) => setEditIsPublic(e.target.checked)}
+                  />
+                  <span className="toggle-text">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                    Make this collection public
+                  </span>
+                </label>
+                <p className="toggle-hint">
+                  {editIsPublic
+                    ? 'All users will be able to view and edit this collection'
+                    : 'Only you can see this collection'}
+                </p>
+              </div>
+            )}
             <div className="edit-actions">
               <button className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={!editName.trim() || saving}>
@@ -146,8 +175,23 @@ export default function CollectionDetail() {
           </div>
         ) : (
           <div className="collection-info">
-            <h1>{collection.name}</h1>
+            <div className="title-row">
+              <h1>{collection.name}</h1>
+              {collection.is_public === 1 && (
+                <span className="public-badge" title="Public collection">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  </svg>
+                  Public
+                </span>
+              )}
+            </div>
             {collection.description && <p className="description">{collection.description}</p>}
+            <p className="creator-label">
+              {collection.is_owner === 1 ? 'Created by you' : `Created by ${collection.creator_username || 'Unknown'}`}
+            </p>
             <div className="collection-meta">
               <span>{collection.books?.length || 0} books</span>
               <button className="edit-btn" onClick={() => setEditing(true)}>Edit</button>

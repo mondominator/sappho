@@ -10,6 +10,7 @@ export default function Collections() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newIsPublic, setNewIsPublic] = useState(false);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -33,11 +34,12 @@ export default function Collections() {
 
     setCreating(true);
     try {
-      const response = await createCollection(newName.trim(), newDescription.trim());
+      const response = await createCollection(newName.trim(), newDescription.trim(), newIsPublic);
       setCollections([response.data, ...collections]);
       setShowCreateModal(false);
       setNewName('');
       setNewDescription('');
+      setNewIsPublic(false);
       // Navigate to the new collection
       navigate(`/collections/${response.data.id}`);
     } catch (error) {
@@ -50,6 +52,10 @@ export default function Collections() {
 
   const handleDelete = async (e, collection) => {
     e.stopPropagation();
+    if (!collection.is_owner) {
+      alert("You can only delete collections you created.");
+      return;
+    }
     if (!confirm(`Delete "${collection.name}"? This cannot be undone.`)) return;
 
     try {
@@ -94,15 +100,27 @@ export default function Collections() {
               className="collection-card"
               onClick={() => navigate(`/collections/${collection.id}`)}
             >
-              <button
-                className="delete-btn"
-                onClick={(e) => handleDelete(e, collection)}
-                title="Delete collection"
-              >
-                ×
-              </button>
+              {collection.is_owner === 1 && (
+                <button
+                  className="delete-btn"
+                  onClick={(e) => handleDelete(e, collection)}
+                  title="Delete collection"
+                >
+                  ×
+                </button>
+              )}
               <div className="collection-covers">
                 <div className="collection-book-count">{collection.book_count || 0}</div>
+                {/* Public/Private indicator */}
+                {collection.is_public === 1 && (
+                  <div className="visibility-badge public">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                  </div>
+                )}
                 {collection.first_cover ? (
                   <div className="cover-single">
                     <img
@@ -122,6 +140,10 @@ export default function Collections() {
                 {collection.description && (
                   <p className="collection-description">{collection.description}</p>
                 )}
+                {/* Creator label */}
+                <p className="collection-creator">
+                  {collection.is_owner === 1 ? 'Created by you' : `Created by ${collection.creator_username || 'Unknown'}`}
+                </p>
               </div>
             </div>
           ))}
@@ -153,6 +175,28 @@ export default function Collections() {
                   placeholder="What's this collection for?"
                   rows={3}
                 />
+              </div>
+              <div className="form-group visibility-toggle">
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={newIsPublic}
+                    onChange={(e) => setNewIsPublic(e.target.checked)}
+                  />
+                  <span className="toggle-text">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                    Make this collection public
+                  </span>
+                </label>
+                <p className="toggle-hint">
+                  {newIsPublic
+                    ? 'All users will be able to view and edit this collection'
+                    : 'Only you can see this collection'}
+                </p>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
