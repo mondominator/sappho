@@ -1,99 +1,54 @@
+/* Android-style bottom action bar */
 .batch-action-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: var(--surface-color, #1e1e1e);
-  border-top: 1px solid var(--border-color, #333);
-  padding: 12px 16px;
+  background: #1f2937;
+  padding: 12px 8px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
   z-index: 1000;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
 }
 
-.batch-action-bar-content {
+/* 4 evenly spaced columns */
+.batch-actions-row {
   display: flex;
+  justify-content: space-evenly;
   align-items: center;
-  justify-content: space-between;
-  max-width: 1200px;
-  margin: 0 auto;
-  gap: 16px;
 }
 
-.batch-selected-count {
+.batch-action-col {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: var(--text-color, #fff);
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.batch-close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 4px;
   background: transparent;
   border: none;
-  color: var(--text-muted, #999);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.batch-close-btn:hover {
-  background: var(--hover-color, #333);
-  color: var(--text-color, #fff);
-}
-
-.batch-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.batch-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--primary-color, #6366f1);
-  color: white;
-  border: none;
   padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.batch-action-btn:hover:not(:disabled) {
-  background: var(--primary-hover, #5558e3);
-  transform: translateY(-1px);
-}
-
-.batch-action-btn:disabled {
-  opacity: 0.5;
+.batch-action-col:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.batch-action-btn span {
-  display: none;
+.batch-action-col:active:not(:disabled) {
+  opacity: 0.7;
 }
 
-@media (min-width: 600px) {
-  .batch-action-btn span {
-    display: inline;
-  }
+.batch-action-col svg {
+  width: 24px;
+  height: 24px;
 }
 
-.batch-action-danger {
-  background: var(--danger-color, #dc2626);
-}
-
-.batch-action-danger:hover:not(:disabled) {
-  background: var(--danger-hover, #b91c1c);
+.batch-action-col span {
+  font-size: 10px;
+  color: #9ca3af;
+  white-space: nowrap;
 }
 
 /* Collection Picker Modal */
@@ -112,7 +67,7 @@
 }
 
 .collection-picker {
-  background: var(--surface-color, #1e1e1e);
+  background: #1f2937;
   border-radius: 12px;
   padding: 20px;
   max-width: 400px;
@@ -124,7 +79,7 @@
 
 .collection-picker h3 {
   margin: 0 0 16px 0;
-  color: var(--text-color, #fff);
+  color: #fff;
   font-size: 18px;
 }
 
@@ -141,24 +96,23 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--bg-color, #121212);
-  border: 1px solid var(--border-color, #333);
+  background: #374151;
+  border: none;
   padding: 12px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: var(--text-color, #fff);
+  color: #fff;
   text-align: left;
   width: 100%;
 }
 
-.collection-option:hover {
-  background: var(--hover-color, #333);
-  border-color: var(--primary-color, #6366f1);
+.collection-option:hover,
+.collection-option:active {
+  background: #4b5563;
 }
 
 .collection-option svg {
-  color: var(--primary-color, #6366f1);
   flex-shrink: 0;
 }
 
@@ -168,20 +122,20 @@
 }
 
 .collection-count {
-  color: var(--text-muted, #999);
+  color: #6b7280;
   font-size: 12px;
 }
 
 .no-collections {
-  color: var(--text-muted, #999);
+  color: #9ca3af;
   text-align: center;
   padding: 20px;
 }
 
 .collection-picker-close {
   background: transparent;
-  border: 1px solid var(--border-color, #333);
-  color: var(--text-color, #fff);
+  border: 1px solid #374151;
+  color: #9ca3af;
   padding: 10px 16px;
   border-radius: 6px;
   cursor: pointer;
@@ -190,5 +144,6 @@
 }
 
 .collection-picker-close:hover {
-  background: var(--hover-color, #333);
+  background: #374151;
+  color: #fff;
 }

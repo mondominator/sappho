@@ -109,6 +109,10 @@ export default function Home({ onPlay }) {
 
   const renderBookCard = (book) => (
     <div key={book.id} className="audiobook-card">
+      {/* Reading list ribbon - blue folded corner */}
+      {book.is_favorite && (
+        <div className="reading-list-ribbon" />
+      )}
       <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
         {book.cover_image ? (
           <img src={getCoverUrl(book.id)} alt={book.title} onError={(e) => e.target.style.display = 'none'} />

@@ -272,12 +272,32 @@ export default function AudiobookDetail({ onPlay }) {
 
   return (
     <div className="audiobook-detail container">
-      <button className="back-button-modern" onClick={() => navigate(-1)}>
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Back
-      </button>
+      <div className="detail-top-bar">
+        <button className="back-button-modern" onClick={() => navigate(-1)}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Back
+        </button>
+        {/* Mobile Catch Me Up button in top right */}
+        {aiConfigured && hasProgress && !recap && !recapLoading && !recapError && (
+          <button className="catch-me-up-top-right" onClick={loadRecap}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <line x1="10" y1="9" x2="8" y2="9"/>
+            </svg>
+            Catch Up
+          </button>
+        )}
+        {aiConfigured && recapLoading && (
+          <div className="catch-me-up-top-right loading">
+            <div className="recap-spinner-small"></div>
+          </div>
+        )}
+      </div>
 
       <div className="detail-content">
         <div className="detail-cover-container">
