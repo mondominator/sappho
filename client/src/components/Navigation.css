@@ -48,6 +48,13 @@
   display: block;
 }
 
+.nav-logo-icon {
+  height: 32px;
+  width: 32px;
+  display: none;
+  border-radius: 6px;
+}
+
 
 .nav-logo-container {
   display: flex;
@@ -417,7 +424,7 @@
     flex-shrink: 0;
   }
 
-  /* Show logo on mobile - smaller size */
+  /* Show icon logo on mobile */
   .nav-brand {
     display: flex;
     align-items: center;
@@ -429,9 +436,14 @@
     font-size: 20px;
   }
 
-  .nav-logo {
+  .nav-logo.desktop-only {
+    display: none !important;
+  }
+
+  .nav-logo-icon.mobile-only {
+    display: block !important;
     height: 28px;
-    width: auto;
+    width: 28px;
   }
 
   /* Nav links positioned normally */
