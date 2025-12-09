@@ -421,37 +421,36 @@
   }
 
   .all-books-header {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.25rem;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .all-books-count {
-    font-size: 1rem;
-    flex: 1;
-  }
-
+  /* Top row: Back button on left, book count on right */
   .back-button {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    order: 1;
   }
 
+  .all-books-count {
+    font-size: 0.875rem;
+    order: 2;
+    margin-left: auto;
+    text-align: right;
+  }
+
+  /* Controls row below */
   .all-books-controls {
     width: 100%;
-    gap: 0.5rem;
-    overflow-x: auto;
+    gap: 0.375rem;
     flex-wrap: nowrap;
-    padding: 0.5rem 1rem;
-    margin: 0 -1rem;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .all-books-controls::-webkit-scrollbar {
-    display: none;
+    padding: 0;
+    order: 3;
+    justify-content: flex-start;
   }
 
   /* Hide labels on mobile for compact look */
@@ -460,42 +459,46 @@
     display: none;
   }
 
-  .all-books-filter,
+  /* Hide Select button and progress filter on mobile to save space */
+  .selection-mode-btn,
+  .all-books-filter {
+    display: none !important;
+  }
+
   .all-books-sort {
     flex-shrink: 0;
   }
 
-  .filter-select,
-  .sort-select {
-    font-size: 14px;
-    padding: 0.5rem 2rem 0.5rem 0.75rem;
-    border-radius: 8px;
-    background-color: #1f2937;
-    color: #fff;
-    white-space: nowrap;
-    min-width: max-content;
-  }
-
-  .sort-order-btn {
-    min-width: 36px;
-    height: 36px;
-    font-size: 1rem;
-    flex-shrink: 0;
-  }
-
   .filters-toggle-btn {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8125rem;
     flex-shrink: 0;
+  }
+
+  .filters-toggle-btn span {
+    display: none;
   }
 
   .filters-toggle-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
   }
 
-  .selection-mode-btn {
+  .sort-select {
+    font-size: 0.8125rem;
+    padding: 0.375rem 1.5rem 0.375rem 0.5rem;
+    border-radius: 6px;
+    background-color: #1f2937;
+    color: #fff;
+    max-width: none;
+  }
+
+  .sort-order-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
     flex-shrink: 0;
+    padding: 0.375rem;
   }
 
   .audiobook-grid {

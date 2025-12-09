@@ -55,17 +55,10 @@
   border-radius: 6px;
 }
 
-
 .nav-logo-container {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.nav-logo-icon {
-  height: 40px;
-  width: auto;
-  filter: brightness(0) saturate(100%) invert(68%) sepia(54%) saturate(2878%) hue-rotate(193deg) brightness(101%) contrast(96%);
 }
 
 .nav-logo-text {
