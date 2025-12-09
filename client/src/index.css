@@ -179,6 +179,19 @@ body {
   transform: translateY(-2px);
 }
 
+/* Reading list ribbon marker */
+.favorite-ribbon {
+  position: absolute;
+  top: -3px;
+  right: 8px;
+  width: 18px;
+  height: 28px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  z-index: 2;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 .audio-player {
   position: fixed;
   bottom: 0;

@@ -117,6 +117,9 @@ export default function Home({ onPlay }) {
             <h3>{book.title}</h3>
           </div>
         )}
+        {book.is_favorite && (
+          <div className="favorite-ribbon" title="In Reading List"></div>
+        )}
         {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
           <div className="progress-bar-overlay">
             <div

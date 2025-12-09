@@ -76,20 +76,27 @@ router.get('/:id', authenticateToken, (req, res) => {
       // Then get the books in this collection
       db.all(
         `SELECT a.*, ci.position, ci.added_at,
-                pp.position as progress_position, pp.completed as progress_completed
+                pp.position as progress_position, pp.completed as progress_completed,
+                CASE WHEN uf.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
          FROM collection_items ci
          JOIN audiobooks a ON ci.audiobook_id = a.id
          LEFT JOIN playback_progress pp ON a.id = pp.audiobook_id AND pp.user_id = ?
+         LEFT JOIN user_favorites uf ON a.id = uf.audiobook_id AND uf.user_id = ?
          WHERE ci.collection_id = ?
          ORDER BY ci.position ASC`,
-        [req.user.id, collectionId],
+        [req.user.id, req.user.id, collectionId],
         (err, books) => {
           if (err) {
             return res.status(500).json({ error: err.message });
           }
+          // Transform is_favorite to boolean
+          const transformedBooks = (books || []).map(book => ({
+            ...book,
+            is_favorite: !!book.is_favorite
+          }));
           res.json({
             ...collection,
-            books: books || []
+            books: transformedBooks
           });
         }
       );

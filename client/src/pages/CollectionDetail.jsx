@@ -179,6 +179,9 @@ export default function CollectionDetail() {
                   alt={book.title}
                   onError={(e) => e.target.src = '/placeholder-cover.png'}
                 />
+                {book.is_favorite && (
+                  <div className="favorite-ribbon" title="In Reading List"></div>
+                )}
                 {getProgress(book) > 0 && (
                   <div className="progress-bar">
                     <div className="progress-fill" style={{ width: `${getProgress(book)}%` }} />

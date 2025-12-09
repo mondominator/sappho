@@ -331,6 +331,9 @@ export default function AllBooks({ onPlay }) {
           <div className="audiobook-cover-placeholder" style={{ display: book.cover_image ? 'none' : 'flex' }}>
             <h3>{book.title}</h3>
           </div>
+          {book.is_favorite && (
+            <div className="favorite-ribbon" title="In Reading List"></div>
+          )}
           {progressPercent > 0 && (
             <div className="progress-bar-overlay">
               <div

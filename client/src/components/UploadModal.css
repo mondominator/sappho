@@ -1,6 +1,8 @@
 .upload-modal {
   max-width: 600px;
   width: 90%;
+  max-height: calc(90vh - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
 }
 
 .modal-header {
@@ -443,4 +445,11 @@
 
 .file-item.cancelled {
   background: rgba(156, 163, 175, 0.1);
+}
+
+/* PWA safe area support */
+@media (max-width: 768px) {
+  .upload-modal .modal-actions {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
 }

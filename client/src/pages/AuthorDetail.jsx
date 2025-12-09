@@ -181,6 +181,11 @@ export default function AuthorDetail({ onPlay }) {
                     <span>{book.title}</span>
                   </div>
 
+                  {/* Favorite ribbon */}
+                  {book.is_favorite && (
+                    <div className="favorite-ribbon" title="In Reading List"></div>
+                  )}
+
                   {/* Play overlay */}
                   <div className="book-play-overlay">
                     <button

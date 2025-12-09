@@ -1,9 +1,10 @@
 .edit-metadata-modal {
   max-width: 600px;
   width: 95%;
-  max-height: 90vh;
+  max-height: calc(90vh - env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   position: relative;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Saving Overlay - use fixed positioning to cover entire modal regardless of scroll */
@@ -739,6 +740,7 @@
 
   .edit-metadata-modal .modal-actions {
     flex-direction: column;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   }
 
   .result-item {

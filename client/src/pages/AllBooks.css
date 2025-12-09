@@ -423,10 +423,74 @@
   .all-books-header {
     padding: 1rem 1rem;
     margin-bottom: 0.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
   }
 
   .all-books-count {
     font-size: 1.125rem;
+    order: 1;
+  }
+
+  .back-button {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    order: 0;
+  }
+
+  .all-books-controls {
+    width: 100%;
+    gap: 0.5rem;
+    order: 2;
+    flex-direction: column;
+  }
+
+  /* Hide labels on mobile for cleaner look */
+  .all-books-filter label,
+  .all-books-sort label {
+    display: none;
+  }
+
+  .all-books-filter {
+    width: 100%;
+  }
+
+  .all-books-sort {
+    width: 100%;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .filter-select,
+  .sort-select {
+    width: 100%;
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    border-radius: 8px;
+    background-color: #1f2937;
+    color: #fff;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .sort-order-btn {
+    min-width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
+
+  /* Row for filter button and selection controls */
+  .filters-toggle-btn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    justify-content: center;
+  }
+
+  .filters-toggle-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .audiobook-grid {
@@ -498,58 +562,6 @@
     -webkit-line-clamp: 3;
   }
 
-  .back-button {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-  }
-
-  .all-books-controls {
-    width: 100%;
-    gap: 0.75rem;
-  }
-
-  .all-books-filter {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .all-books-filter label {
-    font-size: 0.875rem;
-  }
-
-  .filter-select {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.875rem;
-    padding: 0.375rem 1.75rem 0.375rem 0.5rem;
-  }
-
-  .all-books-sort {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .all-books-sort label {
-    font-size: 0.875rem;
-  }
-
-  .sort-select {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.875rem;
-    padding: 0.375rem 1.75rem 0.375rem 0.5rem;
-  }
-
-  .filters-toggle-btn {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-  }
-
-  .filters-toggle-btn svg {
-    width: 14px;
-    height: 14px;
-  }
-
   .filters-panel {
     flex-direction: column;
     margin: 0 0.5rem 1rem;
@@ -562,6 +574,8 @@
 
   .filter-group select {
     width: 100%;
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
   }
 
   .clear-filters-btn {
