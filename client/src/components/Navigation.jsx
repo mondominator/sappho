@@ -138,7 +138,8 @@ export default function Navigation({ onLogout, onOpenUpload }) {
     <nav className="navigation">
       <div className="container nav-container">
         <Link to="/" className="nav-brand">
-          <img src="/sappho-logo-navbar.png" alt="Sappho" className="nav-logo" />
+          <img src="/sappho-logo-navbar.png" alt="Sappho" className="nav-logo desktop-only" />
+          <img src="/icon-192.png" alt="Sappho" className="nav-logo-icon mobile-only" />
         </Link>
 
         <div className="nav-links desktop-only">
@@ -151,8 +152,8 @@ export default function Navigation({ onLogout, onOpenUpload }) {
           </Link>
           <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
             <span className="nav-link-text">Library</span>
           </Link>
@@ -198,8 +199,8 @@ export default function Navigation({ onLogout, onOpenUpload }) {
           </Link>
           <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
           </Link>
           <button

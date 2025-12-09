@@ -48,17 +48,17 @@
   display: block;
 }
 
+.nav-logo-icon {
+  height: 32px;
+  width: 32px;
+  display: none;
+  border-radius: 6px;
+}
 
 .nav-logo-container {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.nav-logo-icon {
-  height: 40px;
-  width: auto;
-  filter: brightness(0) saturate(100%) invert(68%) sepia(54%) saturate(2878%) hue-rotate(193deg) brightness(101%) contrast(96%);
 }
 
 .nav-logo-text {
@@ -417,7 +417,7 @@
     flex-shrink: 0;
   }
 
-  /* Show logo on mobile - smaller size */
+  /* Show icon logo on mobile */
   .nav-brand {
     display: flex;
     align-items: center;
@@ -429,9 +429,14 @@
     font-size: 20px;
   }
 
-  .nav-logo {
-    height: 28px;
-    width: auto;
+  .nav-logo.desktop-only {
+    display: none !important;
+  }
+
+  .nav-logo-icon.mobile-only {
+    display: block !important;
+    height: 36px;
+    width: 36px;
   }
 
   /* Nav links positioned normally */
