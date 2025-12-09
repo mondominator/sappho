@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings, getProfile } from '../api';
 import BatchActionBar from '../components/BatchActionBar';
 import './AllBooks.css';
+
+// Long press duration in ms
+const LONG_PRESS_DURATION = 500;
 
 /**
  * Normalize a genre string to major bookstore categories using mappings from server
@@ -47,6 +50,10 @@ export default function AllBooks({ onPlay }) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Long press detection
+  const longPressTimer = useRef(null);
+  const longPressTriggered = useRef(false);
 
   // Save preferences to localStorage
   useEffect(() => {
@@ -115,6 +122,10 @@ export default function AllBooks({ onPlay }) {
       const newSet = new Set(prev);
       if (newSet.has(bookId)) {
         newSet.delete(bookId);
+        // Auto-exit selection mode when last book is deselected
+        if (newSet.size === 0) {
+          setSelectionMode(false);
+        }
       } else {
         newSet.add(bookId);
       }
@@ -294,6 +305,11 @@ export default function AllBooks({ onPlay }) {
     const isSelected = selectedIds.has(book.id);
 
     const handleCardClick = () => {
+      // If long press was triggered, don't navigate
+      if (longPressTriggered.current) {
+        longPressTriggered.current = false;
+        return;
+      }
       if (selectionMode) {
         toggleBookSelection(book.id);
       } else {
@@ -301,21 +317,65 @@ export default function AllBooks({ onPlay }) {
       }
     };
 
+    const handleLongPressStart = (e) => {
+      longPressTriggered.current = false;
+      longPressTimer.current = setTimeout(() => {
+        longPressTriggered.current = true;
+        // Vibrate if available (mobile haptic feedback)
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+        // Enter selection mode and select this book
+        if (!selectionMode) {
+          setSelectionMode(true);
+        }
+        setSelectedIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(book.id);
+          return newSet;
+        });
+      }, LONG_PRESS_DURATION);
+    };
+
+    const handleLongPressEnd = () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
+
+    const handleContextMenu = (e) => {
+      // Prevent context menu on long press
+      e.preventDefault();
+    };
+
     return (
       <div
         key={book.id}
         className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
         onClick={handleCardClick}
+        onTouchStart={handleLongPressStart}
+        onTouchEnd={handleLongPressEnd}
+        onTouchMove={handleLongPressEnd}
+        onMouseDown={handleLongPressStart}
+        onMouseUp={handleLongPressEnd}
+        onMouseLeave={handleLongPressEnd}
+        onContextMenu={handleContextMenu}
       >
-        {selectionMode && (
-          <div className="selection-checkbox">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => toggleBookSelection(book.id)}
-              onClick={(e) => e.stopPropagation()}
-            />
+        {/* Selection indicator - circular checkbox in top-right (Android style) */}
+        {selectionMode ? (
+          <div className={`selection-indicator ${isSelected ? 'selected' : ''}`}>
+            {isSelected && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            )}
           </div>
+        ) : (
+          /* Reading list ribbon - blue folded corner (Android style) */
+          book.is_favorite && (
+            <div className="reading-list-ribbon" />
+          )
         )}
         <div className="audiobook-cover">
           {book.cover_image ? (
@@ -368,45 +428,51 @@ export default function AllBooks({ onPlay }) {
         </div>
       ) : (
         <>
-          <div className="all-books-header">
-            <button className="back-button" onClick={() => navigate(-1)}>← Back</button>
-            <h2 className="all-books-count">
-              {favoritesOnly && <span className="genre-label">Reading List: </span>}
-              {genreFilter && <span className="genre-label">{genreFilter}: </span>}
-              {sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}
-            </h2>
-            <div className="all-books-controls">
-              <button
-                className={`selection-mode-btn ${selectionMode ? 'active' : ''}`}
-                onClick={toggleSelectionMode}
-                title={selectionMode ? 'Exit selection mode' : 'Select multiple books'}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 11 12 14 22 4"></polyline>
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          {/* Header Row - matches Android layout */}
+          <div className="all-books-header-row">
+            <button
+              className="header-icon-btn"
+              onClick={() => selectionMode ? (setSelectionMode(false), setSelectedIds(new Set())) : navigate(-1)}
+            >
+              {selectionMode ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
-                {selectionMode ? 'Cancel' : 'Select'}
-              </button>
-              {selectionMode && (
-                <div className="selection-controls">
-                  <button onClick={selectAll} className="select-all-btn">Select All</button>
-                  <button onClick={deselectAll} className="deselect-all-btn" disabled={selectedIds.size === 0}>Deselect All</button>
-                </div>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
               )}
+            </button>
+            <h2 className="header-title">
+              {selectionMode ? (
+                `${selectedIds.size} selected`
+              ) : (
+                <>
+                  {favoritesOnly && <span className="genre-label">Reading List: </span>}
+                  {genreFilter && <span className="genre-label">{genreFilter}: </span>}
+                  {sortedAudiobooks.length} {sortedAudiobooks.length === 1 ? 'Book' : 'Books'}
+                </>
+              )}
+            </h2>
+            {selectionMode && (
               <button
-                className={`filters-toggle-btn ${showFilters ? 'active' : ''} ${activeFilterCount > 0 ? 'has-filters' : ''}`}
-                onClick={() => setShowFilters(!showFilters)}
+                className="select-all-text-btn"
+                onClick={() => selectedIds.size === sortedAudiobooks.length ? deselectAll() : selectAll()}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-                </svg>
-                <span>Filters</span>
-                {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
+                {selectedIds.size === sortedAudiobooks.length ? 'Deselect All' : 'Select All'}
               </button>
-              <div className="all-books-filter">
-                <label htmlFor="filter-select">Show:</label>
+            )}
+          </div>
+
+          {/* Filters Row - hidden in selection mode (matches Android) */}
+          {!selectionMode && (
+            <div className="filters-row">
+              <div className="filter-dropdown">
+                <span className="filter-label">Show</span>
                 <select
-                  id="filter-select"
                   className="filter-select"
                   value={progressFilter}
                   onChange={(e) => setProgressFilter(e.target.value)}
@@ -418,11 +484,10 @@ export default function AllBooks({ onPlay }) {
                   <option value="finished">Finished Only</option>
                 </select>
               </div>
-              <div className="all-books-sort">
-                <label htmlFor="sort-select">Sort by:</label>
+              <div className="filter-dropdown">
+                <span className="filter-label">Sort</span>
                 <select
-                  id="sort-select"
-                  className="sort-select"
+                  className="filter-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                 >
@@ -431,85 +496,19 @@ export default function AllBooks({ onPlay }) {
                   <option value="narrator">Narrator</option>
                   <option value="series">Series</option>
                   <option value="genre">Genre</option>
-                  <option value="recent">Date Added</option>
-                  <option value="year">Year Published</option>
+                  <option value="recent">Recently Added</option>
+                  <option value="recently-played">Recently Listened</option>
                   <option value="duration">Duration</option>
                   <option value="progress">Progress</option>
-                  <option value="recently-played">Recently Played</option>
-                </select>
-                <button
-                  className="sort-order-btn"
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-                >
-                  {sortOrder === 'asc' ? '↑' : '↓'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Advanced Filters Panel */}
-          {showFilters && (
-            <div className="filters-panel">
-              <div className="filter-group">
-                <label>Duration</label>
-                <select
-                  value={durationFilter}
-                  onChange={(e) => setDurationFilter(e.target.value)}
-                >
-                  <option value="all">Any Length</option>
-                  <option value="under-5">Under 5 hours</option>
-                  <option value="5-10">5-10 hours</option>
-                  <option value="10-20">10-20 hours</option>
-                  <option value="20-plus">20+ hours</option>
                 </select>
               </div>
-
-              <div className="filter-group">
-                <label>Date Added</label>
-                <select
-                  value={dateAddedFilter}
-                  onChange={(e) => setDateAddedFilter(e.target.value)}
-                >
-                  <option value="all">Any Time</option>
-                  <option value="today">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="3-months">Last 3 Months</option>
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Narrator</label>
-                <select
-                  value={narratorFilter}
-                  onChange={(e) => setNarratorFilter(e.target.value)}
-                >
-                  <option value="all">All Narrators</option>
-                  {uniqueNarrators.map(narrator => (
-                    <option key={narrator} value={narrator}>{narrator}</option>
-                  ))}
-                </select>
-              </div>
-
-              {activeFilterCount > 0 && (
-                <button
-                  className="clear-filters-btn"
-                  onClick={() => {
-                    setDurationFilter('all');
-                    setDateAddedFilter('all');
-                    setNarratorFilter('all');
-                  }}
-                >
-                  Clear Filters
-                </button>
-              )}
             </div>
           )}
-          <div className={`audiobook-grid ${selectionMode && selectedIds.size > 0 ? 'has-action-bar' : ''}`}>
+
+          <div className={`audiobook-grid ${selectionMode ? 'has-action-bar' : ''}`}>
             {sortedAudiobooks.map(renderBookCard)}
           </div>
-          {selectionMode && selectedIds.size > 0 && (
+          {selectionMode && (
             <BatchActionBar
               selectedIds={Array.from(selectedIds)}
               onActionComplete={handleBatchActionComplete}

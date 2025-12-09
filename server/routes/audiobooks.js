@@ -2268,12 +2268,14 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
   const userId = req.user.id;
 
   db.all(
-    `SELECT a.*, p.position as progress_position, p.completed as progress_completed
+    `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+            CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+     LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
      ORDER BY a.created_at DESC
      LIMIT ?`,
-    [userId, limit],
+    [userId, userId, limit],
     (err, audiobooks) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -2282,6 +2284,7 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        is_favorite: !!book.is_favorite,
         progress: book.progress_position !== null ? {
           position: book.progress_position,
           completed: book.progress_completed
@@ -2300,15 +2303,18 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
 // Get in-progress audiobooks (Up Next / Continue Listening)
 router.get('/meta/in-progress', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
+  const userId = req.user.id;
 
   db.all(
-    `SELECT a.*, p.position as progress_position, p.completed as progress_completed, p.updated_at as last_played
+    `SELECT a.*, p.position as progress_position, p.completed as progress_completed, p.updated_at as last_played,
+            CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
+     LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
      WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 5
      ORDER BY p.updated_at DESC
      LIMIT ?`,
-    [req.user.id, limit],
+    [userId, userId, limit],
     (err, audiobooks) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -2317,6 +2323,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        is_favorite: !!book.is_favorite,
         progress: {
           position: book.progress_position,
           completed: book.progress_completed
@@ -2356,6 +2363,7 @@ router.get('/meta/in-progress/all', authenticateToken, (req, res) => {
 // Get "up next" books - next unstarted book in series where user has started or completed books
 router.get('/meta/up-next', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
+  const userId = req.user.id;
 
   // Find the next UNSTARTED book in each series where user has progress on any book
   // This excludes books that are in-progress (those appear in "Continue Listening")
@@ -2373,6 +2381,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
        SELECT a.*,
               p.position as progress_position,
               p.completed as progress_completed,
+              CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
               ROW_NUMBER() OVER (
                 PARTITION BY a.series
                 ORDER BY COALESCE(a.series_index, a.series_position, 0) ASC
@@ -2380,6 +2389,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
        FROM audiobooks a
        INNER JOIN SeriesWithProgress s ON a.series = s.series
        LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+       LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
        WHERE (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
        AND (p.position IS NULL OR p.position = 0)
        AND (p.completed IS NULL OR p.completed = 0)
@@ -2388,7 +2398,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
      WHERE row_num = 1
      ORDER BY series ASC
      LIMIT ?`,
-    [req.user.id, req.user.id, limit],
+    [userId, userId, userId, limit],
     (err, audiobooks) => {
       if (err) {
         console.error('Error in up-next query:', err);
@@ -2398,6 +2408,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        is_favorite: !!book.is_favorite,
         progress: book.progress_position !== null ? {
           position: book.progress_position,
           completed: book.progress_completed
@@ -2416,15 +2427,18 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
 // Get finished audiobooks (completed = 1) in random order
 router.get('/meta/finished', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
+  const userId = req.user.id;
 
   db.all(
-    `SELECT a.*, p.position as progress_position, p.completed as progress_completed
+    `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+            CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
+     LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
      WHERE p.user_id = ? AND p.completed = 1
      ORDER BY RANDOM()
      LIMIT ?`,
-    [req.user.id, limit],
+    [userId, userId, limit],
     (err, audiobooks) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -2433,6 +2447,7 @@ router.get('/meta/finished', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        is_favorite: !!book.is_favorite,
         progress: {
           position: book.progress_position,
           completed: book.progress_completed
