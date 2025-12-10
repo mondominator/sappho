@@ -2,7 +2,7 @@
 
 module.exports = {
   up: (db) => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       db.serialize(() => {
         // Add is_public column (default false for private)
         db.run(`
@@ -28,7 +28,7 @@ module.exports = {
   },
 
   down: (db) => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // SQLite doesn't support DROP COLUMN easily, so we'll just leave the column
       // In production, you'd recreate the table without the column
       db.run('DROP INDEX IF EXISTS idx_collections_public', (err) => {
