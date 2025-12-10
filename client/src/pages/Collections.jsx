@@ -1,7 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCollections, createCollection, deleteCollection, getCoverUrl } from '../api';
 import './Collections.css';
+
+// Component for rotating collection covers
+function RotatingCover({ bookIds, collectionName }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (!bookIds || bookIds.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % bookIds.length);
+      setImageError(false);
+    }, 4000); // Change every 4 seconds
+
+    return () => clearInterval(interval);
+  }, [bookIds]);
+
+  if (!bookIds || bookIds.length === 0 || imageError) {
+    return (
+      <div className="collection-placeholder">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          <line x1="12" y1="6" x2="12" y2="10"></line>
+          <line x1="10" y1="8" x2="14" y2="8"></line>
+        </svg>
+        <span>{collectionName.charAt(0).toUpperCase()}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cover-single">
+      <img
+        src={getCoverUrl(bookIds[currentIndex])}
+        alt={collectionName}
+        onError={() => setImageError(true)}
+      />
+    </div>
+  );
+}
 
 export default function Collections() {
   const navigate = useNavigate();
@@ -79,9 +120,11 @@ export default function Collections() {
           <h2 className="collections-count">
             {collections.length} {collections.length === 1 ? 'Collection' : 'Collections'}
           </h2>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            + New Collection
-          </button>
+          {collections.length > 0 && (
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              + New Collection
+            </button>
+          )}
         </div>
       </div>
 
@@ -111,32 +154,15 @@ export default function Collections() {
               )}
               <div className="collection-covers">
                 <div className="collection-book-count">{collection.book_count || 0}</div>
-                {/* Public/Private indicator */}
-                {collection.is_public === 1 && (
-                  <div className="visibility-badge public">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="2" y1="12" x2="22" y2="12"></line>
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                    </svg>
-                  </div>
-                )}
-                {collection.first_cover ? (
-                  <div className="cover-single">
-                    <img
-                      src={getCoverUrl(collection.first_cover.split('/').pop().split('.')[0])}
-                      alt={collection.name}
-                      onError={(e) => e.target.style.display = 'none'}
-                    />
-                  </div>
-                ) : (
-                  <div className="collection-placeholder">
-                    <span>{collection.name.charAt(0).toUpperCase()}</span>
-                  </div>
-                )}
+                <RotatingCover bookIds={collection.book_ids} collectionName={collection.name} />
               </div>
               <div className="collection-card-content">
-                <h3 className="collection-title">{collection.name}</h3>
+                <div className="title-with-visibility">
+                  <h3 className="collection-title">{collection.name}</h3>
+                  <span className={`visibility-tag ${collection.is_public === 1 ? 'public' : 'private'}`}>
+                    {collection.is_public === 1 ? 'Public' : 'Private'}
+                  </span>
+                </div>
                 {collection.description && (
                   <p className="collection-description">{collection.description}</p>
                 )}
@@ -184,11 +210,6 @@ export default function Collections() {
                     onChange={(e) => setNewIsPublic(e.target.checked)}
                   />
                   <span className="toggle-text">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="2" y1="12" x2="22" y2="12"></line>
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                    </svg>
                     Make this collection public
                   </span>
                 </label>

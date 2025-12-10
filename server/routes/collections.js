@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database');
+const db = require('../database');
 const { authenticateToken } = require('../auth');
 
 // Get all collections for current user (private + all public)
@@ -9,10 +9,9 @@ router.get('/', authenticateToken, (req, res) => {
     `SELECT c.*,
             u.username as creator_username,
             COUNT(ci.id) as book_count,
-            (SELECT a.cover_image FROM collection_items ci2
-             JOIN audiobooks a ON ci2.audiobook_id = a.id
+            (SELECT GROUP_CONCAT(ci2.audiobook_id) FROM collection_items ci2
              WHERE ci2.collection_id = c.id
-             ORDER BY ci2.position ASC LIMIT 1) as first_cover,
+             ORDER BY ci2.position ASC LIMIT 10) as book_ids,
             CASE WHEN c.user_id = ? THEN 1 ELSE 0 END as is_owner
      FROM user_collections c
      LEFT JOIN collection_items ci ON c.id = ci.collection_id
@@ -25,7 +24,12 @@ router.get('/', authenticateToken, (req, res) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
-      res.json(collections || []);
+      // Parse book_ids string into array
+      const result = (collections || []).map(c => ({
+        ...c,
+        book_ids: c.book_ids ? c.book_ids.split(',').map(id => parseInt(id, 10)) : []
+      }));
+      res.json(result);
     }
   );
 });
@@ -108,16 +112,20 @@ router.get('/:id', authenticateToken, (req, res) => {
         return res.status(404).json({ error: 'Collection not found' });
       }
 
-      // Then get the books in this collection
+      // Then get the books in this collection with ratings
       db.all(
         `SELECT a.*, ci.position, ci.added_at,
-                pp.position as progress_position, pp.completed as progress_completed
+                pp.position as progress_position, pp.completed as progress_completed,
+                ur.rating as user_rating,
+                (SELECT AVG(ur2.rating) FROM user_ratings ur2 WHERE ur2.audiobook_id = a.id AND ur2.rating IS NOT NULL) as average_rating,
+                (SELECT COUNT(*) FROM user_ratings ur3 WHERE ur3.audiobook_id = a.id AND ur3.rating IS NOT NULL) as rating_count
          FROM collection_items ci
          JOIN audiobooks a ON ci.audiobook_id = a.id
          LEFT JOIN playback_progress pp ON a.id = pp.audiobook_id AND pp.user_id = ?
+         LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?
          WHERE ci.collection_id = ?
          ORDER BY ci.position ASC`,
-        [req.user.id, collectionId],
+        [req.user.id, req.user.id, collectionId],
         (err, books) => {
           if (err) {
             return res.status(500).json({ error: err.message });

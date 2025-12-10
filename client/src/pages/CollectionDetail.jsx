@@ -151,11 +151,6 @@ export default function CollectionDetail() {
                     onChange={(e) => setEditIsPublic(e.target.checked)}
                   />
                   <span className="toggle-text">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="2" y1="12" x2="22" y2="12"></line>
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                    </svg>
                     Make this collection public
                   </span>
                 </label>
@@ -224,13 +219,21 @@ export default function CollectionDetail() {
                   onError={(e) => e.target.src = '/placeholder-cover.png'}
                 />
                 {getProgress(book) > 0 && (
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${getProgress(book)}%` }} />
+                  <div className="progress-bar-overlay">
+                    <div className={`progress-bar-fill${getProgress(book) >= 100 ? ' completed' : ''}`} style={{ width: `${getProgress(book)}%` }} />
                   </div>
                 )}
               </div>
               <div className="book-info" onClick={() => navigate(`/audiobook/${book.id}`)}>
-                <h3 className="book-title">{book.title}</h3>
+                <div className="book-title-row">
+                  <h3 className="book-title">{book.title}</h3>
+                  <span className={`book-rating ${!book.user_rating && !book.average_rating ? 'no-rating' : ''}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={book.user_rating || book.average_rating ? '#fbbf24' : 'none'} stroke="#fbbf24" strokeWidth="1.5">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    {book.user_rating || (book.average_rating ? Math.round(book.average_rating * 10) / 10 : '—')}
+                  </span>
+                </div>
                 <p className="book-author">{book.author || 'Unknown Author'}</p>
                 {book.duration && (
                   <span className="book-duration">{formatDuration(book.duration)}</span>

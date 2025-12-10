@@ -24,7 +24,12 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
         getCollectionsForBook(audiobookId)
       ]);
       setCollections(collectionsRes.data);
-      setBookCollections(new Set(bookCollectionsRes.data.map(c => c.id)));
+      // Filter for collections where contains_book is 1 (true)
+      setBookCollections(new Set(
+        bookCollectionsRes.data
+          .filter(c => c.contains_book === 1)
+          .map(c => c.id)
+      ));
     } catch (error) {
       console.error('Error loading collections:', error);
     } finally {
