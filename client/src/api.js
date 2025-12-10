@@ -298,14 +298,14 @@ export const mergeDuplicates = (keepId, deleteIds, deleteFiles = false) =>
 export const getCollections = () =>
   api.get('/collections');
 
-export const createCollection = (name, description) =>
-  api.post('/collections', { name, description });
+export const createCollection = (name, description, is_public = false) =>
+  api.post('/collections', { name, description, is_public });
 
 export const getCollection = (id) =>
   api.get(`/collections/${id}`);
 
-export const updateCollection = (id, name, description) =>
-  api.put(`/collections/${id}`, { name, description });
+export const updateCollection = (id, name, description, is_public = false) =>
+  api.put(`/collections/${id}`, { name, description, is_public });
 
 export const deleteCollection = (id) =>
   api.delete(`/collections/${id}`);
