@@ -7,6 +7,7 @@ const { authenticateToken } = require('../auth');
 const { processAudiobook, extractFileMetadata } = require('../services/fileProcessor');
 const db = require('../database');
 const websocketManager = require('../services/websocketManager');
+const { generateBestHash } = require('../utils/contentHash');
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../data/uploads');
 
@@ -218,6 +219,13 @@ router.post('/multifile', authenticateToken, upload.array('audiobooks', 100), as
       }
     }
 
+    // Generate content hash for stable identification
+    const contentHash = generateBestHash({
+      title,
+      author,
+      duration: totalDuration
+    }, movedFiles[0]);
+
     // Save audiobook to database
     const audiobook = await new Promise((resolve, reject) => {
       db.run(
@@ -225,8 +233,8 @@ router.post('/multifile', authenticateToken, upload.array('audiobooks', 100), as
          (title, author, narrator, description, duration, file_path, file_size,
           genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
           tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          content_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           title,
           author,
@@ -250,6 +258,7 @@ router.post('/multifile', authenticateToken, upload.array('audiobooks', 100), as
           firstFileMetadata.rating,
           firstFileMetadata.abridged ? 1 : 0,
           firstFileMetadata.subtitle,
+          contentHash,
         ],
         function (err) {
           if (err) {
