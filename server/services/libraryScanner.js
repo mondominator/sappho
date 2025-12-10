@@ -5,6 +5,7 @@ const { promisify } = require('util');
 const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
 const websocketManager = require('./websocketManager');
+const { generateBestHash } = require('../utils/contentHash');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -129,6 +130,21 @@ function audiobookExistsInDirectory(filePath) {
 }
 
 /**
+ * Check if an audiobook with the given content hash already exists
+ */
+function audiobookExistsByHash(contentHash) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT id, file_path, title FROM audiobooks WHERE content_hash = ?', [contentHash], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row || null);
+      }
+    });
+  });
+}
+
+/**
  * Import a single-file audiobook into the database without moving it
  */
 async function importAudiobook(filePath, userId = 1) {
@@ -158,6 +174,16 @@ async function importAudiobook(filePath, userId = 1) {
     // Extract metadata from the file
     const metadata = await extractFileMetadata(filePath);
 
+    // Generate content hash for stable identification
+    const contentHash = generateBestHash(metadata, filePath);
+
+    // Check if an audiobook with this content hash already exists
+    const existingByHash = await audiobookExistsByHash(contentHash);
+    if (existingByHash) {
+      console.log(`Skipping ${filePath} - audiobook with same content hash already exists: ${existingByHash.title}`);
+      return null;
+    }
+
     // Get file stats
     const stats = fs.statSync(filePath);
 
@@ -180,8 +206,8 @@ async function importAudiobook(filePath, userId = 1) {
          (title, author, narrator, description, duration, file_path, file_size,
           genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
           tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          content_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           metadata.title,
           metadata.author,
@@ -206,6 +232,7 @@ async function importAudiobook(filePath, userId = 1) {
           metadata.rating,
           metadata.abridged ? 1 : 0,
           metadata.subtitle,
+          contentHash,
         ],
         function (err) {
           if (err) {
@@ -327,6 +354,16 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
       return null;
     }
 
+    // Generate content hash for stable identification (use total duration for multi-file)
+    const contentHash = generateBestHash({ ...metadata, duration: totalDuration }, firstFilePath);
+
+    // Check if an audiobook with this content hash already exists
+    const existingByHash = await audiobookExistsByHash(contentHash);
+    if (existingByHash) {
+      console.log(`Skipping multi-file audiobook ${metadata.title} - audiobook with same content hash already exists: ${existingByHash.title}`);
+      return null;
+    }
+
     // Save audiobook to database with is_multi_file flag
     return new Promise((resolve, reject) => {
       db.run(
@@ -334,8 +371,8 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
          (title, author, narrator, description, duration, file_path, file_size,
           genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
           tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          content_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           metadata.title,
           metadata.author,
@@ -359,6 +396,7 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
           metadata.rating,
           metadata.abridged ? 1 : 0,
           metadata.subtitle,
+          contentHash,
         ],
         function (err) {
           if (err) {

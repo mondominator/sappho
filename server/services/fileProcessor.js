@@ -3,6 +3,7 @@ const path = require('path');
 const db = require('../database');
 const { scrapeMetadata } = require('./metadataScraper');
 const websocketManager = require('./websocketManager');
+const { generateBestHash } = require('../utils/contentHash');
 
 // music-metadata is ESM only, use dynamic import
 let parseFile;
@@ -718,12 +719,16 @@ async function organizeFile(sourcePath, metadata) {
 }
 
 async function saveToDatabase(metadata, filePath, fileSize, userId) {
+  // Generate content hash for stable identification
+  const contentHash = generateBestHash(metadata, filePath);
+
   return new Promise((resolve, reject) => {
     db.run(
       `INSERT INTO audiobooks
        (title, author, narrator, description, duration, file_path, file_size,
-        genre, published_year, isbn, series, series_position, cover_image, added_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        genre, published_year, isbn, series, series_position, cover_image, added_by,
+        content_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [
         metadata.title,
         metadata.author,
@@ -739,6 +744,7 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
         metadata.series_position,
         metadata.cover_image,
         userId,
+        contentHash,
       ],
       function (err) {
         if (err) {
