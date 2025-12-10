@@ -64,6 +64,30 @@ router.post('/', authenticateToken, (req, res) => {
   );
 });
 
+// Get collections that contain a specific book (user's private + public)
+// NOTE: This route MUST be before /:id to avoid "for-book" being matched as an ID
+router.get('/for-book/:bookId', authenticateToken, (req, res) => {
+  const bookId = req.params.bookId;
+
+  db.all(
+    `SELECT c.id, c.name, c.is_public, c.user_id, u.username as creator_username,
+            CASE WHEN ci.audiobook_id IS NOT NULL THEN 1 ELSE 0 END as contains_book,
+            CASE WHEN c.user_id = ? THEN 1 ELSE 0 END as is_owner
+     FROM user_collections c
+     LEFT JOIN collection_items ci ON c.id = ci.collection_id AND ci.audiobook_id = ?
+     LEFT JOIN users u ON c.user_id = u.id
+     WHERE c.user_id = ? OR c.is_public = 1
+     ORDER BY c.name ASC`,
+    [req.user.id, bookId, req.user.id],
+    (err, collections) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(collections || []);
+    }
+  );
+});
+
 // Get a single collection with its books
 router.get('/:id', authenticateToken, (req, res) => {
   const collectionId = req.params.id;
@@ -320,29 +344,6 @@ router.put('/:id/items/reorder', authenticateToken, (req, res) => {
         res.status(500).json({ error: err.message });
       });
   });
-});
-
-// Get collections that contain a specific book (user's private + public)
-router.get('/for-book/:bookId', authenticateToken, (req, res) => {
-  const bookId = req.params.bookId;
-
-  db.all(
-    `SELECT c.id, c.name, c.is_public, c.user_id, u.username as creator_username,
-            CASE WHEN ci.audiobook_id IS NOT NULL THEN 1 ELSE 0 END as contains_book,
-            CASE WHEN c.user_id = ? THEN 1 ELSE 0 END as is_owner
-     FROM user_collections c
-     LEFT JOIN collection_items ci ON c.id = ci.collection_id AND ci.audiobook_id = ?
-     LEFT JOIN users u ON c.user_id = u.id
-     WHERE c.user_id = ? OR c.is_public = 1
-     ORDER BY c.name ASC`,
-    [req.user.id, bookId, req.user.id],
-    (err, collections) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json(collections || []);
-    }
-  );
 });
 
 module.exports = router;
