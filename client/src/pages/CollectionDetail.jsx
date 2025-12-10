@@ -227,25 +227,27 @@ export default function CollectionDetail() {
               <div className="book-info" onClick={() => navigate(`/audiobook/${book.id}`)}>
                 <div className="book-title-row">
                   <h3 className="book-title">{book.title}</h3>
-                  <span className={`book-rating ${!book.user_rating && !book.average_rating ? 'no-rating' : ''}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={book.user_rating || book.average_rating ? '#fbbf24' : 'none'} stroke="#fbbf24" strokeWidth="1.5">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                    </svg>
-                    {book.user_rating || (book.average_rating ? Math.round(book.average_rating * 10) / 10 : '—')}
-                  </span>
                 </div>
                 <p className="book-author">{book.author || 'Unknown Author'}</p>
                 {book.duration && (
                   <span className="book-duration">{formatDuration(book.duration)}</span>
                 )}
+                <span className={`book-rating ${!book.user_rating && !book.average_rating ? 'no-rating' : ''}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={book.user_rating || book.average_rating ? '#fbbf24' : 'none'} stroke="#fbbf24" strokeWidth="1.5">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                  {book.user_rating || (book.average_rating ? Math.round(book.average_rating * 10) / 10 : '—')}
+                </span>
               </div>
-              <button
-                className="remove-btn"
-                onClick={() => handleRemoveBook(book.id)}
-                title="Remove from collection"
-              >
-                ×
-              </button>
+              {editing && (
+                <button
+                  className="remove-btn"
+                  onClick={() => handleRemoveBook(book.id)}
+                  title="Remove from collection"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>

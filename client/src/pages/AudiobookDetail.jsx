@@ -29,6 +29,7 @@ export default function AudiobookDetail({ onPlay }) {
   const [recapExpanded, setRecapExpanded] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(false);
   const [refreshingMetadata, setRefreshingMetadata] = useState(false);
+  const [narratorIndex, setNarratorIndex] = useState(0);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -45,11 +46,25 @@ export default function AudiobookDetail({ onPlay }) {
   useEffect(() => {
     loadAudiobook();
     checkAiStatus();
-    // Reset recap state when book changes
+    // Reset state when book changes
     setRecap(null);
     setRecapExpanded(false);
     setRecapError(null);
+    setNarratorIndex(0);
   }, [id]);
+
+  // Auto-cycle through narrators
+  useEffect(() => {
+    if (!audiobook?.narrator) return;
+    const narrators = audiobook.narrator.split(/,\s*(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(n => n.trim()).filter(n => n);
+    if (narrators.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setNarratorIndex((prev) => (prev + 1) % narrators.length);
+    }, 3000); // Change every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [audiobook?.narrator]);
 
   const checkAiStatus = async () => {
     try {
@@ -570,12 +585,44 @@ export default function AudiobookDetail({ onPlay }) {
                 <span className="meta-value author-link" onClick={() => navigate(`/author/${encodeURIComponent(audiobook.author)}`)}>{audiobook.author}</span>
               </div>
             )}
-            {audiobook.narrator && (
-              <div className="meta-item">
-                <span className="meta-label">Narrator</span>
-                <span className="meta-value">{audiobook.narrator}</span>
-              </div>
-            )}
+            {audiobook.narrator && (() => {
+              const narrators = audiobook.narrator.split(/,\s*(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(n => n.trim()).filter(n => n);
+              if (narrators.length <= 1) {
+                return (
+                  <div className="meta-item">
+                    <span className="meta-label">Narrator</span>
+                    <span className="meta-value">{audiobook.narrator}</span>
+                  </div>
+                );
+              }
+              return (
+                <div className="meta-item narrator-carousel">
+                  <span className="meta-label">Narrators</span>
+                  <div className="narrator-carousel-content">
+                    <button
+                      className="narrator-nav narrator-prev"
+                      onClick={() => setNarratorIndex((prev) => (prev - 1 + narrators.length) % narrators.length)}
+                      aria-label="Previous narrator"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                      </svg>
+                    </button>
+                    <span className="meta-value narrator-name">{narrators[narratorIndex]}</span>
+                    <button
+                      className="narrator-nav narrator-next"
+                      onClick={() => setNarratorIndex((prev) => (prev + 1) % narrators.length)}
+                      aria-label="Next narrator"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </button>
+                    <span className="narrator-count">{narratorIndex + 1}/{narrators.length}</span>
+                  </div>
+                </div>
+              );
+            })()}
             {audiobook.series && (
               <div className="meta-item">
                 <span className="meta-label">Series</span>
