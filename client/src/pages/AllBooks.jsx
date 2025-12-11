@@ -32,20 +32,32 @@ function normalizeGenreString(genreStr, genreMappings) {
   return Array.from(normalized);
 }
 
+// Get storage key prefix based on current URL to keep settings independent per screen
+function getStoragePrefix() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('favorites') === 'true') return 'readingList_';
+  if (params.get('genre')) return `genre_${params.get('genre')}_`;
+  return 'allBooks_';
+}
+
 export default function AllBooks({ onPlay }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const genreFilter = searchParams.get('genre');
   const favoritesOnly = searchParams.get('favorites') === 'true';
+
+  // Compute storage prefix for this view (changes when URL params change)
+  const storagePrefix = favoritesOnly ? 'readingList_' : (genreFilter ? `genre_${genreFilter}_` : 'allBooks_');
+
   const [audiobooks, setAudiobooks] = useState([]);
   const [genreMappings, setGenreMappings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState(() => localStorage.getItem('sortBy') || 'title');
-  const [sortOrder, setSortOrder] = useState(() => localStorage.getItem('sortOrder') || 'asc');
-  const [progressFilter, setProgressFilter] = useState(() => localStorage.getItem('progressFilter') || 'all');
-  const [durationFilter, setDurationFilter] = useState(() => localStorage.getItem('durationFilter') || 'all');
-  const [dateAddedFilter, setDateAddedFilter] = useState(() => localStorage.getItem('dateAddedFilter') || 'all');
-  const [narratorFilter, setNarratorFilter] = useState(() => localStorage.getItem('narratorFilter') || 'all');
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem(getStoragePrefix() + 'sortBy') || 'title');
+  const [sortOrder, setSortOrder] = useState(() => localStorage.getItem(getStoragePrefix() + 'sortOrder') || 'asc');
+  const [progressFilter, setProgressFilter] = useState(() => localStorage.getItem(getStoragePrefix() + 'progressFilter') || 'all');
+  const [durationFilter, setDurationFilter] = useState(() => localStorage.getItem(getStoragePrefix() + 'durationFilter') || 'all');
+  const [dateAddedFilter, setDateAddedFilter] = useState(() => localStorage.getItem(getStoragePrefix() + 'dateAddedFilter') || 'all');
+  const [narratorFilter, setNarratorFilter] = useState(() => localStorage.getItem(getStoragePrefix() + 'narratorFilter') || 'all');
   const [showFilters, setShowFilters] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -55,30 +67,40 @@ export default function AllBooks({ onPlay }) {
   const longPressTimer = useRef(null);
   const longPressTriggered = useRef(false);
 
-  // Save preferences to localStorage
+  // Save preferences to localStorage (using per-screen prefix)
   useEffect(() => {
-    localStorage.setItem('sortBy', sortBy);
-  }, [sortBy]);
+    localStorage.setItem(storagePrefix + 'sortBy', sortBy);
+  }, [sortBy, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('sortOrder', sortOrder);
-  }, [sortOrder]);
+    localStorage.setItem(storagePrefix + 'sortOrder', sortOrder);
+  }, [sortOrder, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('progressFilter', progressFilter);
-  }, [progressFilter]);
+    localStorage.setItem(storagePrefix + 'progressFilter', progressFilter);
+  }, [progressFilter, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('durationFilter', durationFilter);
-  }, [durationFilter]);
+    localStorage.setItem(storagePrefix + 'durationFilter', durationFilter);
+  }, [durationFilter, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('dateAddedFilter', dateAddedFilter);
-  }, [dateAddedFilter]);
+    localStorage.setItem(storagePrefix + 'dateAddedFilter', dateAddedFilter);
+  }, [dateAddedFilter, storagePrefix]);
 
   useEffect(() => {
-    localStorage.setItem('narratorFilter', narratorFilter);
-  }, [narratorFilter]);
+    localStorage.setItem(storagePrefix + 'narratorFilter', narratorFilter);
+  }, [narratorFilter, storagePrefix]);
+
+  // Reset filter/sort state when switching between views (All Books vs Reading List vs Genre)
+  useEffect(() => {
+    setSortBy(localStorage.getItem(storagePrefix + 'sortBy') || 'title');
+    setSortOrder(localStorage.getItem(storagePrefix + 'sortOrder') || 'asc');
+    setProgressFilter(localStorage.getItem(storagePrefix + 'progressFilter') || 'all');
+    setDurationFilter(localStorage.getItem(storagePrefix + 'durationFilter') || 'all');
+    setDateAddedFilter(localStorage.getItem(storagePrefix + 'dateAddedFilter') || 'all');
+    setNarratorFilter(localStorage.getItem(storagePrefix + 'narratorFilter') || 'all');
+  }, [storagePrefix]);
 
   useEffect(() => {
     loadData();
