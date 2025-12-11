@@ -3046,10 +3046,10 @@ router.post('/batch/add-to-collection', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Verify collection belongs to user
+    // Verify collection belongs to user OR is public
     const collection = await new Promise((resolve, reject) => {
       db.get(
-        'SELECT id FROM collections WHERE id = ? AND user_id = ?',
+        'SELECT id FROM user_collections WHERE id = ? AND (user_id = ? OR is_public = 1)',
         [collection_id, userId],
         (err, row) => {
           if (err) reject(err);
