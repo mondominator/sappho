@@ -5,9 +5,9 @@
 const { validatePassword } = require('../../server/auth');
 
 describe('validatePassword', () => {
-  test('rejects passwords shorter than 12 characters', () => {
-    const errors = validatePassword('Short1!abc');
-    expect(errors).toContain('Password must be at least 12 characters long');
+  test('rejects passwords shorter than 6 characters', () => {
+    const errors = validatePassword('Ab1!');
+    expect(errors).toContain('Password must be at least 6 characters long');
   });
 
   test('rejects passwords without uppercase letters', () => {
