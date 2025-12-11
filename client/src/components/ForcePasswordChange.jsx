@@ -20,8 +20,8 @@ export default function ForcePasswordChange({ onPasswordChanged, onLogout }) {
       return;
     }
 
-    if (passwordData.newPassword.length < 12) {
-      setError('Password must be at least 12 characters long');
+    if (passwordData.newPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
 
@@ -107,7 +107,7 @@ export default function ForcePasswordChange({ onPasswordChanged, onLogout }) {
               required
             />
             <p className="help-text">
-              Must be at least 12 characters with uppercase, lowercase, number, and special character.
+              Must be at least 6 characters with uppercase, lowercase, number, and special character.
             </p>
           </div>
 
