@@ -112,7 +112,7 @@ docker-compose down
      - **Session tokens** - Short-lived, returned on login for browser/app use
      - **API keys** - Long-lived, managed via `/api/api-keys` for external integrations
    - Default admin created on first startup with password "admin" (forced password change on first login)
-   - Password requirements: 12+ characters, uppercase, lowercase, number, special character
+   - Password requirements: 6+ characters, uppercase, lowercase, number, special character
 
 5. **Session Management** (`services/sessionManager.js`):
    - In-memory tracking of active playback sessions (not persisted to DB)

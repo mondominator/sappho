@@ -327,7 +327,7 @@ function checkPasswordPolicy() {
       'server/routes/auth.js',
       1,
       'Registration endpoint has no password complexity requirements.',
-      'Enforce minimum 12 characters with complexity requirements.'
+      'Enforce minimum 6 characters with complexity requirements.'
     );
   }
 
@@ -341,7 +341,7 @@ function checkPasswordPolicy() {
       'server/routes/profile.js',
       line,
       'Password change only requires 6 character minimum, which is too weak.',
-      'Increase minimum to 12 characters and add complexity requirements.'
+      'Increase minimum to 6 characters and add complexity requirements.'
     );
   }
 }
