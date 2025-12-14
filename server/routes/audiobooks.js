@@ -346,12 +346,16 @@ router.get('/', authenticateToken, (req, res) => {
   const userId = req.user.id;
 
   let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
-                      CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
+                      p.updated_at as progress_updated_at,
+                      CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+                      ur.rating as user_rating,
+                      (SELECT AVG(ur2.rating) FROM user_ratings ur2 WHERE ur2.audiobook_id = a.id AND ur2.rating IS NOT NULL) as average_rating
                FROM audiobooks a
                LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
                LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+               LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?
                WHERE 1=1`;
-  const params = [userId, userId];
+  const params = [userId, userId, userId];
 
   if (genre) {
     query += ' AND a.genre LIKE ?';
@@ -385,15 +389,18 @@ router.get('/', authenticateToken, (req, res) => {
       return res.status(500).json({ error: err.message });
     }
 
-    // Transform progress fields into nested object
+    // Transform progress and rating fields into nested/clean format
     const transformedAudiobooks = audiobooks.map(book => {
-      const { progress_position, progress_completed, is_favorite, ...rest } = book;
+      const { progress_position, progress_completed, progress_updated_at, is_favorite, user_rating, average_rating, ...rest } = book;
       return {
         ...rest,
         is_favorite: !!is_favorite,
+        user_rating: user_rating || null,
+        average_rating: average_rating ? Math.round(average_rating * 10) / 10 : null,
         progress: progress_position !== null ? {
           position: progress_position,
-          completed: progress_completed
+          completed: progress_completed,
+          updated_at: progress_updated_at
         } : null
       };
     });
@@ -2218,7 +2225,13 @@ router.get('/meta/series', authenticateToken, (req, res) => {
        a.series,
        COUNT(DISTINCT a.id) as book_count,
        GROUP_CONCAT(DISTINCT a.id ORDER BY a.series_position) as book_ids,
-       COUNT(DISTINCT CASE WHEN p.completed = 1 THEN a.id END) as completed_count
+       COUNT(DISTINCT CASE WHEN p.completed = 1 THEN a.id END) as completed_count,
+       (SELECT AVG(ur.rating) FROM user_ratings ur
+        INNER JOIN audiobooks a2 ON ur.audiobook_id = a2.id
+        WHERE a2.series = a.series AND ur.rating IS NOT NULL) as average_rating,
+       (SELECT COUNT(*) FROM user_ratings ur
+        INNER JOIN audiobooks a2 ON ur.audiobook_id = a2.id
+        WHERE a2.series = a.series AND ur.rating IS NOT NULL) as rating_count
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
      WHERE a.series IS NOT NULL
@@ -2236,7 +2249,9 @@ router.get('/meta/series', authenticateToken, (req, res) => {
         .map(s => ({
           ...s,
           cover_ids: s.book_ids ? s.book_ids.split(',').slice(0, 4) : [],
-          completed_count: s.completed_count || 0
+          completed_count: s.completed_count || 0,
+          average_rating: s.average_rating ? Math.round(s.average_rating * 10) / 10 : null,
+          rating_count: s.rating_count || 0
         }));
       res.json(seriesWithCovers);
     }
