@@ -236,6 +236,19 @@
   flex-wrap: wrap;
 }
 
+.series-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #fbbf24;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.series-rating svg {
+  flex-shrink: 0;
+}
+
 .completion-badge {
   display: inline-flex;
   align-items: center;

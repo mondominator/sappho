@@ -298,6 +298,15 @@ export default function AllBooks({ onPlay }) {
         const bPlayed = b.progress?.updated_at ? new Date(b.progress.updated_at) : new Date(0);
         result = bPlayed - aPlayed;
         break;
+      case 'rating':
+        // Sort by user rating first, then average rating, unrated at end
+        const aRating = a.user_rating || a.average_rating || 0;
+        const bRating = b.user_rating || b.average_rating || 0;
+        // Put unrated books at the end
+        if (aRating === 0 && bRating !== 0) return 1;
+        if (bRating === 0 && aRating !== 0) return -1;
+        result = bRating - aRating; // Higher ratings first by default
+        break;
       default:
         result = 0;
     }
@@ -522,6 +531,7 @@ export default function AllBooks({ onPlay }) {
                   <option value="recently-played">Recently Listened</option>
                   <option value="duration">Duration</option>
                   <option value="progress">Progress</option>
+                  <option value="rating">Rating</option>
                 </select>
               </div>
             </div>
