@@ -2117,6 +2117,73 @@ router.delete('/:id/progress', authenticateToken, (req, res) => {
   );
 });
 
+// Check if the immediately previous book in a series is completed
+// Returns { previousBookCompleted: boolean, previousBook: { id, title, series_position } | null }
+router.get('/:id/previous-book-status', authenticateToken, async (req, res) => {
+  const audiobookId = parseInt(req.params.id);
+  const userId = req.user.id;
+
+  try {
+    // Get the current book's series and position
+    const currentBook = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, series, series_position FROM audiobooks WHERE id = ?',
+        [audiobookId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!currentBook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    // If book is not in a series or has no position, no previous book
+    if (!currentBook.series || !currentBook.series_position) {
+      return res.json({ previousBookCompleted: false, previousBook: null });
+    }
+
+    const currentPosition = currentBook.series_position;
+
+    // Find the immediately previous book in the series (the one with the highest position less than current)
+    const previousBook = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT a.id, a.title, a.series_position, COALESCE(p.completed, 0) as completed
+         FROM audiobooks a
+         LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+         WHERE a.series = ? AND a.series_position < ?
+         ORDER BY a.series_position DESC
+         LIMIT 1`,
+        [userId, currentBook.series, currentPosition],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!previousBook) {
+      // No previous book in series (this is book 1 or first with a position)
+      return res.json({ previousBookCompleted: false, previousBook: null });
+    }
+
+    res.json({
+      previousBookCompleted: previousBook.completed === 1,
+      previousBook: {
+        id: previousBook.id,
+        title: previousBook.title,
+        series_position: previousBook.series_position
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking previous book status:', error);
+    res.status(500).json({ error: 'Failed to check previous book status' });
+  }
+});
+
 // Get cover art (uses authenticateMediaToken to allow query string tokens for <img> tags)
 router.get('/:id/cover', authenticateMediaToken, (req, res) => {
   db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
