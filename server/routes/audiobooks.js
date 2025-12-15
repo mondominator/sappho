@@ -1232,7 +1232,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
           if (newCoverPath !== currentBook.cover_path) {
             try {
               fs.renameSync(currentBook.cover_path, newCoverPath);
-            } catch (renameErr) {
+            } catch (_renameErr) {
               fs.copyFileSync(currentBook.cover_path, newCoverPath);
               if (fs.existsSync(newCoverPath)) {
                 fs.unlinkSync(currentBook.cover_path);
