@@ -1078,8 +1078,8 @@ async function downloadCover(url, audiobookId) {
     }
 
     // Determine extension from URL or default to jpg
-    const urlPath = new URL(url).pathname;
-    let ext = path.extname(urlPath).toLowerCase();
+    const parsedUrl = new URL(url);
+    let ext = path.extname(parsedUrl.pathname).toLowerCase();
     if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
       ext = '.jpg';
     }
@@ -1088,7 +1088,19 @@ async function downloadCover(url, audiobookId) {
 
     return new Promise((resolve, reject) => {
       const protocol = url.startsWith('https') ? https : http;
-      const request = protocol.get(url, (response) => {
+      // Build request options with headers (required for Amazon CDN and other image servers)
+      const requestOptions = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (url.startsWith('https') ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Sappho/1.0; +https://github.com/mondominator/sappho)',
+          'Accept': 'image/*,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        }
+      };
+      const request = protocol.get(requestOptions, (response) => {
         // Handle redirects
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           downloadCover(response.headers.location, audiobookId).then(resolve).catch(reject);
@@ -1186,9 +1198,29 @@ router.put('/:id', authenticateToken, async (req, res) => {
           fs.mkdirSync(newBookDir, { recursive: true });
         }
 
-        // Move the audio file
-        fs.copyFileSync(currentBook.file_path, newFilePath);
-        fs.unlinkSync(currentBook.file_path);
+        // Move the audio file - try atomic rename first, fall back to copy+delete
+        try {
+          fs.renameSync(currentBook.file_path, newFilePath);
+          console.log('Moved file using rename (atomic)');
+        } catch (renameErr) {
+          // Rename failed (likely cross-filesystem), use copy+delete
+          console.log('Rename failed, using copy+delete:', renameErr.code);
+          fs.copyFileSync(currentBook.file_path, newFilePath);
+          // Verify copy succeeded before deleting original
+          if (fs.existsSync(newFilePath)) {
+            const origSize = fs.statSync(currentBook.file_path).size;
+            const newSize = fs.statSync(newFilePath).size;
+            if (newSize === origSize) {
+              fs.unlinkSync(currentBook.file_path);
+            } else {
+              // Copy incomplete, remove it and throw error
+              fs.unlinkSync(newFilePath);
+              throw new Error('File copy verification failed - sizes do not match');
+            }
+          } else {
+            throw new Error('File copy failed - destination file not found');
+          }
+        }
         fileReorganized = true;
 
         // Move cover image if it exists and is in the same directory
@@ -1198,8 +1230,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
           newCoverPath = path.join(newBookDir, newCoverName);
 
           if (newCoverPath !== currentBook.cover_path) {
-            fs.copyFileSync(currentBook.cover_path, newCoverPath);
-            fs.unlinkSync(currentBook.cover_path);
+            try {
+              fs.renameSync(currentBook.cover_path, newCoverPath);
+            } catch (renameErr) {
+              fs.copyFileSync(currentBook.cover_path, newCoverPath);
+              if (fs.existsSync(newCoverPath)) {
+                fs.unlinkSync(currentBook.cover_path);
+              }
+            }
           }
         }
 
@@ -1323,6 +1361,13 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
     const ext = path.extname(audiobook.file_path).toLowerCase();
     const dir = path.dirname(audiobook.file_path);
 
+    // Determine cover file path (check cover_path first, then cover_image as fallback)
+    const coverFile = (audiobook.cover_path && fs.existsSync(audiobook.cover_path))
+      ? audiobook.cover_path
+      : (audiobook.cover_image && fs.existsSync(audiobook.cover_image))
+        ? audiobook.cover_image
+        : null;
+
     // Use tone for M4B/M4A files - supports proper audiobook tags (MVNM, MVIN, narrator, etc.)
     if (ext === '.m4b' || ext === '.m4a') {
       // Create a JSON file with metadata to avoid command line escaping issues
@@ -1385,13 +1430,7 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         }
       }
 
-      // Embed cover art if available (check cover_path first, then cover_image as fallback)
-      const coverFile = (audiobook.cover_path && fs.existsSync(audiobook.cover_path))
-        ? audiobook.cover_path
-        : (audiobook.cover_image && fs.existsSync(audiobook.cover_image))
-          ? audiobook.cover_image
-          : null;
-
+      // Embed cover art if available
       if (coverFile) {
         try {
           const coverData = fs.readFileSync(coverFile);
@@ -1480,6 +1519,12 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
 
       const args = ['-i', audiobook.file_path];
 
+      // Add cover image as second input if available
+      const hasCover = coverFile && ext === '.mp3';  // Cover embedding works best for MP3
+      if (hasCover) {
+        args.push('-i', coverFile);
+      }
+
       // Add metadata flags
       if (audiobook.title) args.push('-metadata', `title=${audiobook.title}`);
       if (audiobook.author) args.push('-metadata', `artist=${audiobook.author}`);
@@ -1502,11 +1547,27 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
       }
       if (audiobook.publisher) args.push('-metadata', `publisher=${audiobook.publisher}`);
 
-      // Copy streams without re-encoding
-      args.push('-c', 'copy');
+      // Map streams and set codecs
+      if (hasCover) {
+        // Map audio from first input and cover image from second input
+        args.push('-map', '0:a');
+        args.push('-map', '1:v');
+        args.push('-c:a', 'copy');
+        args.push('-c:v', 'copy');
+        // ID3v2 tag version (required for embedded pictures in MP3)
+        args.push('-id3v2_version', '3');
+        // Mark the image as front cover
+        args.push('-metadata:s:v', 'title=Album cover');
+        args.push('-metadata:s:v', 'comment=Cover (front)');
+        console.log(`Including cover art from ${coverFile}`);
+      } else {
+        // No cover - just copy all streams
+        args.push('-c', 'copy');
+      }
+
       args.push('-y', tempPath);
 
-      console.log(`Embedding metadata with ffmpeg into ${audiobook.file_path}`);
+      console.log(`Embedding metadata with ffmpeg into ${audiobook.file_path}${hasCover ? ' (with cover)' : ''}`);
 
       try {
         await execFileAsync('ffmpeg', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 });
@@ -1520,7 +1581,7 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
 
       console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
       res.json({
-        message: 'Metadata embedded successfully with ffmpeg'
+        message: `Metadata embedded successfully with ffmpeg${hasCover ? ' (with cover)' : ''}`
       });
     }
   } catch (error) {
