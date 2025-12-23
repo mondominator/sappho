@@ -1322,6 +1322,189 @@ router.post('/duplicates/merge', authenticateToken, async (req, res) => {
   }
 });
 
+// Detect orphan directories (directories with files not tracked as audiobooks)
+router.get('/orphan-directories', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    console.log('Scanning for orphan directories...');
+
+    const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+
+    // Get all tracked file paths from database
+    const trackedFiles = await new Promise((resolve, reject) => {
+      db.all(
+        `SELECT file_path FROM audiobooks
+         UNION
+         SELECT file_path FROM audiobook_chapters`,
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(new Set((rows || []).map(r => r.file_path)));
+        }
+      );
+    });
+
+    // Audio file extensions to look for
+    const audioExtensions = ['.m4b', '.m4a', '.mp3', '.flac', '.ogg', '.opus', '.wav', '.aac'];
+
+    const orphanDirs = [];
+
+    // Recursively scan directories
+    function scanDirectory(dir, depth = 0) {
+      if (depth > 10) return; // Prevent infinite recursion
+
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (_err) {
+        return;
+      }
+
+      const subdirs = [];
+      const files = [];
+
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue; // Skip hidden files
+
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          subdirs.push(fullPath);
+        } else if (entry.isFile()) {
+          files.push(fullPath);
+        }
+      }
+
+      // Check if this directory has untracked audio files
+      const audioFiles = files.filter(f =>
+        audioExtensions.includes(path.extname(f).toLowerCase())
+      );
+      const untrackedAudioFiles = audioFiles.filter(f => !trackedFiles.has(f));
+
+      if (untrackedAudioFiles.length > 0) {
+        // Calculate total size
+        let totalSize = 0;
+        for (const f of files) {
+          try {
+            totalSize += fs.statSync(f).size;
+          } catch (_err) {
+            // Ignore stat errors
+          }
+        }
+
+        orphanDirs.push({
+          path: dir,
+          relativePath: path.relative(audiobooksDir, dir),
+          fileCount: files.length,
+          audioFileCount: audioFiles.length,
+          untrackedAudioCount: untrackedAudioFiles.length,
+          files: files.map(f => path.basename(f)),
+          totalSize,
+        });
+      }
+
+      // Recurse into subdirectories
+      for (const subdir of subdirs) {
+        scanDirectory(subdir, depth + 1);
+      }
+    }
+
+    scanDirectory(audiobooksDir);
+
+    console.log(`Found ${orphanDirs.length} orphan directories`);
+
+    res.json({
+      orphanDirectories: orphanDirs,
+      totalCount: orphanDirs.length,
+      totalSize: orphanDirs.reduce((sum, d) => sum + d.totalSize, 0),
+    });
+  } catch (error) {
+    console.error('Error scanning for orphan directories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete orphan directories
+router.delete('/orphan-directories', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { paths } = req.body;
+
+  if (!Array.isArray(paths) || paths.length === 0) {
+    return res.status(400).json({ error: 'Must specify paths array' });
+  }
+
+  const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+
+  try {
+    console.log(`Deleting ${paths.length} orphan directories...`);
+
+    const results = {
+      deleted: [],
+      failed: [],
+    };
+
+    for (const dirPath of paths) {
+      // Security check: ensure path is within audiobooks directory
+      const fullPath = path.resolve(dirPath);
+      const normalizedAudiobooksDir = path.resolve(audiobooksDir);
+
+      if (!fullPath.startsWith(normalizedAudiobooksDir)) {
+        results.failed.push({ path: dirPath, error: 'Path outside audiobooks directory' });
+        continue;
+      }
+
+      // Don't delete the root audiobooks directory
+      if (fullPath === normalizedAudiobooksDir) {
+        results.failed.push({ path: dirPath, error: 'Cannot delete root audiobooks directory' });
+        continue;
+      }
+
+      try {
+        if (fs.existsSync(fullPath)) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+          console.log(`Deleted orphan directory: ${fullPath}`);
+          results.deleted.push(dirPath);
+
+          // Clean up empty parent directories
+          let parentDir = path.dirname(fullPath);
+          while (parentDir !== normalizedAudiobooksDir) {
+            try {
+              const contents = fs.readdirSync(parentDir);
+              if (contents.length === 0) {
+                fs.rmdirSync(parentDir);
+                console.log(`Removed empty parent directory: ${parentDir}`);
+                parentDir = path.dirname(parentDir);
+              } else {
+                break;
+              }
+            } catch (_err) {
+              break;
+            }
+          }
+        } else {
+          results.failed.push({ path: dirPath, error: 'Directory not found' });
+        }
+      } catch (error) {
+        results.failed.push({ path: dirPath, error: error.message });
+      }
+    }
+
+    console.log(`Deleted ${results.deleted.length} directories, ${results.failed.length} failed`);
+
+    res.json({
+      success: true,
+      ...results,
+    });
+  } catch (error) {
+    console.error('Error deleting orphan directories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Preview what would be organized (dry run)
 router.get('/organize/preview', authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
