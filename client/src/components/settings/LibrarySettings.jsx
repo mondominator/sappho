@@ -163,7 +163,7 @@ export default function LibrarySettings() {
     setShowPreview(false);
     try {
       const result = await apiOrganizeLibrary();
-      const stats = result.data;
+      const stats = result.data.stats;
       alert(`Reorganization complete!\nMoved: ${stats.moved}\nSkipped: ${stats.skipped}\nErrors: ${stats.errors}`);
 
       if (stats.moved > 0) {
