@@ -139,7 +139,7 @@ export default function LibrarySettings() {
     try {
       // First get preview
       const preview = await getOrganizationPreview();
-      const needsMove = preview.data.needsMove || [];
+      const needsMove = preview.data.books || [];
 
       if (needsMove.length === 0) {
         alert('All audiobooks are already in their correct locations. Nothing to reorganize.');
