@@ -156,9 +156,18 @@ export default function OrphanDirectoriesSettings() {
                             style={{ width: '1.25rem', height: '1.25rem' }}
                           />
                           <span className="group-title">{formatPath(dir.path)}</span>
+                          {dir.orphanType === 'metadata_only' && (
+                            <span className="badge badge-cover" style={{ marginLeft: '0.5rem' }}>Metadata Only</span>
+                          )}
+                          {dir.orphanType === 'mixed' && (
+                            <span className="badge badge-progress" style={{ marginLeft: '0.5rem' }}>Mixed</span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', marginLeft: '2rem' }}>
-                          <span className="match-reason">{dir.fileCount} audio file{dir.fileCount === 1 ? '' : 's'}</span>
+                          <span className="match-reason">{dir.fileCount} file{dir.fileCount === 1 ? '' : 's'}</span>
+                          {dir.audioFileCount > 0 && (
+                            <span className="match-reason">{dir.untrackedAudioCount} untracked audio</span>
+                          )}
                           <span className="match-reason">{formatSize(dir.totalSize)}</span>
                         </div>
                       </div>
