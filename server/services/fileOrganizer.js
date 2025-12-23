@@ -22,6 +22,7 @@ function sanitizeName(name) {
   // Replace characters that are invalid in file paths: < > : " / \ | ? *
   // Also replace control characters and trim whitespace
   return name
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
     .replace(/\s+/g, ' ')
     .trim();
@@ -104,7 +105,7 @@ function moveFile(source, destination) {
     fs.renameSync(source, destination);
     console.log(`Moved file (rename): ${path.basename(source)}`);
     return true;
-  } catch (renameErr) {
+  } catch (_renameErr) {
     // Rename failed (likely cross-filesystem), use copy+delete
     try {
       fs.copyFileSync(source, destination);
@@ -147,7 +148,7 @@ function cleanupEmptyDirectories(dir) {
       // Recursively check parent
       cleanupEmptyDirectories(path.dirname(dir));
     }
-  } catch (err) {
+  } catch (_err) {
     // Directory doesn't exist or isn't empty, that's fine
   }
 }
@@ -332,7 +333,7 @@ async function organizeLibrary() {
     }
   }
 
-  console.log(`Library organization complete:`, stats);
+  console.log('Library organization complete:', stats);
   return stats;
 }
 

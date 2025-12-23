@@ -193,7 +193,7 @@ function markAvailable(audiobookId, filePath = null) {
 function markUnavailable(audiobookId) {
   return new Promise((resolve, reject) => {
     db.run(
-      `UPDATE audiobooks SET is_available = 0, original_path = file_path WHERE id = ?`,
+      'UPDATE audiobooks SET is_available = 0, original_path = file_path WHERE id = ?',
       [audiobookId],
       (err) => {
         if (err) reject(err);
@@ -214,7 +214,7 @@ function markUnavailable(audiobookId) {
 function updateLastSeen(audiobookId) {
   return new Promise((resolve, reject) => {
     db.run(
-      `UPDATE audiobooks SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      'UPDATE audiobooks SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?',
       [audiobookId],
       (err) => {
         if (err) reject(err);
@@ -291,7 +291,7 @@ async function checkAvailability() {
 /**
  * Restore an unavailable audiobook with a new file path
  */
-async function restoreAudiobook(existingBook, newFilePath, metadata) {
+async function restoreAudiobook(existingBook, newFilePath, _metadata) {
   console.log(`Restoring previously unavailable book: ${existingBook.title}`);
 
   // Update the existing record with new file path and mark as available

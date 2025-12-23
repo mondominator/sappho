@@ -28,7 +28,7 @@ function up(db) {
     } else if (!err) {
       console.log('Added last_seen_at column to audiobooks table');
       // Initialize last_seen_at for existing books
-      db.run(`UPDATE audiobooks SET last_seen_at = updated_at WHERE last_seen_at IS NULL`);
+      db.run('UPDATE audiobooks SET last_seen_at = updated_at WHERE last_seen_at IS NULL');
     }
   });
 
@@ -66,7 +66,7 @@ function up(db) {
   });
 }
 
-function down(db) {
+function down(_db) {
   // SQLite doesn't support DROP COLUMN easily, so we'd need to recreate the table
   // For now, just log that rollback isn't supported
   console.log('Rollback not supported for this migration');
