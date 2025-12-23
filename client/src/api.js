@@ -294,6 +294,13 @@ export const getDuplicates = () =>
 export const mergeDuplicates = (keepId, deleteIds, deleteFiles = false) =>
   api.post('/maintenance/duplicates/merge', { keepId, deleteIds, deleteFiles });
 
+// Orphan Directories
+export const getOrphanDirectories = () =>
+  api.get('/maintenance/orphan-directories');
+
+export const deleteOrphanDirectories = (paths) =>
+  api.delete('/maintenance/orphan-directories', { data: { paths } });
+
 // Collections
 export const getCollections = () =>
   api.get('/collections');
