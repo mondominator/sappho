@@ -13,6 +13,8 @@ export default function LibrarySettings() {
   const [scanning, setScanning] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [organizing, setOrganizing] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState([]);
 
   useEffect(() => {
     loadSettings();
@@ -143,13 +145,23 @@ export default function LibrarySettings() {
 
       if (needsMove.length === 0) {
         alert('All audiobooks are already in their correct locations. Nothing to reorganize.');
+        setOrganizing(false);
         return;
       }
 
-      if (!confirm(`${needsMove.length} audiobook(s) will be moved to match the Author/Series/Book folder structure. Continue?`)) {
-        return;
-      }
+      // Show preview modal instead of confirm dialog
+      setPreviewData(needsMove);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error organizing library:', error);
+      alert(error.response?.data?.error || 'Failed to organize library');
+      setOrganizing(false);
+    }
+  };
 
+  const handleConfirmReorganize = async () => {
+    setShowPreview(false);
+    try {
       const result = await apiOrganizeLibrary();
       const stats = result.data;
       alert(`Reorganization complete!\nMoved: ${stats.moved}\nSkipped: ${stats.skipped}\nErrors: ${stats.errors}`);
@@ -163,6 +175,12 @@ export default function LibrarySettings() {
     } finally {
       setOrganizing(false);
     }
+  };
+
+  const handleCancelReorganize = () => {
+    setShowPreview(false);
+    setPreviewData([]);
+    setOrganizing(false);
   };
 
   if (loading) {
@@ -294,6 +312,49 @@ export default function LibrarySettings() {
           {rescanning ? 'Refreshing...' : 'Refresh Library'}
         </button>
       </div>
+
+      {/* Reorganization Preview Modal */}
+      {showPreview && (
+        <div className="modal-overlay" onClick={handleCancelReorganize}>
+          <div className="modal-content reorganize-preview" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Reorganization Preview</h3>
+              <button className="modal-close" onClick={handleCancelReorganize}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <p className="preview-summary">
+                <strong>{previewData.length}</strong> audiobook{previewData.length === 1 ? '' : 's'} will be moved to the Author/Series/Book folder structure:
+              </p>
+              <div className="preview-list">
+                {previewData.map((book) => (
+                  <div key={book.id} className="preview-item">
+                    <div className="preview-book-title">{book.title}</div>
+                    <div className="preview-book-author">{book.author}</div>
+                    <div className="preview-paths">
+                      <div className="preview-path from">
+                        <span className="path-label">From:</span>
+                        <code>{book.currentPath}</code>
+                      </div>
+                      <div className="preview-path to">
+                        <span className="path-label">To:</span>
+                        <code>{book.targetPath}</code>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={handleCancelReorganize}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleConfirmReorganize}>
+                Confirm Reorganization
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
