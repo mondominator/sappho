@@ -5,6 +5,7 @@ const db = require('../database');
 const fs = require('fs');
 const path = require('path');
 const { authenticateToken, authenticateMediaToken } = require('../auth');
+const { organizeAudiobook, needsOrganization } = require('../services/fileOrganizer');
 
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
@@ -342,7 +343,7 @@ function normalizeGenres(genreStr) {
 
 // Get all audiobooks
 router.get('/', authenticateToken, (req, res) => {
-  const { genre, author, series, search, favorites, limit = 50, offset = 0 } = req.query;
+  const { genre, author, series, search, favorites, includeUnavailable, limit = 50, offset = 0 } = req.query;
   const userId = req.user.id;
 
   let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
@@ -356,6 +357,11 @@ router.get('/', authenticateToken, (req, res) => {
                LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?
                WHERE 1=1`;
   const params = [userId, userId, userId];
+
+  // Filter out unavailable books by default (unless includeUnavailable=true)
+  if (includeUnavailable !== 'true') {
+    query += ' AND (a.is_available = 1 OR a.is_available IS NULL)';
+  }
 
   if (genre) {
     query += ' AND a.genre LIKE ?';
@@ -1163,101 +1169,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Audiobook not found' });
     }
 
-    let newFilePath = currentBook.file_path;
-    let newCoverPath = currentBook.cover_path;
-    let fileReorganized = false;
-
-    // Check if author or title changed - if so, reorganize the file
-    const authorChanged = author && author !== currentBook.author;
-    const titleChanged = title && title !== currentBook.title;
-
-    if ((authorChanged || titleChanged) && fs.existsSync(currentBook.file_path)) {
-      const libraryPath = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
-
-      // Sanitize folder names
-      const sanitize = (str) => (str || 'Unknown').replace(/[<>:"/\\|?*]/g, '_').trim();
-      const newAuthor = sanitize(author || currentBook.author || 'Unknown Author');
-      const newTitle = sanitize(title || currentBook.title || 'Unknown Title');
-
-      // Create new directory structure
-      const newAuthorDir = path.join(libraryPath, newAuthor);
-      const newBookDir = path.join(newAuthorDir, newTitle);
-
-      // Get current file info
-      const currentDir = path.dirname(currentBook.file_path);
-      const ext = path.extname(currentBook.file_path);
-      const newFileName = `${newTitle}${ext}`;
-      newFilePath = path.join(newBookDir, newFileName);
-
-      // Only move if the path would actually change
-      if (newFilePath !== currentBook.file_path) {
-        console.log(`Reorganizing audiobook: ${currentBook.file_path} -> ${newFilePath}`);
-
-        // Create new directory
-        if (!fs.existsSync(newBookDir)) {
-          fs.mkdirSync(newBookDir, { recursive: true });
-        }
-
-        // Move the audio file - try atomic rename first, fall back to copy+delete
-        try {
-          fs.renameSync(currentBook.file_path, newFilePath);
-          console.log('Moved file using rename (atomic)');
-        } catch (renameErr) {
-          // Rename failed (likely cross-filesystem), use copy+delete
-          console.log('Rename failed, using copy+delete:', renameErr.code);
-          fs.copyFileSync(currentBook.file_path, newFilePath);
-          // Verify copy succeeded before deleting original
-          if (fs.existsSync(newFilePath)) {
-            const origSize = fs.statSync(currentBook.file_path).size;
-            const newSize = fs.statSync(newFilePath).size;
-            if (newSize === origSize) {
-              fs.unlinkSync(currentBook.file_path);
-            } else {
-              // Copy incomplete, remove it and throw error
-              fs.unlinkSync(newFilePath);
-              throw new Error('File copy verification failed - sizes do not match');
-            }
-          } else {
-            throw new Error('File copy failed - destination file not found');
-          }
-        }
-        fileReorganized = true;
-
-        // Move cover image if it exists and is in the same directory
-        if (currentBook.cover_path && fs.existsSync(currentBook.cover_path)) {
-          const coverExt = path.extname(currentBook.cover_path);
-          const newCoverName = `cover${coverExt}`;
-          newCoverPath = path.join(newBookDir, newCoverName);
-
-          if (newCoverPath !== currentBook.cover_path) {
-            try {
-              fs.renameSync(currentBook.cover_path, newCoverPath);
-            } catch (_renameErr) {
-              fs.copyFileSync(currentBook.cover_path, newCoverPath);
-              if (fs.existsSync(newCoverPath)) {
-                fs.unlinkSync(currentBook.cover_path);
-              }
-            }
-          }
-        }
-
-        // Clean up old empty directories
-        try {
-          if (fs.existsSync(currentDir) && fs.readdirSync(currentDir).length === 0) {
-            fs.rmdirSync(currentDir);
-            // Also try to remove parent author dir if empty
-            const parentDir = path.dirname(currentDir);
-            if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
-              fs.rmdirSync(parentDir);
-            }
-          }
-        } catch (cleanupErr) {
-          console.log('Could not clean up empty directories:', cleanupErr.message);
-        }
-      }
-    }
+    // Check if fields that affect file organization are changing
+    const authorChanged = author !== undefined && author !== currentBook.author;
+    const titleChanged = title !== undefined && title !== currentBook.title;
+    const seriesChanged = series !== undefined && series !== currentBook.series;
+    const seriesPositionChanged = series_position !== undefined && series_position !== currentBook.series_position;
 
     // Download cover from URL if provided
+    let newCoverPath = currentBook.cover_path;
     let newCoverImage = currentBook.cover_image;
     if (cover_url) {
       try {
@@ -1265,10 +1184,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const downloadedCover = await downloadCover(cover_url, req.params.id);
         if (downloadedCover) {
           newCoverImage = downloadedCover;
-          // If no cover_path was set, use cover_image as the primary
-          if (!newCoverPath) {
-            newCoverPath = downloadedCover;
-          }
+          newCoverPath = downloadedCover;
         }
       } catch (coverErr) {
         console.error('Failed to download cover:', coverErr.message);
@@ -1276,21 +1192,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    // Update database with new metadata and file paths
+    // Update database with new metadata (keep current file_path for now)
     await new Promise((resolve, reject) => {
       db.run(
         `UPDATE audiobooks
          SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
              series = ?, series_position = ?, published_year = ?, copyright_year = ?,
              publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
-             file_path = ?, cover_path = ?, cover_image = ?,
+             cover_path = ?, cover_image = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           title, subtitle, author, narrator, sanitizeHtml(description), genre, tags,
           series, series_position, published_year, copyright_year,
           publisher, isbn, asin, language, rating, abridged ? 1 : 0,
-          newFilePath, newCoverPath, newCoverImage,
+          newCoverPath, newCoverImage,
           req.params.id
         ],
         function (err) {
@@ -1299,6 +1215,32 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
       );
     });
+
+    // Check if file reorganization is needed (author, title, series, or position changed)
+    let fileReorganized = false;
+    let newFilePath = currentBook.file_path;
+
+    if ((authorChanged || titleChanged || seriesChanged || seriesPositionChanged) &&
+        fs.existsSync(currentBook.file_path)) {
+      // Re-fetch the audiobook with updated metadata
+      const updatedBook = await new Promise((resolve, reject) => {
+        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+
+      // Use the centralized file organizer to move files
+      if (updatedBook && needsOrganization(updatedBook)) {
+        const result = await organizeAudiobook(updatedBook);
+        if (result.moved) {
+          fileReorganized = true;
+          newFilePath = result.newPath;
+        } else if (result.error) {
+          console.error('File reorganization failed:', result.error);
+        }
+      }
+    }
 
     res.json({
       message: fileReorganized
@@ -2036,15 +1978,37 @@ router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
       console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
     }
 
-    // Return updated audiobook
-    const updatedAudiobook = await new Promise((resolve, reject) => {
+    // Get updated audiobook
+    let updatedAudiobook = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
         if (err) reject(err);
         else resolve(row);
       });
     });
 
-    res.json({ message: 'Metadata refreshed successfully', audiobook: updatedAudiobook });
+    // Check if file needs to be reorganized based on new metadata
+    let fileReorganized = false;
+    if (updatedAudiobook && needsOrganization(updatedAudiobook)) {
+      const result = await organizeAudiobook(updatedAudiobook);
+      if (result.moved) {
+        fileReorganized = true;
+        // Re-fetch audiobook with updated path
+        updatedAudiobook = await new Promise((resolve, reject) => {
+          db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+      }
+    }
+
+    res.json({
+      message: fileReorganized
+        ? 'Metadata refreshed and file reorganized'
+        : 'Metadata refreshed successfully',
+      audiobook: updatedAudiobook,
+      fileReorganized
+    });
   } catch (error) {
     console.error('Error refreshing metadata:', error);
     res.status(500).json({ error: error.message });
@@ -2295,7 +2259,7 @@ router.get('/meta/series', authenticateToken, (req, res) => {
         WHERE a2.series = a.series AND ur.rating IS NOT NULL) as rating_count
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-     WHERE a.series IS NOT NULL
+     WHERE a.series IS NOT NULL AND (a.is_available = 1 OR a.is_available IS NULL)
      GROUP BY a.series
      ORDER BY a.series ASC`,
     [userId],
@@ -2331,7 +2295,7 @@ router.get('/meta/authors', authenticateToken, (req, res) => {
        COUNT(DISTINCT CASE WHEN p.completed = 1 THEN a.id END) as completed_count
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-     WHERE a.author IS NOT NULL
+     WHERE a.author IS NOT NULL AND (a.is_available = 1 OR a.is_available IS NULL)
      GROUP BY a.author
      ORDER BY author ASC`,
     [userId],
@@ -2364,7 +2328,7 @@ router.get('/meta/genre-mappings', authenticateToken, (req, res) => {
 // Get all genres (normalized to major categories) with cover IDs
 router.get('/meta/genres', authenticateToken, (req, res) => {
   db.all(
-    'SELECT id, genre, cover_image FROM audiobooks WHERE genre IS NOT NULL AND genre != \'\'',
+    'SELECT id, genre, cover_image FROM audiobooks WHERE genre IS NOT NULL AND genre != \'\' AND (is_available = 1 OR is_available IS NULL)',
     [],
     (err, books) => {
       if (err) {
@@ -2416,6 +2380,7 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
      LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+     WHERE (a.is_available = 1 OR a.is_available IS NULL)
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [userId, userId, limit],
@@ -2454,7 +2419,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
      LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
-     WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 5
+     WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 5 AND (a.is_available = 1 OR a.is_available IS NULL)
      ORDER BY p.updated_at DESC
      LIMIT ?`,
     [userId, userId, limit],
@@ -2518,6 +2483,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
        INNER JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
        WHERE a.series IS NOT NULL AND a.series != ''
        AND (p.completed = 1 OR p.position > 0)
+       AND (a.is_available = 1 OR a.is_available IS NULL)
      ),
      NextUnstartedBooks AS (
        -- For each such series, find the first book that has NO progress at all
@@ -2536,6 +2502,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
        WHERE (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
        AND (p.position IS NULL OR p.position = 0)
        AND (p.completed IS NULL OR p.completed = 0)
+       AND (a.is_available = 1 OR a.is_available IS NULL)
      )
      SELECT * FROM NextUnstartedBooks
      WHERE row_num = 1
@@ -2578,7 +2545,7 @@ router.get('/meta/finished', authenticateToken, (req, res) => {
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
      LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
-     WHERE p.user_id = ? AND p.completed = 1
+     WHERE p.user_id = ? AND p.completed = 1 AND (a.is_available = 1 OR a.is_available IS NULL)
      ORDER BY RANDOM()
      LIMIT ?`,
     [userId, userId, limit],
