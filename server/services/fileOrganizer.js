@@ -50,6 +50,19 @@ function formatSeriesPosition(position) {
 }
 
 /**
+ * Generate the target filename for an audiobook based on its title
+ *
+ * @param {Object} audiobook - Audiobook record from database
+ * @param {string} originalPath - Original file path to get extension
+ * @returns {string} Target filename with extension
+ */
+function getTargetFilename(audiobook, originalPath) {
+  const title = sanitizeName(audiobook.title) || 'Unknown Title';
+  const ext = path.extname(originalPath);
+  return `${title}${ext}`;
+}
+
+/**
  * Calculate the target directory path for an audiobook based on its metadata
  *
  * @param {Object} audiobook - Audiobook record from database
@@ -76,20 +89,23 @@ function getTargetDirectory(audiobook) {
 }
 
 /**
- * Check if a file needs to be organized (moved to correct location)
+ * Check if a file needs to be organized (moved to correct location or renamed)
  *
  * @param {Object} audiobook - Audiobook record from database
- * @returns {boolean} True if file should be moved
+ * @returns {boolean} True if file should be moved or renamed
  */
 function needsOrganization(audiobook) {
   const currentDir = path.dirname(audiobook.file_path);
+  const currentFilename = path.basename(audiobook.file_path);
   const targetDir = getTargetDirectory(audiobook);
+  const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
 
   // Normalize paths for comparison
   const normalizedCurrent = path.normalize(currentDir);
   const normalizedTarget = path.normalize(targetDir);
 
-  return normalizedCurrent !== normalizedTarget;
+  // Check if directory OR filename needs to change
+  return normalizedCurrent !== normalizedTarget || currentFilename !== targetFilename;
 }
 
 /**
@@ -215,11 +231,12 @@ async function organizeAudiobook(audiobook) {
 
     const currentDir = path.dirname(audiobook.file_path);
     const targetDir = getTargetDirectory(audiobook);
-    const fileName = path.basename(audiobook.file_path);
+    const originalFilename = path.basename(audiobook.file_path);
+    const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
 
     console.log(`Organizing: "${audiobook.title}" by ${audiobook.author}`);
-    console.log(`  From: ${currentDir}`);
-    console.log(`  To: ${targetDir}`);
+    console.log(`  From: ${path.join(currentDir, originalFilename)}`);
+    console.log(`  To: ${path.join(targetDir, targetFilename)}`);
 
     // Create target directory
     if (!fs.existsSync(targetDir)) {
@@ -227,11 +244,11 @@ async function organizeAudiobook(audiobook) {
     }
 
     // Handle potential filename conflicts
-    let newFilePath = path.join(targetDir, fileName);
+    let newFilePath = path.join(targetDir, targetFilename);
     let counter = 1;
     while (fs.existsSync(newFilePath) && newFilePath !== audiobook.file_path) {
-      const ext = path.extname(fileName);
-      const base = path.basename(fileName, ext);
+      const ext = path.extname(targetFilename);
+      const base = path.basename(targetFilename, ext);
       newFilePath = path.join(targetDir, `${base} (${counter})${ext}`);
       counter++;
     }
@@ -358,12 +375,13 @@ async function getOrganizationPreview() {
 
   for (const audiobook of audiobooks) {
     if (needsOrganization(audiobook)) {
+      const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
       needsMove.push({
         id: audiobook.id,
         title: audiobook.title,
         author: audiobook.author,
         currentPath: audiobook.file_path,
-        targetPath: path.join(getTargetDirectory(audiobook), path.basename(audiobook.file_path))
+        targetPath: path.join(getTargetDirectory(audiobook), targetFilename)
       });
     }
   }
@@ -373,6 +391,7 @@ async function getOrganizationPreview() {
 
 module.exports = {
   getTargetDirectory,
+  getTargetFilename,
   needsOrganization,
   organizeAudiobook,
   organizeLibrary,
