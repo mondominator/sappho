@@ -1978,15 +1978,37 @@ router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
       console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
     }
 
-    // Return updated audiobook
-    const updatedAudiobook = await new Promise((resolve, reject) => {
+    // Get updated audiobook
+    let updatedAudiobook = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
         if (err) reject(err);
         else resolve(row);
       });
     });
 
-    res.json({ message: 'Metadata refreshed successfully', audiobook: updatedAudiobook });
+    // Check if file needs to be reorganized based on new metadata
+    let fileReorganized = false;
+    if (updatedAudiobook && needsOrganization(updatedAudiobook)) {
+      const result = await organizeAudiobook(updatedAudiobook);
+      if (result.moved) {
+        fileReorganized = true;
+        // Re-fetch audiobook with updated path
+        updatedAudiobook = await new Promise((resolve, reject) => {
+          db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+      }
+    }
+
+    res.json({
+      message: fileReorganized
+        ? 'Metadata refreshed and file reorganized'
+        : 'Metadata refreshed successfully',
+      audiobook: updatedAudiobook,
+      fileReorganized
+    });
   } catch (error) {
     console.error('Error refreshing metadata:', error);
     res.status(500).json({ error: error.message });
