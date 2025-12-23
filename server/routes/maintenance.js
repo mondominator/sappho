@@ -1333,18 +1333,22 @@ router.get('/orphan-directories', authenticateToken, async (req, res) => {
 
     const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
-    // Get all tracked file paths from database
-    const trackedFiles = await new Promise((resolve, reject) => {
+    // Get all tracked file paths from database (normalized)
+    const trackedFilesRaw = await new Promise((resolve, reject) => {
       db.all(
-        `SELECT file_path FROM audiobooks
+        `SELECT file_path FROM audiobooks WHERE is_available = 1 OR is_available IS NULL
          UNION
          SELECT file_path FROM audiobook_chapters`,
         (err, rows) => {
           if (err) reject(err);
-          else resolve(new Set((rows || []).map(r => r.file_path)));
+          else resolve((rows || []).map(r => r.file_path));
         }
       );
     });
+
+    // Normalize paths and create a set of tracked directories
+    const trackedFiles = new Set(trackedFilesRaw.map(f => path.normalize(f)));
+    const trackedDirs = new Set(trackedFilesRaw.map(f => path.normalize(path.dirname(f))));
 
     // Audio file extensions to look for
     const audioExtensions = ['.m4b', '.m4a', '.mp3', '.flac', '.ogg', '.opus', '.wav', '.aac'];
@@ -1376,13 +1380,23 @@ router.get('/orphan-directories', authenticateToken, async (req, res) => {
         }
       }
 
-      // Check if this directory has untracked audio files
+      // Check if this directory has any tracked audio files
+      const normalizedDir = path.normalize(dir);
       const audioFiles = files.filter(f =>
         audioExtensions.includes(path.extname(f).toLowerCase())
       );
-      const untrackedAudioFiles = audioFiles.filter(f => !trackedFiles.has(f));
+      const trackedAudioFiles = audioFiles.filter(f => trackedFiles.has(path.normalize(f)));
+      const untrackedAudioFiles = audioFiles.filter(f => !trackedFiles.has(path.normalize(f)));
 
-      if (untrackedAudioFiles.length > 0) {
+      // Determine if this is an orphan directory:
+      // 1. Has untracked audio files, OR
+      // 2. Has files but no audio files AND is not a directory containing tracked books
+      const hasFiles = files.length > 0;
+      const hasNoAudioFiles = audioFiles.length === 0;
+      const isTrackedBookDir = trackedDirs.has(normalizedDir);
+      const hasOnlyMetadata = hasFiles && hasNoAudioFiles && !isTrackedBookDir;
+
+      if (untrackedAudioFiles.length > 0 || hasOnlyMetadata) {
         // Calculate total size
         let totalSize = 0;
         for (const f of files) {
@@ -1393,14 +1407,24 @@ router.get('/orphan-directories', authenticateToken, async (req, res) => {
           }
         }
 
+        // Determine orphan type for UI display
+        let orphanType = 'untracked_audio';
+        if (hasOnlyMetadata) {
+          orphanType = 'metadata_only';
+        } else if (trackedAudioFiles.length > 0 && untrackedAudioFiles.length > 0) {
+          orphanType = 'mixed'; // Some tracked, some not
+        }
+
         orphanDirs.push({
           path: dir,
           relativePath: path.relative(audiobooksDir, dir),
           fileCount: files.length,
           audioFileCount: audioFiles.length,
           untrackedAudioCount: untrackedAudioFiles.length,
+          trackedAudioCount: trackedAudioFiles.length,
           files: files.map(f => path.basename(f)),
           totalSize,
+          orphanType,
         });
       }
 
