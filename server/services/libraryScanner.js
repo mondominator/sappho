@@ -6,6 +6,7 @@ const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
 const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
+const { organizeAudiobook } = require('./fileOrganizer');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -145,6 +146,182 @@ function audiobookExistsByHash(contentHash) {
 }
 
 /**
+ * Check if an unavailable audiobook with the given content hash exists
+ * Used for restoring books that were previously removed
+ */
+function findUnavailableByHash(contentHash) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      'SELECT * FROM audiobooks WHERE content_hash = ? AND is_available = 0',
+      [contentHash],
+      (err, row) => {
+        if (err) reject(err);
+        else resolve(row || null);
+      }
+    );
+  });
+}
+
+/**
+ * Mark an audiobook as available (file exists)
+ */
+function markAvailable(audiobookId, filePath = null) {
+  return new Promise((resolve, reject) => {
+    const updates = filePath
+      ? 'is_available = 1, last_seen_at = CURRENT_TIMESTAMP, file_path = ?'
+      : 'is_available = 1, last_seen_at = CURRENT_TIMESTAMP';
+    const params = filePath ? [filePath, audiobookId] : [audiobookId];
+
+    db.run(
+      `UPDATE audiobooks SET ${updates} WHERE id = ?`,
+      params,
+      (err) => {
+        if (err) reject(err);
+        else {
+          console.log(`Marked audiobook ${audiobookId} as available`);
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Mark an audiobook as unavailable (file missing)
+ * Preserves all user data (progress, ratings, collections)
+ */
+function markUnavailable(audiobookId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE audiobooks SET is_available = 0, original_path = file_path WHERE id = ?`,
+      [audiobookId],
+      (err) => {
+        if (err) reject(err);
+        else {
+          console.log(`Marked audiobook ${audiobookId} as unavailable (file missing)`);
+          // Broadcast to connected clients
+          websocketManager.broadcastLibraryUpdate('library.unavailable', { id: audiobookId });
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Update last_seen_at timestamp for an audiobook
+ */
+function updateLastSeen(audiobookId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE audiobooks SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [audiobookId],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+/**
+ * Get all audiobooks from the database
+ */
+function getAllAudiobooks() {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM audiobooks', [], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows || []);
+    });
+  });
+}
+
+/**
+ * Check file availability for all audiobooks and update status
+ */
+async function checkAvailability() {
+  console.log('Checking file availability...');
+  const audiobooks = await getAllAudiobooks();
+  let restored = 0;
+  let missing = 0;
+
+  for (const book of audiobooks) {
+    const fileExists = fs.existsSync(book.file_path);
+
+    // For multi-file books, check if at least one chapter exists
+    let hasChapters = false;
+    if (book.is_multi_file && !fileExists) {
+      const chapters = await new Promise((resolve, reject) => {
+        db.all(
+          'SELECT file_path FROM audiobook_chapters WHERE audiobook_id = ?',
+          [book.id],
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+      hasChapters = chapters.some(ch => fs.existsSync(ch.file_path));
+    }
+
+    const isAvailable = fileExists || hasChapters;
+    const wasAvailable = book.is_available !== 0;
+
+    if (isAvailable && !wasAvailable) {
+      // Book returned - restore availability
+      await markAvailable(book.id);
+      restored++;
+    } else if (!isAvailable && wasAvailable) {
+      // Book missing - mark unavailable (keep all user data)
+      await markUnavailable(book.id);
+      missing++;
+    } else if (isAvailable) {
+      // Update last_seen timestamp
+      await updateLastSeen(book.id);
+    }
+  }
+
+  if (restored > 0 || missing > 0) {
+    console.log(`Availability check: ${restored} restored, ${missing} marked unavailable`);
+  }
+
+  return { restored, missing };
+}
+
+/**
+ * Restore an unavailable audiobook with a new file path
+ */
+async function restoreAudiobook(existingBook, newFilePath, metadata) {
+  console.log(`Restoring previously unavailable book: ${existingBook.title}`);
+
+  // Update the existing record with new file path and mark as available
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE audiobooks
+       SET file_path = ?, is_available = 1, last_seen_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [newFilePath, existingBook.id],
+      function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          db.get('SELECT * FROM audiobooks WHERE id = ?', [existingBook.id], (err, audiobook) => {
+            if (err) {
+              reject(err);
+            } else {
+              console.log(`Restored: ${existingBook.title} - user data preserved`);
+              websocketManager.broadcastLibraryUpdate('library.restored', audiobook);
+              resolve(audiobook);
+            }
+          });
+        }
+      }
+    );
+  });
+}
+
+/**
  * Import a single-file audiobook into the database without moving it
  */
 async function importAudiobook(filePath, userId = 1) {
@@ -176,6 +353,17 @@ async function importAudiobook(filePath, userId = 1) {
 
     // Generate content hash for stable identification
     const contentHash = generateBestHash(metadata, filePath);
+
+    // Check if an unavailable audiobook with this content hash exists (restore it)
+    const unavailableBook = await findUnavailableByHash(contentHash);
+    if (unavailableBook) {
+      const restoredBook = await restoreAudiobook(unavailableBook, filePath, metadata);
+      // Organize the restored book
+      if (restoredBook) {
+        await organizeAudiobook(restoredBook);
+      }
+      return restoredBook;
+    }
 
     // Check if an audiobook with this content hash already exists
     const existingByHash = await audiobookExistsByHash(contentHash);
@@ -356,6 +544,17 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
 
     // Generate content hash for stable identification (use total duration for multi-file)
     const contentHash = generateBestHash({ ...metadata, duration: totalDuration }, firstFilePath);
+
+    // Check if an unavailable audiobook with this content hash exists (restore it)
+    const unavailableBook = await findUnavailableByHash(contentHash);
+    if (unavailableBook) {
+      const restoredBook = await restoreAudiobook(unavailableBook, firstFilePath, metadata);
+      // Organize the restored book
+      if (restoredBook) {
+        await organizeAudiobook(restoredBook);
+      }
+      return restoredBook;
+    }
 
     // Check if an audiobook with this content hash already exists
     const existingByHash = await audiobookExistsByHash(contentHash);
@@ -581,6 +780,8 @@ async function scanLibrary() {
         const result = await importMultiFileAudiobook(files);
         if (result) {
           imported++;
+          // Organize the newly imported book
+          await organizeAudiobook(result);
         } else {
           skipped++;
         }
@@ -590,6 +791,8 @@ async function scanLibrary() {
           const result = await importAudiobook(file);
           if (result) {
             imported++;
+            // Organize the newly imported book
+            await organizeAudiobook(result);
           } else {
             skipped++;
           }
@@ -601,7 +804,18 @@ async function scanLibrary() {
     }
   }
 
-  const stats = { imported, skipped, errors, totalFiles, totalBooks: groupedFiles.size };
+  // Check availability of all existing books (mark missing as unavailable)
+  const availabilityStats = await checkAvailability();
+
+  const stats = {
+    imported,
+    skipped,
+    errors,
+    totalFiles,
+    totalBooks: groupedFiles.size,
+    restored: availabilityStats.restored,
+    unavailable: availabilityStats.missing
+  };
   console.log('Library scan complete:', stats);
 
   return stats;
@@ -733,4 +947,7 @@ module.exports = {
   unlockScanning,
   isScanningLocked,
   getJobStatus,
+  checkAvailability,
+  markAvailable,
+  markUnavailable,
 };
