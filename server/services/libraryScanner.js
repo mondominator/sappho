@@ -723,6 +723,50 @@ function mergeSubdirectories(groupedFiles) {
 }
 
 /**
+ * Recursively find and remove all empty directories in the library
+ * Works bottom-up to handle nested empty directories
+ */
+function cleanupAllEmptyDirectories() {
+  let removed = 0;
+
+  function scanAndClean(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_err) {
+      return;
+    }
+
+    // First, recurse into subdirectories
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        scanAndClean(path.join(dir, entry.name));
+      }
+    }
+
+    // After processing children, check if this directory is now empty
+    // Re-read to get updated contents after child cleanup
+    if (dir !== audiobooksDir) {
+      try {
+        const currentEntries = fs.readdirSync(dir);
+        // Filter out hidden files for the empty check
+        const visibleEntries = currentEntries.filter(e => !e.startsWith('.'));
+        if (visibleEntries.length === 0) {
+          fs.rmdirSync(dir);
+          console.log(`Removed empty directory: ${dir}`);
+          removed++;
+        }
+      } catch (_err) {
+        // Directory might have been removed or inaccessible
+      }
+    }
+  }
+
+  scanAndClean(audiobooksDir);
+  return removed;
+}
+
+/**
  * Scan the entire audiobooks library and import any new files
  */
 async function scanLibrary() {
@@ -807,6 +851,12 @@ async function scanLibrary() {
   // Check availability of all existing books (mark missing as unavailable)
   const availabilityStats = await checkAvailability();
 
+  // Clean up empty directories left behind from moves, deletes, or external changes
+  const emptyDirsRemoved = cleanupAllEmptyDirectories();
+  if (emptyDirsRemoved > 0) {
+    console.log(`Removed ${emptyDirsRemoved} empty directories`);
+  }
+
   const stats = {
     imported,
     skipped,
@@ -814,7 +864,8 @@ async function scanLibrary() {
     totalFiles,
     totalBooks: groupedFiles.size,
     restored: availabilityStats.restored,
-    unavailable: availabilityStats.missing
+    unavailable: availabilityStats.missing,
+    emptyDirsRemoved
   };
   console.log('Library scan complete:', stats);
 
