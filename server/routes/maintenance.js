@@ -1390,13 +1390,16 @@ router.get('/orphan-directories', authenticateToken, async (req, res) => {
 
       // Determine if this is an orphan directory:
       // 1. Has untracked audio files, OR
-      // 2. Has files but no audio files AND is not a directory containing tracked books
+      // 2. Has files but no audio files AND is not a directory containing tracked books, OR
+      // 3. Is completely empty (no files, no subdirs) and not a tracked book directory
       const hasFiles = files.length > 0;
+      const hasSubdirs = subdirs.length > 0;
       const hasNoAudioFiles = audioFiles.length === 0;
       const isTrackedBookDir = trackedDirs.has(normalizedDir);
       const hasOnlyMetadata = hasFiles && hasNoAudioFiles && !isTrackedBookDir;
+      const isEmpty = !hasFiles && !hasSubdirs && !isTrackedBookDir;
 
-      if (untrackedAudioFiles.length > 0 || hasOnlyMetadata) {
+      if (untrackedAudioFiles.length > 0 || hasOnlyMetadata || isEmpty) {
         // Calculate total size
         let totalSize = 0;
         for (const f of files) {
@@ -1409,7 +1412,9 @@ router.get('/orphan-directories', authenticateToken, async (req, res) => {
 
         // Determine orphan type for UI display
         let orphanType = 'untracked_audio';
-        if (hasOnlyMetadata) {
+        if (isEmpty) {
+          orphanType = 'empty';
+        } else if (hasOnlyMetadata) {
           orphanType = 'metadata_only';
         } else if (trackedAudioFiles.length > 0 && untrackedAudioFiles.length > 0) {
           orphanType = 'mixed'; // Some tracked, some not

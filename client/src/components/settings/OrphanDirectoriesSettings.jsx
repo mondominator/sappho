@@ -156,6 +156,9 @@ export default function OrphanDirectoriesSettings() {
                             style={{ width: '1.25rem', height: '1.25rem' }}
                           />
                           <span className="group-title">{formatPath(dir.path)}</span>
+                          {dir.orphanType === 'empty' && (
+                            <span className="badge" style={{ marginLeft: '0.5rem', background: 'rgba(107, 114, 128, 0.2)', color: '#9ca3af' }}>Empty</span>
+                          )}
                           {dir.orphanType === 'metadata_only' && (
                             <span className="badge badge-cover" style={{ marginLeft: '0.5rem' }}>Metadata Only</span>
                           )}
