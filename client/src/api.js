@@ -301,6 +301,13 @@ export const getOrphanDirectories = () =>
 export const deleteOrphanDirectories = (paths) =>
   api.delete('/maintenance/orphan-directories', { data: { paths } });
 
+// Library Organization
+export const getOrganizationPreview = () =>
+  api.get('/maintenance/organize/preview');
+
+export const organizeLibrary = () =>
+  api.post('/maintenance/organize');
+
 // Collections
 export const getCollections = () =>
   api.get('/collections');
