@@ -419,6 +419,11 @@ router.get('/', authenticateToken, (req, res) => {
       : 'SELECT COUNT(*) as total FROM audiobooks a WHERE 1=1';
     const countParams = favorites === 'true' ? [userId] : [];
 
+    // Filter out unavailable books by default (unless includeUnavailable=true)
+    if (includeUnavailable !== 'true') {
+      countQuery += ' AND (a.is_available = 1 OR a.is_available IS NULL)';
+    }
+
     if (genre) {
       countQuery += ' AND a.genre LIKE ?';
       countParams.push(`%${genre}%`);
@@ -2253,10 +2258,12 @@ router.get('/meta/series', authenticateToken, (req, res) => {
        COUNT(DISTINCT CASE WHEN p.completed = 1 THEN a.id END) as completed_count,
        (SELECT AVG(ur.rating) FROM user_ratings ur
         INNER JOIN audiobooks a2 ON ur.audiobook_id = a2.id
-        WHERE a2.series = a.series AND ur.rating IS NOT NULL) as average_rating,
+        WHERE a2.series = a.series AND ur.rating IS NOT NULL
+        AND (a2.is_available = 1 OR a2.is_available IS NULL)) as average_rating,
        (SELECT COUNT(*) FROM user_ratings ur
         INNER JOIN audiobooks a2 ON ur.audiobook_id = a2.id
-        WHERE a2.series = a.series AND ur.rating IS NOT NULL) as rating_count
+        WHERE a2.series = a.series AND ur.rating IS NOT NULL
+        AND (a2.is_available = 1 OR a2.is_available IS NULL)) as rating_count
      FROM audiobooks a
      LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
      WHERE a.series IS NOT NULL AND (a.is_available = 1 OR a.is_available IS NULL)
