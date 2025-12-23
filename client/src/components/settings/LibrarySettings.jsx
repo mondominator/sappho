@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { scanLibrary, forceRescan } from '../../api';
+import { scanLibrary, forceRescan, getOrganizationPreview, organizeLibrary as apiOrganizeLibrary } from '../../api';
 import './LibrarySettings.css';
 
 export default function LibrarySettings() {
@@ -12,6 +12,7 @@ export default function LibrarySettings() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -133,6 +134,37 @@ export default function LibrarySettings() {
     }
   };
 
+  const handleOrganizeLibrary = async () => {
+    setOrganizing(true);
+    try {
+      // First get preview
+      const preview = await getOrganizationPreview();
+      const needsMove = preview.data.needsMove || [];
+
+      if (needsMove.length === 0) {
+        alert('All audiobooks are already in their correct locations. Nothing to reorganize.');
+        return;
+      }
+
+      if (!confirm(`${needsMove.length} audiobook(s) will be moved to match the Author/Series/Book folder structure. Continue?`)) {
+        return;
+      }
+
+      const result = await apiOrganizeLibrary();
+      const stats = result.data;
+      alert(`Reorganization complete!\nMoved: ${stats.moved}\nSkipped: ${stats.skipped}\nErrors: ${stats.errors}`);
+
+      if (stats.moved > 0) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error organizing library:', error);
+      alert(error.response?.data?.error || 'Failed to organize library');
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading library settings...</div>;
   }
@@ -213,11 +245,11 @@ export default function LibrarySettings() {
           <div>
             <h2>Library Management</h2>
             <p className="section-description">
-              Manually trigger a library scan to import new audiobooks immediately, or refresh the library to clear and reimport everything.
+              Manually trigger a library scan to import new audiobooks immediately, reorganize files into the standard folder structure, or refresh the library to clear and reimport everything.
             </p>
           </div>
         </div>
-        <div className="form-actions">
+        <div className="form-actions" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-primary"
@@ -225,6 +257,14 @@ export default function LibrarySettings() {
             disabled={scanning}
           >
             {scanning ? 'Scanning...' : 'Scan Library Now'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleOrganizeLibrary}
+            disabled={organizing}
+          >
+            {organizing ? 'Reorganizing...' : 'Reorganize Library'}
           </button>
         </div>
       </div>
