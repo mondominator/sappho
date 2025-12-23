@@ -6,6 +6,7 @@ const fs = require('fs');
 const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
 const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = require('../services/libraryScanner');
+const { organizeLibrary, getOrganizationPreview, organizeAudiobook } = require('../services/fileOrganizer');
 
 // In-memory log buffer for UI viewing
 const LOG_BUFFER_SIZE = 500;
@@ -1317,6 +1318,99 @@ router.post('/duplicates/merge', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error merging duplicates:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Preview what would be organized (dry run)
+router.get('/organize/preview', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    console.log('Getting organization preview...');
+    const preview = await getOrganizationPreview();
+
+    res.json({
+      needsOrganization: preview.length,
+      books: preview,
+    });
+  } catch (error) {
+    console.error('Error getting organization preview:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Organize all audiobooks into correct directory structure
+router.post('/organize', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  // Check if any scan is in progress
+  if (isScanningLocked()) {
+    return res.status(409).json({ error: 'Library scan in progress. Please wait and try again.' });
+  }
+
+  lockScanning(); // Lock scans while organizing
+
+  try {
+    console.log('Starting manual library organization...');
+    const stats = await organizeLibrary();
+
+    res.json({
+      success: true,
+      message: 'Library organization complete',
+      stats,
+    });
+  } catch (error) {
+    console.error('Error organizing library:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    unlockScanning();
+  }
+});
+
+// Organize a single audiobook
+router.post('/organize/:id', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { id } = req.params;
+
+  try {
+    // Get the audiobook
+    const audiobook = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    const result = await organizeAudiobook(audiobook);
+
+    if (result.moved) {
+      res.json({
+        success: true,
+        message: 'Audiobook organized successfully',
+        newPath: result.newPath,
+      });
+    } else if (result.error) {
+      res.status(400).json({ error: result.error });
+    } else {
+      res.json({
+        success: true,
+        message: 'Audiobook already in correct location',
+      });
+    }
+  } catch (error) {
+    console.error('Error organizing audiobook:', error);
     res.status(500).json({ error: error.message });
   }
 });
