@@ -1,11 +1,29 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const bcrypt = require('bcryptjs');
 const { authenticateToken, requireAdmin } = require('../auth');
 
+// SECURITY: Rate limiting for user management endpoints
+const userLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const userWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 user modifications per minute
+  message: { error: 'Too many user management operations. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Get all users (admin only)
-router.get('/', authenticateToken, requireAdmin, (req, res) => {
+router.get('/', userLimiter, authenticateToken, requireAdmin, (req, res) => {
   db.all(
     'SELECT id, username, email, is_admin, created_at FROM users ORDER BY created_at DESC',
     [],
@@ -19,7 +37,7 @@ router.get('/', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Get single user (admin only)
-router.get('/:id', authenticateToken, requireAdmin, (req, res) => {
+router.get('/:id', userLimiter, authenticateToken, requireAdmin, (req, res) => {
   db.get(
     'SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?',
     [req.params.id],
@@ -36,7 +54,7 @@ router.get('/:id', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Create new user (admin only)
-router.post('/', authenticateToken, requireAdmin, (req, res) => {
+router.post('/', userWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
   const { username, password, email, is_admin = 0 } = req.body;
 
   if (!username || !password) {
@@ -64,7 +82,7 @@ router.post('/', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Update user (admin only)
-router.put('/:id', authenticateToken, requireAdmin, (req, res) => {
+router.put('/:id', userWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
   const { username, password, email, is_admin } = req.body;
   const updates = [];
   const params = [];
@@ -114,7 +132,7 @@ router.put('/:id', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Delete user (admin only)
-router.delete('/:id', authenticateToken, requireAdmin, (req, res) => {
+router.delete('/:id', userWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id);
 
   // Prevent deleting yourself
