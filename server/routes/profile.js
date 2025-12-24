@@ -1,11 +1,37 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const { authenticateToken, authenticateMediaToken, validatePassword, invalidateUserTokens } = require('../auth');
+
+// SECURITY: Rate limiting for profile endpoints
+const profileLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const profileWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 profile updates per minute
+  message: { error: 'Too many profile updates. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const passwordChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 password changes per 15 minutes
+  message: { error: 'Too many password change attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Configure multer for avatar upload
 const storage = multer.diskStorage({
@@ -39,7 +65,7 @@ const upload = multer({
 });
 
 // Get profile
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', profileLimiter, authenticateToken, (req, res) => {
   db.get(
     'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
     [req.user.id],
@@ -59,7 +85,7 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // Get user listening stats
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -218,7 +244,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
 });
 
 // Update profile
-router.put('/', authenticateToken, upload.single('avatar'), (req, res) => {
+router.put('/', profileWriteLimiter, authenticateToken, upload.single('avatar'), (req, res) => {
   const { displayName, email } = req.body;
   const updates = [];
   const params = [];
@@ -260,7 +286,7 @@ router.put('/', authenticateToken, upload.single('avatar'), (req, res) => {
 });
 
 // Get avatar (uses media token for img src compatibility)
-router.get('/avatar', authenticateMediaToken, (req, res) => {
+router.get('/avatar', profileLimiter, authenticateMediaToken, (req, res) => {
   db.get(
     'SELECT avatar FROM users WHERE id = ?',
     [req.user.id],
@@ -281,7 +307,7 @@ router.get('/avatar', authenticateMediaToken, (req, res) => {
 });
 
 // Delete avatar
-router.delete('/avatar', authenticateToken, (req, res) => {
+router.delete('/avatar', profileWriteLimiter, authenticateToken, (req, res) => {
   db.get('SELECT avatar FROM users WHERE id = ?', [req.user.id], (err, user) => {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -308,7 +334,7 @@ router.delete('/avatar', authenticateToken, (req, res) => {
 });
 
 // Change password
-router.put('/password', authenticateToken, (req, res) => {
+router.put('/password', passwordChangeLimiter, authenticateToken, (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {

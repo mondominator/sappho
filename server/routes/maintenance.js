@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const path = require('path');
 const fs = require('fs');
@@ -7,6 +8,23 @@ const { authenticateToken } = require('../auth');
 const { extractFileMetadata } = require('../services/fileProcessor');
 const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = require('../services/libraryScanner');
 const { organizeLibrary, getOrganizationPreview, organizeAudiobook } = require('../services/fileOrganizer');
+
+// SECURITY: Rate limiting for maintenance endpoints
+const maintenanceLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const maintenanceWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 maintenance operations per minute
+  message: { error: 'Too many maintenance operations. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // In-memory log buffer for UI viewing
 const LOG_BUFFER_SIZE = 500;
@@ -86,7 +104,7 @@ console.error = (...args) => {
 };
 
 // Get server logs
-router.get('/logs', authenticateToken, (req, res) => {
+router.get('/logs', maintenanceLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -103,7 +121,7 @@ router.get('/logs', authenticateToken, (req, res) => {
 });
 
 // Get background jobs status
-router.get('/jobs', authenticateToken, (req, res) => {
+router.get('/jobs', maintenanceLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -117,7 +135,7 @@ router.get('/jobs', authenticateToken, (req, res) => {
 });
 
 // Get library statistics
-router.get('/statistics', authenticateToken, async (req, res) => {
+router.get('/statistics', maintenanceLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -274,7 +292,7 @@ router.get('/statistics', authenticateToken, async (req, res) => {
 });
 
 // Consolidate multi-file audiobooks
-router.post('/consolidate-multifile', authenticateToken, async (req, res) => {
+router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -425,7 +443,7 @@ router.post('/consolidate-multifile', authenticateToken, async (req, res) => {
 });
 
 // Clear all audiobooks from database
-router.post('/clear-library', authenticateToken, async (req, res) => {
+router.post('/clear-library', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -470,7 +488,7 @@ router.post('/clear-library', authenticateToken, async (req, res) => {
 });
 
 // Trigger immediate library scan (imports new files only)
-router.post('/scan-library', authenticateToken, async (req, res) => {
+router.post('/scan-library', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -598,7 +616,7 @@ router.post('/scan-library', authenticateToken, async (req, res) => {
 });
 
 // Run database migrations
-router.post('/migrate', authenticateToken, async (req, res) => {
+router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -694,7 +712,7 @@ router.post('/migrate', authenticateToken, async (req, res) => {
 // Uses a lock to prevent concurrent scans
 let forceRescanInProgress = false;
 
-router.post('/force-rescan', authenticateToken, async (req, res) => {
+router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -993,7 +1011,7 @@ router.post('/force-rescan', authenticateToken, async (req, res) => {
 });
 
 // Detect duplicate audiobooks
-router.get('/duplicates', authenticateToken, async (req, res) => {
+router.get('/duplicates', maintenanceLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1136,7 +1154,7 @@ router.get('/duplicates', authenticateToken, async (req, res) => {
 });
 
 // Merge duplicate audiobooks
-router.post('/duplicates/merge', authenticateToken, async (req, res) => {
+router.post('/duplicates/merge', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1323,7 +1341,7 @@ router.post('/duplicates/merge', authenticateToken, async (req, res) => {
 });
 
 // Detect orphan directories (directories with files not tracked as audiobooks)
-router.get('/orphan-directories', authenticateToken, async (req, res) => {
+router.get('/orphan-directories', maintenanceLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1455,7 +1473,7 @@ router.get('/orphan-directories', authenticateToken, async (req, res) => {
 });
 
 // Delete orphan directories
-router.delete('/orphan-directories', authenticateToken, async (req, res) => {
+router.delete('/orphan-directories', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1535,7 +1553,7 @@ router.delete('/orphan-directories', authenticateToken, async (req, res) => {
 });
 
 // Preview what would be organized (dry run)
-router.get('/organize/preview', authenticateToken, async (req, res) => {
+router.get('/organize/preview', maintenanceLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1555,7 +1573,7 @@ router.get('/organize/preview', authenticateToken, async (req, res) => {
 });
 
 // Organize all audiobooks into correct directory structure
-router.post('/organize', authenticateToken, async (req, res) => {
+router.post('/organize', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1585,7 +1603,7 @@ router.post('/organize', authenticateToken, async (req, res) => {
 });
 
 // Organize a single audiobook
-router.post('/organize/:id', authenticateToken, async (req, res) => {
+router.post('/organize/:id', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }

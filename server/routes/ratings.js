@@ -1,11 +1,29 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const { authenticateToken } = require('../auth');
 const db = require('../database');
 const activityService = require('../services/activityService');
 
+// SECURITY: Rate limiting for rating endpoints
+const ratingLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const ratingWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 rating changes per minute
+  message: { error: 'Too many rating updates. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Get current user's rating for an audiobook
-router.get('/audiobook/:audiobookId', authenticateToken, (req, res) => {
+router.get('/audiobook/:audiobookId', ratingLimiter, authenticateToken, (req, res) => {
   const { audiobookId } = req.params;
 
   db.get(
@@ -21,7 +39,7 @@ router.get('/audiobook/:audiobookId', authenticateToken, (req, res) => {
 });
 
 // Get all ratings for an audiobook (for displaying average)
-router.get('/audiobook/:audiobookId/all', authenticateToken, (req, res) => {
+router.get('/audiobook/:audiobookId/all', ratingLimiter, authenticateToken, (req, res) => {
   const { audiobookId } = req.params;
 
   db.all(
@@ -41,7 +59,7 @@ router.get('/audiobook/:audiobookId/all', authenticateToken, (req, res) => {
 });
 
 // Get average rating for an audiobook
-router.get('/audiobook/:audiobookId/average', authenticateToken, (req, res) => {
+router.get('/audiobook/:audiobookId/average', ratingLimiter, authenticateToken, (req, res) => {
   const { audiobookId } = req.params;
 
   db.get(
@@ -64,7 +82,7 @@ router.get('/audiobook/:audiobookId/average', authenticateToken, (req, res) => {
 });
 
 // Set or update rating/review for an audiobook
-router.post('/audiobook/:audiobookId', authenticateToken, (req, res) => {
+router.post('/audiobook/:audiobookId', ratingWriteLimiter, authenticateToken, (req, res) => {
   const { audiobookId } = req.params;
   const { rating, review } = req.body;
 
@@ -146,7 +164,7 @@ router.post('/audiobook/:audiobookId', authenticateToken, (req, res) => {
 });
 
 // Delete rating/review for an audiobook
-router.delete('/audiobook/:audiobookId', authenticateToken, (req, res) => {
+router.delete('/audiobook/:audiobookId', ratingWriteLimiter, authenticateToken, (req, res) => {
   const { audiobookId } = req.params;
 
   db.run(
@@ -165,7 +183,7 @@ router.delete('/audiobook/:audiobookId', authenticateToken, (req, res) => {
 });
 
 // Get all ratings by current user
-router.get('/my-ratings', authenticateToken, (req, res) => {
+router.get('/my-ratings', ratingLimiter, authenticateToken, (req, res) => {
   db.all(
     `SELECT ur.*, a.title, a.author, a.cover_image
      FROM user_ratings ur
