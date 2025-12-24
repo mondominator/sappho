@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { getCoverUrl } from '../api';
+import { getCoverUrl, getMFAStatus, setupMFA, verifyMFASetup, disableMFA, regenerateBackupCodes } from '../api';
 import './Profile.css';
 
 // Helper to format duration in seconds to readable string
@@ -73,9 +73,19 @@ export default function Profile() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
+  // MFA state
+  const [mfaStatus, setMfaStatus] = useState({ enabled: false, remainingBackupCodes: 0 });
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaSetupData, setMfaSetupData] = useState(null);
+  const [mfaVerifyCode, setMfaVerifyCode] = useState('');
+  const [mfaError, setMfaError] = useState('');
+  const [mfaBackupCodes, setMfaBackupCodes] = useState(null);
+  const [mfaDisableCode, setMfaDisableCode] = useState('');
+
   useEffect(() => {
     loadProfile();
     loadStats();
+    loadMFAStatus();
   }, []);
 
   const loadProfile = async () => {
@@ -107,6 +117,91 @@ export default function Profile() {
     } finally {
       setStatsLoading(false);
     }
+  };
+
+  const loadMFAStatus = async () => {
+    try {
+      const response = await getMFAStatus();
+      setMfaStatus(response.data);
+    } catch (error) {
+      console.error('Error loading MFA status:', error);
+    }
+  };
+
+  const handleStartMFASetup = async () => {
+    setMfaLoading(true);
+    setMfaError('');
+    try {
+      const response = await setupMFA();
+      setMfaSetupData(response.data);
+    } catch (error) {
+      setMfaError(error.response?.data?.error || 'Failed to start MFA setup');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleVerifyMFASetup = async (e) => {
+    e.preventDefault();
+    setMfaLoading(true);
+    setMfaError('');
+    try {
+      const response = await verifyMFASetup(mfaSetupData.secret, mfaVerifyCode);
+      setMfaBackupCodes(response.data.backupCodes);
+      setMfaSetupData(null);
+      setMfaVerifyCode('');
+      loadMFAStatus();
+    } catch (error) {
+      setMfaError(error.response?.data?.error || 'Failed to verify MFA');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleDisableMFA = async (e) => {
+    e.preventDefault();
+    if (!window.confirm('Are you sure you want to disable two-factor authentication?')) {
+      return;
+    }
+    setMfaLoading(true);
+    setMfaError('');
+    try {
+      await disableMFA(mfaDisableCode, null);
+      setMfaDisableCode('');
+      loadMFAStatus();
+      alert('Two-factor authentication disabled');
+    } catch (error) {
+      setMfaError(error.response?.data?.error || 'Failed to disable MFA');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleRegenerateBackupCodes = async () => {
+    const code = window.prompt('Enter your current MFA code to regenerate backup codes:');
+    if (!code) return;
+
+    setMfaLoading(true);
+    setMfaError('');
+    try {
+      const response = await regenerateBackupCodes(code);
+      setMfaBackupCodes(response.data.backupCodes);
+      loadMFAStatus();
+    } catch (error) {
+      setMfaError(error.response?.data?.error || 'Failed to regenerate backup codes');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleCancelMFASetup = () => {
+    setMfaSetupData(null);
+    setMfaVerifyCode('');
+    setMfaError('');
+  };
+
+  const handleDismissBackupCodes = () => {
+    setMfaBackupCodes(null);
   };
 
   const handleAvatarChange = (e) => {
@@ -271,6 +366,16 @@ export default function Profile() {
               <path d="M12 1v6m0 6v6"/>
             </svg>
             Settings
+          </button>
+          <button
+            className={`profile-tab ${activeTab === 'security' ? 'active' : ''}`}
+            onClick={() => setActiveTab('security')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Security
           </button>
         </div>
 
@@ -632,6 +737,183 @@ export default function Profile() {
                 </div>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Security Tab */}
+        {activeTab === 'security' && (
+          <div className="profile-card">
+            <div className="form-section">
+              <h3>Two-Factor Authentication</h3>
+              <p className="section-description">
+                Add an extra layer of security to your account by enabling two-factor authentication.
+              </p>
+
+              {mfaError && (
+                <div className="password-error">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  {mfaError}
+                </div>
+              )}
+
+              {/* Backup codes display modal */}
+              {mfaBackupCodes && (
+                <div className="mfa-backup-codes-modal">
+                  <div className="mfa-backup-codes-content">
+                    <h4>Backup Codes</h4>
+                    <p className="warning-text">
+                      Save these backup codes in a safe place. You can use them to access your account if you lose your authenticator device.
+                      Each code can only be used once.
+                    </p>
+                    <div className="backup-codes-grid">
+                      {mfaBackupCodes.map((code, index) => (
+                        <code key={index} className="backup-code">{code}</code>
+                      ))}
+                    </div>
+                    <div className="backup-codes-actions">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(mfaBackupCodes.join('\n'));
+                          alert('Backup codes copied to clipboard');
+                        }}
+                      >
+                        Copy to Clipboard
+                      </button>
+                      <button className="btn btn-primary" onClick={handleDismissBackupCodes}>
+                        I've Saved These Codes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MFA Setup Flow */}
+              {mfaSetupData ? (
+                <div className="mfa-setup">
+                  <div className="mfa-qr-section">
+                    <h4>Scan QR Code</h4>
+                    <p>Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+                    <div className="qr-code-container">
+                      <img src={mfaSetupData.qrCode} alt="MFA QR Code" className="qr-code" />
+                    </div>
+                    <p className="manual-code">
+                      Can't scan? Enter this code manually: <code>{mfaSetupData.secret}</code>
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleVerifyMFASetup} className="mfa-verify-form">
+                    <div className="form-group">
+                      <label>Verification Code</label>
+                      <input
+                        type="text"
+                        className="input mfa-code-input"
+                        value={mfaVerifyCode}
+                        onChange={(e) => setMfaVerifyCode(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="000000"
+                        maxLength={6}
+                        autoFocus
+                      />
+                      <p className="help-text">Enter the 6-digit code from your authenticator app</p>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="button" className="btn btn-secondary" onClick={handleCancelMFASetup}>
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={mfaLoading || mfaVerifyCode.length !== 6}
+                      >
+                        {mfaLoading ? 'Verifying...' : 'Enable MFA'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : mfaStatus.enabled ? (
+                /* MFA Enabled State */
+                <div className="mfa-enabled">
+                  <div className="mfa-status-badge enabled">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Two-factor authentication is enabled
+                  </div>
+
+                  <div className="mfa-info">
+                    <p>Backup codes remaining: <strong>{mfaStatus.remainingBackupCodes}</strong></p>
+                    {mfaStatus.remainingBackupCodes <= 2 && (
+                      <p className="warning-text">You're running low on backup codes. Consider regenerating them.</p>
+                    )}
+                  </div>
+
+                  <div className="mfa-actions">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleRegenerateBackupCodes}
+                      disabled={mfaLoading}
+                    >
+                      Regenerate Backup Codes
+                    </button>
+                  </div>
+
+                  <div className="mfa-disable-section">
+                    <h4>Disable Two-Factor Authentication</h4>
+                    <form onSubmit={handleDisableMFA}>
+                      <div className="form-group">
+                        <label>Current MFA Code or Backup Code</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={mfaDisableCode}
+                          onChange={(e) => setMfaDisableCode(e.target.value.replace(/[^0-9A-Za-z]/g, ''))}
+                          placeholder="Enter code"
+                          maxLength={8}
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="btn btn-danger"
+                        disabled={mfaLoading || !mfaDisableCode}
+                      >
+                        {mfaLoading ? 'Disabling...' : 'Disable MFA'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                /* MFA Not Enabled State */
+                <div className="mfa-disabled">
+                  <div className="mfa-status-badge disabled">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    Two-factor authentication is not enabled
+                  </div>
+
+                  <p className="mfa-description">
+                    Protect your account with an authenticator app. You'll need to enter a code from the app
+                    each time you log in.
+                  </p>
+
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleStartMFASetup}
+                    disabled={mfaLoading}
+                  >
+                    {mfaLoading ? 'Setting up...' : 'Enable Two-Factor Authentication'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

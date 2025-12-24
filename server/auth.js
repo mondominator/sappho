@@ -306,7 +306,7 @@ async function login(username, password) {
     }
 
     db.get(
-      'SELECT id, username, password_hash, is_admin, must_change_password FROM users WHERE username = ?',
+      'SELECT id, username, password_hash, is_admin, must_change_password, mfa_enabled FROM users WHERE username = ?',
       [username],
       (err, user) => {
         if (err) {
@@ -325,6 +325,22 @@ async function login(username, password) {
 
         // Clear failed attempts on successful login
         clearFailedAttempts(username);
+
+        // SECURITY: Check if MFA is enabled
+        if (user.mfa_enabled) {
+          // Return a temporary token that requires MFA verification
+          const mfaToken = jwt.sign(
+            { id: user.id, username: user.username, mfa_pending: true },
+            JWT_SECRET,
+            { expiresIn: '5m' } // Short expiry for MFA challenge
+          );
+
+          return resolve({
+            mfa_required: true,
+            mfa_token: mfaToken,
+            message: 'MFA verification required'
+          });
+        }
 
         // SECURITY: Don't include is_admin in JWT - fetch from DB on each request
         const token = jwt.sign(

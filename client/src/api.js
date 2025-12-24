@@ -390,4 +390,23 @@ export const getActivityPrivacy = () =>
 export const updateActivityPrivacy = (settings) =>
   api.put('/activity/privacy', settings);
 
+// MFA (Multi-Factor Authentication)
+export const getMFAStatus = () =>
+  api.get('/mfa/status');
+
+export const setupMFA = () =>
+  api.post('/mfa/setup');
+
+export const verifyMFASetup = (secret, token) =>
+  api.post('/mfa/verify-setup', { secret, token });
+
+export const disableMFA = (token, password) =>
+  api.post('/mfa/disable', { token, password });
+
+export const regenerateBackupCodes = (token) =>
+  api.post('/mfa/regenerate-codes', { token });
+
+export const verifyMFA = (mfa_token, token) =>
+  api.post('/auth/verify-mfa', { mfa_token, token });
+
 export default api;
