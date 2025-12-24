@@ -1,10 +1,28 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const { authenticateToken } = require('../auth');
 
+// SECURITY: Rate limiting for collection endpoints
+const collectionLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const collectionWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 write operations per minute
+  message: { error: 'Too many collection modifications. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Get all collections for current user (private + all public)
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', collectionLimiter, authenticateToken, (req, res) => {
   db.all(
     `SELECT c.*,
             u.username as creator_username,
@@ -35,7 +53,7 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // Create a new collection
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', collectionWriteLimiter, authenticateToken, (req, res) => {
   const { name, description, is_public } = req.body;
 
   if (!name || !name.trim()) {
@@ -70,7 +88,7 @@ router.post('/', authenticateToken, (req, res) => {
 
 // Get collections that contain a specific book (user's private + public)
 // NOTE: This route MUST be before /:id to avoid "for-book" being matched as an ID
-router.get('/for-book/:bookId', authenticateToken, (req, res) => {
+router.get('/for-book/:bookId', collectionLimiter, authenticateToken, (req, res) => {
   const bookId = req.params.bookId;
 
   db.all(
@@ -93,7 +111,7 @@ router.get('/for-book/:bookId', authenticateToken, (req, res) => {
 });
 
 // Get a single collection with its books
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', collectionLimiter, authenticateToken, (req, res) => {
   const collectionId = req.params.id;
 
   // Get collection if user owns it OR it's public
@@ -141,7 +159,7 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 // Update a collection (name, description, visibility)
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', collectionWriteLimiter, authenticateToken, (req, res) => {
   const collectionId = req.params.id;
   const { name, description, is_public } = req.body;
 
@@ -182,7 +200,7 @@ router.put('/:id', authenticateToken, (req, res) => {
 });
 
 // Delete a collection (owner only)
-router.delete('/:id', authenticateToken, (req, res) => {
+router.delete('/:id', collectionWriteLimiter, authenticateToken, (req, res) => {
   const collectionId = req.params.id;
 
   // Only the owner can delete a collection
@@ -223,7 +241,7 @@ const canEditCollection = (collectionId, userId, callback) => {
 };
 
 // Add a book to a collection (owner or anyone for public collections)
-router.post('/:id/items', authenticateToken, (req, res) => {
+router.post('/:id/items', collectionWriteLimiter, authenticateToken, (req, res) => {
   const collectionId = req.params.id;
   const { audiobook_id } = req.body;
 
@@ -274,7 +292,7 @@ router.post('/:id/items', authenticateToken, (req, res) => {
 });
 
 // Remove a book from a collection (owner or anyone for public collections)
-router.delete('/:id/items/:bookId', authenticateToken, (req, res) => {
+router.delete('/:id/items/:bookId', collectionWriteLimiter, authenticateToken, (req, res) => {
   const { id: collectionId, bookId } = req.params;
 
   canEditCollection(collectionId, req.user.id, (err, result) => {
@@ -309,7 +327,7 @@ router.delete('/:id/items/:bookId', authenticateToken, (req, res) => {
 });
 
 // Reorder books in a collection (owner or anyone for public collections)
-router.put('/:id/items/reorder', authenticateToken, (req, res) => {
+router.put('/:id/items/reorder', collectionWriteLimiter, authenticateToken, (req, res) => {
   const collectionId = req.params.id;
   const { order } = req.body; // Array of audiobook_ids in new order
 
