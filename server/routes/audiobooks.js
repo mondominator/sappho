@@ -29,6 +29,58 @@ function clearSessionId(userId, audiobookId) {
   activeSessionIds.delete(key);
 }
 
+/**
+ * Queue the next book in a series when the current book is finished.
+ * This makes the next book appear at the top of "Continue Listening".
+ */
+function queueNextInSeries(userId, finishedAudiobookId) {
+  // Get the finished audiobook's series info
+  db.get(
+    'SELECT series, series_position, series_index FROM audiobooks WHERE id = ?',
+    [finishedAudiobookId],
+    (err, finishedBook) => {
+      if (err || !finishedBook || !finishedBook.series) {
+        return; // No series, nothing to queue
+      }
+
+      const currentPosition = finishedBook.series_position || finishedBook.series_index || 0;
+
+      // Find the next unfinished book in the series
+      db.get(
+        `SELECT a.id, a.title FROM audiobooks a
+         LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+         WHERE a.series = ?
+           AND COALESCE(a.series_position, a.series_index, 0) > ?
+           AND (a.is_available = 1 OR a.is_available IS NULL)
+           AND (p.completed IS NULL OR p.completed = 0)
+         ORDER BY COALESCE(a.series_position, a.series_index, 0) ASC
+         LIMIT 1`,
+        [userId, finishedBook.series, currentPosition],
+        (err, nextBook) => {
+          if (err || !nextBook) {
+            return; // No next book found
+          }
+
+          // Queue the next book by setting queued_at
+          db.run(
+            `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, queued_at, updated_at)
+             VALUES (?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+               queued_at = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP`,
+            [userId, nextBook.id],
+            (err) => {
+              if (!err) {
+                console.log(`Queued next book in series: "${nextBook.title}" for user ${userId}`);
+              }
+            }
+          );
+        }
+      );
+    }
+  );
+}
+
 // Track directories with active conversions to prevent scanner interference
 const activeConversions = new Set();
 
@@ -2046,17 +2098,24 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
   }
 
   // Update progress in database
+  // Clear queued_at when user starts playing (position > 0), so it's no longer marked as "up next"
   db.run(
     `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
        position = excluded.position,
        completed = excluded.completed,
-       updated_at = excluded.updated_at`,
+       updated_at = excluded.updated_at,
+       queued_at = CASE WHEN excluded.position > 0 THEN NULL ELSE queued_at END`,
     [userId, audiobookId, position, completed],
     (err) => {
       if (err) {
         return res.status(500).json({ error: err.message });
+      }
+
+      // If book was marked as completed, queue the next book in the series
+      if (completed) {
+        queueNextInSeries(userId, audiobookId);
       }
 
       // Update session tracking
@@ -2421,13 +2480,16 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
   const userId = req.user.id;
 
   db.all(
-    `SELECT a.*, p.position as progress_position, p.completed as progress_completed, p.updated_at as last_played,
+    `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+            p.updated_at as last_played, p.queued_at,
             CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
      FROM audiobooks a
      INNER JOIN playback_progress p ON a.id = p.audiobook_id
      LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
-     WHERE p.user_id = ? AND p.completed = 0 AND p.position >= 5 AND (a.is_available = 1 OR a.is_available IS NULL)
-     ORDER BY p.updated_at DESC
+     WHERE p.user_id = ? AND p.completed = 0
+       AND (p.position >= 5 OR p.queued_at IS NOT NULL)
+       AND (a.is_available = 1 OR a.is_available IS NULL)
+     ORDER BY p.queued_at DESC NULLS LAST, p.updated_at DESC
      LIMIT ?`,
     [userId, userId, limit],
     (err, audiobooks) => {
@@ -2439,6 +2501,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
         is_favorite: !!book.is_favorite,
+        is_queued: !!book.queued_at,
         progress: {
           position: book.progress_position,
           completed: book.progress_completed
@@ -2447,6 +2510,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
       transformedAudiobooks.forEach(b => {
         delete b.progress_position;
         delete b.progress_completed;
+        delete b.queued_at;
       });
 
       res.json(transformedAudiobooks);
