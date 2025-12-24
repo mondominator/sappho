@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 const db = require('../database');
 const { register, login, logout, authenticateToken, validatePassword, invalidateUserTokens } = require('../auth');
+const mfaService = require('../services/mfaService');
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // SECURITY: Rate limiting for authentication endpoints to prevent brute-force attacks
 const loginLimiter = rateLimit({
@@ -137,6 +141,84 @@ router.post('/logout-all', authenticateToken, (req, res) => {
     res.json({ message: 'Logged out from all devices successfully' });
   } catch (_error) {
     res.status(500).json({ error: 'Failed to logout from all devices' });
+  }
+});
+
+// MFA verification endpoint
+router.post('/verify-mfa', loginLimiter, async (req, res) => {
+  try {
+    const { mfa_token, token: mfaCode } = req.body;
+
+    if (!mfa_token || !mfaCode) {
+      return res.status(400).json({ error: 'MFA token and verification code are required' });
+    }
+
+    // Verify the MFA token
+    let decoded;
+    try {
+      decoded = jwt.verify(mfa_token, JWT_SECRET);
+    } catch (_err) {
+      return res.status(403).json({ error: 'MFA session expired. Please login again.' });
+    }
+
+    // Check that this is an MFA pending token
+    if (!decoded.mfa_pending) {
+      return res.status(400).json({ error: 'Invalid MFA token' });
+    }
+
+    // Get user's MFA secret
+    const secret = await mfaService.getUserMFASecret(decoded.id);
+    if (!secret) {
+      return res.status(400).json({ error: 'MFA is not enabled for this account' });
+    }
+
+    // Verify the TOTP code
+    let isValid = mfaService.verifyToken(mfaCode, secret);
+
+    // If TOTP verification fails, try as backup code
+    if (!isValid) {
+      isValid = await mfaService.verifyBackupCode(decoded.id, mfaCode);
+    }
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    // Get user info for response
+    const user = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, username, is_admin, must_change_password FROM users WHERE id = ?',
+        [decoded.id],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'User not found' });
+    }
+
+    // Issue full session token
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        is_admin: user.is_admin
+      },
+      must_change_password: !!user.must_change_password
+    });
+  } catch (error) {
+    console.error('MFA verification error:', error);
+    res.status(500).json({ error: 'MFA verification failed' });
   }
 });
 
