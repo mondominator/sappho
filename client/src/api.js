@@ -374,4 +374,20 @@ export const batchAddToCollection = (audiobookIds, collectionId) =>
 export const batchDelete = (audiobookIds, deleteFiles = false) =>
   api.post('/audiobooks/batch/delete', { audiobook_ids: audiobookIds, delete_files: deleteFiles });
 
+// Activity Feed
+export const getActivityFeed = (params) =>
+  api.get('/activity/feed', { params });
+
+export const getPersonalActivity = (params) =>
+  api.get('/activity/personal', { params });
+
+export const getServerActivity = (params) =>
+  api.get('/activity/server', { params });
+
+export const getActivityPrivacy = () =>
+  api.get('/activity/privacy');
+
+export const updateActivityPrivacy = (settings) =>
+  api.put('/activity/privacy', settings);
+
 export default api;

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../auth');
 const db = require('../database');
+const activityService = require('../services/activityService');
 
 // Get current user's rating for an audiobook
 router.get('/audiobook/:audiobookId', authenticateToken, (req, res) => {
@@ -124,6 +125,15 @@ router.post('/audiobook/:audiobookId', authenticateToken, (req, res) => {
               (err, created) => {
                 if (err) {
                   return res.status(500).json({ error: err.message });
+                }
+                // Record rating activity
+                if (rating) {
+                  activityService.recordActivity(
+                    req.user.id,
+                    activityService.EVENT_TYPES.RATED_BOOK,
+                    parseInt(audiobookId),
+                    { rating: parseInt(rating) }
+                  ).catch(err => console.error('Failed to record rating activity:', err));
                 }
                 res.status(201).json(created);
               }
