@@ -155,3 +155,93 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Section tabs for Jobs page */
+.section-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #374151;
+  padding-bottom: 0;
+  overflow-x: auto;
+}
+
+.section-tab {
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.section-tab:hover {
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.section-tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+/* Library Management action cards */
+.management-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.action-card {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.action-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: #f3f4f6;
+  font-size: 1.1rem;
+}
+
+.action-card p {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.action-card.danger {
+  background: #7f1d1d;
+  border-color: #dc2626;
+}
+
+.action-card.danger h3 {
+  color: #fecaca;
+}
+
+.action-card.danger p {
+  color: #fca5a5;
+}
+
+@media (max-width: 768px) {
+  .section-tabs {
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .section-tab {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .management-actions {
+    grid-template-columns: 1fr;
+  }
+}
