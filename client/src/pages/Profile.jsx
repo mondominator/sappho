@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { getCoverUrl, getMFAStatus, setupMFA, verifyMFASetup, disableMFA, regenerateBackupCodes } from '../api';
+import { getCoverUrl, getMFAStatus, setupMFA, verifyMFASetup, disableMFA, regenerateBackupCodes, getEmailStatus, getNotificationPreferences, updateNotificationPreferences } from '../api';
 import './Profile.css';
 
 // Helper to format duration in seconds to readable string
@@ -82,10 +82,23 @@ export default function Profile() {
   const [mfaBackupCodes, setMfaBackupCodes] = useState(null);
   const [mfaDisableCode, setMfaDisableCode] = useState('');
 
+  // Notification preferences state
+  const [emailStatus, setEmailStatus] = useState({ configured: false, enabled: false });
+  const [notifPrefs, setNotifPrefs] = useState({
+    email_new_audiobook: false,
+    email_weekly_summary: false,
+    email_recommendations: false,
+    email_enabled: true
+  });
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [notifMessage, setNotifMessage] = useState(null);
+
   useEffect(() => {
     loadProfile();
     loadStats();
     loadMFAStatus();
+    loadNotificationPrefs();
   }, []);
 
   const loadProfile = async () => {
@@ -125,6 +138,40 @@ export default function Profile() {
       setMfaStatus(response.data);
     } catch (error) {
       console.error('Error loading MFA status:', error);
+    }
+  };
+
+  const loadNotificationPrefs = async () => {
+    setNotifLoading(true);
+    try {
+      const [statusRes, prefsRes] = await Promise.all([
+        getEmailStatus(),
+        getNotificationPreferences()
+      ]);
+      setEmailStatus(statusRes.data);
+      setNotifPrefs(prefsRes.data);
+    } catch (error) {
+      console.error('Error loading notification preferences:', error);
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const handleNotifPrefChange = (key, value) => {
+    setNotifPrefs(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveNotifPrefs = async () => {
+    setNotifSaving(true);
+    setNotifMessage(null);
+    try {
+      await updateNotificationPreferences(notifPrefs);
+      setNotifMessage({ type: 'success', text: 'Notification preferences saved' });
+    } catch (error) {
+      console.error('Error saving notification preferences:', error);
+      setNotifMessage({ type: 'error', text: error.response?.data?.error || 'Failed to save preferences' });
+    } finally {
+      setNotifSaving(false);
     }
   };
 
@@ -376,6 +423,16 @@ export default function Profile() {
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
             Security
+          </button>
+          <button
+            className={`profile-tab ${activeTab === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notifications')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            Notifications
           </button>
         </div>
 
@@ -912,6 +969,110 @@ export default function Profile() {
                     {mfaLoading ? 'Setting up...' : 'Enable Two-Factor Authentication'}
                   </button>
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div className="profile-card">
+            <div className="form-section">
+              <h3>Email Notifications</h3>
+              <p className="section-description">
+                Choose which email notifications you'd like to receive.
+              </p>
+
+              {notifLoading ? (
+                <div className="stats-loading">Loading preferences...</div>
+              ) : !emailStatus.enabled ? (
+                <div className="notif-disabled-notice">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <div>
+                    <strong>Email notifications are not configured</strong>
+                    <p>An administrator needs to configure email settings before notifications can be sent.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {notifMessage && (
+                    <div className={`notif-message ${notifMessage.type}`}>
+                      {notifMessage.text}
+                    </div>
+                  )}
+
+                  <div className="notif-toggle-section">
+                    <div className="notif-master-toggle">
+                      <label className="toggle-label">
+                        <input
+                          type="checkbox"
+                          checked={notifPrefs.email_enabled}
+                          onChange={(e) => handleNotifPrefChange('email_enabled', e.target.checked)}
+                        />
+                        <span className="toggle-text">
+                          <strong>Enable email notifications</strong>
+                          <span className="toggle-description">Master switch for all email notifications</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {notifPrefs.email_enabled && (
+                    <div className="notif-options">
+                      <h4>Notification Types</h4>
+
+                      <label className="toggle-label">
+                        <input
+                          type="checkbox"
+                          checked={notifPrefs.email_new_audiobook}
+                          onChange={(e) => handleNotifPrefChange('email_new_audiobook', e.target.checked)}
+                        />
+                        <span className="toggle-text">
+                          <strong>New audiobooks</strong>
+                          <span className="toggle-description">Get notified when new audiobooks are added to the library</span>
+                        </span>
+                      </label>
+
+                      <label className="toggle-label">
+                        <input
+                          type="checkbox"
+                          checked={notifPrefs.email_weekly_summary}
+                          onChange={(e) => handleNotifPrefChange('email_weekly_summary', e.target.checked)}
+                        />
+                        <span className="toggle-text">
+                          <strong>Weekly listening summary</strong>
+                          <span className="toggle-description">Receive a weekly summary of your listening activity</span>
+                        </span>
+                      </label>
+
+                      <label className="toggle-label">
+                        <input
+                          type="checkbox"
+                          checked={notifPrefs.email_recommendations}
+                          onChange={(e) => handleNotifPrefChange('email_recommendations', e.target.checked)}
+                        />
+                        <span className="toggle-text">
+                          <strong>Book recommendations</strong>
+                          <span className="toggle-description">Get personalized audiobook recommendations</span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="form-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSaveNotifPrefs}
+                      disabled={notifSaving}
+                    >
+                      {notifSaving ? 'Saving...' : 'Save Preferences'}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
