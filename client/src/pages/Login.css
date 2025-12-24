@@ -67,3 +67,39 @@
   font-size: 12px;
   color: #6b7280;
 }
+
+/* MFA Styles */
+.mfa-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.mfa-header svg {
+  color: #f472b6;
+  margin-bottom: 12px;
+}
+
+.mfa-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  color: #f3f4f6;
+}
+
+.mfa-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.mfa-input {
+  font-size: 24px;
+  text-align: center;
+  letter-spacing: 8px;
+  font-family: monospace;
+}
+
+.help-text {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
