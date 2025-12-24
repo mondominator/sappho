@@ -6,14 +6,32 @@
 
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const { authenticateToken } = require('../auth');
 const activityService = require('../services/activityService');
+
+// SECURITY: Rate limiting for activity feed endpoints
+const activityLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const privacyUpdateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 privacy updates per minute
+  message: { error: 'Too many privacy updates. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 /**
  * GET /api/activity/feed
  * Get the combined activity feed (own + shared)
  */
-router.get('/feed', authenticateToken, async (req, res) => {
+router.get('/feed', activityLimiter, authenticateToken, async (req, res) => {
   try {
     const { limit = 50, offset = 0, type, includeOwn = 'true' } = req.query;
 
@@ -35,7 +53,7 @@ router.get('/feed', authenticateToken, async (req, res) => {
  * GET /api/activity/personal
  * Get only the current user's activity
  */
-router.get('/personal', authenticateToken, async (req, res) => {
+router.get('/personal', activityLimiter, authenticateToken, async (req, res) => {
   try {
     const { limit = 50, offset = 0, type } = req.query;
 
@@ -56,7 +74,7 @@ router.get('/personal', authenticateToken, async (req, res) => {
  * GET /api/activity/server
  * Get server-wide shared activity
  */
-router.get('/server', authenticateToken, async (req, res) => {
+router.get('/server', activityLimiter, authenticateToken, async (req, res) => {
   try {
     const { limit = 50, offset = 0, type } = req.query;
 
@@ -77,7 +95,7 @@ router.get('/server', authenticateToken, async (req, res) => {
  * GET /api/activity/privacy
  * Get current user's privacy settings
  */
-router.get('/privacy', authenticateToken, async (req, res) => {
+router.get('/privacy', activityLimiter, authenticateToken, async (req, res) => {
   try {
     const settings = await activityService.getPrivacySettings(req.user.id);
     res.json(settings);
@@ -91,7 +109,7 @@ router.get('/privacy', authenticateToken, async (req, res) => {
  * PUT /api/activity/privacy
  * Update current user's privacy settings
  */
-router.put('/privacy', authenticateToken, async (req, res) => {
+router.put('/privacy', privacyUpdateLimiter, authenticateToken, async (req, res) => {
   try {
     const { shareActivity, showInFeed } = req.body;
 
@@ -115,7 +133,7 @@ router.put('/privacy', authenticateToken, async (req, res) => {
  * GET /api/activity/types
  * Get available activity event types
  */
-router.get('/types', authenticateToken, (_req, res) => {
+router.get('/types', activityLimiter, authenticateToken, (_req, res) => {
   res.json({
     types: Object.entries(activityService.EVENT_TYPES).map(([key, value]) => ({
       key,
