@@ -4,8 +4,25 @@ const rateLimit = require('express-rate-limit');
 const { authenticateToken, requireAdmin } = require('../auth');
 const emailService = require('../services/emailService');
 
-// Rate limit for email sending
-const emailLimiter = rateLimit({
+// SECURITY: Rate limiting for email endpoints
+const emailReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const emailWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 write operations per minute
+  message: { error: 'Too many email configuration changes. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limit for email sending (more restrictive)
+const emailSendLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 emails per 15 minutes
   message: { error: 'Too many email requests. Please try again later.' },
@@ -22,7 +39,7 @@ const emailLimiter = rateLimit({
  * Get current SMTP settings (admin only)
  * Password is masked in response
  */
-router.get('/settings', authenticateToken, requireAdmin, async (_req, res) => {
+router.get('/settings', emailReadLimiter, authenticateToken, requireAdmin, async (_req, res) => {
   try {
     const settings = await emailService.getSMTPSettings();
 
@@ -56,7 +73,7 @@ router.get('/settings', authenticateToken, requireAdmin, async (_req, res) => {
  * PUT /api/email/settings
  * Update SMTP settings (admin only)
  */
-router.put('/settings', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/settings', emailWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { host, port, secure, username, password, from_address, from_name, enabled } = req.body;
 
@@ -86,7 +103,7 @@ router.put('/settings', authenticateToken, requireAdmin, async (req, res) => {
  * POST /api/email/test-connection
  * Test SMTP connection without saving (admin only)
  */
-router.post('/test-connection', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/test-connection', emailWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { host, port, secure, username, password } = req.body;
 
@@ -120,7 +137,7 @@ router.post('/test-connection', authenticateToken, requireAdmin, async (req, res
  * POST /api/email/send-test
  * Send a test email (admin only)
  */
-router.post('/send-test', authenticateToken, requireAdmin, emailLimiter, async (req, res) => {
+router.post('/send-test', emailSendLimiter, authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { to } = req.body;
 
@@ -149,7 +166,7 @@ router.post('/send-test', authenticateToken, requireAdmin, emailLimiter, async (
  * GET /api/email/preferences
  * Get current user's notification preferences
  */
-router.get('/preferences', authenticateToken, async (req, res) => {
+router.get('/preferences', emailReadLimiter, authenticateToken, async (req, res) => {
   try {
     const prefs = await emailService.getUserNotificationPrefs(req.user.id);
     res.json({
@@ -168,7 +185,7 @@ router.get('/preferences', authenticateToken, async (req, res) => {
  * PUT /api/email/preferences
  * Update current user's notification preferences
  */
-router.put('/preferences', authenticateToken, async (req, res) => {
+router.put('/preferences', emailWriteLimiter, authenticateToken, async (req, res) => {
   try {
     const { email_new_audiobook, email_weekly_summary, email_recommendations, email_enabled } = req.body;
 
@@ -190,7 +207,7 @@ router.put('/preferences', authenticateToken, async (req, res) => {
  * GET /api/email/status
  * Check if email is configured and enabled (for UI display)
  */
-router.get('/status', authenticateToken, async (_req, res) => {
+router.get('/status', emailReadLimiter, authenticateToken, async (_req, res) => {
   try {
     const settings = await emailService.getSMTPSettings();
     res.json({
