@@ -1,9 +1,27 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const multer = require('multer');
 const { authenticateToken } = require('../auth');
 const backupService = require('../services/backupService');
+
+// SECURITY: Rate limiting for backup endpoints
+const backupLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const backupWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 backup operations per minute
+  message: { error: 'Too many backup operations. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Configure multer for backup file uploads
 const upload = multer({
@@ -21,7 +39,7 @@ const upload = multer({
 /**
  * GET /api/backup - List all backups
  */
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', backupLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -43,7 +61,7 @@ router.get('/', authenticateToken, (req, res) => {
 /**
  * POST /api/backup - Create a new backup
  */
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', backupWriteLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -63,7 +81,7 @@ router.post('/', authenticateToken, async (req, res) => {
 /**
  * GET /api/backup/:filename - Download a backup
  */
-router.get('/:filename', authenticateToken, (req, res) => {
+router.get('/:filename', backupLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -80,7 +98,7 @@ router.get('/:filename', authenticateToken, (req, res) => {
 /**
  * DELETE /api/backup/:filename - Delete a backup
  */
-router.delete('/:filename', authenticateToken, (req, res) => {
+router.delete('/:filename', backupWriteLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -97,7 +115,7 @@ router.delete('/:filename', authenticateToken, (req, res) => {
 /**
  * POST /api/backup/restore/:filename - Restore from an existing backup
  */
-router.post('/restore/:filename', authenticateToken, async (req, res) => {
+router.post('/restore/:filename', backupWriteLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -127,7 +145,7 @@ router.post('/restore/:filename', authenticateToken, async (req, res) => {
 /**
  * POST /api/backup/upload - Upload and restore from a backup file
  */
-router.post('/upload', authenticateToken, upload.single('backup'), async (req, res) => {
+router.post('/upload', backupWriteLimiter, authenticateToken, upload.single('backup'), async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -168,7 +186,7 @@ router.post('/upload', authenticateToken, upload.single('backup'), async (req, r
 /**
  * POST /api/backup/retention - Apply retention policy
  */
-router.post('/retention', authenticateToken, (req, res) => {
+router.post('/retention', backupWriteLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }

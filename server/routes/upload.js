@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -8,6 +9,15 @@ const { processAudiobook, extractFileMetadata } = require('../services/fileProce
 const db = require('../database');
 const websocketManager = require('../services/websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
+
+// SECURITY: Rate limiting for upload endpoints
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 upload attempts per minute
+  message: { error: 'Too many upload attempts. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../data/uploads');
 
@@ -59,7 +69,7 @@ const upload = multer({
 });
 
 // Upload audiobook
-router.post('/', authenticateToken, upload.single('audiobook'), async (req, res) => {
+router.post('/', uploadLimiter, authenticateToken, upload.single('audiobook'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -86,7 +96,7 @@ router.post('/', authenticateToken, upload.single('audiobook'), async (req, res)
 });
 
 // Upload multiple audiobooks (each file as separate book)
-router.post('/batch', authenticateToken, upload.array('audiobooks', 10), async (req, res) => {
+router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks', 10), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
@@ -119,7 +129,7 @@ router.post('/batch', authenticateToken, upload.array('audiobooks', 10), async (
 });
 
 // Upload multiple files as a single audiobook (multi-file book with chapters)
-router.post('/multifile', authenticateToken, upload.array('audiobooks', 100), async (req, res) => {
+router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiobooks', 100), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });

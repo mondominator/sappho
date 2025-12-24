@@ -1,8 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const db = require('../database');
 const { authenticateToken } = require('../auth');
+
+// SECURITY: Rate limiting for API key management endpoints
+const apiKeyLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute per IP
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiKeyWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 API key operations per minute
+  message: { error: 'Too many API key operations. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Generate a secure API key
 function generateApiKey() {
@@ -19,7 +37,7 @@ function generateApiKey() {
 }
 
 // Get all API keys for the current user
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', apiKeyLimiter, authenticateToken, (req, res) => {
   db.all(
     `SELECT id, name, key_prefix, permissions, last_used_at, expires_at, is_active, created_at
      FROM api_keys
@@ -36,7 +54,7 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // Create a new API key
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', apiKeyWriteLimiter, authenticateToken, (req, res) => {
   const { name, permissions, expires_in_days } = req.body;
 
   if (!name || name.trim().length === 0) {
@@ -85,7 +103,7 @@ router.post('/', authenticateToken, (req, res) => {
 });
 
 // Update an API key (name, permissions, active status)
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', apiKeyWriteLimiter, authenticateToken, (req, res) => {
   const { name, permissions, is_active } = req.body;
 
   const updates = [];
@@ -131,7 +149,7 @@ router.put('/:id', authenticateToken, (req, res) => {
 });
 
 // Delete an API key
-router.delete('/:id', authenticateToken, (req, res) => {
+router.delete('/:id', apiKeyWriteLimiter, authenticateToken, (req, res) => {
   db.run(
     'DELETE FROM api_keys WHERE id = ? AND user_id = ?',
     [req.params.id, req.user.id],
