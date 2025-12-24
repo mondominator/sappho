@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../database');
 const { register, login, logout, authenticateToken, validatePassword, invalidateUserTokens } = require('../auth');
 const mfaService = require('../services/mfaService');
+const emailService = require('../services/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -95,6 +96,10 @@ router.post('/register', registerLimiter, async (req, res) => {
       // Proceed with registration
       register(username, password, email)
         .then(user => {
+          // Notify admins of new user registration
+          emailService.notifyAdminNewUser(user).catch(e =>
+            console.error('Error sending admin notification:', e.message)
+          );
           res.status(201).json({ message: 'User registered successfully', user });
         })
         .catch(error => {

@@ -7,6 +7,7 @@ const { extractFileMetadata } = require('./fileProcessor');
 const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
+const emailService = require('./emailService');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -462,6 +463,10 @@ async function importAudiobook(filePath, userId = 1) {
                       console.log(`Imported: ${metadata.title} by ${metadata.author} (${chapters.length} chapters)`);
                       // Broadcast to connected clients
                       websocketManager.broadcastLibraryUpdate('library.add', audiobook);
+                      // Send email notification to subscribed users
+                      emailService.notifyNewAudiobook(audiobook).catch(e =>
+                        console.error('Error sending new audiobook notification:', e.message)
+                      );
                       resolve(audiobook);
                     }
                   });
@@ -478,6 +483,10 @@ async function importAudiobook(filePath, userId = 1) {
                   console.log(`Imported: ${metadata.title} by ${metadata.author}`);
                   // Broadcast to connected clients
                   websocketManager.broadcastLibraryUpdate('library.add', audiobook);
+                  // Send email notification to subscribed users
+                  emailService.notifyNewAudiobook(audiobook).catch(e =>
+                    console.error('Error sending new audiobook notification:', e.message)
+                  );
                   resolve(audiobook);
                 }
               });
@@ -647,6 +656,10 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
                     console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
                     // Broadcast to connected clients
                     websocketManager.broadcastLibraryUpdate('library.add', audiobook);
+                    // Send email notification to subscribed users
+                    emailService.notifyNewAudiobook(audiobook).catch(e =>
+                      console.error('Error sending new audiobook notification:', e.message)
+                    );
                     resolve(audiobook);
                   }
                 });

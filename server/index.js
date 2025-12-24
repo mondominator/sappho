@@ -66,6 +66,7 @@ app.use('/api/collections', require('./routes/collections'));
 app.use('/api/ratings', require('./routes/ratings'));
 app.use('/api/activity', require('./routes/activity'));
 app.use('/api/mfa', require('./routes/mfa'));
+app.use('/api/email', require('./routes/email'));
 
 // Health check
 app.get('/api/health', (req, res) => {

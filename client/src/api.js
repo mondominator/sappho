@@ -409,4 +409,26 @@ export const regenerateBackupCodes = (token) =>
 export const verifyMFA = (mfa_token, token) =>
   api.post('/auth/verify-mfa', { mfa_token, token });
 
+// Email notifications
+export const getEmailSettings = () =>
+  api.get('/email/settings');
+
+export const updateEmailSettings = (settings) =>
+  api.put('/email/settings', settings);
+
+export const testEmailConnection = (settings) =>
+  api.post('/email/test-connection', settings);
+
+export const sendTestEmail = (to) =>
+  api.post('/email/send-test', { to });
+
+export const getEmailStatus = () =>
+  api.get('/email/status');
+
+export const getNotificationPreferences = () =>
+  api.get('/email/preferences');
+
+export const updateNotificationPreferences = (prefs) =>
+  api.put('/email/preferences', prefs);
+
 export default api;

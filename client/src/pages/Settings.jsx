@@ -8,6 +8,7 @@ import LogsSettings from '../components/settings/LogsSettings';
 import AISettings from '../components/settings/AISettings';
 import StatisticsSettings from '../components/settings/StatisticsSettings';
 import BackupSettings from '../components/settings/BackupSettings';
+import EmailSettings from '../components/settings/EmailSettings';
 import './Settings.css';
 
 export default function Settings() {
@@ -241,6 +242,8 @@ export default function Settings() {
         return <LogsSettings />;
       case 'ai':
         return <AISettings />;
+      case 'email':
+        return <EmailSettings />;
       case 'api-keys':
         return renderApiKeysTab();
       case 'users':
@@ -660,6 +663,12 @@ export default function Settings() {
           onClick={() => setActiveTab('ai')}
         >
           AI
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'email' ? 'active' : ''}`}
+          onClick={() => setActiveTab('email')}
+        >
+          Email
         </button>
         <button
           className={`tab-button ${activeTab === 'api-keys' ? 'active' : ''}`}
