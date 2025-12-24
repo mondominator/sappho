@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { authenticateToken, authenticateMediaToken } = require('../auth');
 const { organizeAudiobook, needsOrganization } = require('../services/fileOrganizer');
+const activityService = require('../services/activityService');
 
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
@@ -2116,6 +2117,12 @@ router.post('/:id/progress', authenticateToken, (req, res) => {
       // If book was marked as completed, queue the next book in the series
       if (completed) {
         queueNextInSeries(userId, audiobookId);
+        // Record activity for finished book
+        activityService.recordActivity(
+          userId,
+          activityService.EVENT_TYPES.FINISHED_BOOK,
+          parseInt(audiobookId)
+        ).catch(err => console.error('Failed to record finish activity:', err));
       }
 
       // Update session tracking
