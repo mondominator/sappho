@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
+import ActivityFeed from '../components/ActivityFeed';
 import './Home.css';
 
 export default function Home({ onPlay }) {
@@ -181,6 +182,8 @@ export default function Home({ onPlay }) {
           </div>
         </div>
       )}
+
+      <ActivityFeed limit={5} />
 
       {inProgress.length === 0 && recentlyAdded.length === 0 && upNext.length === 0 && finished.length === 0 && (
         <div className="empty-state">
