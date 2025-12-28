@@ -3,9 +3,10 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const db = require('../database');
-const { register, login, logout, authenticateToken, validatePassword, invalidateUserTokens } = require('../auth');
+const { register, login, logout, authenticateToken, validatePassword, invalidateUserTokens, isAccountLocked, getLockoutRemaining } = require('../auth');
 const mfaService = require('../services/mfaService');
 const emailService = require('../services/emailService');
+const unlockService = require('../services/unlockService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -23,6 +24,15 @@ const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 registrations per hour per IP
   message: { error: 'Too many registration attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// SECURITY: Rate limiting for unlock requests
+const unlockLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 unlock requests per hour per IP
+  message: { error: 'Too many unlock requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -224,6 +234,86 @@ router.post('/verify-mfa', loginLimiter, async (req, res) => {
   } catch (error) {
     console.error('MFA verification error:', error);
     res.status(500).json({ error: 'MFA verification failed' });
+  }
+});
+
+// Request account unlock email
+router.post('/request-unlock', unlockLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required' });
+    }
+
+    // SECURITY: Always return success to avoid email enumeration
+    // But only send email if user exists and has email configured
+    const user = await unlockService.getUserByEmail(email);
+
+    if (user) {
+      try {
+        // Generate unlock token
+        const token = await unlockService.generateUnlockToken(user.id);
+
+        // Send unlock email (base URL is fetched from env var internally)
+        await emailService.sendAccountUnlockEmail(user, token);
+        console.log(`Unlock email sent to: ${email}`);
+      } catch (emailError) {
+        // Log but don't reveal to user
+        console.error('Failed to send unlock email:', emailError.message);
+      }
+    }
+
+    // Always return success to prevent email enumeration
+    res.json({
+      message: 'If an account with that email exists, an unlock link has been sent.'
+    });
+  } catch (error) {
+    console.error('Unlock request error:', error);
+    res.status(500).json({ error: 'Failed to process unlock request' });
+  }
+});
+
+// Validate unlock token and unlock account
+router.post('/unlock', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Unlock token is required' });
+    }
+
+    const result = await unlockService.consumeUnlockToken(token);
+
+    res.json({
+      success: true,
+      message: 'Account unlocked successfully. You can now log in.',
+      username: result.username
+    });
+  } catch (error) {
+    console.error('Unlock error:', error);
+    res.status(400).json({ error: error.message || 'Invalid or expired unlock token' });
+  }
+});
+
+// Check lockout status (for login page to show unlock option)
+router.post('/check-lockout', async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const locked = isAccountLocked(username);
+    const remaining = locked ? getLockoutRemaining(username) : 0;
+
+    res.json({
+      locked,
+      remaining_seconds: remaining
+    });
+  } catch (_error) {
+    res.status(500).json({ error: 'Failed to check lockout status' });
   }
 });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUsers, createUser, updateUser, deleteUser } from '../api';
+import { getUsers, createUser, updateUser, deleteUser, unlockUser, disableUser, enableUser } from '../api';
 import './Users.css';
 
 export default function Users() {
@@ -85,6 +85,44 @@ export default function Users() {
     } catch (error) {
       console.error('Error deleting user:', error);
       alert(error.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
+  const handleUnlockUser = async (user) => {
+    try {
+      await unlockUser(user.id);
+      loadUsers();
+      alert(`Account "${user.username}" unlocked successfully`);
+    } catch (error) {
+      console.error('Error unlocking user:', error);
+      alert(error.response?.data?.error || 'Failed to unlock user');
+    }
+  };
+
+  const handleDisableUser = async (user) => {
+    const reason = prompt(`Disable account "${user.username}"?\n\nOptionally enter a reason:`);
+    if (reason === null) {
+      return; // User cancelled
+    }
+
+    try {
+      await disableUser(user.id, reason || null);
+      loadUsers();
+      alert(`Account "${user.username}" disabled successfully`);
+    } catch (error) {
+      console.error('Error disabling user:', error);
+      alert(error.response?.data?.error || 'Failed to disable user');
+    }
+  };
+
+  const handleEnableUser = async (user) => {
+    try {
+      await enableUser(user.id);
+      loadUsers();
+      alert(`Account "${user.username}" enabled successfully`);
+    } catch (error) {
+      console.error('Error enabling user:', error);
+      alert(error.response?.data?.error || 'Failed to enable user');
     }
   };
 
@@ -271,13 +309,14 @@ export default function Users() {
               <th>Username</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Status</th>
               <th>Created</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id}>
+              <tr key={user.id} className={user.account_disabled ? 'user-disabled' : ''}>
                 <td>{user.username}</td>
                 <td>{user.email || '-'}</td>
                 <td>
@@ -287,9 +326,50 @@ export default function Users() {
                     <span className="badge badge-user">User</span>
                   )}
                 </td>
+                <td>
+                  <div className="status-badges">
+                    {user.account_disabled ? (
+                      <span className="badge badge-disabled" title={user.disabled_reason || 'Account disabled'}>
+                        Disabled
+                      </span>
+                    ) : user.is_locked ? (
+                      <span className="badge badge-locked" title={`Locked for ${user.lockout_remaining}s`}>
+                        Locked ({user.lockout_remaining}s)
+                      </span>
+                    ) : (
+                      <span className="badge badge-active">Active</span>
+                    )}
+                  </div>
+                </td>
                 <td>{formatDate(user.created_at)}</td>
                 <td>
                   <div className="action-buttons">
+                    {user.is_locked && !user.account_disabled && (
+                      <button
+                        className="btn btn-small btn-warning"
+                        onClick={() => handleUnlockUser(user)}
+                        title="Clear lockout"
+                      >
+                        Unlock
+                      </button>
+                    )}
+                    {user.account_disabled ? (
+                      <button
+                        className="btn btn-small btn-success"
+                        onClick={() => handleEnableUser(user)}
+                        title="Enable account"
+                      >
+                        Enable
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-small btn-warning"
+                        onClick={() => handleDisableUser(user)}
+                        title="Disable account"
+                      >
+                        Disable
+                      </button>
+                    )}
                     <button
                       className="btn btn-small btn-secondary"
                       onClick={() => startEdit(user)}

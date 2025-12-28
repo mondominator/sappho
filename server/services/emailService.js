@@ -11,6 +11,20 @@
 const nodemailer = require('nodemailer');
 const db = require('../database');
 
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(text) {
+  if (!text) return '';
+  const str = String(text);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 // In-memory email queue
 const emailQueue = [];
 let isProcessingQueue = false;
@@ -493,6 +507,64 @@ function getPasswordResetTemplate(user, resetUrl) {
   `);
 }
 
+function getAccountUnlockTemplate(user, unlockUrl) {
+  const safeUsername = escapeHtml(user.username);
+  const safeUrl = escapeHtml(unlockUrl);
+  return getBaseTemplate(`
+    <h2>Account Unlock Request</h2>
+    <p>Hi ${safeUsername},</p>
+    <p>We received a request to unlock your account. This may have been triggered due to multiple failed login attempts.</p>
+    <p>Click the button below to unlock your account:</p>
+    <p style="text-align: center;">
+      <a href="${safeUrl}" class="button">Unlock Account</a>
+    </p>
+    <p>This link will expire in 1 hour.</p>
+    <p>If you didn't request this unlock, someone may be trying to access your account. Consider changing your password after logging in.</p>
+    <p style="color: #666; font-size: 12px;">
+      If the button doesn't work, copy and paste this URL into your browser:<br>
+      ${safeUrl}
+    </p>
+  `);
+}
+
+/**
+ * Get trusted base URL for email links
+ * Uses BASE_URL env var or falls back to localhost for development
+ */
+function getEmailBaseUrl() {
+  if (process.env.BASE_URL) {
+    return process.env.BASE_URL.replace(/\/$/, '');
+  }
+  // Fallback for development - should be configured in production
+  const port = process.env.PORT || 3003;
+  return `http://localhost:${port}`;
+}
+
+/**
+ * Send account unlock email
+ */
+async function sendAccountUnlockEmail(user, unlockToken) {
+  const settings = await getSMTPSettings();
+  if (!settings || !settings.enabled) {
+    throw new Error('Email is not configured');
+  }
+
+  if (!user.email) {
+    throw new Error('User has no email address');
+  }
+
+  // Get base URL from trusted source (env var)
+  const baseUrl = getEmailBaseUrl();
+  const unlockUrl = `${baseUrl}/unlock?token=${unlockToken}`;
+
+  await sendEmail({
+    to: user.email,
+    subject: 'Sappho - Account Unlock Request',
+    html: getAccountUnlockTemplate(user, unlockUrl),
+    text: `Click this link to unlock your account: ${unlockUrl}\n\nThis link expires in 1 hour.`
+  });
+}
+
 // Initialize transporter on module load
 initializeTransporter();
 
@@ -508,5 +580,6 @@ module.exports = {
   notifyNewAudiobook,
   notifyAdminNewUser,
   sendPasswordResetEmail,
+  sendAccountUnlockEmail,
   initializeTransporter
 };
