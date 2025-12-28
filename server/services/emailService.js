@@ -493,6 +493,47 @@ function getPasswordResetTemplate(user, resetUrl) {
   `);
 }
 
+function getAccountUnlockTemplate(user, unlockUrl) {
+  return getBaseTemplate(`
+    <h2>Account Unlock Request</h2>
+    <p>Hi ${user.username},</p>
+    <p>We received a request to unlock your account. This may have been triggered due to multiple failed login attempts.</p>
+    <p>Click the button below to unlock your account:</p>
+    <p style="text-align: center;">
+      <a href="${unlockUrl}" class="button">Unlock Account</a>
+    </p>
+    <p>This link will expire in 1 hour.</p>
+    <p>If you didn't request this unlock, someone may be trying to access your account. Consider changing your password after logging in.</p>
+    <p style="color: #666; font-size: 12px;">
+      If the button doesn't work, copy and paste this URL into your browser:<br>
+      ${unlockUrl}
+    </p>
+  `);
+}
+
+/**
+ * Send account unlock email
+ */
+async function sendAccountUnlockEmail(user, unlockToken, baseUrl) {
+  const settings = await getSMTPSettings();
+  if (!settings || !settings.enabled) {
+    throw new Error('Email is not configured');
+  }
+
+  if (!user.email) {
+    throw new Error('User has no email address');
+  }
+
+  const unlockUrl = `${baseUrl}/unlock?token=${unlockToken}`;
+
+  await sendEmail({
+    to: user.email,
+    subject: 'Sappho - Account Unlock Request',
+    html: getAccountUnlockTemplate(user, unlockUrl),
+    text: `Click this link to unlock your account: ${unlockUrl}\n\nThis link expires in 1 hour.`
+  });
+}
+
 // Initialize transporter on module load
 initializeTransporter();
 
@@ -508,5 +549,6 @@ module.exports = {
   notifyNewAudiobook,
   notifyAdminNewUser,
   sendPasswordResetEmail,
+  sendAccountUnlockEmail,
   initializeTransporter
 };

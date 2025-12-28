@@ -106,6 +106,25 @@ function getLockoutRemaining(username) {
   return remaining > 0 ? remaining : 0;
 }
 
+/**
+ * Get all currently locked accounts
+ * Returns array of { username, lockedUntil, remainingSeconds }
+ */
+function getLockedAccounts() {
+  const locked = [];
+  const now = Date.now();
+  for (const [username, record] of failedAttempts.entries()) {
+    if (record.lockedUntil && record.lockedUntil > now) {
+      locked.push({
+        username,
+        lockedUntil: new Date(record.lockedUntil).toISOString(),
+        remainingSeconds: Math.ceil((record.lockedUntil - now) / 1000)
+      });
+    }
+  }
+  return locked;
+}
+
 // Middleware to verify JWT token or API key
 function authenticateToken(req, res, next) {
   // SECURITY: Only accept token from Authorization header, not query string
@@ -306,7 +325,7 @@ async function login(username, password) {
     }
 
     db.get(
-      'SELECT id, username, password_hash, is_admin, must_change_password, mfa_enabled FROM users WHERE username = ?',
+      'SELECT id, username, password_hash, is_admin, must_change_password, mfa_enabled, account_disabled FROM users WHERE username = ?',
       [username],
       (err, user) => {
         if (err) {
@@ -321,6 +340,11 @@ async function login(username, password) {
           // Record failed attempt
           recordFailedAttempt(username);
           return reject(new Error('Invalid username or password'));
+        }
+
+        // SECURITY: Check if account is disabled by admin
+        if (user.account_disabled) {
+          return reject(new Error('Your account has been disabled. Please contact an administrator.'));
         }
 
         // Clear failed attempts on successful login
@@ -442,4 +466,7 @@ module.exports = {
   invalidateUserTokens,
   isAccountLocked,
   getLockoutRemaining,
+  clearFailedAttempts,
+  getLockedAccounts,
+  recordFailedAttempt,
 };
