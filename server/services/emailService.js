@@ -528,9 +528,22 @@ function getAccountUnlockTemplate(user, unlockUrl) {
 }
 
 /**
+ * Get trusted base URL for email links
+ * Uses BASE_URL env var or falls back to localhost for development
+ */
+function getEmailBaseUrl() {
+  if (process.env.BASE_URL) {
+    return process.env.BASE_URL.replace(/\/$/, '');
+  }
+  // Fallback for development - should be configured in production
+  const port = process.env.PORT || 3003;
+  return `http://localhost:${port}`;
+}
+
+/**
  * Send account unlock email
  */
-async function sendAccountUnlockEmail(user, unlockToken, baseUrl) {
+async function sendAccountUnlockEmail(user, unlockToken) {
   const settings = await getSMTPSettings();
   if (!settings || !settings.enabled) {
     throw new Error('Email is not configured');
@@ -540,6 +553,8 @@ async function sendAccountUnlockEmail(user, unlockToken, baseUrl) {
     throw new Error('User has no email address');
   }
 
+  // Get base URL from trusted source (env var)
+  const baseUrl = getEmailBaseUrl();
   const unlockUrl = `${baseUrl}/unlock?token=${unlockToken}`;
 
   await sendEmail({
