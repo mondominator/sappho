@@ -11,6 +11,20 @@
 const nodemailer = require('nodemailer');
 const db = require('../database');
 
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(text) {
+  if (!text) return '';
+  const str = String(text);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 // In-memory email queue
 const emailQueue = [];
 let isProcessingQueue = false;
@@ -494,19 +508,21 @@ function getPasswordResetTemplate(user, resetUrl) {
 }
 
 function getAccountUnlockTemplate(user, unlockUrl) {
+  const safeUsername = escapeHtml(user.username);
+  const safeUrl = escapeHtml(unlockUrl);
   return getBaseTemplate(`
     <h2>Account Unlock Request</h2>
-    <p>Hi ${user.username},</p>
+    <p>Hi ${safeUsername},</p>
     <p>We received a request to unlock your account. This may have been triggered due to multiple failed login attempts.</p>
     <p>Click the button below to unlock your account:</p>
     <p style="text-align: center;">
-      <a href="${unlockUrl}" class="button">Unlock Account</a>
+      <a href="${safeUrl}" class="button">Unlock Account</a>
     </p>
     <p>This link will expire in 1 hour.</p>
     <p>If you didn't request this unlock, someone may be trying to access your account. Consider changing your password after logging in.</p>
     <p style="color: #666; font-size: 12px;">
       If the button doesn't work, copy and paste this URL into your browser:<br>
-      ${unlockUrl}
+      ${safeUrl}
     </p>
   `);
 }
