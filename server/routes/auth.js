@@ -10,6 +10,42 @@ const unlockService = require('../services/unlockService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// Get trusted base URL for email links
+// Uses BASE_URL env var, or validates request host against CORS_ORIGINS
+function getTrustedBaseUrl(req) {
+  // Prefer explicit BASE_URL environment variable
+  if (process.env.BASE_URL) {
+    return process.env.BASE_URL.replace(/\/$/, ''); // Remove trailing slash
+  }
+
+  // Get host from request headers
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+
+  if (!host) {
+    throw new Error('Unable to determine server URL');
+  }
+
+  // Validate host against allowed CORS origins
+  const corsOrigins = process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3003';
+  const allowedOrigins = corsOrigins.split(',').map(o => o.trim());
+  const requestedUrl = `${protocol}://${host}`;
+
+  // Check if the requested URL matches any allowed origin
+  const isAllowed = allowedOrigins.some(origin => {
+    const originHost = origin.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return host === originHost || host.split(':')[0] === originHost.split(':')[0];
+  });
+
+  if (!isAllowed) {
+    console.warn(`Host header validation failed: ${host} not in allowed origins`);
+    // Fall back to first allowed origin
+    return allowedOrigins[0];
+  }
+
+  return requestedUrl;
+}
+
 // SECURITY: Rate limiting for authentication endpoints to prevent brute-force attacks
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -255,10 +291,8 @@ router.post('/request-unlock', unlockLimiter, async (req, res) => {
         // Generate unlock token
         const token = await unlockService.generateUnlockToken(user.id);
 
-        // Get base URL from request
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const baseUrl = `${protocol}://${host}`;
+        // Get trusted base URL (validates against allowed origins)
+        const baseUrl = getTrustedBaseUrl(req);
 
         // Send unlock email
         await emailService.sendAccountUnlockEmail(user, token, baseUrl);
