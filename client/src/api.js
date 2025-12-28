@@ -212,6 +212,28 @@ export const updateUser = (id, updates) =>
 export const deleteUser = (id) =>
   api.delete(`/users/${id}`);
 
+export const unlockUser = (id) =>
+  api.post(`/users/${id}/unlock`);
+
+export const disableUser = (id, reason = null) =>
+  api.post(`/users/${id}/disable`, { reason });
+
+export const enableUser = (id) =>
+  api.post(`/users/${id}/enable`);
+
+export const getLockedAccounts = () =>
+  api.get('/users/locked/list');
+
+// Account unlock (public)
+export const requestUnlock = (email) =>
+  api.post('/auth/request-unlock', { email });
+
+export const unlockAccount = (token) =>
+  api.post('/auth/unlock', { token });
+
+export const checkLockout = (username) =>
+  api.post('/auth/check-lockout', { username });
+
 // Maintenance (admin only)
 export const consolidateMultiFile = () =>
   api.post('/maintenance/consolidate-multifile');

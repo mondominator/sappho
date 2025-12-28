@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
+import UnlockAccount from './pages/UnlockAccount'
 import ForcePasswordChange from './components/ForcePasswordChange'
 import Home from './pages/Home'
 import Library from './pages/Library'
@@ -253,30 +254,37 @@ function App() {
     }
   }
 
-  if (!token) {
-    return <Login onLogin={handleLogin} />
-  }
-
-  if (mustChangePassword) {
-    return <ForcePasswordChange onLogout={handleLogout} />
-  }
-
+  // Wrap everything in BrowserRouter to support public routes like /unlock
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <WebSocketProvider>
-        <AppContent
-        token={token}
-        onLogout={handleLogout}
-        showUploadModal={showUploadModal}
-        setShowUploadModal={setShowUploadModal}
-        currentAudiobook={currentAudiobook}
-        setCurrentAudiobook={setCurrentAudiobook}
-        currentProgress={currentProgress}
-        setCurrentProgress={setCurrentProgress}
-        playAudiobook={playAudiobook}
-      />
-      </WebSocketProvider>
+      <Routes>
+        {/* Public route for account unlock - accessible without authentication */}
+        <Route path="/unlock" element={<UnlockAccount />} />
+
+        {/* All other routes require authentication */}
+        <Route path="*" element={
+          !token ? (
+            <Login onLogin={handleLogin} />
+          ) : mustChangePassword ? (
+            <ForcePasswordChange onLogout={handleLogout} />
+          ) : (
+            <WebSocketProvider>
+              <AppContent
+                token={token}
+                onLogout={handleLogout}
+                showUploadModal={showUploadModal}
+                setShowUploadModal={setShowUploadModal}
+                currentAudiobook={currentAudiobook}
+                setCurrentAudiobook={setCurrentAudiobook}
+                currentProgress={currentProgress}
+                setCurrentProgress={setCurrentProgress}
+                playAudiobook={playAudiobook}
+              />
+            </WebSocketProvider>
+          )
+        } />
+      </Routes>
     </BrowserRouter>
   )
 }
