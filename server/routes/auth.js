@@ -317,7 +317,7 @@ router.post('/check-lockout', async (req, res) => {
       locked,
       remaining_seconds: remaining
     });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to check lockout status' });
   }
 });
