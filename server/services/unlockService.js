@@ -76,36 +76,32 @@ async function validateUnlockToken(token) {
  * Clears the in-memory lockout and marks token as used
  */
 async function consumeUnlockToken(token) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // First validate the token
-      const tokenData = await validateUnlockToken(token);
-      if (!tokenData) {
-        return reject(new Error('Invalid or expired unlock token'));
-      }
+  // First validate the token
+  const tokenData = await validateUnlockToken(token);
+  if (!tokenData) {
+    throw new Error('Invalid or expired unlock token');
+  }
 
-      // Mark token as used
-      db.run(
-        'UPDATE unlock_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?',
-        [token],
-        (err) => {
-          if (err) {
-            return reject(err);
-          }
-
-          // Clear the in-memory lockout
-          clearFailedAttempts(tokenData.username);
-
-          console.log(`Account unlocked via email token: ${tokenData.username}`);
-          resolve({
-            success: true,
-            username: tokenData.username
-          });
+  // Mark token as used
+  return new Promise((resolve, reject) => {
+    db.run(
+      'UPDATE unlock_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?',
+      [token],
+      (err) => {
+        if (err) {
+          return reject(err);
         }
-      );
-    } catch (err) {
-      reject(err);
-    }
+
+        // Clear the in-memory lockout
+        clearFailedAttempts(tokenData.username);
+
+        console.log(`Account unlocked via email token: ${tokenData.username}`);
+        resolve({
+          success: true,
+          username: tokenData.username
+        });
+      }
+    );
   });
 }
 
