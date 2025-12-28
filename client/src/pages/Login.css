@@ -103,3 +103,63 @@
   color: #6b7280;
   margin-top: 4px;
 }
+
+/* Unlock Styles */
+.unlock-link-container {
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #374151;
+}
+
+.unlock-link-container p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #f472b6;
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.link-button:hover {
+  color: #f9a8d4;
+}
+
+.success-message {
+  padding: 12px;
+  background: #14532d;
+  border: 1px solid #166534;
+  border-radius: 6px;
+  color: #bbf7d0;
+  font-size: 14px;
+}
+
+/* Unlock Status */
+.unlock-status {
+  text-align: center;
+}
+
+.unlock-status .mfa-header svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.username-display {
+  margin-top: 8px;
+  color: #d1d5db;
+}

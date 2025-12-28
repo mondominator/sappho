@@ -3,7 +3,8 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, requireAdmin } = require('../auth');
+const { authenticateToken, requireAdmin, clearFailedAttempts, getLockedAccounts, isAccountLocked, getLockoutRemaining } = require('../auth');
+const { disableAccount, enableAccount } = require('../services/unlockService');
 
 // SECURITY: Rate limiting for user management endpoints
 const userLimiter = rateLimit({
@@ -25,13 +26,20 @@ const userWriteLimiter = rateLimit({
 // Get all users (admin only)
 router.get('/', userLimiter, authenticateToken, requireAdmin, (req, res) => {
   db.all(
-    'SELECT id, username, email, is_admin, created_at FROM users ORDER BY created_at DESC',
+    'SELECT id, username, email, is_admin, account_disabled, disabled_at, disabled_reason, created_at FROM users ORDER BY created_at DESC',
     [],
     (err, users) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
-      res.json(users);
+      // Add lockout status for each user
+      const usersWithLockout = users.map(user => ({
+        ...user,
+        account_disabled: !!user.account_disabled,
+        is_locked: isAccountLocked(user.username),
+        lockout_remaining: getLockoutRemaining(user.username)
+      }));
+      res.json(usersWithLockout);
     }
   );
 });
@@ -179,6 +187,78 @@ router.delete('/:id', userWriteLimiter, authenticateToken, requireAdmin, (req, r
       });
     }
   );
+});
+
+// Get all currently locked accounts (admin only)
+router.get('/locked/list', userLimiter, authenticateToken, requireAdmin, (req, res) => {
+  const lockedAccounts = getLockedAccounts();
+  res.json(lockedAccounts);
+});
+
+// Unlock a user account - clear in-memory lockout (admin only)
+router.post('/:id/unlock', userWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Clear the in-memory lockout
+    clearFailedAttempts(user.username);
+    console.log(`Admin ${req.user.username} unlocked account: ${user.username}`);
+
+    res.json({ message: `Account ${user.username} unlocked successfully` });
+  });
+});
+
+// Disable a user account (admin only)
+router.post('/:id/disable', userWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { reason } = req.body;
+
+  // Prevent disabling yourself
+  if (userId === req.user.id) {
+    return res.status(400).json({ error: 'Cannot disable your own account' });
+  }
+
+  try {
+    await disableAccount(userId, reason || null);
+
+    // Get username for logging
+    db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
+      if (!err && user) {
+        console.log(`Admin ${req.user.username} disabled account: ${user.username}${reason ? ` (reason: ${reason})` : ''}`);
+      }
+    });
+
+    res.json({ message: 'Account disabled successfully' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Enable a user account (admin only)
+router.post('/:id/enable', userWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  try {
+    await enableAccount(userId);
+
+    // Get username for logging
+    db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
+      if (!err && user) {
+        console.log(`Admin ${req.user.username} enabled account: ${user.username}`);
+      }
+    });
+
+    res.json({ message: 'Account enabled successfully' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 module.exports = router;
