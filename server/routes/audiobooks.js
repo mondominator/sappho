@@ -453,6 +453,7 @@ router.get('/', authenticateToken, (req, res) => {
       const { progress_position, progress_completed, progress_updated_at, is_favorite, user_rating, average_rating, ...rest } = book;
       return {
         ...rest,
+        normalized_genre: normalizeGenres(book.genre),
         is_favorite: !!is_favorite,
         user_rating: user_rating || null,
         average_rating: average_rating ? Math.round(average_rating * 10) / 10 : null,
@@ -529,6 +530,7 @@ router.get('/favorites', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        normalized_genre: normalizeGenres(book.genre),
         is_favorite: true,
         progress: {
           position: book.progress_position,
@@ -563,9 +565,9 @@ router.get('/:id', authenticateToken, (req, res) => {
         if (err) {
           console.error('Error checking favorite status:', err);
           // Don't fail the whole request, just skip favorite status
-          return res.json(audiobook);
+          return res.json({ ...audiobook, normalized_genre: normalizeGenres(audiobook.genre) });
         }
-        res.json({ ...audiobook, is_favorite: !!favorite });
+        res.json({ ...audiobook, normalized_genre: normalizeGenres(audiobook.genre), is_favorite: !!favorite });
       }
     );
   });
@@ -2465,6 +2467,7 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        normalized_genre: normalizeGenres(book.genre),
         is_favorite: !!book.is_favorite,
         progress: book.progress_position !== null ? {
           position: book.progress_position,
@@ -2507,6 +2510,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        normalized_genre: normalizeGenres(book.genre),
         is_favorite: !!book.is_favorite,
         is_queued: !!book.queued_at,
         progress: {
@@ -2541,7 +2545,12 @@ router.get('/meta/in-progress/all', authenticateToken, (req, res) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
-      res.json(audiobooks);
+      // Add normalized genre
+      const transformedAudiobooks = audiobooks.map(book => ({
+        ...book,
+        normalized_genre: normalizeGenres(book.genre)
+      }));
+      res.json(transformedAudiobooks);
     }
   );
 });
@@ -2596,6 +2605,7 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        normalized_genre: normalizeGenres(book.genre),
         is_favorite: !!book.is_favorite,
         progress: book.progress_position !== null ? {
           position: book.progress_position,
@@ -2635,6 +2645,7 @@ router.get('/meta/finished', authenticateToken, (req, res) => {
       // Transform progress fields into nested object
       const transformedAudiobooks = audiobooks.map(book => ({
         ...book,
+        normalized_genre: normalizeGenres(book.genre),
         is_favorite: !!book.is_favorite,
         progress: {
           position: book.progress_position,
