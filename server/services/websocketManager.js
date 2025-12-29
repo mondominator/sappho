@@ -122,6 +122,7 @@ class WebSocketManager {
           title: session.title,
           author: session.author,
           series: session.series,
+          cover: session.cover,
         },
         playback: {
           state: session.state,
