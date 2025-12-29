@@ -537,30 +537,38 @@ export default function Library({ onPlay }) {
                     className="collection-card"
                     onClick={() => navigate(`/collections/${collection.id}`)}
                   >
+                    <div className="collection-cover-area">
+                      <RotatingCover bookIds={collection.book_ids} collectionName={collection.name} />
+                      <div className="collection-overlay">
+                        <div className="collection-meta">
+                          <h3 className="collection-title">{collection.name}</h3>
+                          <div className="collection-info">
+                            <span className="collection-book-count">
+                              {collection.book_count || 0} {(collection.book_count || 0) === 1 ? 'book' : 'books'}
+                            </span>
+                            {collection.is_public === 1 && (
+                              <svg className="visibility-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     {collection.is_owner === 1 && (
                       <button
                         className="delete-btn"
                         onClick={(e) => handleDeleteCollection(e, collection)}
                         title="Delete collection"
                       >
-                        x
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
                       </button>
                     )}
-                    <div className="collection-covers">
-                      <div className="collection-book-count">{collection.book_count || 0}</div>
-                      <RotatingCover bookIds={collection.book_ids} collectionName={collection.name} />
-                    </div>
-                    <div className="collection-card-content">
-                      <div className="title-with-visibility">
-                        <h3 className="collection-title">{collection.name}</h3>
-                        <span className={`visibility-tag ${collection.is_public === 1 ? 'public' : 'private'}`}>
-                          {collection.is_public === 1 ? 'Public' : 'Private'}
-                        </span>
-                      </div>
-                      {collection.description && (
-                        <p className="collection-description">{collection.description}</p>
-                      )}
-                    </div>
                   </div>
                 ))}
               </div>
