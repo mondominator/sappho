@@ -143,13 +143,13 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
                           if (err) return reject(err);
                           result.topAuthors = rows || [];
 
-                          // Top genres by listen time
+                          // Top genres by listen time (use normalized_genre for cleaner display)
                           db.all(
-                            `SELECT a.genre, SUM(p.position) as listenTime, COUNT(DISTINCT a.id) as bookCount
+                            `SELECT COALESCE(a.normalized_genre, a.genre) as genre, SUM(p.position) as listenTime, COUNT(DISTINCT a.id) as bookCount
                              FROM playback_progress p
                              JOIN audiobooks a ON p.audiobook_id = a.id
-                             WHERE p.user_id = ? AND a.genre IS NOT NULL AND a.genre != ''
-                             GROUP BY a.genre
+                             WHERE p.user_id = ? AND (a.normalized_genre IS NOT NULL OR a.genre IS NOT NULL) AND COALESCE(a.normalized_genre, a.genre) != ''
+                             GROUP BY COALESCE(a.normalized_genre, a.genre)
                              ORDER BY listenTime DESC
                              LIMIT 5`,
                             [userId],
