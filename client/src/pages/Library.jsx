@@ -541,9 +541,6 @@ export default function Library({ onPlay }) {
                     >
                       <div className="collection-cover-area">
                         <RotatingCover bookIds={collection.book_ids} collectionName={collection.name} />
-                        {collection.is_public === 1 && (
-                          <div className="public-badge">Public</div>
-                        )}
                       </div>
                       <div className="collection-details">
                         <h3 className="collection-title">{collection.name}</h3>
@@ -551,6 +548,9 @@ export default function Library({ onPlay }) {
                           <span className="collection-stat">{collection.book_count || 0} books</span>
                           <span className="collection-stat-divider">·</span>
                           <span className="collection-stat">{hours}h</span>
+                          {collection.is_public === 1 && (
+                            <span className="public-badge">Public</span>
+                          )}
                         </div>
                         <div className="collection-creator">
                           by {collection.creator_username}
