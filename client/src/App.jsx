@@ -19,7 +19,6 @@ import Settings from './pages/Settings'
 import Activity from './pages/Activity'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
-import UploadModal from './components/UploadModal'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
@@ -35,7 +34,7 @@ function ScrollToTop() {
   return null;
 }
 
-function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, currentAudiobook, setCurrentAudiobook, currentProgress, setCurrentProgress, playAudiobook }) {
+function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, currentProgress, setCurrentProgress, playAudiobook }) {
   const location = useLocation();
   const playerRef = useRef();
 
@@ -48,10 +47,7 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
 
   return (
     <div className={`app ${currentAudiobook ? 'player-active' : ''}`}>
-      <Navigation
-        onLogout={onLogout}
-        onOpenUpload={() => setShowUploadModal(true)}
-      />
+      <Navigation onLogout={onLogout} />
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Home onPlay={playAudiobook} />} />
@@ -71,10 +67,6 @@ function AppContent({ token, onLogout, showUploadModal, setShowUploadModal, curr
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
-      <UploadModal
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-      />
       {currentAudiobook && currentAudiobook.id && (
         <AudioPlayer
           ref={playerRef}
@@ -99,7 +91,6 @@ function App() {
   const [mustChangePassword, setMustChangePassword] = useState(() => {
     return localStorage.getItem('mustChangePassword') === 'true';
   })
-  const [showUploadModal, setShowUploadModal] = useState(false)
   const [currentAudiobook, setCurrentAudiobook] = useState(() => {
     try {
       const saved = localStorage.getItem('currentAudiobook')
@@ -273,8 +264,6 @@ function App() {
               <AppContent
                 token={token}
                 onLogout={handleLogout}
-                showUploadModal={showUploadModal}
-                setShowUploadModal={setShowUploadModal}
                 currentAudiobook={currentAudiobook}
                 setCurrentAudiobook={setCurrentAudiobook}
                 currentProgress={currentProgress}
