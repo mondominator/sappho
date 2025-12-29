@@ -78,7 +78,7 @@ const validateDirectory = (dir) => {
 // Track which env vars were set at startup (before any settings file changes)
 // These are "locked" because they come from docker-compose or system environment
 const startupEnvVars = {};
-const ENV_VAR_KEYS = ['PORT', 'NODE_ENV', 'DATABASE_PATH', 'DATA_DIR', 'AUDIOBOOKS_DIR', 'UPLOAD_DIR', 'LIBRARY_SCAN_INTERVAL'];
+const ENV_VAR_KEYS = ['PORT', 'NODE_ENV', 'DATABASE_PATH', 'DATA_DIR', 'AUDIOBOOKS_DIR', 'UPLOAD_DIR', 'LIBRARY_SCAN_INTERVAL', 'AUTO_BACKUP_INTERVAL', 'BACKUP_RETENTION', 'LOG_BUFFER_SIZE'];
 
 // Capture startup values - this runs once when the module loads
 (() => {
@@ -120,6 +120,13 @@ router.get('/all', authenticateToken, requireAdmin, (req, res) => {
 
     // Library settings
     libraryScanInterval: parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5,
+
+    // Backup settings
+    autoBackupInterval: parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24,
+    backupRetention: parseInt(process.env.BACKUP_RETENTION) || 7,
+
+    // Logging settings
+    logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
   };
 
   // Map env var names to setting keys
@@ -131,6 +138,9 @@ router.get('/all', authenticateToken, requireAdmin, (req, res) => {
     AUDIOBOOKS_DIR: 'audiobooksDir',
     UPLOAD_DIR: 'uploadDir',
     LIBRARY_SCAN_INTERVAL: 'libraryScanInterval',
+    AUTO_BACKUP_INTERVAL: 'autoBackupInterval',
+    BACKUP_RETENTION: 'backupRetention',
+    LOG_BUFFER_SIZE: 'logBufferSize',
   };
 
   // Build locked fields list
@@ -317,6 +327,9 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
     audiobooksDir: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
     uploadDir: process.env.UPLOAD_DIR || '/app/data/uploads',
     libraryScanInterval: parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5,
+    autoBackupInterval: parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24,
+    backupRetention: parseInt(process.env.BACKUP_RETENTION) || 7,
+    logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
   };
 
   // Map env var names to setting keys
@@ -328,6 +341,9 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
     AUDIOBOOKS_DIR: 'audiobooksDir',
     UPLOAD_DIR: 'uploadDir',
     LIBRARY_SCAN_INTERVAL: 'libraryScanInterval',
+    AUTO_BACKUP_INTERVAL: 'autoBackupInterval',
+    BACKUP_RETENTION: 'backupRetention',
+    LOG_BUFFER_SIZE: 'logBufferSize',
   };
 
   // Build locked fields list

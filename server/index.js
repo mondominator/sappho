@@ -6,6 +6,7 @@ const path = require('path');
 const db = require('./database');
 const { createDefaultAdmin } = require('./auth');
 const { startPeriodicScan } = require('./services/libraryScanner');
+const { startScheduledBackups } = require('./services/backupService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -150,6 +151,14 @@ async function initialize() {
     // Can be configured with LIBRARY_SCAN_INTERVAL env var (in minutes)
     const scanInterval = parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5;
     startPeriodicScan(scanInterval);
+
+    // Start scheduled backups if enabled (default: every 24 hours, keep 7)
+    // Configure with AUTO_BACKUP_INTERVAL (hours, 0=disabled) and BACKUP_RETENTION (count)
+    const backupInterval = parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24;
+    const backupRetention = parseInt(process.env.BACKUP_RETENTION) || 7;
+    if (backupInterval > 0) {
+      startScheduledBackups(backupInterval, backupRetention);
+    }
   } catch (error) {
     console.error('Failed to initialize server:', error);
     process.exit(1);
