@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import SearchModal from './SearchModal';
 import './Navigation.css';
 
-export default function Navigation({ onLogout, onOpenUpload }) {
+export default function Navigation({ onLogout }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -296,14 +296,14 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                     </svg>
                     Profile
                   </button>
-                  <button onClick={() => { navigate('/all-books?favorites=true'); setShowUserMenu(false); }}>
+                  <button onClick={() => { navigate('/library?tab=reading-list'); setShowUserMenu(false); }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                     </svg>
                     Reading List
                   </button>
-                  <button onClick={() => { navigate('/collections'); setShowUserMenu(false); }}>
+                  <button onClick={() => { navigate('/library?tab=collections'); setShowUserMenu(false); }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                     </svg>
@@ -318,7 +318,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                         </svg>
                         Admin
                       </button>
-                      <button onClick={() => { onOpenUpload(); setShowUserMenu(false); }}>
+                      <button onClick={() => { navigate('/library?tab=upload'); setShowUserMenu(false); }}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="12" y1="5" x2="12" y2="19"></line>
                           <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -388,7 +388,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
               <span>Profile</span>
             </button>
 
-            <button onClick={() => { navigate('/all-books?favorites=true'); setShowMobileMenu(false); }}>
+            <button onClick={() => { navigate('/library?tab=reading-list'); setShowMobileMenu(false); }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
@@ -396,7 +396,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
               <span>Reading List</span>
             </button>
 
-            <button onClick={() => { navigate('/collections'); setShowMobileMenu(false); }}>
+            <button onClick={() => { navigate('/library?tab=collections'); setShowMobileMenu(false); }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
               </svg>
@@ -413,7 +413,7 @@ export default function Navigation({ onLogout, onOpenUpload }) {
                   <span>Admin</span>
                 </button>
 
-                <button onClick={() => { onOpenUpload(); setShowMobileMenu(false); }}>
+                <button onClick={() => { navigate('/library?tab=upload'); setShowMobileMenu(false); }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
