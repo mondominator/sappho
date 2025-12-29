@@ -531,46 +531,46 @@ export default function Library({ onPlay }) {
               </div>
             ) : (
               <div className="collections-grid">
-                {collections.map((collection) => (
-                  <div
-                    key={collection.id}
-                    className="collection-card"
-                    onClick={() => navigate(`/collections/${collection.id}`)}
-                  >
-                    <div className="collection-cover-area">
-                      <RotatingCover bookIds={collection.book_ids} collectionName={collection.name} />
-                      <div className="collection-overlay">
-                        <div className="collection-meta">
-                          <h3 className="collection-title">{collection.name}</h3>
-                          <div className="collection-info">
-                            <span className="collection-book-count">
-                              {collection.book_count || 0} {(collection.book_count || 0) === 1 ? 'book' : 'books'}
-                            </span>
-                            {collection.is_public === 1 && (
-                              <svg className="visibility-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="2" y1="12" x2="22" y2="12"></line>
-                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                              </svg>
-                            )}
-                          </div>
+                {collections.map((collection) => {
+                  const hours = Math.floor((collection.total_duration || 0) / 3600);
+                  return (
+                    <div
+                      key={collection.id}
+                      className="collection-card"
+                      onClick={() => navigate(`/collections/${collection.id}`)}
+                    >
+                      <div className="collection-cover-area">
+                        <RotatingCover bookIds={collection.book_ids} collectionName={collection.name} />
+                        {collection.is_public === 1 && (
+                          <div className="public-badge">Public</div>
+                        )}
+                      </div>
+                      <div className="collection-details">
+                        <h3 className="collection-title">{collection.name}</h3>
+                        <div className="collection-meta-row">
+                          <span className="collection-stat">{collection.book_count || 0} books</span>
+                          <span className="collection-stat-divider">·</span>
+                          <span className="collection-stat">{hours}h</span>
+                        </div>
+                        <div className="collection-creator">
+                          by {collection.creator_username}
                         </div>
                       </div>
+                      {collection.is_owner === 1 && (
+                        <button
+                          className="delete-btn"
+                          onClick={(e) => handleDeleteCollection(e, collection)}
+                          title="Delete collection"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                    {collection.is_owner === 1 && (
-                      <button
-                        className="delete-btn"
-                        onClick={(e) => handleDeleteCollection(e, collection)}
-                        title="Delete collection"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
