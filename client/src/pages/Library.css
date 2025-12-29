@@ -74,6 +74,65 @@
   background: linear-gradient(180deg, transparent 0%, #374151 50%, transparent 100%);
 }
 
+/* Tab Bar */
+.library-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.25rem;
+  background: rgba(31, 41, 55, 0.5);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.library-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: #9ca3af;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.library-tab:hover {
+  color: #fff;
+  background: rgba(55, 65, 81, 0.5);
+}
+
+.library-tab.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.library-tab svg {
+  flex-shrink: 0;
+}
+
+.tab-count {
+  padding: 0.125rem 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.library-tab.active .tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Tab Content */
+.library-tab-content {
+  min-height: 400px;
+}
+
 /* Category Cards Container */
 .library-categories {
   display: grid;
@@ -602,6 +661,518 @@
   color: #9ca3af;
 }
 
+/* ===========================================
+   Reading List Tab Styles
+   =========================================== */
+
+.reading-list-content {
+  padding: 0.5rem 0;
+}
+
+.favorites-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1.25rem;
+}
+
+.book-card {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+@media (hover: hover) {
+  .book-card:hover {
+    transform: translateY(-4px);
+  }
+}
+
+.book-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  margin-bottom: 0.75rem;
+}
+
+.book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.book-info {
+  padding: 0 0.25rem;
+}
+
+.book-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 0.25rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-author {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===========================================
+   Collections Tab Styles
+   =========================================== */
+
+.collections-content {
+  padding: 0.5rem 0;
+}
+
+.collections-header-inline {
+  margin-bottom: 1.5rem;
+}
+
+.collections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.25rem;
+}
+
+.collection-card {
+  position: relative;
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid #374151;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+@media (hover: hover) {
+  .collection-card:hover {
+    border-color: #3b82f6;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.collection-card .delete-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collection-card:hover .delete-btn {
+  opacity: 1;
+}
+
+.collection-covers {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #111827;
+}
+
+.collection-book-count {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  z-index: 5;
+}
+
+.collection-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  color: #6b7280;
+}
+
+.collection-placeholder svg {
+  width: 48px;
+  height: 48px;
+}
+
+.collection-placeholder span {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.cover-single {
+  width: 100%;
+  height: 100%;
+}
+
+.cover-single img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.collection-card-content {
+  padding: 1rem;
+}
+
+.title-with-visibility {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.collection-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.visibility-tag {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.visibility-tag.public {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.visibility-tag.private {
+  background: rgba(107, 114, 128, 0.2);
+  color: #9ca3af;
+}
+
+.collection-description {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===========================================
+   Upload Tab Styles
+   =========================================== */
+
+.upload-content {
+  padding: 0.5rem 0;
+}
+
+.upload-container-inline {
+  max-width: 500px;
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid #374151;
+  border-radius: 16px;
+  padding: 2rem;
+}
+
+.upload-container-inline h2 {
+  font-size: 1.25rem;
+  color: #fff;
+  margin: 0 0 1.5rem 0;
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.file-input-container {
+  position: relative;
+}
+
+.file-input-container input[type="file"] {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-input-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(55, 65, 81, 0.3);
+  border: 2px dashed #4b5563;
+  border-radius: 12px;
+  color: #9ca3af;
+  font-size: 0.9375rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.file-input-label:hover {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  color: #fff;
+}
+
+.file-info {
+  padding: 1rem;
+  background: rgba(55, 65, 81, 0.3);
+  border-radius: 8px;
+}
+
+.file-info p {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
+.file-info p:last-child {
+  margin-bottom: 0;
+}
+
+.file-info strong {
+  color: #fff;
+}
+
+.upload-info {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #374151;
+}
+
+.upload-info h3 {
+  font-size: 1rem;
+  color: #fff;
+  margin: 0 0 0.75rem 0;
+}
+
+.upload-info p {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin: 0 0 0.5rem 0;
+}
+
+.upload-info code {
+  display: block;
+  padding: 0.75rem 1rem;
+  background: #111827;
+  border-radius: 8px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.8125rem;
+  color: #60a5fa;
+  margin: 0.5rem 0;
+}
+
+.upload-info .note {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.error-message {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+/* ===========================================
+   Modal Styles
+   =========================================== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h3 {
+  font-size: 1.25rem;
+  color: #fff;
+  margin: 0 0 1.5rem 0;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9375rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input[type="text"]:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.visibility-toggle {
+  padding: 1rem;
+  background: rgba(55, 65, 81, 0.3);
+  border-radius: 8px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+}
+
+.toggle-text {
+  font-size: 0.9375rem;
+  color: #fff;
+  font-weight: 500;
+}
+
+.toggle-hint {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.75rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
+/* Button Styles */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #374151;
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background: #4b5563;
+}
+
+/* Empty State Enhancement */
+.empty-state svg {
+  margin-bottom: 1rem;
+  color: #4b5563;
+}
+
+.empty-state-hint {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+}
+
 /* Horizontal Scroll */
 .horizontal-section {
   margin-bottom: 40px;
@@ -643,6 +1214,86 @@
 .horizontal-scroll .audiobook-card {
   flex: 0 0 180px;
   min-width: 180px;
+}
+
+/* Mobile Styles for Tabs and New Content */
+@media (max-width: 768px) {
+  .library-tabs {
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+  }
+
+  .library-tab {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.8125rem;
+    border-radius: 8px;
+  }
+
+  .tab-count {
+    padding: 0.125rem 0.375rem;
+    font-size: 0.6875rem;
+  }
+
+  .favorites-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  .book-title {
+    font-size: 0.75rem;
+  }
+
+  .book-author {
+    font-size: 0.6875rem;
+  }
+
+  .collections-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .collection-card .delete-btn {
+    opacity: 1;
+  }
+
+  .collection-card-content {
+    padding: 0.75rem;
+  }
+
+  .collection-title {
+    font-size: 0.875rem;
+  }
+
+  .visibility-tag {
+    font-size: 0.5625rem;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .upload-container-inline {
+    padding: 1.25rem;
+    border-radius: 12px;
+  }
+
+  .upload-container-inline h2 {
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
+  }
+
+  .file-input-label {
+    padding: 1.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .modal {
+    padding: 1.25rem;
+    border-radius: 12px;
+  }
+
+  .modal h3 {
+    font-size: 1.125rem;
+  }
 }
 
 /* Mobile overrides for audiobook grid */
