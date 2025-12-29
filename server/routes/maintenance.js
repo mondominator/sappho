@@ -879,12 +879,12 @@ router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (
         }
       }
 
-      console.log(`✅ Force rescan complete (ID-preserving mode):`);
+      console.log('✅ Force rescan complete (ID-preserving mode):');
       console.log(`   - ${restoredCount} audiobooks restored/added (IDs preserved)`);
       console.log(`   - ${stillUnavailable} audiobooks still unavailable (files missing)`);
       console.log(`   - ${stats.imported} newly imported, ${stats.skipped} skipped, ${stats.errors} errors`);
       console.log(`   - ${metadataUpdated} metadata refreshed, ${metadataErrors} errors`);
-      console.log(`   - User progress, favorites, ratings, and covers preserved automatically`);
+      console.log('   - User progress, favorites, ratings, and covers preserved automatically');
     } catch (error) {
       console.error('❌ Error in force rescan:', error);
     } finally {
