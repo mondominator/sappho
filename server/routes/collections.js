@@ -27,12 +27,14 @@ router.get('/', collectionLimiter, authenticateToken, (req, res) => {
     `SELECT c.*,
             u.username as creator_username,
             COUNT(ci.id) as book_count,
+            COALESCE(SUM(a.duration), 0) as total_duration,
             (SELECT GROUP_CONCAT(ci2.audiobook_id) FROM collection_items ci2
              WHERE ci2.collection_id = c.id
              ORDER BY ci2.position ASC LIMIT 10) as book_ids,
             CASE WHEN c.user_id = ? THEN 1 ELSE 0 END as is_owner
      FROM user_collections c
      LEFT JOIN collection_items ci ON c.id = ci.collection_id
+     LEFT JOIN audiobooks a ON ci.audiobook_id = a.id
      LEFT JOIN users u ON c.user_id = u.id
      WHERE c.user_id = ? OR c.is_public = 1
      GROUP BY c.id
