@@ -430,6 +430,7 @@ export default function Settings() {
                 type="text"
                 id="username"
                 className="input"
+                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
                 value={userFormData.username}
                 onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
                 required
@@ -442,6 +443,7 @@ export default function Settings() {
                 type="password"
                 id="password"
                 className="input"
+                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
                 value={userFormData.password}
                 onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
                 required
@@ -454,6 +456,7 @@ export default function Settings() {
                 type="email"
                 id="email"
                 className="input"
+                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
                 value={userFormData.email}
                 onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
               />
@@ -499,6 +502,7 @@ export default function Settings() {
                 type="text"
                 id="edit-username"
                 className="input"
+                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
                 value={userFormData.username}
                 onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
                 required
@@ -511,6 +515,7 @@ export default function Settings() {
                 type="password"
                 id="edit-password"
                 className="input"
+                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
                 value={userFormData.password}
                 onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
               />
@@ -522,6 +527,7 @@ export default function Settings() {
                 type="email"
                 id="edit-email"
                 className="input"
+                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
                 value={userFormData.email}
                 onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
               />
