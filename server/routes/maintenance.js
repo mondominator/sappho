@@ -708,8 +708,10 @@ router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, 
   }
 });
 
-// Force rescan - clear and reimport all audiobooks (preserves user progress)
-// Uses a lock to prevent concurrent scans
+// Force rescan - re-extract metadata for all audiobooks while preserving IDs
+// Marks all books unavailable, rescans library, restores by content_hash (same ID)
+// This preserves: audiobook IDs, user progress, favorites, ratings, user-set covers
+// External apps (like OpsDec) won't lose cached data that references book IDs
 let forceRescanInProgress = false;
 
 router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
@@ -746,261 +748,143 @@ router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (
   // Continue processing in background
   setImmediate(async () => {
     try {
-      console.log('Force rescan: backing up user data...');
+      // ID-PRESERVING FORCE RESCAN
+      // Instead of deleting audiobooks, mark them unavailable. The library scanner
+      // will restore them by content_hash, preserving the original IDs. This keeps
+      // external apps (like OpsDec) from losing cached data (covers, etc.) that
+      // reference audiobook IDs.
 
-      // Backup playback progress with file paths
-      const progressBackup = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT pp.user_id, pp.position, pp.completed, pp.updated_at, a.file_path
-           FROM playback_progress pp
-           JOIN audiobooks a ON pp.audiobook_id = a.id`,
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
+      console.log('Force rescan: marking all audiobooks as unavailable (preserving IDs)...');
 
-      console.log(`Backed up progress for ${progressBackup.length} audiobooks`);
-
-      // Backup user-set covers (cover_path) - these are custom covers downloaded from search
-      const coverBackup = await new Promise((resolve, reject) => {
-        db.all(
-          'SELECT file_path, cover_path FROM audiobooks WHERE cover_path IS NOT NULL AND cover_path != \'\'',
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
-
-      console.log(`Backed up ${coverBackup.length} user-set covers`);
-
-      // Backup user favorites with file paths
-      const favoritesBackup = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT uf.user_id, uf.created_at, a.file_path
-           FROM user_favorites uf
-           JOIN audiobooks a ON uf.audiobook_id = a.id`,
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
-
-      console.log(`Backed up ${favoritesBackup.length} user favorites`);
-
-      // Backup user ratings with file paths
-      const ratingsBackup = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT ur.user_id, ur.rating, ur.review, ur.created_at, ur.updated_at, a.file_path
-           FROM user_ratings ur
-           JOIN audiobooks a ON ur.audiobook_id = a.id`,
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
-
-      console.log(`Backed up ${ratingsBackup.length} user ratings`);
-
-      console.log('Force rescan: clearing library metadata...');
-
-      // Use a transaction-like approach - serialize all deletes
-      await new Promise((resolve, reject) => {
-        db.serialize(() => {
-          db.run('DELETE FROM audiobook_chapters', (err) => {
-            if (err) console.error('Error deleting chapters:', err);
-          });
-          db.run('DELETE FROM playback_progress', (err) => {
-            if (err) console.error('Error deleting progress:', err);
-          });
-          db.run('DELETE FROM audiobooks', (err) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
-      });
-
-      // Verify audiobooks table is empty before scanning
-      const count = await new Promise((resolve, reject) => {
+      // Get count before marking unavailable
+      const beforeCount = await new Promise((resolve, reject) => {
         db.get('SELECT COUNT(*) as count FROM audiobooks', (err, row) => {
           if (err) reject(err);
           else resolve(row.count);
         });
       });
 
-      if (count > 0) {
-        throw new Error(`Failed to clear audiobooks table. ${count} records remain.`);
-      }
+      console.log(`Found ${beforeCount} audiobooks to process`);
 
-      console.log('Library metadata cleared, rescanning...');
+      // Mark all audiobooks as unavailable (instead of deleting)
+      // This preserves: IDs, user progress, favorites, ratings, user-set covers
+      await new Promise((resolve, reject) => {
+        db.run(
+          'UPDATE audiobooks SET is_available = 0, original_path = file_path',
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+
+      console.log('All audiobooks marked as unavailable');
+
+      // Delete chapters - they will be recreated during rescan
+      await new Promise((resolve, reject) => {
+        db.run('DELETE FROM audiobook_chapters', (err) => {
+          if (err) {
+            console.error('Error deleting chapters:', err);
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      console.log('Chapters cleared, rescanning library...');
+
+      // Rescan library - this will:
+      // 1. Find all audio files
+      // 2. Generate content_hash for each
+      // 3. Check findUnavailableByHash() - if match found, RESTORE with original ID
+      // 4. Only create new records for genuinely new files
       const stats = await scanLibrary();
 
-      // Restore playback progress
-      console.log('Restoring user progress...');
-      let restored = 0;
-      for (const progress of progressBackup) {
-        try {
-          // Find audiobook by file path
-          const audiobook = await new Promise((resolve, reject) => {
-            db.get(
-              'SELECT id FROM audiobooks WHERE file_path = ?',
-              [progress.file_path],
-              (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-              }
-            );
-          });
+      // Count how many were restored vs new
+      const restoredCount = await new Promise((resolve, reject) => {
+        db.get('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 1', (err, row) => {
+          if (err) reject(err);
+          else resolve(row.count);
+        });
+      });
 
-          if (audiobook) {
-            // Restore progress - use INSERT OR REPLACE to avoid duplicates
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT OR REPLACE INTO playback_progress (audiobook_id, user_id, position, completed, updated_at)
-                 VALUES (?, ?, ?, ?, ?)`,
-                [audiobook.id, progress.user_id, progress.position, progress.completed, progress.updated_at],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-            restored++;
-          }
-        } catch (error) {
-          console.error(`Failed to restore progress for ${progress.file_path}:`, error.message);
-        }
-      }
+      const stillUnavailable = await new Promise((resolve, reject) => {
+        db.get('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 0', (err, row) => {
+          if (err) reject(err);
+          else resolve(row.count);
+        });
+      });
 
-      // Restore user-set covers
-      console.log('Restoring user-set covers...');
-      let coversRestored = 0;
-      for (const cover of coverBackup) {
+      // Now refresh metadata for all restored books (force rescan = re-extract metadata)
+      console.log('Refreshing metadata for all restored audiobooks...');
+      const audiobooks = await new Promise((resolve, reject) => {
+        db.all('SELECT id, file_path, title, cover_path FROM audiobooks WHERE is_available = 1', (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        });
+      });
+
+      let metadataUpdated = 0;
+      let metadataErrors = 0;
+
+      for (const audiobook of audiobooks) {
         try {
-          // Verify cover file still exists
-          if (!fs.existsSync(cover.cover_path)) {
-            console.log(`Cover file no longer exists: ${cover.cover_path}`);
+          if (!fs.existsSync(audiobook.file_path)) {
             continue;
           }
 
-          // Find audiobook by file path
-          const audiobook = await new Promise((resolve, reject) => {
-            db.get(
-              'SELECT id FROM audiobooks WHERE file_path = ?',
-              [cover.file_path],
-              (err, row) => {
+          // Extract fresh metadata
+          const metadata = await extractFileMetadata(audiobook.file_path);
+
+          // Preserve user-set cover if it exists
+          let finalCoverImage = metadata.cover_image;
+          if (audiobook.cover_path && fs.existsSync(audiobook.cover_path)) {
+            finalCoverImage = audiobook.cover_path;
+          }
+
+          // Update all metadata fields
+          await new Promise((resolve, reject) => {
+            db.run(
+              `UPDATE audiobooks SET
+                title = ?, author = ?, narrator = ?, description = ?,
+                duration = ?, genre = ?, published_year = ?, isbn = ?,
+                series = ?, series_position = ?, cover_image = ?,
+                tags = ?, publisher = ?, copyright_year = ?, asin = ?,
+                language = ?, rating = ?, abridged = ?, subtitle = ?,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`,
+              [
+                metadata.title, metadata.author, metadata.narrator, metadata.description,
+                metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
+                metadata.series, metadata.series_position, finalCoverImage,
+                metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
+                metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
+                audiobook.id
+              ],
+              (err) => {
                 if (err) reject(err);
-                else resolve(row);
+                else resolve();
               }
             );
           });
 
-          if (audiobook) {
-            // Restore cover_path
-            await new Promise((resolve, reject) => {
-              db.run(
-                'UPDATE audiobooks SET cover_path = ?, cover_image = ? WHERE id = ?',
-                [cover.cover_path, cover.cover_path, audiobook.id],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-            coversRestored++;
-            console.log(`Restored cover for audiobook ${audiobook.id}: ${cover.cover_path}`);
+          metadataUpdated++;
+          if (metadataUpdated % 25 === 0) {
+            console.log(`Metadata refresh progress: ${metadataUpdated}/${audiobooks.length}`);
           }
         } catch (error) {
-          console.error(`Failed to restore cover for ${cover.file_path}:`, error.message);
+          console.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
+          metadataErrors++;
         }
       }
 
-      // Restore user favorites
-      console.log('Restoring user favorites...');
-      let favoritesRestored = 0;
-      for (const favorite of favoritesBackup) {
-        try {
-          // Find audiobook by file path
-          const audiobook = await new Promise((resolve, reject) => {
-            db.get(
-              'SELECT id FROM audiobooks WHERE file_path = ?',
-              [favorite.file_path],
-              (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-              }
-            );
-          });
-
-          if (audiobook) {
-            // Restore favorite
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id, created_at)
-                 VALUES (?, ?, ?)`,
-                [favorite.user_id, audiobook.id, favorite.created_at],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-            favoritesRestored++;
-          }
-        } catch (error) {
-          console.error(`Failed to restore favorite for ${favorite.file_path}:`, error.message);
-        }
-      }
-
-      // Restore user ratings
-      console.log('Restoring user ratings...');
-      let ratingsRestored = 0;
-      for (const rating of ratingsBackup) {
-        try {
-          // Find audiobook by file path
-          const audiobook = await new Promise((resolve, reject) => {
-            db.get(
-              'SELECT id FROM audiobooks WHERE file_path = ?',
-              [rating.file_path],
-              (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-              }
-            );
-          });
-
-          if (audiobook) {
-            // Restore rating
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT OR REPLACE INTO user_ratings (user_id, audiobook_id, rating, review, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [rating.user_id, audiobook.id, rating.rating, rating.review, rating.created_at, rating.updated_at],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
-            ratingsRestored++;
-          }
-        } catch (error) {
-          console.error(`Failed to restore rating for ${rating.file_path}:`, error.message);
-        }
-      }
-
-      console.log(`✅ Force rescan complete: ${stats.imported} imported, ${stats.skipped} skipped, ${stats.errors} errors`);
-      console.log(`✅ Restored progress for ${restored} audiobooks`);
-      console.log(`✅ Restored ${coversRestored} user-set covers`);
-      console.log(`✅ Restored ${favoritesRestored} user favorites`);
-      console.log(`✅ Restored ${ratingsRestored} user ratings`);
+      console.log(`✅ Force rescan complete (ID-preserving mode):`);
+      console.log(`   - ${restoredCount} audiobooks restored/added (IDs preserved)`);
+      console.log(`   - ${stillUnavailable} audiobooks still unavailable (files missing)`);
+      console.log(`   - ${stats.imported} newly imported, ${stats.skipped} skipped, ${stats.errors} errors`);
+      console.log(`   - ${metadataUpdated} metadata refreshed, ${metadataErrors} errors`);
+      console.log(`   - User progress, favorites, ratings, and covers preserved automatically`);
     } catch (error) {
       console.error('❌ Error in force rescan:', error);
     } finally {
