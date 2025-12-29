@@ -94,10 +94,12 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
     const stats = await new Promise((resolve, reject) => {
       const result = {};
 
-      // Total listen time (sum of all positions)
+      // Total listen time (sum of durations for COMPLETED books only)
       db.get(
-        `SELECT COALESCE(SUM(position), 0) as totalListenTime
-         FROM playback_progress WHERE user_id = ?`,
+        `SELECT COALESCE(SUM(a.duration), 0) as totalListenTime
+         FROM playback_progress p
+         JOIN audiobooks a ON p.audiobook_id = a.id
+         WHERE p.user_id = ? AND p.completed = 1`,
         [userId],
         (err, row) => {
           if (err) return reject(err);
@@ -130,12 +132,12 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
                       if (err) return reject(err);
                       result.currentlyListening = row.currentlyListening;
 
-                      // Top authors by listen time
+                      // Top authors by listen time (sum of durations for COMPLETED books)
                       db.all(
-                        `SELECT a.author, SUM(p.position) as listenTime, COUNT(DISTINCT a.id) as bookCount
+                        `SELECT a.author, SUM(a.duration) as listenTime, COUNT(DISTINCT a.id) as bookCount
                          FROM playback_progress p
                          JOIN audiobooks a ON p.audiobook_id = a.id
-                         WHERE p.user_id = ? AND a.author IS NOT NULL AND a.author != ''
+                         WHERE p.user_id = ? AND p.completed = 1 AND a.author IS NOT NULL AND a.author != ''
                          GROUP BY a.author
                          ORDER BY listenTime DESC
                          LIMIT 5`,
@@ -144,12 +146,12 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
                           if (err) return reject(err);
                           result.topAuthors = rows || [];
 
-                          // Top genres by listen time (normalize genres in JavaScript)
+                          // Top genres by listen time (sum of durations for COMPLETED books, normalize genres in JavaScript)
                           db.all(
-                            `SELECT a.genre, p.position, a.id
+                            `SELECT a.genre, a.duration, a.id
                              FROM playback_progress p
                              JOIN audiobooks a ON p.audiobook_id = a.id
-                             WHERE p.user_id = ? AND a.genre IS NOT NULL AND a.genre != ''`,
+                             WHERE p.user_id = ? AND p.completed = 1 AND a.genre IS NOT NULL AND a.genre != ''`,
                             [userId],
                             (err, rows) => {
                               if (err) return reject(err);
@@ -165,7 +167,7 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
                                     if (!genreStats[category]) {
                                       genreStats[category] = { genre: category, listenTime: 0, bookIds: new Set() };
                                     }
-                                    genreStats[category].listenTime += row.position || 0;
+                                    genreStats[category].listenTime += row.duration || 0;
                                     genreStats[category].bookIds.add(row.id);
                                   }
                                 }
