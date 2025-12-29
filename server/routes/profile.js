@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const { authenticateToken, authenticateMediaToken, validatePassword, invalidateUserTokens } = require('../auth');
+const { normalizeGenres } = require('../utils/genres');
 
 // SECURITY: Rate limiting for profile endpoints
 const profileLimiter = rateLimit({
@@ -143,19 +144,38 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
                           if (err) return reject(err);
                           result.topAuthors = rows || [];
 
-                          // Top genres by listen time (use normalized_genre for cleaner display)
+                          // Top genres by listen time (normalize genres in JavaScript)
                           db.all(
-                            `SELECT COALESCE(a.normalized_genre, a.genre) as genre, SUM(p.position) as listenTime, COUNT(DISTINCT a.id) as bookCount
+                            `SELECT a.genre, p.position, a.id
                              FROM playback_progress p
                              JOIN audiobooks a ON p.audiobook_id = a.id
-                             WHERE p.user_id = ? AND (a.normalized_genre IS NOT NULL OR a.genre IS NOT NULL) AND COALESCE(a.normalized_genre, a.genre) != ''
-                             GROUP BY COALESCE(a.normalized_genre, a.genre)
-                             ORDER BY listenTime DESC
-                             LIMIT 5`,
+                             WHERE p.user_id = ? AND a.genre IS NOT NULL AND a.genre != ''`,
                             [userId],
                             (err, rows) => {
                               if (err) return reject(err);
-                              result.topGenres = rows || [];
+
+                              // Normalize genres and aggregate by normalized genre
+                              const genreStats = {};
+                              for (const row of (rows || [])) {
+                                const normalized = normalizeGenres(row.genre);
+                                if (normalized) {
+                                  // Each normalized genre string may contain multiple categories
+                                  const categories = normalized.split(',').map(g => g.trim());
+                                  for (const category of categories) {
+                                    if (!genreStats[category]) {
+                                      genreStats[category] = { genre: category, listenTime: 0, bookIds: new Set() };
+                                    }
+                                    genreStats[category].listenTime += row.position || 0;
+                                    genreStats[category].bookIds.add(row.id);
+                                  }
+                                }
+                              }
+
+                              // Convert to array and sort by listen time
+                              result.topGenres = Object.values(genreStats)
+                                .map(g => ({ genre: g.genre, listenTime: g.listenTime, bookCount: g.bookIds.size }))
+                                .sort((a, b) => b.listenTime - a.listenTime)
+                                .slice(0, 5);
 
                               // Recent activity (last 5 books listened to)
                               db.all(
