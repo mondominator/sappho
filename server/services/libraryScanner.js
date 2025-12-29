@@ -918,6 +918,11 @@ function getJobStatus() {
     nextScanTime = new Date(lastScanTime.getTime() + scanIntervalMinutes * 60 * 1000);
   }
 
+  // Get backup service status
+  const backupService = require('./backupService');
+  const backupStatus = backupService.getStatus();
+  const backupIntervalHours = parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24;
+
   return {
     libraryScanner: {
       name: 'Library Scanner',
@@ -929,6 +934,18 @@ function getJobStatus() {
       lastResult: lastScanResult,
       canTrigger: true,
     },
+    autoBackup: {
+      name: 'Auto Backup',
+      description: 'Automatically backs up database and covers',
+      interval: backupIntervalHours > 0 ? `${backupIntervalHours} hours` : 'disabled',
+      status: backupStatus.scheduledBackups ? 'running' : 'disabled',
+      lastRun: backupStatus.lastBackup,
+      nextRun: backupStatus.lastBackup && backupIntervalHours > 0
+        ? new Date(new Date(backupStatus.lastBackup).getTime() + backupIntervalHours * 60 * 60 * 1000).toISOString()
+        : null,
+      lastResult: backupStatus.lastResult,
+      canTrigger: true,
+    },
     sessionCleanup: {
       name: 'Session Cleanup',
       description: 'Removes stale playback sessions',
@@ -936,6 +953,14 @@ function getJobStatus() {
       status: 'running',
       lastRun: null, // SessionManager handles this internally
       nextRun: null,
+      canTrigger: false,
+    },
+    logRotator: {
+      name: 'Log Rotator',
+      description: 'In-memory log buffer with automatic rotation',
+      interval: 'continuous',
+      status: 'running',
+      bufferSize: parseInt(process.env.LOG_BUFFER_SIZE) || 500,
       canTrigger: false,
     }
   };

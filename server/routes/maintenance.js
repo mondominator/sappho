@@ -27,8 +27,10 @@ const maintenanceWriteLimiter = rateLimit({
 });
 
 // In-memory log buffer for UI viewing
-const LOG_BUFFER_SIZE = 500;
+// Configure with LOG_BUFFER_SIZE env var (default 500, max 5000)
+const LOG_BUFFER_SIZE = Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000);
 const logBuffer = [];
+let logRotationCount = 0; // Track how many logs have been rotated out
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
@@ -92,16 +94,51 @@ console.log = (...args) => {
   const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
   const category = categorizeLogMessage(message);
   logBuffer.push({ timestamp: new Date().toISOString(), level: 'info', category, message });
-  if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
+  if (logBuffer.length > LOG_BUFFER_SIZE) {
+    logBuffer.shift();
+    logRotationCount++;
+  }
   originalConsoleLog.apply(console, args);
 };
 
 console.error = (...args) => {
   const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
   logBuffer.push({ timestamp: new Date().toISOString(), level: 'error', category: 'error', message });
-  if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
+  if (logBuffer.length > LOG_BUFFER_SIZE) {
+    logBuffer.shift();
+    logRotationCount++;
+  }
   originalConsoleError.apply(console, args);
 };
+
+/**
+ * Get log buffer statistics
+ */
+function getLogStats() {
+  const errorCount = logBuffer.filter(l => l.level === 'error').length;
+  const warningCount = logBuffer.filter(l => l.category === 'warning').length;
+  const oldestLog = logBuffer.length > 0 ? logBuffer[0].timestamp : null;
+
+  return {
+    bufferSize: LOG_BUFFER_SIZE,
+    currentCount: logBuffer.length,
+    rotatedCount: logRotationCount,
+    errorCount,
+    warningCount,
+    oldestLog,
+  };
+}
+
+/**
+ * Clear the log buffer
+ */
+function clearLogBuffer() {
+  const cleared = logBuffer.length;
+  logBuffer.length = 0;
+  logRotationCount = 0;
+  console.log('Log buffer cleared');
+  return cleared;
+}
 
 // Get server logs
 router.get('/logs', maintenanceLimiter, authenticateToken, (req, res) => {
@@ -115,8 +152,23 @@ router.get('/logs', maintenanceLimiter, authenticateToken, (req, res) => {
   res.json({
     logs,
     total: logBuffer.length,
+    stats: getLogStats(),
     forceRescanInProgress,
     scanningLocked: isScanningLocked()
+  });
+});
+
+// Clear server logs
+router.delete('/logs', maintenanceWriteLimiter, authenticateToken, (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const cleared = clearLogBuffer();
+  res.json({
+    success: true,
+    message: `Cleared ${cleared} log entries`,
+    cleared
   });
 });
 
