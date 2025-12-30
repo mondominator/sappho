@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +10,19 @@ const { organizeAudiobook, needsOrganization } = require('../services/fileOrgani
 const activityService = require('../services/activityService');
 const conversionService = require('../services/conversionService');
 const { GENRE_MAPPINGS, DEFAULT_GENRE_METADATA, normalizeGenres } = require('../utils/genres');
+
+// SECURITY: Rate limiting for conversion job endpoints
+const jobStatusLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute (polling every 2 seconds)
+  message: { error: 'Too many job status requests, please try again later' },
+});
+
+const jobCancelLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 cancellations per minute
+  message: { error: 'Too many cancel requests, please try again later' },
+});
 
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
@@ -1431,7 +1445,7 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
 });
 
 // Get conversion job status (admin only)
-router.get('/jobs/conversion/:jobId', authenticateToken, async (req, res) => {
+router.get('/jobs/conversion/:jobId', jobStatusLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1445,7 +1459,7 @@ router.get('/jobs/conversion/:jobId', authenticateToken, async (req, res) => {
 });
 
 // Get all active conversion jobs (admin only)
-router.get('/jobs/conversion', authenticateToken, async (req, res) => {
+router.get('/jobs/conversion', jobStatusLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1455,7 +1469,7 @@ router.get('/jobs/conversion', authenticateToken, async (req, res) => {
 });
 
 // Cancel a conversion job (admin only)
-router.delete('/jobs/conversion/:jobId', authenticateToken, async (req, res) => {
+router.delete('/jobs/conversion/:jobId', jobCancelLimiter, authenticateToken, async (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
