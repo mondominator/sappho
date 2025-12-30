@@ -763,6 +763,54 @@ router.get('/:id/directory-files', authenticateToken, (req, res) => {
   });
 });
 
+// Delete a specific file from an audiobook directory (admin only)
+router.delete('/:id/files', authenticateToken, (req, res) => {
+  // Check if user is admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { file_path } = req.body;
+  if (!file_path) {
+    return res.status(400).json({ error: 'file_path is required' });
+  }
+
+  db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!audiobook) {
+      return res.status(404).json({ error: 'Audiobook not found' });
+    }
+
+    // Verify the file is in the audiobook's directory (security check)
+    const audiobookDir = path.dirname(audiobook.file_path);
+    const requestedFileDir = path.dirname(file_path);
+
+    if (!file_path.startsWith(audiobookDir)) {
+      return res.status(403).json({ error: 'Cannot delete files outside audiobook directory' });
+    }
+
+    // Prevent deleting the main audiobook file
+    if (file_path === audiobook.file_path) {
+      return res.status(400).json({ error: 'Cannot delete the main audiobook file. Use delete audiobook instead.' });
+    }
+
+    try {
+      if (!fs.existsSync(file_path)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      fs.unlinkSync(file_path);
+      console.log(`Deleted file: ${file_path}`);
+      res.json({ message: 'File deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      res.status(500).json({ error: 'Failed to delete file: ' + error.message });
+    }
+  });
+});
+
 /**
  * Get the appropriate MIME type for an audio file based on extension
  */
