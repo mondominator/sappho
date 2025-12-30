@@ -785,7 +785,6 @@ router.delete('/:id/files', authenticateToken, (req, res) => {
 
     // Verify the file is in the audiobook's directory (security check)
     const audiobookDir = path.dirname(audiobook.file_path);
-    const requestedFileDir = path.dirname(file_path);
 
     if (!file_path.startsWith(audiobookDir)) {
       return res.status(403).json({ error: 'Cannot delete files outside audiobook directory' });
