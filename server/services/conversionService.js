@@ -410,6 +410,19 @@ class ConversionService {
   }
 
   /**
+   * Get active job for a specific audiobook
+   */
+  getActiveJobForAudiobook(audiobookId) {
+    for (const job of this.jobs.values()) {
+      if (job.audiobookId === audiobookId &&
+          (job.status === 'starting' || job.status === 'converting')) {
+        return this.getJobStatus(job.id);
+      }
+    }
+    return null;
+  }
+
+  /**
    * Cancel a job
    */
   cancelJob(jobId) {

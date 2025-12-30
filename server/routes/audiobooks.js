@@ -1482,6 +1482,22 @@ router.delete('/jobs/conversion/:jobId', jobCancelLimiter, authenticateToken, as
   res.json({ message: 'Job cancelled' });
 });
 
+// Get active conversion job for a specific audiobook (admin only)
+router.get('/:id/conversion-status', jobStatusLimiter, authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const audiobookId = parseInt(req.params.id, 10);
+  const job = conversionService.getActiveJobForAudiobook(audiobookId);
+
+  if (!job) {
+    return res.json({ active: false });
+  }
+
+  res.json({ active: true, job });
+});
+
 // Search Open Library for metadata (admin only)
 router.get('/:id/search-metadata', authenticateToken, async (req, res) => {
   // Check if user is admin
