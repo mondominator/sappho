@@ -24,6 +24,12 @@ const jobCancelLimiter = rateLimit({
   message: { error: 'Too many cancel requests, please try again later' },
 });
 
+const batchDeleteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 batch deletes per minute
+  message: { error: 'Too many delete requests, please try again later' },
+});
+
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
   const random = crypto.randomBytes(8).toString('hex');
@@ -3005,7 +3011,7 @@ router.post('/batch/add-to-collection', authenticateToken, async (req, res) => {
 });
 
 // Batch delete (admin only)
-router.post('/batch/delete', authenticateToken, async (req, res) => {
+router.post('/batch/delete', batchDeleteLimiter, authenticateToken, async (req, res) => {
   const { audiobook_ids, delete_files } = req.body;
 
   if (!req.user.is_admin) {
@@ -3070,7 +3076,7 @@ router.post('/batch/delete', authenticateToken, async (req, res) => {
               }
             }
           } catch (fileErr) {
-            console.error(`Failed to delete files for audiobook ${audiobookId}:`, fileErr);
+            console.error('Failed to delete files for audiobook:', audiobookId, fileErr.message);
           }
         }
 
