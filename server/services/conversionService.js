@@ -327,7 +327,7 @@ class ConversionService {
 
         // Clean up temp cover
         if (fs.existsSync(job.tempCoverPath)) {
-          try { fs.unlinkSync(job.tempCoverPath); } catch (_e) {}
+          try { fs.unlinkSync(job.tempCoverPath); } catch (_e) { /* ignore cleanup errors */ }
         }
 
         if (code === 0) {
@@ -357,7 +357,7 @@ class ConversionService {
       }
     }
     if (job.tempCoverPath && fs.existsSync(job.tempCoverPath)) {
-      try { fs.unlinkSync(job.tempCoverPath); } catch (_e) {}
+      try { fs.unlinkSync(job.tempCoverPath); } catch (_e) { /* ignore cleanup errors */ }
     }
   }
 
