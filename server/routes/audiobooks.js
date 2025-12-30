@@ -1,13 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const fs = require('fs');
 const path = require('path');
 const { authenticateToken, authenticateMediaToken } = require('../auth');
 const { organizeAudiobook, needsOrganization } = require('../services/fileOrganizer');
 const activityService = require('../services/activityService');
+const conversionService = require('../services/conversionService');
 const { GENRE_MAPPINGS, DEFAULT_GENRE_METADATA, normalizeGenres } = require('../utils/genres');
+
+// SECURITY: Rate limiting for conversion job endpoints
+const jobStatusLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute (polling every 2 seconds)
+  message: { error: 'Too many job status requests, please try again later' },
+});
+
+const jobCancelLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 cancellations per minute
+  message: { error: 'Too many cancel requests, please try again later' },
+});
 
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
@@ -83,11 +98,8 @@ function queueNextInSeries(userId, finishedAudiobookId) {
   );
 }
 
-// Track directories with active conversions to prevent scanner interference
-const activeConversions = new Set();
-
-// Export for use by library scanner
-const isDirectoryBeingConverted = (dir) => activeConversions.has(dir);
+// Export for use by library scanner - uses conversion service to check active conversions
+const isDirectoryBeingConverted = (dir) => conversionService.isDirectoryLocked(dir);
 module.exports.isDirectoryBeingConverted = isDirectoryBeingConverted;
 
 /**
@@ -1394,22 +1406,12 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
   }
 });
 
-// Convert audiobook to M4B format (admin only)
+// Convert audiobook to M4B format (admin only) - async with progress tracking
 router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
   // Check if user is admin
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
-
-  const { execFile } = require('child_process');
-  const { promisify } = require('util');
-  const execFileAsync = promisify(execFile);
-
-  // Declare these outside try block so they're accessible in catch for cleanup
-  let dir = null;
-  let tempPath = null;
-  let tempCoverPath = null;
-  let finalPath = null;
 
   try {
     const audiobook = await new Promise((resolve, reject) => {
@@ -1423,168 +1425,61 @@ router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Audiobook not found' });
     }
 
-    if (!fs.existsSync(audiobook.file_path)) {
-      return res.status(404).json({ error: 'Audio file not found on disk' });
+    // Start async conversion - returns immediately with job ID
+    const result = await conversionService.startConversion(audiobook, db);
+
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
     }
-
-    const ext = path.extname(audiobook.file_path).toLowerCase();
-
-    // Check if already M4B
-    if (ext === '.m4b') {
-      return res.status(400).json({ error: 'File is already M4B format' });
-    }
-
-    // Supported formats for conversion
-    const supportedFormats = ['.m4a', '.mp3', '.mp4', '.ogg', '.flac'];
-    if (!supportedFormats.includes(ext)) {
-      return res.status(400).json({ error: `Unsupported format: ${ext}. Supported: ${supportedFormats.join(', ')}` });
-    }
-
-    dir = path.dirname(audiobook.file_path);
-    const basename = path.basename(audiobook.file_path, ext);
-    finalPath = path.join(dir, `${basename}.m4b`);
-    tempPath = path.join(dir, `${basename}_converting.m4b`);  // Temp file during conversion
-    tempCoverPath = path.join(dir, `${basename}_temp_cover.jpg`);
-
-    // Lock directory to prevent library scanner from interfering
-    activeConversions.add(dir);
-    console.log(`Converting ${audiobook.file_path} to M4B format...`);
-
-    // Try to extract cover art from the source file first (for MP3s with embedded art)
-    let hasCover = false;
-    if (ext === '.mp3') {
-      try {
-        await execFileAsync('ffmpeg', [
-          '-i', audiobook.file_path,
-          '-an',                    // No audio
-          '-vcodec', 'copy',        // Copy video stream (cover art)
-          '-y', tempCoverPath
-        ], { timeout: 30000 });
-        hasCover = fs.existsSync(tempCoverPath) && fs.statSync(tempCoverPath).size > 0;
-        if (hasCover) {
-          console.log('Extracted cover art from MP3 for re-embedding');
-        }
-      } catch (_e) {
-        // No cover art or extraction failed - not critical
-        console.log('No embedded cover art found or extraction failed');
-      }
-    }
-
-    let args;
-    if (ext === '.m4a' || ext === '.mp4') {
-      // M4A/MP4 and M4B are the same container format, just different extension
-      // We can use ffmpeg to copy streams without re-encoding
-      args = [
-        '-i', audiobook.file_path,
-        '-c', 'copy',  // Copy all streams without re-encoding
-        '-f', 'ipod',  // Force M4B/M4A container format
-        '-y', tempPath  // Write to temp file first
-      ];
-    } else {
-      // For MP3, OGG, FLAC - need to re-encode to AAC
-      // Use -vn to strip any embedded cover art (video stream) - cover will be added with tone
-      args = [
-        '-i', audiobook.file_path,
-        '-vn',                   // Strip video/cover art (will be added back with tone)
-        '-c:a', 'aac',           // Encode audio to AAC
-        '-b:a', '128k',          // 128kbps bitrate (good for audiobooks)
-        '-ar', '44100',          // 44.1kHz sample rate
-        '-ac', '1',              // Mono (typical for audiobooks, smaller file)
-        '-f', 'ipod',            // Force M4B container format
-        '-y', tempPath  // Write to temp file first
-      ];
-    }
-
-    try {
-      // Longer timeout for re-encoding (can take a while for large files)
-      await execFileAsync('ffmpeg', args, { timeout: 3600000, maxBuffer: 50 * 1024 * 1024 });
-    } catch (ffmpegError) {
-      console.error('FFmpeg conversion error:', ffmpegError.stderr);
-      throw new Error(`FFmpeg failed: ${ffmpegError.stderr || ffmpegError.message}`);
-    }
-
-    // Verify temp file exists
-    if (!fs.existsSync(tempPath)) {
-      throw new Error('Conversion completed but output file not found');
-    }
-
-    // Re-embed cover art using tone if we extracted one
-    if (hasCover && fs.existsSync(tempCoverPath)) {
-      try {
-        console.log('Re-embedding cover art with tone...');
-        await execFileAsync('tone', [
-          'tag', tempPath,
-          `--meta-cover-file=${tempCoverPath}`
-        ], { timeout: 60000 });
-        console.log('Cover art embedded successfully');
-      } catch (e) {
-        console.error('Failed to embed cover art:', e.message);
-        // Not critical - continue without cover
-      } finally {
-        // Clean up temp cover
-        if (fs.existsSync(tempCoverPath)) {
-          fs.unlinkSync(tempCoverPath);
-        }
-      }
-    }
-
-    // Get new file size before rename
-    const newStats = fs.statSync(tempPath);
-
-    // All successful - now rename temp to final and delete original
-    // This is the atomic-ish operation that commits the conversion
-    fs.renameSync(tempPath, finalPath);
-    fs.unlinkSync(audiobook.file_path);
-
-    // Update database with new path
-    await new Promise((resolve, reject) => {
-      db.run(
-        'UPDATE audiobooks SET file_path = ?, file_size = ? WHERE id = ?',
-        [finalPath, newStats.size, req.params.id],
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
-    });
-
-    console.log(`Successfully converted to M4B: ${finalPath}`);
-
-    // Unlock directory
-    activeConversions.delete(dir);
 
     res.json({
-      message: 'Converted to M4B successfully',
-      newPath: finalPath,
-      oldPath: audiobook.file_path
+      message: 'Conversion started',
+      jobId: result.jobId,
+      status: result.status
     });
 
   } catch (error) {
-    // Unlock directory on error
-    if (dir) activeConversions.delete(dir);
-
-    // Clean up temp M4B file if it was created
-    if (tempPath && fs.existsSync(tempPath)) {
-      try {
-        fs.unlinkSync(tempPath);
-        console.log('Cleaned up temp M4B file after conversion failure');
-      } catch (cleanupErr) {
-        console.error('Failed to clean up temp M4B:', cleanupErr.message);
-      }
-    }
-
-    // Clean up temp cover file if it exists
-    if (tempCoverPath && fs.existsSync(tempCoverPath)) {
-      try {
-        fs.unlinkSync(tempCoverPath);
-      } catch (_cleanupErr) {
-        // Ignore cleanup errors
-      }
-    }
-
-    console.error('Error converting to M4B:', error);
-    res.status(500).json({ error: 'Failed to convert: ' + error.message });
+    console.error('Error starting conversion:', error);
+    res.status(500).json({ error: 'Failed to start conversion: ' + error.message });
   }
+});
+
+// Get conversion job status (admin only)
+router.get('/jobs/conversion/:jobId', jobStatusLimiter, authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const job = conversionService.getJobStatus(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  res.json(job);
+});
+
+// Get all active conversion jobs (admin only)
+router.get('/jobs/conversion', jobStatusLimiter, authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const jobs = conversionService.getActiveJobs();
+  res.json({ jobs });
+});
+
+// Cancel a conversion job (admin only)
+router.delete('/jobs/conversion/:jobId', jobCancelLimiter, authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const result = conversionService.cancelJob(req.params.jobId);
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  res.json({ message: 'Job cancelled' });
 });
 
 // Search Open Library for metadata (admin only)
