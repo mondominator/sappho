@@ -343,6 +343,34 @@ router.get('/statistics', maintenanceLimiter, authenticateToken, async (req, res
   }
 });
 
+// Get audiobooks by file format
+router.get('/books-by-format/:format', authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    const format = req.params.format.toLowerCase();
+    const books = await new Promise((resolve, reject) => {
+      db.all(
+        `SELECT id, title, author, cover_image, file_size, duration
+         FROM audiobooks
+         WHERE LOWER(REPLACE(file_path, RTRIM(file_path, REPLACE(file_path, '.', '')), '')) = ?
+         ORDER BY title ASC`,
+        [format],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        }
+      );
+    });
+    res.json(books);
+  } catch (error) {
+    console.error('Error fetching books by format:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Consolidate multi-file audiobooks
 router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
