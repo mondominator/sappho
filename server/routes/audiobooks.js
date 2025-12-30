@@ -24,6 +24,12 @@ const jobCancelLimiter = rateLimit({
   message: { error: 'Too many cancel requests, please try again later' },
 });
 
+const batchDeleteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 batch deletes per minute
+  message: { error: 'Too many delete requests, please try again later' },
+});
+
 // SECURITY: Generate unique session IDs with random component
 function generateSessionId(userId, audiobookId) {
   const random = crypto.randomBytes(8).toString('hex');
@@ -3005,7 +3011,7 @@ router.post('/batch/add-to-collection', authenticateToken, async (req, res) => {
 });
 
 // Batch delete (admin only)
-router.post('/batch/delete', authenticateToken, async (req, res) => {
+router.post('/batch/delete', batchDeleteLimiter, authenticateToken, async (req, res) => {
   const { audiobook_ids, delete_files } = req.body;
 
   if (!req.user.is_admin) {
@@ -3047,14 +3053,30 @@ router.post('/batch/delete', authenticateToken, async (req, res) => {
           });
         });
 
-        // Optionally delete files
+        // Optionally delete files and directory
         if (delete_files && audiobook.file_path) {
           try {
-            if (fs.existsSync(audiobook.file_path)) {
-              fs.unlinkSync(audiobook.file_path);
+            const audioDir = path.dirname(audiobook.file_path);
+
+            // Delete entire audiobook directory (contains audio file, cover, etc.)
+            if (fs.existsSync(audioDir)) {
+              fs.rmSync(audioDir, { recursive: true, force: true });
+              console.log(`Deleted audiobook directory: ${audioDir}`);
+
+              // Also try to remove empty parent directories (author folder if empty)
+              const parentDir = path.dirname(audioDir);
+              try {
+                const parentContents = fs.readdirSync(parentDir);
+                if (parentContents.length === 0) {
+                  fs.rmdirSync(parentDir);
+                  console.log(`Removed empty parent directory: ${parentDir}`);
+                }
+              } catch (_parentErr) {
+                // Parent not empty or can't remove - that's fine
+              }
             }
           } catch (fileErr) {
-            console.error(`Failed to delete file for audiobook ${audiobookId}:`, fileErr);
+            console.error('Failed to delete files for audiobook:', audiobookId, fileErr.message);
           }
         }
 
