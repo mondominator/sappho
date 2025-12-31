@@ -2194,7 +2194,7 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
   );
 });
 
-// Get in-progress audiobooks (Up Next / Continue Listening)
+// Get in-progress audiobooks (Continue Listening) - ordered by most recently played
 router.get('/meta/in-progress', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const userId = req.user.id;
@@ -2209,7 +2209,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
      WHERE p.user_id = ? AND p.completed = 0
        AND (p.position >= 5 OR p.queued_at IS NOT NULL)
        AND (a.is_available = 1 OR a.is_available IS NULL)
-     ORDER BY p.queued_at DESC NULLS LAST, p.updated_at DESC
+     ORDER BY p.updated_at DESC
      LIMIT ?`,
     [userId, userId, limit],
     (err, audiobooks) => {
@@ -2271,22 +2271,25 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
   const userId = req.user.id;
 
   // Find the next UNSTARTED book in each series where user has progress on any book
-  // This excludes books that are in-progress (those appear in "Continue Listening")
+  // This excludes books that are in-progress or queued (those appear in "Continue Listening")
+  // Ordered by most recent activity in each series (so current series appears first)
   db.all(
     `WITH SeriesWithProgress AS (
-       -- Find series where user has progress (completed OR in-progress)
-       SELECT DISTINCT a.series
+       -- Find series where user has progress, with most recent activity time
+       SELECT a.series, MAX(p.updated_at) as last_activity
        FROM audiobooks a
        INNER JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
        WHERE a.series IS NOT NULL AND a.series != ''
        AND (p.completed = 1 OR p.position > 0)
        AND (a.is_available = 1 OR a.is_available IS NULL)
+       GROUP BY a.series
      ),
      NextUnstartedBooks AS (
        -- For each such series, find the first book that has NO progress at all
        SELECT a.*,
               p.position as progress_position,
               p.completed as progress_completed,
+              s.last_activity,
               CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
               ROW_NUMBER() OVER (
                 PARTITION BY a.series
@@ -2299,11 +2302,12 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
        WHERE (a.series_index IS NOT NULL OR a.series_position IS NOT NULL)
        AND (p.position IS NULL OR p.position = 0)
        AND (p.completed IS NULL OR p.completed = 0)
+       AND (p.queued_at IS NULL)
        AND (a.is_available = 1 OR a.is_available IS NULL)
      )
      SELECT * FROM NextUnstartedBooks
      WHERE row_num = 1
-     ORDER BY series ASC
+     ORDER BY last_activity DESC
      LIMIT ?`,
     [userId, userId, userId, limit],
     (err, audiobooks) => {
@@ -2325,6 +2329,8 @@ router.get('/meta/up-next', authenticateToken, (req, res) => {
       transformedAudiobooks.forEach(b => {
         delete b.progress_position;
         delete b.progress_completed;
+        delete b.last_activity;
+        delete b.row_num;
       });
 
       res.json(transformedAudiobooks);
