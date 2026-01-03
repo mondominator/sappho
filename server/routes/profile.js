@@ -38,14 +38,18 @@ const passwordChangeLimiter = rateLimit({
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, '../../data/avatars');
+    console.log('[Avatar] Upload directory:', uploadDir);
     if (!fs.existsSync(uploadDir)) {
+      console.log('[Avatar] Creating directory:', uploadDir);
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     const ext = path.extname(file.originalname);
-    cb(null, `user-${req.user.id}${ext}`);
+    const filename = `user-${req.user.id}${ext}`;
+    console.log('[Avatar] Saving file:', filename, 'original:', file.originalname, 'mimetype:', file.mimetype);
+    cb(null, filename);
   }
 });
 
@@ -265,8 +269,20 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
   }
 });
 
-// Update profile
-router.put('/', profileWriteLimiter, authenticateToken, upload.single('avatar'), (req, res) => {
+// Update profile with multer error handling
+router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
+  upload.single('avatar')(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      console.error('[Profile Update] Multer error:', err.message);
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    } else if (err) {
+      console.error('[Profile Update] Upload error:', err.message);
+      return res.status(400).json({ error: err.message });
+    }
+
+    console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
+    console.log('[Profile Update] req.body:', req.body);
+
   const { displayName, email } = req.body;
   const updates = [];
   const params = [];
@@ -302,9 +318,23 @@ router.put('/', profileWriteLimiter, authenticateToken, upload.single('avatar'),
       if (this.changes === 0) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json({ message: 'Profile updated successfully' });
+      // Return the updated user object
+      db.get(
+        'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
+        [req.user.id],
+        (err, user) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          res.json({
+            ...user,
+            must_change_password: !!user.must_change_password
+          });
+        }
+      );
     }
   );
+  }); // End of upload callback
 });
 
 // Get avatar (uses media token for img src compatibility)
