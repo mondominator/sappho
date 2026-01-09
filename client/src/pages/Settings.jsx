@@ -31,9 +31,12 @@ export default function Settings() {
   const [userFormData, setUserFormData] = useState({
     username: '',
     password: '',
+    confirmPassword: '',
     email: '',
     is_admin: false
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     // Fetch current user profile from server to get up-to-date is_admin status
@@ -138,9 +141,35 @@ export default function Settings() {
     }
   };
 
+  // Password validation helper
+  const validatePasswordRequirements = (password) => {
+    const errors = [];
+    if (password.length < 6) errors.push('At least 6 characters');
+    if (!/[A-Z]/.test(password)) errors.push('One uppercase letter');
+    if (!/[a-z]/.test(password)) errors.push('One lowercase letter');
+    if (!/[0-9]/.test(password)) errors.push('One number');
+    if (!/[^A-Za-z0-9]/.test(password)) errors.push('One special character');
+    return errors;
+  };
+
   // User management handlers
   const handleCreateUser = async (e) => {
     e.preventDefault();
+    setPasswordError('');
+
+    // Validate password requirements
+    const passwordErrors = validatePasswordRequirements(userFormData.password);
+    if (passwordErrors.length > 0) {
+      setPasswordError(`Password requires: ${passwordErrors.join(', ')}`);
+      return;
+    }
+
+    // Validate passwords match
+    if (userFormData.password !== userFormData.confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
     try {
       await createUser(
         userFormData.username,
@@ -148,8 +177,9 @@ export default function Settings() {
         userFormData.email,
         userFormData.is_admin
       );
-      setUserFormData({ username: '', password: '', email: '', is_admin: false });
+      setUserFormData({ username: '', password: '', confirmPassword: '', email: '', is_admin: false });
       setShowUserForm(false);
+      setShowPassword(false);
       loadUsers();
       alert('User created successfully');
     } catch (error) {
@@ -170,8 +200,9 @@ export default function Settings() {
         updates.password = userFormData.password;
       }
       await updateUser(editingUser.id, updates);
-      setUserFormData({ username: '', password: '', email: '', is_admin: false });
+      setUserFormData({ username: '', password: '', confirmPassword: '', email: '', is_admin: false });
       setEditingUser(null);
+      setShowPassword(false);
       loadUsers();
       alert('User updated successfully');
     } catch (error) {
@@ -200,15 +231,20 @@ export default function Settings() {
     setUserFormData({
       username: user.username,
       password: '',
+      confirmPassword: '',
       email: user.email || '',
       is_admin: user.is_admin === 1
     });
     setShowUserForm(false);
+    setShowPassword(false);
+    setPasswordError('');
   };
 
   const cancelEditUser = () => {
     setEditingUser(null);
-    setUserFormData({ username: '', password: '', email: '', is_admin: false });
+    setUserFormData({ username: '', password: '', confirmPassword: '', email: '', is_admin: false });
+    setShowPassword(false);
+    setPasswordError('');
   };
 
   const copyToClipboard = (text) => {
@@ -439,16 +475,54 @@ export default function Settings() {
 
             <div className="form-group">
               <label htmlFor="password">Password *</label>
-              <input
-                type="password"
-                id="password"
-                className="input"
-                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
-                value={userFormData.password}
-                onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  className="input"
+                  style={{ background: '#1e293b', border: '2px solid #4b5563', paddingRight: '44px' }}
+                  value={userFormData.password}
+                  onChange={(e) => {
+                    setUserFormData({ ...userFormData, password: e.target.value });
+                    setPasswordError('');
+                  }}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+              <small className="password-hint">
+                Min 6 chars, uppercase, lowercase, number, special character
+              </small>
             </div>
+
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm Password *</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="confirmPassword"
+                  className="input"
+                  style={{ background: '#1e293b', border: '2px solid #4b5563' }}
+                  value={userFormData.confirmPassword}
+                  onChange={(e) => {
+                    setUserFormData({ ...userFormData, confirmPassword: e.target.value });
+                    setPasswordError('');
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            {passwordError && (
+              <div className="form-error">{passwordError}</div>
+            )}
 
             <div className="form-group">
               <label htmlFor="email">Email</label>
@@ -482,7 +556,9 @@ export default function Settings() {
                 className="btn btn-secondary"
                 onClick={() => {
                   setShowUserForm(false);
-                  setUserFormData({ username: '', password: '', email: '', is_admin: false });
+                  setUserFormData({ username: '', password: '', confirmPassword: '', email: '', is_admin: false });
+                  setShowPassword(false);
+                  setPasswordError('');
                 }}
               >
                 Cancel
@@ -511,14 +587,24 @@ export default function Settings() {
 
             <div className="form-group">
               <label htmlFor="edit-password">Password (leave blank to keep current)</label>
-              <input
-                type="password"
-                id="edit-password"
-                className="input"
-                style={{ background: '#1e293b', border: '2px solid #4b5563' }}
-                value={userFormData.password}
-                onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="edit-password"
+                  className="input"
+                  style={{ background: '#1e293b', border: '2px solid #4b5563', paddingRight: '44px' }}
+                  value={userFormData.password}
+                  onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
             </div>
 
             <div className="form-group">
