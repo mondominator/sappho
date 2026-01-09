@@ -3,7 +3,7 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, requireAdmin, clearFailedAttempts, getLockedAccounts, isAccountLocked, getLockoutRemaining } = require('../auth');
+const { authenticateToken, requireAdmin, clearFailedAttempts, getLockedAccounts, isAccountLocked, getLockoutRemaining, validatePassword } = require('../auth');
 const { disableAccount, enableAccount } = require('../services/unlockService');
 
 // SECURITY: Rate limiting for user management endpoints
@@ -67,6 +67,12 @@ router.post('/', userWriteLimiter, authenticateToken, requireAdmin, (req, res) =
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  // SECURITY: Validate password complexity
+  const passwordErrors = validatePassword(password);
+  if (passwordErrors.length > 0) {
+    return res.status(400).json({ error: passwordErrors.join('. ') });
   }
 
   const passwordHash = bcrypt.hashSync(password, 10);
