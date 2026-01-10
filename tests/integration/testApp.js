@@ -189,6 +189,38 @@ function createTestApp(db) {
     });
   });
 
+  // Delete audiobook endpoint (admin only)
+  app.delete('/api/audiobooks/:id', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+
+    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+      db.run('DELETE FROM audiobooks WHERE id = ?', [req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ message: 'Audiobook deleted successfully' });
+      });
+    });
+  });
+
+  // Delete audiobook files endpoint (admin only)
+  app.delete('/api/audiobooks/:id/files', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+
+    const { file_path } = req.body;
+    if (!file_path) return res.status(400).json({ error: 'file_path is required' });
+
+    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+      res.json({ message: 'File deleted successfully' });
+    });
+  });
+
   return app;
 }
 
