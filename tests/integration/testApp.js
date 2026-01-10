@@ -578,6 +578,32 @@ function createTestApp(db) {
     });
   });
 
+  // Delete audiobook endpoint (admin only)
+  app.delete('/api/audiobooks/:id', requireAdmin, (req, res) => {
+    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+      db.run('DELETE FROM audiobooks WHERE id = ?', [req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ message: 'Audiobook deleted successfully' });
+      });
+    });
+  });
+
+  // Delete audiobook files endpoint (admin only)
+  app.delete('/api/audiobooks/:id/files', requireAdmin, (req, res) => {
+    const { file_path } = req.body;
+    if (!file_path) return res.status(400).json({ error: 'file_path is required' });
+
+    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+      res.json({ message: 'File deleted successfully' });
+    });
+  });
+
   return app;
 }
 
