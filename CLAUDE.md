@@ -402,9 +402,17 @@ Before creating a pull request, ensure the following checks pass:
 
 ### 2. Test Coverage
 - [ ] Run `npm test` - all tests must pass
-- [ ] New features include appropriate unit tests
+- [ ] Run `npm run test:unit -- --coverage` to check coverage
+- [ ] New utility functions in `server/utils/` must have **100% coverage**
+- [ ] New services in `server/services/` should have **80%+ coverage** for testable logic
 - [ ] Security-sensitive code has specific security tests
 - [ ] Edge cases and error conditions are tested
+- [ ] Pure functions are tested directly; DB-dependent code tested via integration tests
+
+**Test Organization:**
+- Unit tests go in `tests/unit/` - test isolated functions, mock dependencies
+- Integration tests go in `tests/integration/` - test API endpoints with test database
+- Security tests in `tests/unit/security.test.js` - test auth, lockout, input validation
 
 ### 3. Code Quality
 - [ ] Run `npm run lint` - must pass with no errors
@@ -428,6 +436,9 @@ Before creating a pull request, ensure the following checks pass:
 ```bash
 # Run all checks
 npm audit && npm test && npm run lint
+
+# Run tests with coverage report
+npm run test:unit -- --coverage
 
 # Check for unused dependencies
 npx depcheck
