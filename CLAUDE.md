@@ -10,7 +10,7 @@ Sappho is a modern, self-hosted audiobook streaming server with automatic metada
 - **Backend:** Node.js + Express, SQLite (sqlite3), WebSocket for real-time updates
 - **Frontend:** React + Vite, modern mobile-first UI with PWA support
 - **Media Processing:** music-metadata for ID3/Vorbis tag extraction
-- **File Watching:** chokidar for automatic library scanning
+- **Library Scanning:** Periodic background scan for automatic library updates
 - **Authentication:** JWT tokens with bcrypt password hashing
 
 ## Development Commands
@@ -85,7 +85,6 @@ docker-compose down
    - `AUDIOBOOKS_DIR` (default `/app/data/audiobooks`) - Main library, can mount existing collections
    - `WATCH_DIR` (default `/app/data/watch`) - Drop folder for auto-import
    - **Library Scanner** (`services/libraryScanner.js`) - Periodic background scan (every 5 min default)
-   - **File Watcher** (`services/fileWatcher.js`) - Real-time monitoring of watch directory with chokidar
    - **File Processor** (`services/fileProcessor.js`) - Handles file moves, metadata extraction
 
 2. **Metadata Extraction** (`services/metadataScraper.js`):
@@ -157,10 +156,6 @@ docker-compose down
    - If not found: extract metadata with `metadataScraper.js`, insert into DB
    - If found: skip (no duplicate imports)
 4. **Periodic rescanning** (configurable via `LIBRARY_SCAN_INTERVAL` in minutes)
-5. **Watch directory** (`fileWatcher.js`):
-   - Real-time monitoring of `/app/data/watch`
-   - On file added: process immediately, move to library
-   - Processes one file at a time (queued)
 
 ### Client IP Detection
 
@@ -313,7 +308,6 @@ This preserves user data while getting fresh metadata extraction.
 - `server/services/sessionManager.js` - In-memory session tracking with timeout/cleanup
 - `server/services/websocketManager.js` - WebSocket server, broadcasting to connected clients
 - `server/services/libraryScanner.js` - Periodic background library scanning
-- `server/services/fileWatcher.js` - Real-time watch directory monitoring
 - `server/services/metadataScraper.js` - Audio file metadata extraction with music-metadata
 - `server/routes/audiobooks.js` - Audiobook CRUD, streaming, progress tracking, cover art
 - `server/routes/sessions.js` - Query active sessions (for OpsDec integration)
@@ -394,6 +388,69 @@ For security vulnerabilities, use **GitHub Security Advisories** instead of regu
 3. This keeps vulnerability details private until a fix is released
 
 Private vulnerability reporting is enabled - external researchers can report issues privately via the Security tab.
-- don't bypass merge rules in the future. always work on new branch and merge back in via pr / mr.
-- don't use automerge and wait for pipelines to give you results before moving onto something else or declaring success
-- wait for me to test before shipping
+
+## Pre-PR Checklist
+
+Before creating a pull request, ensure the following checks pass:
+
+### 1. Security Review
+- [ ] Run `npm audit` - must have 0 high/critical vulnerabilities
+- [ ] No hardcoded secrets or credentials in code changes
+- [ ] All database queries use parameterized statements (no string interpolation in SQL)
+- [ ] File paths are validated and come from trusted sources (database, not user input)
+- [ ] Any new authentication/authorization follows existing patterns in `server/auth.js`
+
+### 2. Test Coverage
+- [ ] Run `npm test` - all tests must pass
+- [ ] Run `npm run test:unit -- --coverage` to check coverage
+- [ ] New utility functions in `server/utils/` must have **100% coverage**
+- [ ] New services in `server/services/` should have **80%+ coverage** for testable logic
+- [ ] Security-sensitive code has specific security tests
+- [ ] Edge cases and error conditions are tested
+- [ ] Pure functions are tested directly; DB-dependent code tested via integration tests
+
+**Test Organization:**
+- Unit tests go in `tests/unit/` - test isolated functions, mock dependencies
+- Integration tests go in `tests/integration/` - test API endpoints with test database
+- Security tests in `tests/unit/security.test.js` - test auth, lockout, input validation
+
+### 3. Code Quality
+- [ ] Run `npm run lint` - must pass with no errors
+- [ ] No unused dependencies (`npx depcheck` to verify)
+- [ ] No dead code or commented-out code blocks
+- [ ] Functions have clear names and single responsibilities
+
+### 4. Documentation
+- [ ] CLAUDE.md updated if architecture changes
+- [ ] API changes documented (new endpoints, changed behavior)
+- [ ] Environment variables documented if added
+
+### 5. Process
+- [ ] Work on feature branch (never commit directly to main)
+- [ ] Wait for CI pipeline to complete before merging
+- [ ] Do NOT use automerge - wait for manual review
+- [ ] Wait for user testing before declaring success
+
+### Quick Verification Commands
+
+```bash
+# Run all checks
+npm audit && npm test && npm run lint
+
+# Run tests with coverage report
+npm run test:unit -- --coverage
+
+# Check for unused dependencies
+npx depcheck
+
+# Verify no secrets in staged changes
+git diff --cached | grep -iE "(password|secret|api.?key|token)" || echo "No obvious secrets found"
+```
+
+## Branch Protection Rules
+
+- Always work on a new branch and merge via PR
+- Don't bypass merge rules
+- Don't use automerge
+- Wait for pipelines to give results before moving on
+- Wait for user testing before shipping
