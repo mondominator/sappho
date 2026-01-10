@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const fs = require('fs');
 const path = require('path');
-const { authenticateToken, authenticateMediaToken } = require('../auth');
+const { authenticateToken, authenticateMediaToken, requireAdmin } = require('../auth');
 const { organizeAudiobook, needsOrganization } = require('../services/fileOrganizer');
 const activityService = require('../services/activityService');
 const conversionService = require('../services/conversionService');
@@ -782,12 +782,7 @@ router.get('/:id/directory-files', authenticateToken, (req, res) => {
 });
 
 // Delete a specific file from an audiobook directory (admin only)
-router.delete('/:id/files', authenticateToken, (req, res) => {
-  // Check if user is admin
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.delete('/:id/files', authenticateToken, requireAdmin, (req, res) => {
   const { file_path } = req.body;
   if (!file_path) {
     return res.status(400).json({ error: 'file_path is required' });
@@ -912,8 +907,8 @@ router.get('/:id/download', authenticateToken, (req, res) => {
   });
 });
 
-// Delete audiobook
-router.delete('/:id', authenticateToken, (req, res) => {
+// Delete audiobook (admin only)
+router.delete('/:id', authenticateToken, requireAdmin, (req, res) => {
   db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
     if (err) {
       return res.status(500).json({ error: err.message });
