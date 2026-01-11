@@ -288,8 +288,16 @@ router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
   const params = [];
 
   if (displayName !== undefined) {
+    // VALIDATION: Display name must not be empty or whitespace-only
+    const trimmedDisplayName = displayName ? displayName.trim() : '';
+    if (trimmedDisplayName.length === 0) {
+      return res.status(400).json({ error: 'Display name cannot be empty or whitespace-only' });
+    }
+    if (trimmedDisplayName.length > 100) {
+      return res.status(400).json({ error: 'Display name must be 100 characters or less' });
+    }
     updates.push('display_name = ?');
-    params.push(displayName || null);
+    params.push(trimmedDisplayName);
   }
 
   if (email !== undefined) {
