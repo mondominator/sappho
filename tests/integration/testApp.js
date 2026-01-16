@@ -29,6 +29,10 @@ function createTestDatabase() {
             avatar TEXT,
             is_admin INTEGER DEFAULT 0,
             must_change_password INTEGER DEFAULT 0,
+            mfa_secret TEXT,
+            mfa_enabled INTEGER DEFAULT 0,
+            mfa_backup_codes TEXT,
+            mfa_enabled_at DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);
@@ -346,6 +350,231 @@ function createTestApp(db) {
           });
         });
       });
+    });
+  });
+
+  // MFA endpoints
+  const { authenticator } = require('otplib');
+  const QRCode = require('qrcode');
+  const crypto = require('crypto');
+
+  // MFA Status endpoint
+  app.get('/api/mfa/status', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.get(
+      'SELECT mfa_enabled, mfa_enabled_at, mfa_backup_codes FROM users WHERE id = ?',
+      [req.user.id],
+      (err, user) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (!user) return res.json({ enabled: false });
+
+        let remainingBackupCodes = 0;
+        if (user.mfa_backup_codes) {
+          try {
+            const codes = JSON.parse(user.mfa_backup_codes);
+            remainingBackupCodes = codes.filter(c => c !== null).length;
+          } catch (_e) {
+            // Ignore parse errors
+          }
+        }
+
+        res.json({
+          enabled: !!user.mfa_enabled,
+          enabledAt: user.mfa_enabled_at,
+          remainingBackupCodes
+        });
+      }
+    );
+  });
+
+  // MFA Setup endpoint
+  app.post('/api/mfa/setup', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      // Check if MFA is already enabled
+      const user = await new Promise((resolve, reject) => {
+        db.get('SELECT mfa_enabled FROM users WHERE id = ?', [req.user.id], (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+
+      if (user && user.mfa_enabled) {
+        return res.status(400).json({ error: 'MFA is already enabled' });
+      }
+
+      // Generate new secret
+      const secret = authenticator.generateSecret();
+
+      // Generate QR code
+      const otpauth = authenticator.keyuri(req.user.username, 'Sappho', secret);
+      const qrCode = await QRCode.toDataURL(otpauth);
+
+      res.json({
+        secret,
+        qrCode,
+        message: 'Scan the QR code with your authenticator app, then verify with a code'
+      });
+    } catch (error) {
+      console.error('Error setting up MFA:', error);
+      res.status(500).json({ error: 'Failed to setup MFA' });
+    }
+  });
+
+  // MFA Verify Setup endpoint
+  app.post('/api/mfa/verify-setup', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { secret, token } = req.body;
+
+    if (!secret || !token) {
+      return res.status(400).json({ error: 'Secret and token are required' });
+    }
+
+    // Verify the token matches the secret
+    const isValid = authenticator.verify({ token, secret });
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    // Generate backup codes
+    const plainCodes = [];
+    const hashedCodes = [];
+    for (let i = 0; i < 10; i++) {
+      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+      plainCodes.push(code);
+      hashedCodes.push(bcrypt.hashSync(code, 10));
+    }
+
+    // Enable MFA
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE users SET mfa_secret = ?, mfa_enabled = 1, mfa_backup_codes = ?, mfa_enabled_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [secret, JSON.stringify(hashedCodes), req.user.id],
+        (err) => err ? reject(err) : resolve()
+      );
+    });
+
+    res.json({
+      success: true,
+      message: 'MFA enabled successfully',
+      backupCodes: plainCodes,
+      warning: 'Save these backup codes securely. They will not be shown again!'
+    });
+  });
+
+  // MFA Disable endpoint
+  app.post('/api/mfa/disable', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { token, password } = req.body;
+
+    // Check if MFA is enabled
+    const user = await new Promise((resolve, reject) => {
+      db.get('SELECT mfa_enabled, mfa_secret, mfa_backup_codes, password_hash FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!user || !user.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA is not enabled' });
+    }
+
+    // Verify with MFA token
+    if (token) {
+      const isValid = authenticator.verify({ token, secret: user.mfa_secret });
+      if (!isValid) {
+        // Try as backup code
+        let isBackupValid = false;
+        if (user.mfa_backup_codes) {
+          try {
+            const codes = JSON.parse(user.mfa_backup_codes);
+            const upperToken = token.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            for (let i = 0; i < codes.length; i++) {
+              if (codes[i] && bcrypt.compareSync(upperToken, codes[i])) {
+                isBackupValid = true;
+                break;
+              }
+            }
+          } catch (_e) {
+            // Ignore
+          }
+        }
+        if (!isBackupValid) {
+          return res.status(400).json({ error: 'Invalid verification code' });
+        }
+      }
+    } else if (password) {
+      if (!bcrypt.compareSync(password, user.password_hash)) {
+        return res.status(400).json({ error: 'Invalid password' });
+      }
+    } else {
+      return res.status(400).json({ error: 'Token or password required to disable MFA' });
+    }
+
+    // Disable MFA
+    await new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE users SET mfa_secret = NULL, mfa_enabled = 0, mfa_backup_codes = NULL, mfa_enabled_at = NULL WHERE id = ?',
+        [req.user.id],
+        (err) => err ? reject(err) : resolve()
+      );
+    });
+
+    res.json({ success: true, message: 'MFA disabled successfully' });
+  });
+
+  // MFA Regenerate Codes endpoint
+  app.post('/api/mfa/regenerate-codes', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'MFA token required' });
+    }
+
+    // Verify MFA token
+    const user = await new Promise((resolve, reject) => {
+      db.get('SELECT mfa_secret, mfa_enabled FROM users WHERE id = ?', [req.user.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!user || !user.mfa_enabled || !user.mfa_secret) {
+      return res.status(400).json({ error: 'MFA is not enabled' });
+    }
+
+    const isValid = authenticator.verify({ token, secret: user.mfa_secret });
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    // Generate new codes
+    const plainCodes = [];
+    const hashedCodes = [];
+    for (let i = 0; i < 10; i++) {
+      const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+      plainCodes.push(code);
+      hashedCodes.push(bcrypt.hashSync(code, 10));
+    }
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE users SET mfa_backup_codes = ? WHERE id = ?',
+        [JSON.stringify(hashedCodes), req.user.id],
+        (err) => err ? reject(err) : resolve()
+      );
+    });
+
+    res.json({
+      success: true,
+      backupCodes: plainCodes,
+      warning: 'Save these backup codes securely. Old codes are now invalid!'
     });
   });
 
