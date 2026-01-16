@@ -116,4 +116,46 @@ describe('Authorization Tests', () => {
       expect(response2.body.error).toBe('Invalid username or password');
     });
   });
+
+  describe('Admin-Only Endpoints', () => {
+    test('non-admin users cannot delete audiobooks', async () => {
+      const response = await request(app)
+        .delete('/api/audiobooks/1')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(403);
+
+      expect(response.body.error).toBe('Admin access required');
+    });
+
+    test('admin users can access delete audiobook endpoint', async () => {
+      // This will return 404 since audiobook doesn't exist, but proves admin access works
+      const response = await request(app)
+        .delete('/api/audiobooks/999')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      expect(response.body.error).toBe('Audiobook not found');
+    });
+
+    test('non-admin users cannot delete audiobook files', async () => {
+      const response = await request(app)
+        .delete('/api/audiobooks/1/files')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ file_path: '/some/path' })
+        .expect(403);
+
+      expect(response.body.error).toBe('Admin access required');
+    });
+
+    test('admin users can access delete files endpoint', async () => {
+      // This will return 404 since audiobook doesn't exist, but proves admin access works
+      const response = await request(app)
+        .delete('/api/audiobooks/999/files')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ file_path: '/some/path' })
+        .expect(404);
+
+      expect(response.body.error).toBe('Audiobook not found');
+    });
+  });
 });
