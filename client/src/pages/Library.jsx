@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getAudiobooks, getSeries, getAuthors, getFavorites, getCollections, createCollection, deleteCollection, getCoverUrl, uploadAudiobook, getProfile } from '../api';
+import { getAudiobooks, getSeries, getAuthors, getFavorites, getCollections, createCollection, deleteCollection, getCoverUrl, getProfile } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
+import UploadModal from '../components/UploadModal';
 import './Library.css';
 
 // Component for rotating collection covers
@@ -73,10 +74,8 @@ export default function Library({ onPlay }) {
   const [newIsPublic, setNewIsPublic] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Upload state
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  // Upload modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   const { subscribe } = useWebSocket();
 
@@ -209,36 +208,6 @@ export default function Library({ onPlay }) {
     } catch (error) {
       console.error('Error deleting collection:', error);
       alert('Failed to delete collection');
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setUploadError('');
-    }
-  };
-
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!file) {
-      setUploadError('Please select a file');
-      return;
-    }
-
-    setUploading(true);
-    setUploadError('');
-
-    try {
-      await uploadAudiobook(file);
-      alert('Audiobook uploaded successfully!');
-      setFile(null);
-      loadStats(); // Refresh stats
-    } catch (err) {
-      setUploadError(err.response?.data?.error || 'Upload failed');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -580,35 +549,22 @@ export default function Library({ onPlay }) {
         {activeTab === 'upload' && isAdmin && (
           <div className="upload-content">
             <div className="upload-container-inline">
-              <h2>Upload Audiobook</h2>
+              <h2>Upload Audiobooks</h2>
+              <p className="upload-description">
+                Upload single files or entire folders containing multi-part audiobooks.
+              </p>
 
-              <form onSubmit={handleUpload} className="upload-form">
-                {uploadError && <div className="error-message">{uploadError}</div>}
-
-                <div className="file-input-container">
-                  <input
-                    type="file"
-                    id="file-input"
-                    accept=".mp3,.m4a,.m4b,.mp4,.ogg,.flac"
-                    onChange={handleFileChange}
-                    disabled={uploading}
-                  />
-                  <label htmlFor="file-input" className="file-input-label">
-                    {file ? file.name : 'Choose an audiobook file'}
-                  </label>
-                </div>
-
-                {file && (
-                  <div className="file-info">
-                    <p><strong>File:</strong> {file.name}</p>
-                    <p><strong>Size:</strong> {(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                  </div>
-                )}
-
-                <button type="submit" className="btn btn-primary" disabled={uploading || !file}>
-                  {uploading ? 'Uploading...' : 'Upload'}
-                </button>
-              </form>
+              <button
+                className="btn btn-primary btn-large"
+                onClick={() => setShowUploadModal(true)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Select Files or Folder
+              </button>
 
               <div className="upload-info">
                 <h3>Alternative Upload Methods</h3>
@@ -675,6 +631,12 @@ export default function Library({ onPlay }) {
           </div>
         </div>
       )}
+
+      {/* Upload Modal */}
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+      />
     </div>
   );
 }
