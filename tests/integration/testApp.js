@@ -189,6 +189,166 @@ function createTestApp(db) {
     });
   });
 
+  // Admin-only middleware helper
+  const requireAdmin = (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    next();
+  };
+
+  // Password validation helper
+  const validatePassword = (password) => {
+    const errors = [];
+    if (password.length < 6) errors.push('Password must be at least 6 characters');
+    if (!/[A-Z]/.test(password)) errors.push('Password must contain an uppercase letter');
+    if (!/[a-z]/.test(password)) errors.push('Password must contain a lowercase letter');
+    if (!/[0-9]/.test(password)) errors.push('Password must contain a number');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Password must contain a special character');
+    return errors;
+  };
+
+  // GET /api/users - List all users (admin only)
+  app.get('/api/users', requireAdmin, (req, res) => {
+    db.all(
+      'SELECT id, username, email, is_admin, created_at FROM users ORDER BY created_at DESC',
+      [],
+      (err, users) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(users);
+      }
+    );
+  });
+
+  // GET /api/users/:id - Get single user (admin only)
+  app.get('/api/users/:id', requireAdmin, (req, res) => {
+    db.get(
+      'SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?',
+      [req.params.id],
+      (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+      }
+    );
+  });
+
+  // POST /api/users - Create new user (admin only)
+  app.post('/api/users', requireAdmin, (req, res) => {
+    const { username, password, email, is_admin = 0 } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    const passwordErrors = validatePassword(password);
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({ error: passwordErrors.join('. ') });
+    }
+
+    const passwordHash = bcrypt.hashSync(password, 10);
+
+    db.run(
+      'INSERT INTO users (username, password_hash, email, is_admin) VALUES (?, ?, ?, ?)',
+      [username, passwordHash, email || null, is_admin ? 1 : 0],
+      function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) {
+            return res.status(400).json({ error: 'Username already exists' });
+          }
+          return res.status(500).json({ error: err.message });
+        }
+        res.status(201).json({
+          message: 'User created successfully',
+          user: { id: this.lastID, username, email, is_admin: is_admin ? 1 : 0 }
+        });
+      }
+    );
+  });
+
+  // PUT /api/users/:id - Update user (admin only)
+  app.put('/api/users/:id', requireAdmin, (req, res) => {
+    const { username, password, email, is_admin } = req.body;
+    const updates = [];
+    const params = [];
+
+    if (username !== undefined) {
+      updates.push('username = ?');
+      params.push(username);
+    }
+
+    if (password !== undefined && password !== '') {
+      updates.push('password_hash = ?');
+      params.push(bcrypt.hashSync(password, 10));
+    }
+
+    if (email !== undefined) {
+      updates.push('email = ?');
+      params.push(email || null);
+    }
+
+    if (is_admin !== undefined) {
+      updates.push('is_admin = ?');
+      params.push(is_admin ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(req.params.id);
+
+    db.run(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      params,
+      function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) {
+            return res.status(400).json({ error: 'Username already exists' });
+          }
+          return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ message: 'User updated successfully' });
+      }
+    );
+  });
+
+  // DELETE /api/users/:id - Delete user (admin only)
+  app.delete('/api/users/:id', requireAdmin, (req, res) => {
+    const userId = parseInt(req.params.id);
+
+    // Prevent deleting yourself
+    if (userId === req.user.id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    // Check if this is the last admin user
+    db.get('SELECT COUNT(*) as admin_count FROM users WHERE is_admin = 1', [], (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      db.get('SELECT is_admin FROM users WHERE id = ?', [userId], (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        if (user.is_admin && result.admin_count <= 1) {
+          return res.status(400).json({ error: 'Cannot delete the last admin user' });
+        }
+
+        db.serialize(() => {
+          db.run('DELETE FROM playback_progress WHERE user_id = ?', [userId]);
+          db.run('DELETE FROM api_keys WHERE user_id = ?', [userId]);
+          db.run('DELETE FROM users WHERE id = ?', [userId], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+            res.json({ message: 'User deleted successfully' });
+          });
+        });
+      });
+    });
+  });
+
   return app;
 }
 
