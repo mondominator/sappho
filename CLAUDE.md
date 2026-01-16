@@ -416,16 +416,24 @@ Before creating a pull request, ensure the following checks pass:
 
 ### 3. Code Quality
 - [ ] Run `npm run lint` - must pass with no errors
-- [ ] No unused dependencies (`npx depcheck` to verify)
+- [ ] Run `npx depcheck` in root - check for unused server dependencies
+- [ ] Run `cd client && npx depcheck` - check for unused client dependencies
 - [ ] No dead code or commented-out code blocks
+- [ ] No orphaned files (components/pages not imported anywhere)
 - [ ] Functions have clear names and single responsibilities
 
-### 4. Documentation
+### 4. Dead Code & Cleanup
+- [ ] Verify new components are actually imported/routed
+- [ ] Check for orphaned CSS files when removing components
+- [ ] Remove any `console.log` statements added during debugging
+- [ ] Remove any commented-out code blocks
+
+### 5. Documentation
 - [ ] CLAUDE.md updated if architecture changes
 - [ ] API changes documented (new endpoints, changed behavior)
 - [ ] Environment variables documented if added
 
-### 5. Process
+### 6. Process
 - [ ] Work on feature branch (never commit directly to main)
 - [ ] Wait for CI pipeline to complete before merging
 - [ ] Do NOT use automerge - wait for manual review
@@ -440,8 +448,11 @@ npm audit && npm test && npm run lint
 # Run tests with coverage report
 npm run test:unit -- --coverage
 
-# Check for unused dependencies
-npx depcheck
+# Check for unused dependencies (server and client)
+npx depcheck && cd client && npx depcheck && cd ..
+
+# Check for orphaned page components (should show 0 unimported pages)
+for f in client/src/pages/*.jsx; do name=$(basename "$f" .jsx); grep -q "$name" client/src/App.jsx || echo "Possibly orphaned: $f"; done
 
 # Verify no secrets in staged changes
 git diff --cached | grep -iE "(password|secret|api.?key|token)" || echo "No obvious secrets found"
