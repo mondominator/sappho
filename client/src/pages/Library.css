@@ -904,7 +904,30 @@
 .upload-container-inline h2 {
   font-size: 1.25rem;
   color: #fff;
+  margin: 0 0 0.5rem 0;
+}
+
+.upload-description {
+  color: #9ca3af;
+  font-size: 0.9375rem;
   margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.btn-large {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  font-size: 1rem;
+  border-radius: 12px;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.btn-large svg {
+  flex-shrink: 0;
 }
 
 .upload-form {
