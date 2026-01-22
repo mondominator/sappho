@@ -1,10 +1,21 @@
+/**
+ * Backup Routes
+ *
+ * API endpoints for backup management (admin only)
+ */
+
 const express = require('express');
-const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const multer = require('multer');
-const { authenticateToken } = require('../auth');
-const backupService = require('../services/backupService');
+
+/**
+ * Default dependencies - used when route is required directly
+ */
+const defaultDependencies = {
+  auth: () => require('../auth'),
+  backupService: () => require('../services/backupService'),
+};
 
 // SECURITY: Rate limiting for backup endpoints
 const backupLimiter = rateLimit({
@@ -37,9 +48,24 @@ const upload = multer({
 });
 
 /**
- * GET /api/backup - List all backups
+ * Create backup routes with injectable dependencies
+ * @param {Object} deps - Dependencies (for testing)
+ * @param {Object} deps.auth - Auth module
+ * @param {Object} deps.backupService - Backup service module
+ * @returns {express.Router}
  */
-router.get('/', backupLimiter, authenticateToken, (req, res) => {
+function createBackupRouter(deps = {}) {
+  const router = express.Router();
+
+  // Resolve dependencies (use provided or defaults)
+  const auth = deps.auth || defaultDependencies.auth();
+  const backupService = deps.backupService || defaultDependencies.backupService();
+  const { authenticateToken } = auth;
+
+  /**
+   * GET /api/backup - List all backups
+   */
+  router.get('/', backupLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -202,4 +228,10 @@ router.post('/retention', backupWriteLimiter, authenticateToken, (req, res) => {
   }
 });
 
-module.exports = router;
+  return router;
+}
+
+// Export default router for backwards compatibility with index.js
+module.exports = createBackupRouter();
+// Export factory function for testing
+module.exports.createBackupRouter = createBackupRouter;

@@ -1,13 +1,24 @@
+/**
+ * Profile Routes
+ *
+ * API endpoints for user profile management
+ */
+
 const express = require('express');
-const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const db = require('../database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, authenticateMediaToken, validatePassword, invalidateUserTokens } = require('../auth');
-const { normalizeGenres } = require('../utils/genres');
+
+/**
+ * Default dependencies - used when route is required directly
+ */
+const defaultDependencies = {
+  db: () => require('../database'),
+  auth: () => require('../auth'),
+  genres: () => require('../utils/genres'),
+};
 
 // SECURITY: Rate limiting for profile endpoints
 const profileLimiter = rateLimit({
@@ -69,8 +80,27 @@ const upload = multer({
   }
 });
 
-// Get profile
-router.get('/', profileLimiter, authenticateToken, (req, res) => {
+/**
+ * Create profile routes with injectable dependencies
+ * @param {Object} deps - Dependencies (for testing)
+ * @param {Object} deps.db - Database module
+ * @param {Object} deps.auth - Auth module
+ * @param {Object} deps.genres - Genres utility module
+ * @returns {express.Router}
+ */
+function createProfileRouter(deps = {}) {
+  const router = express.Router();
+
+  // Resolve dependencies (use provided or defaults)
+  const db = deps.db || defaultDependencies.db();
+  const auth = deps.auth || defaultDependencies.auth();
+  const genres = deps.genres || defaultDependencies.genres();
+
+  const { authenticateToken, authenticateMediaToken, validatePassword, invalidateUserTokens } = auth;
+  const { normalizeGenres } = genres;
+
+  // Get profile
+  router.get('/', profileLimiter, authenticateToken, (req, res) => {
   db.get(
     'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
     [req.user.id],
@@ -447,4 +477,10 @@ router.put('/password', passwordChangeLimiter, authenticateToken, (req, res) => 
   );
 });
 
-module.exports = router;
+  return router;
+}
+
+// Export default router for backwards compatibility with index.js
+module.exports = createProfileRouter();
+// Export factory function for testing
+module.exports.createProfileRouter = createProfileRouter;
