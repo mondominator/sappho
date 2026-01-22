@@ -7,7 +7,7 @@ class SessionManager {
     this.sessions = new Map(); // sessionId -> session data
     this.userSessions = new Map(); // userId -> Set of sessionIds
     this.SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes - mark stale if no updates
-    this.cleanupInterval = setInterval(() => this.cleanupStaleSessions(), 15 * 1000); // Check every 15 seconds
+    this.cleanupInterval = setInterval(() => this.cleanupStaleSessions(), 15 * 1000).unref(); // Check every 15 seconds
   }
 
   /**
@@ -125,7 +125,7 @@ class SessionManager {
       }
 
       // Remove from sessions map after a delay
-      setTimeout(() => this.sessions.delete(sessionId), 30000); // Keep for 30s for reporting
+      setTimeout(() => this.sessions.delete(sessionId), 30000).unref(); // Keep for 30s for reporting
     }
   }
 
