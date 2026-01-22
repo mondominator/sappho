@@ -1013,7 +1013,7 @@ function startPeriodicScan(intervalMinutes = 5) {
     } finally {
       isScanning = false;
     }
-  }, intervalMs);
+  }, intervalMs).unref();
 }
 
 /**

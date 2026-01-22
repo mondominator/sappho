@@ -16,7 +16,7 @@ class ConversionService {
     this.activeConversions = new Set();
 
     // Clean up stale jobs every 5 minutes
-    this.cleanupInterval = setInterval(() => this.cleanupStaleJobs(), 5 * 60 * 1000);
+    this.cleanupInterval = setInterval(() => this.cleanupStaleJobs(), 5 * 60 * 1000).unref();
   }
 
   /**
