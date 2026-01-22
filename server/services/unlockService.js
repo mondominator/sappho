@@ -215,11 +215,12 @@ async function cleanupExpiredTokens() {
 }
 
 // Run cleanup periodically (every hour)
+// .unref() allows Node to exit even if this timer is still active (fixes Jest warning)
 setInterval(() => {
   cleanupExpiredTokens().catch(err => {
     console.error('Failed to cleanup expired unlock tokens:', err);
   });
-}, 60 * 60 * 1000);
+}, 60 * 60 * 1000).unref();
 
 module.exports = {
   generateUnlockToken,

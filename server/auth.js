@@ -21,6 +21,7 @@ if (JWT_SECRET.length < 32) {
 const tokenBlacklist = new Map();
 
 // Clean up expired tokens from blacklist every hour
+// .unref() allows Node to exit even if this timer is still active (fixes Jest warning)
 setInterval(() => {
   const now = Date.now();
   for (const [tokenHash, expiry] of tokenBlacklist.entries()) {
@@ -28,7 +29,7 @@ setInterval(() => {
       tokenBlacklist.delete(tokenHash);
     }
   }
-}, 60 * 60 * 1000);
+}, 60 * 60 * 1000).unref();
 
 // SECURITY: Account lockout tracking (in-memory)
 const failedAttempts = new Map(); // username -> { count, lockedUntil }
