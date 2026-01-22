@@ -2,124 +2,69 @@
  * Unit tests for File Organizer Service
  */
 
-// Mock the database and websocket before requiring the module
-jest.mock('../../server/database', () => ({}));
+// Mock dependencies before requiring the module
+jest.mock('../../server/database', () => ({
+  all: jest.fn(),
+  run: jest.fn()
+}));
 jest.mock('../../server/services/websocketManager', () => ({
   broadcastLibraryUpdate: jest.fn()
 }));
+jest.mock('fs');
 
 // Set test environment variable
 process.env.AUDIOBOOKS_DIR = '/test/audiobooks';
 
 const path = require('path');
+const fs = require('fs');
+const db = require('../../server/database');
+const websocketManager = require('../../server/services/websocketManager');
 
-// Import the functions we can test by accessing them through the module
-// Since sanitizeName and formatSeriesPosition are not exported, we test them indirectly
-// through getTargetDirectory and needsOrganization
+const {
+  getTargetDirectory,
+  getTargetFilename,
+  needsOrganization,
+  sanitizeName,
+  cleanupEmptyDirectories,
+  organizeAudiobook,
+  organizeLibrary,
+  getOrganizationPreview
+} = require('../../server/services/fileOrganizer');
 
 describe('File Organizer Service', () => {
-  describe('sanitizeName (tested indirectly)', () => {
-    // We test sanitizeName logic through getTargetDirectory behavior
-    const testSanitization = (input) => {
-      // Replicate the sanitizeName logic for testing
-      if (!input) return null;
-      return input
-        // eslint-disable-next-line no-control-regex
-        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
+  describe('sanitizeName', () => {
     test('removes invalid file path characters', () => {
-      expect(testSanitization('Test<>:"/\\|?*Book')).toBe('Test_________Book');
+      expect(sanitizeName('Test<>:"/\\|?*Book')).toBe('Test_________Book');
     });
 
     test('normalizes whitespace', () => {
-      expect(testSanitization('Test   Book')).toBe('Test Book');
+      expect(sanitizeName('Test   Book')).toBe('Test Book');
     });
 
     test('trims whitespace', () => {
-      expect(testSanitization('  Test Book  ')).toBe('Test Book');
+      expect(sanitizeName('  Test Book  ')).toBe('Test Book');
     });
 
     test('returns null for empty input', () => {
-      expect(testSanitization('')).toBeNull();
-      expect(testSanitization(null)).toBeNull();
-      expect(testSanitization(undefined)).toBeNull();
+      expect(sanitizeName('')).toBeNull();
+      expect(sanitizeName(null)).toBeNull();
+      expect(sanitizeName(undefined)).toBeNull();
     });
 
     test('handles normal text unchanged', () => {
-      expect(testSanitization('Normal Book Title')).toBe('Normal Book Title');
+      expect(sanitizeName('Normal Book Title')).toBe('Normal Book Title');
     });
 
     test('removes control characters', () => {
-      expect(testSanitization('Test\x00Book')).toBe('Test_Book');
+      expect(sanitizeName('Test\x00Book')).toBe('Test_Book');
     });
   });
 
-  describe('formatSeriesPosition (tested indirectly)', () => {
-    const formatSeriesPosition = (position) => {
-      if (position === null || position === undefined) return null;
-      const num = parseFloat(position);
-      if (isNaN(num)) return null;
-
-      if (Number.isInteger(num)) {
-        return num < 10 ? `0${num}` : `${num}`;
-      } else {
-        const intPart = Math.floor(num);
-        const decPart = num - intPart;
-        const paddedInt = intPart < 10 ? `0${intPart}` : `${intPart}`;
-        return `${paddedInt}${decPart.toFixed(1).substring(1)}`;
-      }
-    };
-
-    test('pads single digit integers', () => {
-      expect(formatSeriesPosition(1)).toBe('01');
-      expect(formatSeriesPosition(5)).toBe('05');
-      expect(formatSeriesPosition(9)).toBe('09');
-    });
-
-    test('does not pad double digit integers', () => {
-      expect(formatSeriesPosition(10)).toBe('10');
-      expect(formatSeriesPosition(15)).toBe('15');
-      expect(formatSeriesPosition(100)).toBe('100');
-    });
-
-    test('handles decimal positions', () => {
-      expect(formatSeriesPosition(1.5)).toBe('01.5');
-      expect(formatSeriesPosition(10.5)).toBe('10.5');
-    });
-
-    test('returns null for null/undefined', () => {
-      expect(formatSeriesPosition(null)).toBeNull();
-      expect(formatSeriesPosition(undefined)).toBeNull();
-    });
-
-    test('returns null for non-numeric strings', () => {
-      expect(formatSeriesPosition('abc')).toBeNull();
-    });
-
-    test('handles string numbers', () => {
-      expect(formatSeriesPosition('5')).toBe('05');
-      expect(formatSeriesPosition('12')).toBe('12');
-    });
-  });
-
-  describe('getTargetFilename logic', () => {
-    const getTargetFilename = (audiobook, originalPath) => {
-      const sanitizeName = (name) => {
-        if (!name) return null;
-        return name
-          // eslint-disable-next-line no-control-regex
-          .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-      const title = sanitizeName(audiobook.title) || 'Unknown Title';
-      const ext = path.extname(originalPath);
-      return `${title}${ext}`;
-    };
-
+  describe('getTargetFilename', () => {
     test('uses audiobook title with original extension', () => {
       const audiobook = { title: 'The Great Gatsby' };
       const result = getTargetFilename(audiobook, '/path/to/file.m4b');
@@ -146,46 +91,7 @@ describe('File Organizer Service', () => {
     });
   });
 
-  describe('getTargetDirectory logic', () => {
-    const audiobooksDir = '/test/audiobooks';
-
-    const getTargetDirectory = (audiobook) => {
-      const sanitizeName = (name) => {
-        if (!name) return null;
-        return name
-          // eslint-disable-next-line no-control-regex
-          .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-
-      const formatSeriesPosition = (position) => {
-        if (position === null || position === undefined) return null;
-        const num = parseFloat(position);
-        if (isNaN(num)) return null;
-        if (Number.isInteger(num)) {
-          return num < 10 ? `0${num}` : `${num}`;
-        } else {
-          const intPart = Math.floor(num);
-          const decPart = num - intPart;
-          const paddedInt = intPart < 10 ? `0${intPart}` : `${intPart}`;
-          return `${paddedInt}${decPart.toFixed(1).substring(1)}`;
-        }
-      };
-
-      const author = sanitizeName(audiobook.author) || 'Unknown Author';
-      const title = sanitizeName(audiobook.title) || 'Unknown Title';
-      const series = sanitizeName(audiobook.series);
-      const position = formatSeriesPosition(audiobook.series_position);
-
-      if (series) {
-        const bookFolder = position ? `${position} - ${title}` : title;
-        return path.join(audiobooksDir, author, series, bookFolder);
-      } else {
-        return path.join(audiobooksDir, author, title);
-      }
-    };
-
+  describe('getTargetDirectory', () => {
     test('creates Author/Title path without series', () => {
       const audiobook = {
         title: 'Standalone Book',
@@ -195,7 +101,7 @@ describe('File Organizer Service', () => {
       };
 
       const result = getTargetDirectory(audiobook);
-      expect(result).toBe(path.join(audiobooksDir, 'John Author', 'Standalone Book'));
+      expect(result).toBe(path.join('/test/audiobooks', 'John Author', 'Standalone Book'));
     });
 
     test('creates Author/Series/Position - Title path with series', () => {
@@ -207,7 +113,7 @@ describe('File Organizer Service', () => {
       };
 
       const result = getTargetDirectory(audiobook);
-      expect(result).toBe(path.join(audiobooksDir, 'Jane Writer', 'The Series', '01 - Book One'));
+      expect(result).toBe(path.join('/test/audiobooks', 'Jane Writer', 'The Series', '01 - Book One'));
     });
 
     test('omits position prefix when position is null', () => {
@@ -219,7 +125,7 @@ describe('File Organizer Service', () => {
       };
 
       const result = getTargetDirectory(audiobook);
-      expect(result).toBe(path.join(audiobooksDir, 'Author Name', 'Some Series', 'Unnumbered Book'));
+      expect(result).toBe(path.join('/test/audiobooks', 'Author Name', 'Some Series', 'Unnumbered Book'));
     });
 
     test('uses Unknown Author when author is missing', () => {
@@ -231,7 +137,7 @@ describe('File Organizer Service', () => {
       };
 
       const result = getTargetDirectory(audiobook);
-      expect(result).toBe(path.join(audiobooksDir, 'Unknown Author', 'Orphan Book'));
+      expect(result).toBe(path.join('/test/audiobooks', 'Unknown Author', 'Orphan Book'));
     });
 
     test('uses Unknown Title when title is missing', () => {
@@ -243,79 +149,510 @@ describe('File Organizer Service', () => {
       };
 
       const result = getTargetDirectory(audiobook);
-      expect(result).toBe(path.join(audiobooksDir, 'Known Author', 'Unknown Title'));
+      expect(result).toBe(path.join('/test/audiobooks', 'Known Author', 'Unknown Title'));
     });
 
-    test('sanitizes all path components', () => {
+    test('handles decimal series positions', () => {
       const audiobook = {
-        title: 'Book: Subtitle?',
-        author: 'Author/Name',
-        series: 'Series: Name',
-        series_position: 1
+        title: 'Side Story',
+        author: 'Author',
+        series: 'Main Series',
+        series_position: 1.5
       };
 
       const result = getTargetDirectory(audiobook);
-      // All special chars should be replaced with underscores
-      expect(result).not.toContain(':');
-      expect(result).not.toContain('?');
+      expect(result).toContain('01.5 - Side Story');
+    });
+
+    test('handles double digit series positions', () => {
+      const audiobook = {
+        title: 'Later Book',
+        author: 'Author',
+        series: 'Long Series',
+        series_position: 12
+      };
+
+      const result = getTargetDirectory(audiobook);
+      expect(result).toContain('12 - Later Book');
     });
   });
 
-  describe('needsOrganization logic', () => {
+  describe('needsOrganization', () => {
     test('returns true when directory differs', () => {
-      const currentDir = '/old/path/Author/Book';
-      const targetDir = '/new/path/Author/Book';
+      const audiobook = {
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b'
+      };
 
-      expect(path.normalize(currentDir) !== path.normalize(targetDir)).toBe(true);
-    });
-
-    test('returns false when paths match', () => {
-      const currentDir = '/path/Author/Book';
-      const targetDir = '/path/Author/Book';
-
-      expect(path.normalize(currentDir) !== path.normalize(targetDir)).toBe(false);
+      const result = needsOrganization(audiobook);
+      expect(result).toBe(true);
     });
 
     test('returns true when filename differs', () => {
-      const currentFilename = 'old-name.m4b';
-      const targetFilename = 'New Title.m4b';
+      const audiobook = {
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: path.join('/test/audiobooks', 'Author Name', 'Book Title', 'wrong-name.m4b')
+      };
 
-      expect(currentFilename !== targetFilename).toBe(true);
+      const result = needsOrganization(audiobook);
+      expect(result).toBe(true);
+    });
+
+    test('returns false when file is already organized', () => {
+      const audiobook = {
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: path.join('/test/audiobooks', 'Author Name', 'Book Title', 'Book Title.m4b')
+      };
+
+      const result = needsOrganization(audiobook);
+      expect(result).toBe(false);
     });
   });
 
-  describe('moveFile logic', () => {
-    test('file size verification concept', () => {
-      const sourceSize = 1000000;
-      const destSize = 1000000;
-      expect(sourceSize === destSize).toBe(true);
+  describe('cleanupEmptyDirectories', () => {
+    test('does not delete main audiobooks directory', () => {
+      cleanupEmptyDirectories('/test/audiobooks');
+      expect(fs.rmdirSync).not.toHaveBeenCalled();
     });
 
-    test('file size mismatch detection', () => {
-      const sourceSize = 1000000;
-      const destSize = 999999;
-      expect(sourceSize !== destSize).toBe(true);
+    test('deletes empty directory and recurses', () => {
+      fs.readdirSync.mockReturnValueOnce([]).mockReturnValueOnce(['something']);
+
+      cleanupEmptyDirectories('/test/audiobooks/Author/Book');
+
+      expect(fs.rmdirSync).toHaveBeenCalledWith('/test/audiobooks/Author/Book');
+    });
+
+    test('does not delete non-empty directory', () => {
+      fs.readdirSync.mockReturnValue(['file.txt']);
+
+      cleanupEmptyDirectories('/test/audiobooks/Author/Book');
+
+      expect(fs.rmdirSync).not.toHaveBeenCalled();
+    });
+
+    test('handles errors gracefully', () => {
+      fs.readdirSync.mockImplementation(() => {
+        throw new Error('Directory not found');
+      });
+
+      // Should not throw
+      expect(() => cleanupEmptyDirectories('/nonexistent/path')).not.toThrow();
     });
   });
 
-  describe('path handling', () => {
-    test('path.extname extracts extension correctly', () => {
-      expect(path.extname('/path/to/file.m4b')).toBe('.m4b');
-      expect(path.extname('/path/to/file.mp3')).toBe('.mp3');
-      expect(path.extname('/path/to/file.tar.gz')).toBe('.gz');
+  describe('organizeAudiobook', () => {
+    test('returns moved: false when no organization needed', async () => {
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: path.join('/test/audiobooks', 'Author Name', 'Book Title', 'Book Title.m4b')
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result).toEqual({ moved: false });
     });
 
-    test('path.dirname extracts directory correctly', () => {
-      expect(path.dirname('/path/to/file.m4b')).toBe('/path/to');
+    test('returns error when source file not found', async () => {
+      fs.existsSync.mockReturnValue(false);
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b'
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result).toEqual({ moved: false, error: 'Source file not found' });
     });
 
-    test('path.basename extracts filename correctly', () => {
-      expect(path.basename('/path/to/file.m4b')).toBe('file.m4b');
+    test('moves file and updates database', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        // Source exists, target dir doesn't, target file doesn't
+        if (p === '/old/path/file.m4b') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['remaining-file.txt']);
+      db.run.mockImplementation((query, params, callback) => {
+        callback(null);
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(true);
+      expect(result.newPath).toContain('Book Title.m4b');
+      expect(websocketManager.broadcastLibraryUpdate).toHaveBeenCalled();
     });
 
-    test('path.join handles multiple segments', () => {
-      const result = path.join('/base', 'Author', 'Series', 'Book');
-      expect(result).toBe(path.normalize('/base/Author/Series/Book'));
+    test('handles filename conflicts', async () => {
+      let existsCallCount = 0;
+      fs.existsSync.mockImplementation((p) => {
+        existsCallCount++;
+        // Source exists
+        if (p === '/old/path/file.m4b') return true;
+        // Target dir exists
+        if (p === path.join('/test/audiobooks', 'Author Name', 'Book Title')) return true;
+        // First target file exists, second doesn't
+        if (p.endsWith('Book Title.m4b') && existsCallCount <= 4) return true;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['remaining-file.txt']);
+      db.run.mockImplementation((query, params, callback) => {
+        callback(null);
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(true);
+      // Should have added a (1) suffix
+      expect(result.newPath).toContain('(1)');
+    });
+
+    test('handles cross-filesystem move', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/file.m4b') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {
+        const err = new Error('EXDEV: cross-device link not permitted');
+        err.code = 'EXDEV';
+        throw err;
+      });
+      fs.copyFileSync.mockImplementation(() => {});
+      fs.statSync.mockReturnValue({ size: 1000000 });
+      fs.unlinkSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['remaining-file.txt']);
+      db.run.mockImplementation((query, params, callback) => {
+        callback(null);
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(true);
+      expect(fs.copyFileSync).toHaveBeenCalled();
+    });
+
+    test('handles move failure', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/file.m4b') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {
+        throw new Error('Permission denied');
+      });
+      fs.copyFileSync.mockImplementation(() => {
+        throw new Error('Disk full');
+      });
+      fs.mkdirSync.mockImplementation(() => {});
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(false);
+      expect(result.error).toBe('Failed to move audio file');
+    });
+
+    test('handles file size mismatch after copy', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/file.m4b') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {
+        throw new Error('EXDEV');
+      });
+      fs.copyFileSync.mockImplementation(() => {});
+      fs.statSync.mockImplementation((p) => {
+        // Return different sizes for source and dest
+        if (p === '/old/path/file.m4b') return { size: 1000000 };
+        return { size: 999999 }; // Different size!
+      });
+      fs.unlinkSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(false);
+      expect(result.error).toBe('Failed to move audio file');
+    });
+
+    test('moves cover art when in same directory', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/file.m4b') return true;
+        if (p === '/old/path/cover.jpg') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['remaining-file.txt']);
+      db.run.mockImplementation((query, params, callback) => {
+        callback(null);
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        cover_path: '/old/path/cover.jpg',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(true);
+      // Should have called rename twice (main file + cover)
+      expect(fs.renameSync).toHaveBeenCalledTimes(2);
+    });
+
+    test('handles multi-file audiobooks', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/file.m4b') return true;
+        if (p === '/old/path/chapter1.mp3') return true;
+        if (p === '/old/path/chapter2.mp3') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['remaining-file.txt']);
+      db.all.mockImplementation((query, params, callback) => {
+        callback(null, [
+          { file_path: '/old/path/chapter1.mp3' },
+          { file_path: '/old/path/chapter2.mp3' }
+        ]);
+      });
+      db.run.mockImplementation((query, params, callback) => {
+        callback(null);
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: true
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(true);
+      // Main file + 2 chapters = 3 moves
+      expect(fs.renameSync).toHaveBeenCalledTimes(3);
+    });
+
+    test('catches unexpected errors', async () => {
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/file.m4b') return true;
+        if (p.startsWith('/test/audiobooks')) return false;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['file']);
+      db.run.mockImplementation((query, params, callback) => {
+        callback(new Error('Database error'));
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/file.m4b',
+        is_multi_file: false
+      };
+
+      const result = await organizeAudiobook(audiobook);
+      expect(result.moved).toBe(false);
+      expect(result.error).toBe('Database error');
+    });
+  });
+
+  describe('organizeLibrary', () => {
+    test('organizes all audiobooks and returns stats', async () => {
+      db.all.mockImplementation((query, params, callback) => {
+        callback(null, [
+          {
+            id: 1,
+            title: 'Book 1',
+            author: 'Author',
+            series: null,
+            file_path: '/test/audiobooks/Author/Book 1/Book 1.m4b'
+          },
+          {
+            id: 2,
+            title: 'Book 2',
+            author: 'Author',
+            series: null,
+            file_path: '/old/path/book2.m4b'
+          }
+        ]);
+      });
+
+      // First book is already organized, second needs moving
+      fs.existsSync.mockImplementation((p) => {
+        if (p === '/old/path/book2.m4b') return true;
+        return false;
+      });
+      fs.renameSync.mockImplementation(() => {});
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.readdirSync.mockReturnValue(['file']);
+      db.run.mockImplementation((query, params, callback) => {
+        callback(null);
+      });
+
+      const result = await organizeLibrary();
+      expect(result.skipped).toBe(1); // First book
+      expect(result.moved).toBe(1); // Second book
+      expect(result.errors).toBe(0);
+    });
+
+    test('handles empty library', async () => {
+      db.all.mockImplementation((query, params, callback) => {
+        callback(null, []);
+      });
+
+      const result = await organizeLibrary();
+      expect(result).toEqual({ moved: 0, skipped: 0, errors: 0 });
+    });
+
+    test('counts errors when organization fails', async () => {
+      db.all.mockImplementation((query, params, callback) => {
+        callback(null, [
+          {
+            id: 1,
+            title: 'Book 1',
+            author: 'Author',
+            series: null,
+            file_path: '/old/path/book1.m4b' // Needs organization
+          }
+        ]);
+      });
+
+      fs.existsSync.mockReturnValue(false); // File not found = error
+
+      const result = await organizeLibrary();
+      expect(result.errors).toBe(1);
+      expect(result.moved).toBe(0);
+      expect(result.skipped).toBe(0);
+    });
+  });
+
+  describe('getOrganizationPreview', () => {
+    test('returns list of books needing organization', async () => {
+      db.all.mockImplementation((query, params, callback) => {
+        callback(null, [
+          {
+            id: 1,
+            title: 'Book 1',
+            author: 'Author',
+            series: null,
+            file_path: '/test/audiobooks/Author/Book 1/Book 1.m4b'
+          },
+          {
+            id: 2,
+            title: 'Book 2',
+            author: 'Author',
+            series: null,
+            file_path: '/old/path/book2.m4b'
+          }
+        ]);
+      });
+
+      const result = await getOrganizationPreview();
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(2);
+      expect(result[0].currentPath).toBe('/old/path/book2.m4b');
+      expect(result[0].targetPath).toContain('Book 2');
+    });
+
+    test('returns empty array when all books are organized', async () => {
+      db.all.mockImplementation((query, params, callback) => {
+        callback(null, [
+          {
+            id: 1,
+            title: 'Book 1',
+            author: 'Author',
+            series: null,
+            file_path: path.join('/test/audiobooks', 'Author', 'Book 1', 'Book 1.m4b')
+          }
+        ]);
+      });
+
+      const result = await getOrganizationPreview();
+      expect(result).toHaveLength(0);
     });
   });
 });

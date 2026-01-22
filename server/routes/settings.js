@@ -1,8 +1,19 @@
+/**
+ * Settings Routes
+ *
+ * API endpoints for server settings management (admin only)
+ */
+
 const express = require('express');
-const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { authenticateToken, requireAdmin } = require('../auth');
+
+/**
+ * Default dependencies - used when route is required directly
+ */
+const defaultDependencies = {
+  auth: () => require('../auth'),
+};
 
 // Get the persisted settings file path (inside DATA_DIR so it survives container restarts)
 const getSettingsPath = () => {
@@ -105,8 +116,61 @@ const ENV_VAR_KEYS = ['PORT', 'NODE_ENV', 'DATABASE_PATH', 'DATA_DIR', 'AUDIOBOO
   }
 })();
 
-// Get all settings
-router.get('/all', authenticateToken, requireAdmin, (req, res) => {
+// Default recap system prompt
+const DEFAULT_RECAP_PROMPT = `You are recapping a book series for someone who has ALREADY READ the books and wants to remember what happened.
+
+Write a THOROUGH recap - aim for at least 2-3 paragraphs per book covering all major plot points.
+
+CRITICAL: Be EXPLICIT and SPECIFIC. Never be vague.
+- BAD: "A major character dies" or "There is a betrayal" or "A secret is revealed"
+- GOOD: "Jon kills Daenerys to stop her from burning more cities" or "Snape kills Dumbledore on Dumbledore's own orders" or "Luke discovers Darth Vader is his father"
+
+For each completed book, cover:
+- The main plot and how it unfolds
+- Character names and what specifically happens to them
+- Who dies and how (name them, describe the death)
+- Who betrays whom and what exactly they did
+- What secrets are revealed (state the actual secret)
+- Romantic relationships: who ends up together, who breaks up, key moments
+- Major battles/confrontations and their outcomes
+- How the book ends and any cliffhangers leading to the next book
+
+IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
+
+FORMAT: Use markdown formatting for readability - bold (**text**) for character names and key events, headers (##) for book titles.`;
+
+// Offensive mode addition to prompt
+const OFFENSIVE_MODE_PROMPT = `
+
+STYLE: Be funny, irreverent, and use colorful language. Roast the characters and their decisions. Use profanity freely. Mock plot holes and clichés. Think of this as a drunk friend recapping the books at a party - entertaining, crude, but still hitting all the important plot points.`;
+
+// Get the current recap prompt (exported for use in series.js)
+const getRecapPrompt = () => {
+  const customPrompt = process.env.RECAP_CUSTOM_PROMPT;
+  const offensiveMode = process.env.RECAP_OFFENSIVE_MODE === 'true';
+
+  let prompt = customPrompt || DEFAULT_RECAP_PROMPT;
+  if (offensiveMode) {
+    prompt += OFFENSIVE_MODE_PROMPT;
+  }
+  return prompt;
+};
+
+/**
+ * Create settings routes with injectable dependencies
+ * @param {Object} deps - Dependencies (for testing)
+ * @param {Object} deps.auth - Auth module
+ * @returns {express.Router}
+ */
+function createSettingsRouter(deps = {}) {
+  const router = express.Router();
+
+  // Resolve dependencies (use provided or defaults)
+  const auth = deps.auth || defaultDependencies.auth();
+  const { authenticateToken, requireAdmin } = auth;
+
+  // Get all settings
+  router.get('/all', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
     // Server settings
     port: process.env.PORT || '3001',
@@ -363,46 +427,6 @@ router.put('/server', authenticateToken, requireAdmin, (req, res, next) => {
   router.handle(req, res, next);
 });
 
-// Default recap system prompt
-const DEFAULT_RECAP_PROMPT = `You are recapping a book series for someone who has ALREADY READ the books and wants to remember what happened.
-
-Write a THOROUGH recap - aim for at least 2-3 paragraphs per book covering all major plot points.
-
-CRITICAL: Be EXPLICIT and SPECIFIC. Never be vague.
-- BAD: "A major character dies" or "There is a betrayal" or "A secret is revealed"
-- GOOD: "Jon kills Daenerys to stop her from burning more cities" or "Snape kills Dumbledore on Dumbledore's own orders" or "Luke discovers Darth Vader is his father"
-
-For each completed book, cover:
-- The main plot and how it unfolds
-- Character names and what specifically happens to them
-- Who dies and how (name them, describe the death)
-- Who betrays whom and what exactly they did
-- What secrets are revealed (state the actual secret)
-- Romantic relationships: who ends up together, who breaks up, key moments
-- Major battles/confrontations and their outcomes
-- How the book ends and any cliffhangers leading to the next book
-
-IMPORTANT: Only spoil books marked as COMPLETED. Do not spoil unread books.
-
-FORMAT: Use markdown formatting for readability - bold (**text**) for character names and key events, headers (##) for book titles.`;
-
-// Offensive mode addition to prompt
-const OFFENSIVE_MODE_PROMPT = `
-
-STYLE: Be funny, irreverent, and use colorful language. Roast the characters and their decisions. Use profanity freely. Mock plot holes and clichés. Think of this as a drunk friend recapping the books at a party - entertaining, crude, but still hitting all the important plot points.`;
-
-// Get the current recap prompt (exported for use in series.js)
-const getRecapPrompt = () => {
-  const customPrompt = process.env.RECAP_CUSTOM_PROMPT;
-  const offensiveMode = process.env.RECAP_OFFENSIVE_MODE === 'true';
-
-  let prompt = customPrompt || DEFAULT_RECAP_PROMPT;
-  if (offensiveMode) {
-    prompt += OFFENSIVE_MODE_PROMPT;
-  }
-  return prompt;
-};
-
 // Get AI settings
 router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
@@ -583,5 +607,12 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-module.exports = router;
+  return router;
+}
+
+// Export default router for backwards compatibility with index.js
+module.exports = createSettingsRouter();
+// Export factory function for testing
+module.exports.createSettingsRouter = createSettingsRouter;
+// Export getRecapPrompt for use by series.js
 module.exports.getRecapPrompt = getRecapPrompt;

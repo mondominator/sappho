@@ -1,15 +1,26 @@
+/**
+ * Audiobooks Routes
+ *
+ * API endpoints for audiobook management, streaming, and playback progress
+ */
+
 const express = require('express');
-const router = express.Router();
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const db = require('../database');
 const fs = require('fs');
 const path = require('path');
-const { authenticateToken, authenticateMediaToken, requireAdmin } = require('../auth');
-const { organizeAudiobook, needsOrganization } = require('../services/fileOrganizer');
-const activityService = require('../services/activityService');
-const conversionService = require('../services/conversionService');
-const { GENRE_MAPPINGS, DEFAULT_GENRE_METADATA, normalizeGenres } = require('../utils/genres');
+
+/**
+ * Default dependencies - used when route is required directly
+ */
+const defaultDependencies = {
+  db: () => require('../database'),
+  auth: () => require('../auth'),
+  fileOrganizer: () => require('../services/fileOrganizer'),
+  activityService: () => require('../services/activityService'),
+  conversionService: () => require('../services/conversionService'),
+  genres: () => require('../utils/genres'),
+};
 
 // SECURITY: Rate limiting for conversion job endpoints
 const jobStatusLimiter = rateLimit({
@@ -52,60 +63,9 @@ function clearSessionId(userId, audiobookId) {
   activeSessionIds.delete(key);
 }
 
-/**
- * Queue the next book in a series when the current book is finished.
- * This makes the next book appear at the top of "Continue Listening".
- */
-function queueNextInSeries(userId, finishedAudiobookId) {
-  // Get the finished audiobook's series info
-  db.get(
-    'SELECT series, series_position, series_index FROM audiobooks WHERE id = ?',
-    [finishedAudiobookId],
-    (err, finishedBook) => {
-      if (err || !finishedBook || !finishedBook.series) {
-        return; // No series, nothing to queue
-      }
-
-      const currentPosition = finishedBook.series_position || finishedBook.series_index || 0;
-
-      // Find the next unfinished book in the series
-      db.get(
-        `SELECT a.id, a.title FROM audiobooks a
-         LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-         WHERE a.series = ?
-           AND COALESCE(a.series_position, a.series_index, 0) > ?
-           AND (a.is_available = 1 OR a.is_available IS NULL)
-           AND (p.completed IS NULL OR p.completed = 0)
-         ORDER BY COALESCE(a.series_position, a.series_index, 0) ASC
-         LIMIT 1`,
-        [userId, finishedBook.series, currentPosition],
-        (err, nextBook) => {
-          if (err || !nextBook) {
-            return; // No next book found
-          }
-
-          // Queue the next book by setting queued_at
-          db.run(
-            `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, queued_at, updated_at)
-             VALUES (?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
-               queued_at = CURRENT_TIMESTAMP,
-               updated_at = CURRENT_TIMESTAMP`,
-            [userId, nextBook.id],
-            (err) => {
-              if (!err) {
-                console.log(`Queued next book in series: "${nextBook.title}" for user ${userId}`);
-              }
-            }
-          );
-        }
-      );
-    }
-  );
-}
-
 // Export for use by library scanner - uses conversion service to check active conversions
-const isDirectoryBeingConverted = (dir) => conversionService.isDirectoryLocked(dir);
+// This needs to work at module level, so it uses the default dependency
+const isDirectoryBeingConverted = (dir) => defaultDependencies.conversionService().isDirectoryLocked(dir);
 module.exports.isDirectoryBeingConverted = isDirectoryBeingConverted;
 
 /**
@@ -158,8 +118,86 @@ function getClientIP(req) {
   return req.ip || req.connection.remoteAddress || null;
 }
 
-// Get all audiobooks
-router.get('/', authenticateToken, (req, res) => {
+/**
+ * Create audiobooks routes with injectable dependencies
+ * @param {Object} deps - Dependencies (for testing)
+ * @param {Object} deps.db - Database module
+ * @param {Object} deps.auth - Auth module
+ * @param {Object} deps.fileOrganizer - File organizer service
+ * @param {Object} deps.activityService - Activity service
+ * @param {Object} deps.conversionService - Conversion service
+ * @param {Object} deps.genres - Genres utility module
+ * @returns {express.Router}
+ */
+function createAudiobooksRouter(deps = {}) {
+  const router = express.Router();
+
+  // Resolve dependencies (use provided or defaults)
+  const db = deps.db || defaultDependencies.db();
+  const auth = deps.auth || defaultDependencies.auth();
+  const fileOrganizer = deps.fileOrganizer || defaultDependencies.fileOrganizer();
+  const activityService = deps.activityService || defaultDependencies.activityService();
+  const conversionService = deps.conversionService || defaultDependencies.conversionService();
+  const genres = deps.genres || defaultDependencies.genres();
+
+  const { authenticateToken, authenticateMediaToken, requireAdmin } = auth;
+  const { organizeAudiobook, needsOrganization } = fileOrganizer;
+  const { GENRE_MAPPINGS, DEFAULT_GENRE_METADATA, normalizeGenres } = genres;
+
+  /**
+   * Queue the next book in a series when the current book is finished.
+   * This makes the next book appear at the top of "Continue Listening".
+   */
+  function queueNextInSeries(userId, finishedAudiobookId) {
+    // Get the finished audiobook's series info
+    db.get(
+      'SELECT series, series_position, series_index FROM audiobooks WHERE id = ?',
+      [finishedAudiobookId],
+      (err, finishedBook) => {
+        if (err || !finishedBook || !finishedBook.series) {
+          return; // No series, nothing to queue
+        }
+
+        const currentPosition = finishedBook.series_position || finishedBook.series_index || 0;
+
+        // Find the next unfinished book in the series
+        db.get(
+          `SELECT a.id, a.title FROM audiobooks a
+           LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+           WHERE a.series = ?
+             AND COALESCE(a.series_position, a.series_index, 0) > ?
+             AND (a.is_available = 1 OR a.is_available IS NULL)
+             AND (p.completed IS NULL OR p.completed = 0)
+           ORDER BY COALESCE(a.series_position, a.series_index, 0) ASC
+           LIMIT 1`,
+          [userId, finishedBook.series, currentPosition],
+          (err, nextBook) => {
+            if (err || !nextBook) {
+              return; // No next book found
+            }
+
+            // Queue the next book by setting queued_at
+            db.run(
+              `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, queued_at, updated_at)
+               VALUES (?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+                 queued_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP`,
+              [userId, nextBook.id],
+              (err) => {
+                if (!err) {
+                  console.log(`Queued next book in series: "${nextBook.title}" for user ${userId}`);
+                }
+              }
+            );
+          }
+        );
+      }
+    );
+  }
+
+  // Get all audiobooks
+  router.get('/', authenticateToken, (req, res) => {
   const { genre, author, series, search, favorites, includeUnavailable, limit = 50, offset = 0 } = req.query;
   const userId = req.user.id;
 
@@ -3094,4 +3132,11 @@ router.post('/batch/delete', batchDeleteLimiter, authenticateToken, async (req, 
   }
 });
 
-module.exports = router;
+  return router;
+}
+
+// Export default router for backwards compatibility with index.js
+module.exports = createAudiobooksRouter();
+// Export factory function for testing
+module.exports.createAudiobooksRouter = createAudiobooksRouter;
+// isDirectoryBeingConverted is already exported above at module level

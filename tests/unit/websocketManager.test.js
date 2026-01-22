@@ -2,13 +2,24 @@
  * Unit tests for WebSocket Manager
  */
 
+// Set up JWT_SECRET before requiring websocketManager
+process.env.JWT_SECRET = 'test-secret-key-at-least-32-characters-long';
+
+// Mock database before requiring websocketManager
+jest.mock('../../server/database', () => ({
+  get: jest.fn()
+}));
+
 // Get the class constructor for testing
 const WebSocketManager = require('../../server/services/websocketManager').constructor;
+const jwt = require('jsonwebtoken');
+const db = require('../../server/database');
 
 describe('WebSocketManager', () => {
   let wsManager;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     wsManager = new WebSocketManager();
   });
 
@@ -299,6 +310,348 @@ describe('WebSocketManager', () => {
       expect(call.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
 
       broadcastSpy.mockRestore();
+    });
+  });
+
+  describe('initialize', () => {
+    test('creates WebSocket server and sets up connection handler', () => {
+      // Create a mock HTTP server
+      const mockServer = {};
+
+      // Create mock WebSocket.Server that captures the connection handler
+      let connectionHandler = null;
+      const mockWss = {
+        on: jest.fn((event, handler) => {
+          if (event === 'connection') {
+            connectionHandler = handler;
+          }
+        }),
+        close: jest.fn()
+      };
+
+      // Mock the WebSocket module
+      const WebSocket = require('ws');
+      const originalServer = WebSocket.Server;
+      WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
+
+      const testManager = new WebSocketManager();
+      testManager.initialize(mockServer);
+
+      expect(WebSocket.Server).toHaveBeenCalledWith({
+        server: mockServer,
+        path: '/ws/notifications'
+      });
+      expect(mockWss.on).toHaveBeenCalledWith('connection', expect.any(Function));
+      expect(testManager.wss).toBe(mockWss);
+
+      // Restore
+      WebSocket.Server = originalServer;
+      testManager.close();
+    });
+
+    test('closes connection when no token provided', () => {
+      const mockServer = {};
+      let connectionHandler = null;
+      const mockWss = {
+        on: jest.fn((event, handler) => {
+          if (event === 'connection') connectionHandler = handler;
+        }),
+        close: jest.fn()
+      };
+
+      const WebSocket = require('ws');
+      const originalServer = WebSocket.Server;
+      WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
+
+      const testManager = new WebSocketManager();
+      testManager.initialize(mockServer);
+
+      // Simulate a connection without token
+      const mockWs = {
+        close: jest.fn(),
+        on: jest.fn()
+      };
+      const mockReq = { url: '/ws/notifications' };
+
+      connectionHandler(mockWs, mockReq);
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Authentication required');
+
+      WebSocket.Server = originalServer;
+      testManager.close();
+    });
+
+    test('authenticates and sets up handlers when token provided', () => {
+      const mockServer = {};
+      let connectionHandler = null;
+      const mockWss = {
+        on: jest.fn((event, handler) => {
+          if (event === 'connection') connectionHandler = handler;
+        }),
+        close: jest.fn()
+      };
+
+      const WebSocket = require('ws');
+      const originalServer = WebSocket.Server;
+      WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
+
+      const testManager = new WebSocketManager();
+      testManager.initialize(mockServer);
+
+      // Create valid token
+      const validToken = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+      // Simulate a connection with token
+      const mockWs = {
+        readyState: 1,
+        close: jest.fn(),
+        on: jest.fn(),
+        send: jest.fn()
+      };
+      const mockReq = { url: `/ws/notifications?token=${validToken}` };
+
+      connectionHandler(mockWs, mockReq);
+
+      // Should set up close and error handlers
+      expect(mockWs.on).toHaveBeenCalledWith('close', expect.any(Function));
+      expect(mockWs.on).toHaveBeenCalledWith('error', expect.any(Function));
+
+      // Should send initial connection message
+      expect(mockWs.send).toHaveBeenCalledWith(
+        expect.stringContaining('connected')
+      );
+
+      WebSocket.Server = originalServer;
+      testManager.close();
+    });
+
+    test('removes client on close event', () => {
+      const mockServer = {};
+      let connectionHandler = null;
+      const mockWss = {
+        on: jest.fn((event, handler) => {
+          if (event === 'connection') connectionHandler = handler;
+        }),
+        close: jest.fn()
+      };
+
+      const WebSocket = require('ws');
+      const originalServer = WebSocket.Server;
+      WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
+
+      const testManager = new WebSocketManager();
+      testManager.initialize(mockServer);
+
+      const validToken = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+      let closeHandler = null;
+      const mockWs = {
+        readyState: 1,
+        close: jest.fn(),
+        on: jest.fn((event, handler) => {
+          if (event === 'close') closeHandler = handler;
+        }),
+        send: jest.fn()
+      };
+      const mockReq = { url: `/ws/notifications?token=${validToken}` };
+
+      connectionHandler(mockWs, mockReq);
+      expect(testManager.clients.has(mockWs)).toBe(true);
+
+      // Trigger close handler
+      closeHandler();
+      expect(testManager.clients.has(mockWs)).toBe(false);
+
+      WebSocket.Server = originalServer;
+      testManager.close();
+    });
+
+    test('handles error event gracefully', () => {
+      const mockServer = {};
+      let connectionHandler = null;
+      const mockWss = {
+        on: jest.fn((event, handler) => {
+          if (event === 'connection') connectionHandler = handler;
+        }),
+        close: jest.fn()
+      };
+
+      const WebSocket = require('ws');
+      const originalServer = WebSocket.Server;
+      WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
+
+      const testManager = new WebSocketManager();
+      testManager.initialize(mockServer);
+
+      const validToken = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+      let errorHandler = null;
+      const mockWs = {
+        readyState: 1,
+        close: jest.fn(),
+        on: jest.fn((event, handler) => {
+          if (event === 'error') errorHandler = handler;
+        }),
+        send: jest.fn()
+      };
+      const mockReq = { url: `/ws/notifications?token=${validToken}` };
+
+      connectionHandler(mockWs, mockReq);
+
+      // Trigger error handler - should not throw
+      expect(() => errorHandler(new Error('Test error'))).not.toThrow();
+
+      WebSocket.Server = originalServer;
+      testManager.close();
+    });
+  });
+
+  describe('authenticateClient', () => {
+    test('authenticates valid JWT token', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      const validToken = jwt.sign(
+        { id: 1, username: 'testuser' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      wsManager.authenticateClient(mockWs, validToken);
+
+      expect(wsManager.clients.has(mockWs)).toBe(true);
+      const clientInfo = wsManager.clients.get(mockWs);
+      expect(clientInfo.authenticated).toBe(true);
+      expect(clientInfo.userId).toBe(1);
+      expect(clientInfo.username).toBe('testuser');
+      expect(mockWs.close).not.toHaveBeenCalled();
+    });
+
+    test('closes connection for invalid JWT token', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      wsManager.authenticateClient(mockWs, 'invalid-token');
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+    });
+
+    test('closes connection for expired JWT token', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      const expiredToken = jwt.sign(
+        { id: 1, username: 'testuser' },
+        process.env.JWT_SECRET,
+        { expiresIn: '-1s' }
+      );
+
+      wsManager.authenticateClient(mockWs, expiredToken);
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+    });
+
+    test('attempts API key auth when JWT fails and token starts with sapho_', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      // Mock db.get to return null (key not found)
+      db.get.mockReturnValue(null);
+
+      wsManager.authenticateClient(mockWs, 'sapho_test_api_key');
+
+      // Should close because API key lookup fails
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+    });
+
+    test('authenticates valid API key', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      // Mock db.get to return valid API key and user
+      db.get
+        .mockReturnValueOnce({ id: 1, user_id: 1, is_active: 1, expires_at: null })
+        .mockReturnValueOnce({ id: 1, username: 'apiuser' });
+
+      wsManager.authenticateClient(mockWs, 'sapho_valid_api_key');
+
+      expect(wsManager.clients.has(mockWs)).toBe(true);
+      const clientInfo = wsManager.clients.get(mockWs);
+      expect(clientInfo.authenticated).toBe(true);
+      expect(clientInfo.username).toBe('apiuser');
+      expect(mockWs.close).not.toHaveBeenCalled();
+    });
+
+    test('rejects expired API key', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      // Mock db.get to return expired API key
+      db.get.mockReturnValueOnce({
+        id: 1,
+        user_id: 1,
+        is_active: 1,
+        expires_at: '2020-01-01T00:00:00Z' // Expired
+      });
+
+      wsManager.authenticateClient(mockWs, 'sapho_expired_api_key');
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+    });
+
+    test('handles API key lookup errors gracefully', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      // Mock db.get to throw an error
+      db.get.mockImplementation(() => {
+        throw new Error('Database connection failed');
+      });
+
+      wsManager.authenticateClient(mockWs, 'sapho_error_key');
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+    });
+  });
+
+  describe('close', () => {
+    test('closes WebSocket server when initialized', () => {
+      const mockWss = {
+        close: jest.fn()
+      };
+      wsManager.wss = mockWss;
+
+      wsManager.close();
+
+      expect(mockWss.close).toHaveBeenCalled();
+    });
+
+    test('handles close when wss is null', () => {
+      wsManager.wss = null;
+
+      // Should not throw
+      expect(() => wsManager.close()).not.toThrow();
     });
   });
 });
