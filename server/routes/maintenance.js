@@ -1,13 +1,24 @@
+/**
+ * Maintenance Routes
+ *
+ * API endpoints for library maintenance, scans, and system administration (admin only)
+ */
+
 const express = require('express');
-const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const db = require('../database');
 const path = require('path');
 const fs = require('fs');
-const { authenticateToken } = require('../auth');
-const { extractFileMetadata } = require('../services/fileProcessor');
-const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = require('../services/libraryScanner');
-const { organizeLibrary, getOrganizationPreview, organizeAudiobook } = require('../services/fileOrganizer');
+
+/**
+ * Default dependencies - used when route is required directly
+ */
+const defaultDependencies = {
+  db: () => require('../database'),
+  auth: () => require('../auth'),
+  fileProcessor: () => require('../services/fileProcessor'),
+  libraryScanner: () => require('../services/libraryScanner'),
+  fileOrganizer: () => require('../services/fileOrganizer'),
+};
 
 // SECURITY: Rate limiting for maintenance endpoints
 const maintenanceLimiter = rateLimit({
@@ -140,8 +151,36 @@ function clearLogBuffer() {
   return cleared;
 }
 
-// Get server logs
-router.get('/logs', maintenanceLimiter, authenticateToken, (req, res) => {
+// Force rescan state - kept at module level since it's shared across routes
+let forceRescanInProgress = false;
+
+/**
+ * Create maintenance routes with injectable dependencies
+ * @param {Object} deps - Dependencies (for testing)
+ * @param {Object} deps.db - Database module
+ * @param {Object} deps.auth - Auth module
+ * @param {Object} deps.fileProcessor - File processor service
+ * @param {Object} deps.libraryScanner - Library scanner service
+ * @param {Object} deps.fileOrganizer - File organizer service
+ * @returns {express.Router}
+ */
+function createMaintenanceRouter(deps = {}) {
+  const router = express.Router();
+
+  // Resolve dependencies (use provided or defaults)
+  const db = deps.db || defaultDependencies.db();
+  const auth = deps.auth || defaultDependencies.auth();
+  const fileProcessor = deps.fileProcessor || defaultDependencies.fileProcessor();
+  const libraryScanner = deps.libraryScanner || defaultDependencies.libraryScanner();
+  const fileOrganizer = deps.fileOrganizer || defaultDependencies.fileOrganizer();
+
+  const { authenticateToken } = auth;
+  const { extractFileMetadata } = fileProcessor;
+  const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = libraryScanner;
+  const { organizeLibrary, getOrganizationPreview, organizeAudiobook } = fileOrganizer;
+
+  // Get server logs
+  router.get('/logs', maintenanceLimiter, authenticateToken, (req, res) => {
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -788,13 +827,11 @@ router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, 
   }
 });
 
-// Force rescan - re-extract metadata for all audiobooks while preserving IDs
-// Marks all books unavailable, rescans library, restores by content_hash (same ID)
-// This preserves: audiobook IDs, user progress, favorites, ratings, user-set covers
-// External apps (like OpsDec) won't lose cached data that references book IDs
-let forceRescanInProgress = false;
-
-router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
+  // Force rescan - re-extract metadata for all audiobooks while preserving IDs
+  // Marks all books unavailable, rescans library, restores by content_hash (same ID)
+  // This preserves: audiobook IDs, user progress, favorites, ratings, user-set covers
+  // External apps (like OpsDec) won't lose cached data that references book IDs
+  router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
   // Only allow admins to run this
   if (!req.user.is_admin) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -1609,4 +1646,10 @@ router.post('/organize/:id', maintenanceWriteLimiter, authenticateToken, async (
   }
 });
 
-module.exports = router;
+  return router;
+}
+
+// Export default router for backwards compatibility with index.js
+module.exports = createMaintenanceRouter();
+// Export factory function for testing
+module.exports.createMaintenanceRouter = createMaintenanceRouter;

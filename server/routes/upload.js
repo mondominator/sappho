@@ -1,14 +1,25 @@
+/**
+ * Upload Routes
+ *
+ * API endpoints for audiobook file uploads
+ */
+
 const express = require('express');
-const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { authenticateToken } = require('../auth');
-const { processAudiobook, extractFileMetadata } = require('../services/fileProcessor');
-const db = require('../database');
-const websocketManager = require('../services/websocketManager');
-const { generateBestHash } = require('../utils/contentHash');
+
+/**
+ * Default dependencies - used when route is required directly
+ */
+const defaultDependencies = {
+  auth: () => require('../auth'),
+  fileProcessor: () => require('../services/fileProcessor'),
+  db: () => require('../database'),
+  websocketManager: () => require('../services/websocketManager'),
+  contentHash: () => require('../utils/contentHash'),
+};
 
 // SECURITY: Rate limiting for upload endpoints
 const uploadLimiter = rateLimit({
@@ -68,8 +79,32 @@ const upload = multer({
   },
 });
 
-// Upload audiobook
-router.post('/', uploadLimiter, authenticateToken, upload.single('audiobook'), async (req, res) => {
+/**
+ * Create upload routes with injectable dependencies
+ * @param {Object} deps - Dependencies (for testing)
+ * @param {Object} deps.auth - Auth module
+ * @param {Object} deps.fileProcessor - File processor service
+ * @param {Object} deps.db - Database module
+ * @param {Object} deps.websocketManager - WebSocket manager
+ * @param {Object} deps.contentHash - Content hash utility
+ * @returns {express.Router}
+ */
+function createUploadRouter(deps = {}) {
+  const router = express.Router();
+
+  // Resolve dependencies (use provided or defaults)
+  const auth = deps.auth || defaultDependencies.auth();
+  const fileProcessor = deps.fileProcessor || defaultDependencies.fileProcessor();
+  const db = deps.db || defaultDependencies.db();
+  const websocketManager = deps.websocketManager || defaultDependencies.websocketManager();
+  const contentHash = deps.contentHash || defaultDependencies.contentHash();
+
+  const { authenticateToken } = auth;
+  const { processAudiobook, extractFileMetadata } = fileProcessor;
+  const { generateBestHash } = contentHash;
+
+  // Upload audiobook
+  router.post('/', uploadLimiter, authenticateToken, upload.single('audiobook'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -341,4 +376,10 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
   }
 });
 
-module.exports = router;
+  return router;
+}
+
+// Export default router for backwards compatibility with index.js
+module.exports = createUploadRouter();
+// Export factory function for testing
+module.exports.createUploadRouter = createUploadRouter;
