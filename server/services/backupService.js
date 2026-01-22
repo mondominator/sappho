@@ -267,7 +267,7 @@ function startScheduledBackups(intervalHours = 24, retention = DEFAULT_RETENTION
     } catch (err) {
       console.error('Scheduled backup failed:', err.message);
     }
-  }, 60000); // 1 minute after startup
+  }, 60000).unref(); // 1 minute after startup
 
   // Schedule recurring backups
   backupInterval = setInterval(async () => {
@@ -277,7 +277,7 @@ function startScheduledBackups(intervalHours = 24, retention = DEFAULT_RETENTION
     } catch (err) {
       console.error('Scheduled backup failed:', err.message);
     }
-  }, intervalMs);
+  }, intervalMs).unref();
 }
 
 /**
