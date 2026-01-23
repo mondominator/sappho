@@ -126,6 +126,26 @@ function getLockedAccounts() {
   return locked;
 }
 
+/**
+ * Get failed attempts info for a username
+ * Returns { count, lockedUntil, isLocked, remainingSeconds }
+ */
+function getFailedAttemptsInfo(username) {
+  const record = failedAttempts.get(username);
+  if (!record) {
+    return { count: 0, lockedUntil: null, isLocked: false, remainingSeconds: 0 };
+  }
+  const now = Date.now();
+  const isLocked = record.lockedUntil && record.lockedUntil > now;
+  const remainingSeconds = isLocked ? Math.ceil((record.lockedUntil - now) / 1000) : 0;
+  return {
+    count: record.count || 0,
+    lockedUntil: record.lockedUntil ? new Date(record.lockedUntil).toISOString() : null,
+    isLocked,
+    remainingSeconds
+  };
+}
+
 // Middleware to verify JWT token or API key
 function authenticateToken(req, res, next) {
   // SECURITY: Only accept token from Authorization header, not query string
@@ -470,4 +490,5 @@ module.exports = {
   clearFailedAttempts,
   getLockedAccounts,
   recordFailedAttempt,
+  getFailedAttemptsInfo,
 };
