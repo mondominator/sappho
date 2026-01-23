@@ -222,6 +222,9 @@ export const deleteUser = (id) =>
 export const unlockUser = (id) =>
   api.post(`/users/${id}/unlock`);
 
+export const getUserDetails = (id) =>
+  api.get(`/users/${id}/details`);
+
 export const disableUser = (id, reason = null) =>
   api.post(`/users/${id}/disable`, { reason });
 

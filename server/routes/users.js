@@ -40,7 +40,8 @@ function createUsersRouter(deps = {}) {
     getLockedAccounts,
     isAccountLocked,
     getLockoutRemaining,
-    validatePassword
+    validatePassword,
+    getFailedAttemptsInfo
   } = auth;
 
   const { disableAccount, enableAccount } = unlockService;
@@ -104,6 +105,108 @@ function createUsersRouter(deps = {}) {
         res.json(user);
       }
     );
+  });
+
+  /**
+   * GET /api/users/:id/details
+   * Get detailed user info for troubleshooting (admin only)
+   * Includes: account status, lockout info, listening stats, activity
+   */
+  router.get('/:id/details', userLimiter, authenticateToken, requireAdmin, async (req, res) => {
+    const userId = parseInt(req.params.id);
+
+    try {
+      // Get basic user info
+      const user = await new Promise((resolve, reject) => {
+        db.get(
+          `SELECT id, username, email, is_admin, account_disabled, disabled_at,
+                  disabled_reason, created_at FROM users WHERE id = ?`,
+          [userId],
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          }
+        );
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Get lockout/failed attempts info
+      const loginAttempts = getFailedAttemptsInfo(user.username);
+
+      // Get listening statistics
+      const listeningStats = await new Promise((resolve, reject) => {
+        db.get(
+          `SELECT
+            COUNT(DISTINCT audiobook_id) as booksStarted,
+            SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as booksCompleted,
+            COALESCE(SUM(position), 0) as totalListenTime,
+            MAX(updated_at) as lastActivity
+          FROM playback_progress WHERE user_id = ?`,
+          [userId],
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row || { booksStarted: 0, booksCompleted: 0, totalListenTime: 0, lastActivity: null });
+          }
+        );
+      });
+
+      // Get recent activity (last 10 books listened to)
+      const recentActivity = await new Promise((resolve, reject) => {
+        db.all(
+          `SELECT
+            pp.audiobook_id,
+            a.title,
+            a.author,
+            pp.position,
+            pp.completed,
+            pp.updated_at as lastPlayed
+          FROM playback_progress pp
+          JOIN audiobooks a ON pp.audiobook_id = a.id
+          WHERE pp.user_id = ?
+          ORDER BY pp.updated_at DESC
+          LIMIT 10`,
+          [userId],
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+
+      // Get API keys count
+      const apiKeysCount = await new Promise((resolve, reject) => {
+        db.get(
+          'SELECT COUNT(*) as count FROM api_keys WHERE user_id = ?',
+          [userId],
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row?.count || 0);
+          }
+        );
+      });
+
+      res.json({
+        user: {
+          ...user,
+          account_disabled: !!user.account_disabled
+        },
+        loginAttempts,
+        listeningStats: {
+          booksStarted: listeningStats.booksStarted || 0,
+          booksCompleted: listeningStats.booksCompleted || 0,
+          totalListenTimeSeconds: listeningStats.totalListenTime || 0,
+          lastActivity: listeningStats.lastActivity
+        },
+        recentActivity,
+        apiKeysCount
+      });
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   /**
