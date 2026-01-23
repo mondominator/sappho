@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import SearchModal from './SearchModal';
+import JobsIndicator from './JobsIndicator';
 import './Navigation.css';
 
 export default function Navigation({ onLogout }) {
@@ -231,17 +232,19 @@ export default function Navigation({ onLogout }) {
           </button>
         </div>
 
-        {/* Mobile user avatar (right side) */}
-        <button
-          className="user-avatar-button mobile-only"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setShowMobileMenu(!showMobileMenu);
-          }}
-          title="Menu"
-          type="button"
-        >
+        {/* Mobile right section - jobs indicator and user avatar */}
+        <div className="mobile-right-section mobile-only">
+          <JobsIndicator user={user} />
+          <button
+            className="user-avatar-button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowMobileMenu(!showMobileMenu);
+            }}
+            title="Menu"
+            type="button"
+          >
           {user?.avatar ? (
             <img
               src={user.avatar}
@@ -255,9 +258,13 @@ export default function Navigation({ onLogout }) {
           ) : (
             <div className="user-avatar-placeholder-mobile">{getUserInitials()}</div>
           )}
-        </button>
+          </button>
+        </div>
 
         <div className="nav-actions">
+          {/* Jobs indicator - desktop */}
+          <JobsIndicator user={user} />
+
           {/* Desktop user menu */}
           {user && (
             <div className="user-menu desktop-only">
