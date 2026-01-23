@@ -1068,6 +1068,17 @@
     transform: none !important;
   }
 
+  /* iOS: ensure player is truly docked to bottom */
+  @supports (-webkit-touch-callout: none) {
+    .audio-player {
+      /* Use padding-bottom for safe area, not margin */
+      padding-bottom: env(safe-area-inset-bottom) !important;
+      /* Ensure no gap at bottom */
+      margin-bottom: 0 !important;
+      bottom: 0 !important;
+    }
+  }
+
   .player-info {
     padding: 20px 12px 12px 12px !important;
     margin-bottom: 0 !important;
