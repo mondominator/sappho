@@ -176,6 +176,13 @@
     padding-top: 20px;
   }
 
+  /* iOS: account for safe area (notch/Dynamic Island) */
+  @supports (-webkit-touch-callout: none) {
+    .search-modal-overlay {
+      padding-top: calc(20px + env(safe-area-inset-top));
+    }
+  }
+
   .search-modal {
     width: 95%;
     max-height: 85vh;
