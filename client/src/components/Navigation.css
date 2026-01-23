@@ -299,6 +299,10 @@
   display: none;
 }
 
+.mobile-right-section {
+  display: none;
+}
+
 /* Mobile menu container */
 .mobile-menu-container {
   position: fixed;
@@ -415,6 +419,13 @@
   .mobile-nav-actions .nav-link,
   .mobile-nav-actions .search-button {
     flex-shrink: 0;
+  }
+
+  /* Mobile right section - jobs + avatar */
+  .mobile-right-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   /* Show icon logo on mobile */

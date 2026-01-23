@@ -25,27 +25,75 @@ class ConversionService {
    */
   async startConversion(audiobook, db) {
     const jobId = crypto.randomUUID();
-    const ext = path.extname(audiobook.file_path).toLowerCase();
     const dir = path.dirname(audiobook.file_path);
-    const basename = path.basename(audiobook.file_path, ext);
-    const tempPath = path.join(dir, `${basename}_converting.m4b`);
-    const finalPath = path.join(dir, `${basename}.m4b`);
-    const tempCoverPath = path.join(dir, `${basename}_temp_cover.jpg`);
-
-    // Supported formats
     const supportedFormats = ['.m4a', '.mp3', '.mp4', '.ogg', '.flac'];
 
-    if (ext === '.m4b') {
-      return { error: 'File is already M4B format' };
+    // Check if multifile audiobook
+    let sourceFiles = [];
+    let isMultiFile = !!audiobook.is_multi_file;
+    console.log(`Conversion: audiobook ${audiobook.id}, is_multi_file=${audiobook.is_multi_file}, isMultiFile=${isMultiFile}`);
+
+    if (isMultiFile) {
+      // Fetch chapter files from database
+      const chapters = await new Promise((resolve, reject) => {
+        db.all(
+          'SELECT file_path, duration, title FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number',
+          [audiobook.id],
+          (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          }
+        );
+      });
+      console.log(`Conversion: found ${chapters.length} chapters in database`);
+
+      if (chapters.length > 0) {
+        sourceFiles = chapters.map(ch => ({
+          path: ch.file_path,
+          duration: ch.duration,
+          title: ch.title
+        }));
+        console.log(`Conversion: multifile with ${sourceFiles.length} source files`);
+      } else {
+        // No chapters found, treat as single file
+        isMultiFile = false;
+        console.log('Conversion: no chapters found, treating as single file');
+      }
     }
 
-    if (!supportedFormats.includes(ext)) {
-      return { error: `Unsupported format: ${ext}. Supported: ${supportedFormats.join(', ')}` };
+    // For single file, use main file_path
+    if (!isMultiFile) {
+      sourceFiles = [{
+        path: audiobook.file_path,
+        duration: audiobook.duration,
+        title: audiobook.title
+      }];
     }
 
-    if (!fs.existsSync(audiobook.file_path)) {
-      return { error: 'Audio file not found on disk' };
+    // Validate all source files
+    for (const file of sourceFiles) {
+      const ext = path.extname(file.path).toLowerCase();
+      if (ext === '.m4b') {
+        return { error: 'File is already M4B format' };
+      }
+      if (!supportedFormats.includes(ext)) {
+        return { error: `Unsupported format: ${ext}. Supported: ${supportedFormats.join(', ')}` };
+      }
+      if (!fs.existsSync(file.path)) {
+        return { error: `Audio file not found: ${path.basename(file.path)}` };
+      }
     }
+
+    // Use audiobook title for output filename (sanitized)
+    const sanitizedTitle = (audiobook.title || 'audiobook')
+      .replace(/[<>:"/\\|?*]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 100);
+    const tempPath = path.join(dir, `${sanitizedTitle}_converting.m4b`);
+    const finalPath = path.join(dir, `${sanitizedTitle}.m4b`);
+    const tempCoverPath = path.join(dir, `${sanitizedTitle}_temp_cover.jpg`);
+    const concatListPath = path.join(dir, `${sanitizedTitle}_concat.txt`);
 
     // Create job info
     const job = {
@@ -54,13 +102,16 @@ class ConversionService {
       audiobookTitle: audiobook.title,
       status: 'starting',
       progress: 0,
-      message: 'Starting conversion...',
-      sourcePath: audiobook.file_path,
+      message: isMultiFile ? `Starting conversion of ${sourceFiles.length} files...` : 'Starting conversion...',
+      sourcePath: audiobook.file_path, // Primary file for cover extraction
+      sourceFiles,
+      isMultiFile,
       tempPath,
       finalPath,
       tempCoverPath,
+      concatListPath,
       dir,
-      ext,
+      ext: path.extname(sourceFiles[0].path).toLowerCase(),
       startedAt: new Date().toISOString(),
       error: null,
       process: null,
@@ -88,18 +139,20 @@ class ConversionService {
       job.progress = 5;
       this.broadcastJobStatus(job);
 
-      // Try to extract cover art from MP3
+      // Try to extract cover art from first file
       let hasCover = false;
       if (job.ext === '.mp3') {
         hasCover = await this.extractCoverArt(job);
       }
 
-      job.message = 'Converting audio...';
+      job.message = job.isMultiFile
+        ? `Converting ${job.sourceFiles.length} files...`
+        : 'Converting audio...';
       job.progress = 10;
       this.broadcastJobStatus(job);
 
-      // Build ffmpeg arguments
-      const args = this.buildFFmpegArgs(job);
+      // Build ffmpeg arguments (handles both single and multifile)
+      const args = await this.buildFFmpegArgs(job);
 
       // Run ffmpeg with progress parsing
       await this.runFFmpegWithProgress(job, args);
@@ -121,14 +174,29 @@ class ConversionService {
       // Get new file size
       const newStats = fs.statSync(job.tempPath);
 
-      // Commit: rename temp to final, delete original
+      // Commit: rename temp to final
       fs.renameSync(job.tempPath, job.finalPath);
-      fs.unlinkSync(audiobook.file_path);
+
+      // Delete original source files
+      for (const file of job.sourceFiles) {
+        if (fs.existsSync(file.path) && file.path !== job.finalPath) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch (e) {
+            console.warn(`Failed to delete source file: ${file.path}`, e.message);
+          }
+        }
+      }
+
+      // Clean up concat list file if used
+      if (job.concatListPath && fs.existsSync(job.concatListPath)) {
+        try { fs.unlinkSync(job.concatListPath); } catch (_e) { /* ignore */ }
+      }
 
       // Update database
       await new Promise((resolve, reject) => {
         db.run(
-          'UPDATE audiobooks SET file_path = ?, file_size = ? WHERE id = ?',
+          'UPDATE audiobooks SET file_path = ?, file_size = ?, is_multi_file = 0 WHERE id = ?',
           [job.finalPath, newStats.size, audiobook.id],
           (err) => {
             if (err) reject(err);
@@ -137,14 +205,30 @@ class ConversionService {
         );
       });
 
+      // If multifile, clear the chapter records (now merged into single file)
+      if (job.isMultiFile) {
+        await new Promise((resolve, reject) => {
+          db.run(
+            'DELETE FROM audiobook_chapters WHERE audiobook_id = ?',
+            [audiobook.id],
+            (err) => {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+      }
+
       // Success!
       job.status = 'completed';
       job.progress = 100;
-      job.message = 'Conversion completed successfully';
+      job.message = job.isMultiFile
+        ? `Conversion completed - merged ${job.sourceFiles.length} files`
+        : 'Conversion completed successfully';
       job.completedAt = new Date().toISOString();
       this.broadcastJobStatus(job);
 
-      console.log(`Successfully converted to M4B: ${job.finalPath}`);
+      console.log(`Successfully converted to M4B: ${job.finalPath}${job.isMultiFile ? ` (merged ${job.sourceFiles.length} files)` : ''}`);
 
       // Broadcast library update
       websocketManager.broadcastLibraryUpdate('library.update', {
@@ -170,27 +254,52 @@ class ConversionService {
 
   /**
    * Build ffmpeg arguments based on source format
+   * For multifile, creates a concat list file and uses concat demuxer
    */
-  buildFFmpegArgs(job) {
-    if (job.ext === '.m4a' || job.ext === '.mp4') {
-      // M4A/MP4 - just copy streams
+  async buildFFmpegArgs(job) {
+    console.log(`buildFFmpegArgs: isMultiFile=${job.isMultiFile}, sourceFiles.length=${job.sourceFiles.length}, ext=${job.ext}`);
+    if (job.isMultiFile && job.sourceFiles.length > 1) {
+      // Create concat list file for ffmpeg
+      // Format: file 'path/to/file.mp3'
+      const concatContent = job.sourceFiles
+        .map(f => `file '${f.path.replace(/'/g, "'\\''")}'`)
+        .join('\n');
+      fs.writeFileSync(job.concatListPath, concatContent);
+      console.log(`buildFFmpegArgs: using concat demuxer with ${job.sourceFiles.length} files`);
+
+      // Multifile - concatenate and re-encode to ensure compatibility
       return [
-        '-i', job.sourcePath,
-        '-c', 'copy',
-        '-f', 'ipod',
-        '-y', job.tempPath
-      ];
-    } else {
-      // MP3, OGG, FLAC - re-encode to AAC
-      return [
-        '-i', job.sourcePath,
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', job.concatListPath,
         '-vn',
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
         '-ac', '1',
         '-f', 'ipod',
-        '-progress', 'pipe:1',  // Output progress to stdout
+        '-progress', 'pipe:1',
+        '-y', job.tempPath
+      ];
+    } else if (job.ext === '.m4a' || job.ext === '.mp4') {
+      // Single M4A/MP4 - just copy streams
+      return [
+        '-i', job.sourceFiles[0].path,
+        '-c', 'copy',
+        '-f', 'ipod',
+        '-y', job.tempPath
+      ];
+    } else {
+      // Single MP3, OGG, FLAC - re-encode to AAC
+      return [
+        '-i', job.sourceFiles[0].path,
+        '-vn',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-ac', '1',
+        '-f', 'ipod',
+        '-progress', 'pipe:1',
         '-y', job.tempPath
       ];
     }
@@ -358,6 +467,9 @@ class ConversionService {
     }
     if (job.tempCoverPath && fs.existsSync(job.tempCoverPath)) {
       try { fs.unlinkSync(job.tempCoverPath); } catch (_e) { /* ignore cleanup errors */ }
+    }
+    if (job.concatListPath && fs.existsSync(job.concatListPath)) {
+      try { fs.unlinkSync(job.concatListPath); } catch (_e) { /* ignore cleanup errors */ }
     }
   }
 

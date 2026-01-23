@@ -64,6 +64,13 @@ export const embedMetadata = (id) =>
 export const convertToM4B = (id) =>
   api.post(`/audiobooks/${id}/convert-to-m4b`);
 
+// Conversion Jobs
+export const getConversionJobs = () =>
+  api.get('/audiobooks/jobs/conversion');
+
+export const cancelConversionJob = (jobId) =>
+  api.delete(`/audiobooks/jobs/conversion/${jobId}`);
+
 export const searchMetadata = (id, params) =>
   api.get(`/audiobooks/${id}/search-metadata`, { params });
 
