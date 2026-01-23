@@ -158,9 +158,25 @@ router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
                   result.booksCompleted = row.booksCompleted;
 
                   // Currently listening (in progress, not completed)
+                  // Matches criteria used by /api/audiobooks/meta/in-progress endpoint
+                  // Deduplicates by series (only counts most recent book per series)
                   db.get(
-                    `SELECT COUNT(*) as currentlyListening
-                     FROM playback_progress WHERE user_id = ? AND position > 0 AND completed = 0`,
+                    `WITH RankedBooks AS (
+                       SELECT a.id,
+                              ROW_NUMBER() OVER (
+                                PARTITION BY CASE
+                                  WHEN a.series IS NOT NULL AND a.series != '' THEN a.series
+                                  ELSE 'standalone_' || a.id
+                                END
+                                ORDER BY p.updated_at DESC
+                              ) as rn
+                       FROM playback_progress p
+                       JOIN audiobooks a ON p.audiobook_id = a.id
+                       WHERE p.user_id = ? AND p.completed = 0
+                         AND (p.position >= 5 OR p.queued_at IS NOT NULL)
+                         AND (a.is_available = 1 OR a.is_available IS NULL)
+                     )
+                     SELECT COUNT(*) as currentlyListening FROM RankedBooks WHERE rn = 1`,
                     [userId],
                     (err, row) => {
                       if (err) return reject(err);
