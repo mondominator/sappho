@@ -2228,21 +2228,34 @@ router.get('/meta/recent', authenticateToken, (req, res) => {
 });
 
 // Get in-progress audiobooks (Continue Listening) - ordered by most recently played
+// Deduplicates by series: only shows most recently played book per series
+// Standalone books (no series) are shown individually
 router.get('/meta/in-progress', authenticateToken, (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const userId = req.user.id;
 
   db.all(
-    `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
-            p.updated_at as last_played, p.queued_at,
-            CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
-     FROM audiobooks a
-     INNER JOIN playback_progress p ON a.id = p.audiobook_id
-     LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
-     WHERE p.user_id = ? AND p.completed = 0
-       AND (p.position >= 5 OR p.queued_at IS NOT NULL)
-       AND (a.is_available = 1 OR a.is_available IS NULL)
-     ORDER BY p.updated_at DESC
+    `WITH RankedBooks AS (
+       SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+              p.updated_at as last_played, p.queued_at,
+              CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+              ROW_NUMBER() OVER (
+                PARTITION BY CASE
+                  WHEN a.series IS NOT NULL AND a.series != '' THEN a.series
+                  ELSE 'standalone_' || a.id
+                END
+                ORDER BY p.updated_at DESC
+              ) as rn
+       FROM audiobooks a
+       INNER JOIN playback_progress p ON a.id = p.audiobook_id
+       LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+       WHERE p.user_id = ? AND p.completed = 0
+         AND (p.position >= 5 OR p.queued_at IS NOT NULL)
+         AND (a.is_available = 1 OR a.is_available IS NULL)
+     )
+     SELECT * FROM RankedBooks
+     WHERE rn = 1
+     ORDER BY last_played DESC
      LIMIT ?`,
     [userId, userId, limit],
     (err, audiobooks) => {
@@ -2265,6 +2278,7 @@ router.get('/meta/in-progress', authenticateToken, (req, res) => {
         delete b.progress_position;
         delete b.progress_completed;
         delete b.queued_at;
+        delete b.rn;
       });
 
       res.json(transformedAudiobooks);
