@@ -17,6 +17,13 @@
     padding-bottom: 0;
   }
 
+  /* iOS: account for safe area (notch/Dynamic Island) */
+  @supports (-webkit-touch-callout: none) {
+    .main-content {
+      padding-top: calc(48px + env(safe-area-inset-top));
+    }
+  }
+
   /* Add bottom padding when player is present */
   .app.player-active {
     padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));
