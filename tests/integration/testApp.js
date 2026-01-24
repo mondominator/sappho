@@ -289,17 +289,7 @@ function createTestApp(db) {
     });
   });
 
-  // Profile endpoint
-  app.get('/api/profile', (req, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-    db.get('SELECT id, username, email, display_name, is_admin FROM users WHERE id = ?',
-      [req.user.id], (err, user) => {
-        if (err) return res.status(500).json({ error: 'Database error' });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-        res.json(user);
-      });
-  });
+  // Profile endpoint (removed - using comprehensive version in PROFILE ROUTES section)
 
   // Admin-only middleware helper
   const requireAdmin = (req, res, next) => {
@@ -1444,6 +1434,380 @@ function createTestApp(db) {
       }
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // ==================== PROFILE ROUTES ====================
+
+  // GET /api/profile - Get current user profile
+  app.get('/api/profile', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.get(
+      'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
+      [req.user.id],
+      (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json({
+          ...user,
+          must_change_password: !!user.must_change_password
+        });
+      }
+    );
+  });
+
+  // GET /api/profile/stats - Get user listening stats
+  app.get('/api/profile/stats', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const userId = req.user.id;
+
+    // Simplified stats for testing
+    db.get(
+      `SELECT COALESCE(SUM(a.duration), 0) as totalListenTime
+       FROM playback_progress p
+       JOIN audiobooks a ON p.audiobook_id = a.id
+       WHERE p.user_id = ? AND p.completed = 1`,
+      [userId],
+      (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        db.get(
+          `SELECT COUNT(DISTINCT audiobook_id) as booksStarted
+           FROM playback_progress WHERE user_id = ? AND position > 0`,
+          [userId],
+          (err, row2) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            db.get(
+              `SELECT COUNT(*) as booksCompleted
+               FROM playback_progress WHERE user_id = ? AND completed = 1`,
+              [userId],
+              (err, row3) => {
+                if (err) return res.status(500).json({ error: err.message });
+
+                res.json({
+                  totalListenTime: row.totalListenTime,
+                  booksStarted: row2.booksStarted,
+                  booksCompleted: row3.booksCompleted,
+                  currentlyListening: 0,
+                  topAuthors: [],
+                  topGenres: [],
+                  recentActivity: [],
+                  activeDaysLast30: 0,
+                  currentStreak: 0,
+                  avgSessionLength: 0
+                });
+              }
+            );
+          }
+        );
+      }
+    );
+  });
+
+  // PUT /api/profile - Update profile
+  app.put('/api/profile', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { displayName, email } = req.body;
+    const updates = [];
+    const params = [];
+
+    if (displayName !== undefined) {
+      const trimmedDisplayName = displayName ? displayName.trim() : '';
+      if (trimmedDisplayName.length === 0) {
+        return res.status(400).json({ error: 'Display name cannot be empty or whitespace-only' });
+      }
+      if (trimmedDisplayName.length > 100) {
+        return res.status(400).json({ error: 'Display name must be 100 characters or less' });
+      }
+      updates.push('display_name = ?');
+      params.push(trimmedDisplayName);
+    }
+
+    if (email !== undefined) {
+      updates.push('email = ?');
+      params.push(email || null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(req.user.id);
+
+    db.run(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      params,
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+
+        db.get(
+          'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
+          [req.user.id],
+          (err, user) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({
+              ...user,
+              must_change_password: !!user.must_change_password
+            });
+          }
+        );
+      }
+    );
+  });
+
+  // DELETE /api/profile/avatar - Delete avatar
+  app.delete('/api/profile/avatar', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.run(
+      'UPDATE users SET avatar = NULL WHERE id = ?',
+      [req.user.id],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Avatar removed successfully' });
+      }
+    );
+  });
+
+  // PUT /api/profile/password - Change password
+  app.put('/api/profile/password', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    // Basic password validation
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    db.get(
+      'SELECT password_hash FROM users WHERE id = ?',
+      [req.user.id],
+      (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const bcrypt = require('bcryptjs');
+        const isValid = bcrypt.compareSync(currentPassword, user.password_hash);
+        if (!isValid) {
+          return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        const newPasswordHash = bcrypt.hashSync(newPassword, 10);
+        db.run(
+          'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?',
+          [newPasswordHash, req.user.id],
+          function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({
+              message: 'Password updated successfully. Please log in again on all devices.'
+            });
+          }
+        );
+      }
+    );
+  });
+
+  // ==================== SETTINGS ROUTES (Admin only) ====================
+
+  // GET /api/settings/all - Get all settings
+  app.get('/api/settings/all', requireAdmin, (req, res) => {
+    const settings = {
+      port: process.env.PORT || '3001',
+      nodeEnv: process.env.NODE_ENV || 'development',
+      databasePath: process.env.DATABASE_PATH || '/app/data/sappho.db',
+      dataDir: process.env.DATA_DIR || '/app/data',
+      audiobooksDir: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
+      uploadDir: process.env.UPLOAD_DIR || '/app/data/uploads',
+      libraryScanInterval: parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5,
+      autoBackupInterval: parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24,
+      backupRetention: parseInt(process.env.BACKUP_RETENTION) || 7,
+      logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
+    };
+    res.json({ settings, lockedFields: [] });
+  });
+
+  // PUT /api/settings/all - Update all settings
+  app.put('/api/settings/all', requireAdmin, (req, res) => {
+    const { port, nodeEnv, libraryScanInterval } = req.body;
+    const errors = [];
+    const updates = [];
+
+    if (port !== undefined) {
+      const portNum = parseInt(port);
+      if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        errors.push('Port must be between 1 and 65535');
+      } else {
+        updates.push('PORT');
+      }
+    }
+
+    if (nodeEnv !== undefined) {
+      if (!['development', 'production'].includes(nodeEnv)) {
+        errors.push('Environment must be "development" or "production"');
+      } else {
+        updates.push('NODE_ENV');
+      }
+    }
+
+    if (libraryScanInterval !== undefined) {
+      const interval = parseInt(libraryScanInterval);
+      if (isNaN(interval) || interval < 1 || interval > 1440) {
+        errors.push('Scan interval must be between 1 and 1440 minutes');
+      } else {
+        updates.push('LIBRARY_SCAN_INTERVAL');
+      }
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+
+    res.json({
+      message: 'Settings updated successfully.',
+      updated: updates,
+      requiresRestart: updates.filter(u => ['PORT', 'NODE_ENV'].includes(u))
+    });
+  });
+
+  // GET /api/settings/library - Get library settings
+  app.get('/api/settings/library', requireAdmin, (req, res) => {
+    res.json({
+      libraryPath: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
+      uploadPath: process.env.UPLOAD_DIR || '/app/data/uploads'
+    });
+  });
+
+  // PUT /api/settings/library - Update library settings
+  app.put('/api/settings/library', requireAdmin, (req, res) => {
+    const { libraryPath, uploadPath } = req.body;
+
+    if (!libraryPath || !uploadPath) {
+      return res.status(400).json({ error: 'All paths are required' });
+    }
+
+    res.json({ message: 'Library settings updated successfully.' });
+  });
+
+  // GET /api/settings/server - Get server settings
+  app.get('/api/settings/server', requireAdmin, (req, res) => {
+    const settings = {
+      port: process.env.PORT || '3001',
+      nodeEnv: process.env.NODE_ENV || 'development',
+      databasePath: process.env.DATABASE_PATH || '/app/data/sappho.db',
+      dataDir: process.env.DATA_DIR || '/app/data',
+      audiobooksDir: process.env.AUDIOBOOKS_DIR || '/app/data/audiobooks',
+      uploadDir: process.env.UPLOAD_DIR || '/app/data/uploads',
+      libraryScanInterval: parseInt(process.env.LIBRARY_SCAN_INTERVAL) || 5,
+      autoBackupInterval: parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24,
+      backupRetention: parseInt(process.env.BACKUP_RETENTION) || 7,
+      logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
+    };
+    res.json({ settings, lockedFields: [] });
+  });
+
+  // PUT /api/settings/server - Update server settings (same as /all)
+  app.put('/api/settings/server', requireAdmin, (req, res) => {
+    const { port, nodeEnv, libraryScanInterval } = req.body;
+    const errors = [];
+    const updates = [];
+
+    if (port !== undefined) {
+      const portNum = parseInt(port);
+      if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        errors.push('Port must be between 1 and 65535');
+      } else {
+        updates.push('PORT');
+      }
+    }
+
+    if (nodeEnv !== undefined) {
+      if (!['development', 'production'].includes(nodeEnv)) {
+        errors.push('Environment must be "development" or "production"');
+      } else {
+        updates.push('NODE_ENV');
+      }
+    }
+
+    if (libraryScanInterval !== undefined) {
+      const interval = parseInt(libraryScanInterval);
+      if (isNaN(interval) || interval < 1 || interval > 1440) {
+        errors.push('Scan interval must be between 1 and 1440 minutes');
+      } else {
+        updates.push('LIBRARY_SCAN_INTERVAL');
+      }
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+
+    res.json({
+      message: 'Settings updated successfully.',
+      updated: updates,
+      requiresRestart: updates.filter(u => ['PORT', 'NODE_ENV'].includes(u))
+    });
+  });
+
+  // GET /api/settings/ai - Get AI settings
+  app.get('/api/settings/ai', requireAdmin, (req, res) => {
+    res.json({
+      settings: {
+        aiProvider: process.env.AI_PROVIDER || 'openai',
+        openaiApiKey: process.env.OPENAI_API_KEY ? '••••••••' : '',
+        openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        geminiApiKey: process.env.GEMINI_API_KEY ? '••••••••' : '',
+        geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+        recapCustomPrompt: process.env.RECAP_CUSTOM_PROMPT || '',
+        recapOffensiveMode: process.env.RECAP_OFFENSIVE_MODE === 'true',
+        recapDefaultPrompt: 'Default prompt...'
+      }
+    });
+  });
+
+  // GET /api/settings/ai/status - Check if AI is configured
+  app.get('/api/settings/ai/status', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const provider = process.env.AI_PROVIDER || 'openai';
+    const hasApiKey = provider === 'gemini'
+      ? !!process.env.GEMINI_API_KEY
+      : !!process.env.OPENAI_API_KEY;
+
+    res.json({ configured: hasApiKey, provider });
+  });
+
+  // PUT /api/settings/ai - Update AI settings
+  app.put('/api/settings/ai', requireAdmin, (req, res) => {
+    const { aiProvider, openaiModel, geminiModel } = req.body;
+
+    if (aiProvider && !['openai', 'gemini'].includes(aiProvider)) {
+      return res.status(400).json({ error: 'Invalid AI provider' });
+    }
+
+    if (openaiModel) {
+      const validModels = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+      if (!validModels.includes(openaiModel)) {
+        return res.status(400).json({ error: 'Invalid OpenAI model selected' });
+      }
+    }
+
+    if (geminiModel) {
+      const validGeminiModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro'];
+      if (!validGeminiModels.includes(geminiModel)) {
+        return res.status(400).json({ error: 'Invalid Gemini model selected' });
+      }
+    }
+
+    res.json({ message: 'AI settings updated successfully' });
   });
 
   // ==================== COLLECTIONS ROUTES ====================
