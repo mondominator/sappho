@@ -8,8 +8,60 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+
+// Create temp directory for test uploads
+const testUploadDir = path.join(os.tmpdir(), 'sappho-test-uploads');
+if (!fs.existsSync(testUploadDir)) {
+  fs.mkdirSync(testUploadDir, { recursive: true });
+}
+
+// Multer configuration for test uploads
+const testStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, testUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const testFileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/m4a',
+    'audio/m4b',
+    'audio/x-m4a',
+    'audio/x-m4b',
+    'audio/mp4',
+    'audio/ogg',
+    'audio/flac',
+  ];
+
+  const allowedExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac'];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only audio files are allowed.'), false);
+  }
+};
+
+const testUpload = multer({
+  storage: testStorage,
+  fileFilter: testFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 * 1024, // 5GB limit
+  },
+});
 
 // Create in-memory database
 function createTestDatabase() {
@@ -1202,6 +1254,198 @@ function createTestApp(db) {
     });
   });
 
+  // ============================================
+  // UPLOAD ENDPOINTS
+  // ============================================
+
+  // Multer error handler middleware
+  const handleMulterError = (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File too large. Maximum size is 5GB.' });
+      }
+      return res.status(400).json({ error: err.message });
+    } else if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  };
+
+  // Single file upload
+  app.post('/api/upload', (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    next();
+  }, testUpload.single('audiobook'), handleMulterError, (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+
+    // Simulate audiobook creation from uploaded file
+    db.run(
+      `INSERT INTO audiobooks (title, author, narrator, duration, file_path, file_size, added_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        path.basename(req.file.originalname, path.extname(req.file.originalname)),
+        'Unknown Author',
+        null,
+        3600,
+        req.file.path,
+        req.file.size,
+        userId
+      ],
+      function(err) {
+        // Clean up test file
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+
+        if (err) {
+          return res.status(500).json({ error: 'Database error' });
+        }
+
+        db.get('SELECT * FROM audiobooks WHERE id = ?', [this.lastID], (err, audiobook) => {
+          if (err) return res.status(500).json({ error: 'Database error' });
+          res.json({
+            message: 'Audiobook uploaded successfully',
+            audiobook: audiobook
+          });
+        });
+      }
+    );
+  });
+
+  // Batch upload (multiple files as separate audiobooks)
+  app.post('/api/upload/batch', (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    next();
+  }, testUpload.array('audiobooks', 10), handleMulterError, async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const userId = req.user.id;
+    const results = [];
+
+    for (const file of req.files) {
+      try {
+        const audiobookId = await new Promise((resolve, reject) => {
+          db.run(
+            `INSERT INTO audiobooks (title, author, narrator, duration, file_path, file_size, added_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              path.basename(file.originalname, path.extname(file.originalname)),
+              'Unknown Author',
+              null,
+              3600,
+              file.path,
+              file.size,
+              userId
+            ],
+            function(err) {
+              if (err) reject(err);
+              else resolve(this.lastID);
+            }
+          );
+        });
+
+        const audiobook = await new Promise((resolve, reject) => {
+          db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+
+        results.push({ success: true, filename: file.originalname, audiobook });
+      } catch (error) {
+        results.push({ success: false, filename: file.originalname, error: error.message });
+      } finally {
+        // Clean up test file
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      }
+    }
+
+    res.json({
+      message: 'Batch upload completed',
+      results: results
+    });
+  });
+
+  // Multi-file upload (multiple files as single audiobook with chapters)
+  app.post('/api/upload/multifile', (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    next();
+  }, testUpload.array('audiobooks', 100), handleMulterError, async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const userId = req.user.id;
+    const bookName = req.body.bookName || 'Multi-File Audiobook';
+
+    // Sort files by name
+    const sortedFiles = req.files.sort((a, b) =>
+      a.originalname.localeCompare(b.originalname, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    try {
+      // Calculate total size
+      const totalSize = sortedFiles.reduce((sum, f) => sum + f.size, 0);
+      const totalDuration = sortedFiles.length * 600; // Estimate 10 min per file
+
+      // Create audiobook record
+      const audiobookId = await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, narrator, duration, file_path, file_size, added_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            bookName,
+            'Unknown Author',
+            null,
+            totalDuration,
+            sortedFiles[0].path,
+            totalSize,
+            userId
+          ],
+          function(err) {
+            if (err) reject(err);
+            else resolve(this.lastID);
+          }
+        );
+      });
+
+      const audiobook = await new Promise((resolve, reject) => {
+        db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+
+      // Clean up test files
+      for (const file of sortedFiles) {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      }
+
+      res.json({
+        message: 'Multi-file audiobook uploaded successfully',
+        audiobook: audiobook
+      });
+    } catch (error) {
+      // Clean up on error
+      for (const file of sortedFiles) {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return app;
 }
 
@@ -1252,5 +1496,6 @@ module.exports = {
   createTestUser,
   generateTestToken,
   createTestApp,
-  createTestAudiobook
+  createTestAudiobook,
+  testUploadDir
 };
