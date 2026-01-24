@@ -63,7 +63,9 @@ describe('Authorization Tests', () => {
         .set('Authorization', `Bearer ${userToken}`)
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
+      // Response is now paginated { audiobooks, total, limit, offset }
+      expect(response.body).toHaveProperty('audiobooks');
+      expect(Array.isArray(response.body.audiobooks)).toBe(true);
     });
   });
 

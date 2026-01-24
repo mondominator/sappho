@@ -37,21 +37,35 @@ function createTestDatabase() {
           )
         `);
 
-        // Audiobooks table
+        // Audiobooks table (full schema)
         db.run(`
           CREATE TABLE IF NOT EXISTS audiobooks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             author TEXT,
             narrator TEXT,
+            description TEXT,
             duration INTEGER,
             file_path TEXT,
+            file_size INTEGER,
             cover_image TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            cover_path TEXT,
+            isbn TEXT,
+            asin TEXT,
+            published_year INTEGER,
+            genre TEXT,
+            series TEXT,
+            series_position REAL,
+            series_index REAL,
+            language TEXT DEFAULT 'en',
+            is_available INTEGER DEFAULT 1,
+            added_by INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);
 
-        // Progress table
+        // Progress table (with queued_at for up-next feature)
         db.run(`
           CREATE TABLE IF NOT EXISTS playback_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,8 +73,60 @@ function createTestDatabase() {
             audiobook_id INTEGER NOT NULL,
             position INTEGER DEFAULT 0,
             completed INTEGER DEFAULT 0,
+            queued_at DATETIME,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, audiobook_id)
+          )
+        `);
+
+        // User favorites table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS user_favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            audiobook_id INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, audiobook_id)
+          )
+        `);
+
+        // User ratings table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS user_ratings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            audiobook_id INTEGER NOT NULL,
+            rating INTEGER CHECK(rating >= 1 AND rating <= 5),
+            review TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, audiobook_id)
+          )
+        `);
+
+        // User collections table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS user_collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            cover_image TEXT,
+            is_public INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Collection items table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS collection_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            collection_id INTEGER NOT NULL,
+            audiobook_id INTEGER NOT NULL,
+            position INTEGER NOT NULL DEFAULT 0,
+            added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(collection_id, audiobook_id)
           )
         `);
 
@@ -183,16 +249,6 @@ function createTestApp(db) {
       });
   });
 
-  // Audiobooks list endpoint
-  app.get('/api/audiobooks', (req, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-    db.all('SELECT * FROM audiobooks ORDER BY created_at DESC', [], (err, audiobooks) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      res.json(audiobooks);
-    });
-  });
-
   // Admin-only middleware helper
   const requireAdmin = (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -210,6 +266,548 @@ function createTestApp(db) {
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Password must contain a special character');
     return errors;
   };
+
+  // Audiobooks list endpoint with filtering and pagination
+  app.get('/api/audiobooks', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { genre, author, series, search, favorites, includeUnavailable, limit = 50, offset = 0 } = req.query;
+    const userId = req.user.id;
+
+    let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+                        p.updated_at as progress_updated_at,
+                        CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+                        ur.rating as user_rating
+                 FROM audiobooks a
+                 LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+                 LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+                 LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?
+                 WHERE 1=1`;
+    const params = [userId, userId, userId];
+
+    // Filter out unavailable books by default
+    if (includeUnavailable !== 'true') {
+      query += ' AND (a.is_available = 1 OR a.is_available IS NULL)';
+    }
+
+    if (genre) {
+      query += ' AND a.genre LIKE ?';
+      params.push(`%${genre}%`);
+    }
+
+    if (author) {
+      query += ' AND a.author LIKE ?';
+      params.push(`%${author}%`);
+    }
+
+    if (series) {
+      query += ' AND a.series LIKE ?';
+      params.push(`%${series}%`);
+    }
+
+    if (search) {
+      query += ' AND (a.title LIKE ? OR a.author LIKE ? OR a.narrator LIKE ? OR a.series LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (favorites === 'true') {
+      query += ' AND f.id IS NOT NULL';
+    }
+
+    query += ' ORDER BY a.title ASC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+
+    db.all(query, params, (err, audiobooks) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+
+      // Transform to match real API response shape
+      const transformedAudiobooks = audiobooks.map(book => {
+        const { progress_position, progress_completed, progress_updated_at, is_favorite, user_rating, ...rest } = book;
+        return {
+          ...rest,
+          is_favorite: !!is_favorite,
+          user_rating: user_rating || null,
+          progress: progress_position !== null ? {
+            position: progress_position,
+            completed: progress_completed,
+            updated_at: progress_updated_at
+          } : null
+        };
+      });
+
+      // Get total count for pagination
+      let countQuery = favorites === 'true'
+        ? `SELECT COUNT(*) as total FROM audiobooks a
+           INNER JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+           WHERE 1=1`
+        : 'SELECT COUNT(*) as total FROM audiobooks a WHERE 1=1';
+      const countParams = favorites === 'true' ? [userId] : [];
+
+      if (includeUnavailable !== 'true') {
+        countQuery += ' AND (a.is_available = 1 OR a.is_available IS NULL)';
+      }
+
+      db.get(countQuery, countParams, (err, countResult) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({
+          audiobooks: transformedAudiobooks,
+          total: countResult?.total || 0,
+          limit: parseInt(limit),
+          offset: parseInt(offset)
+        });
+      });
+    });
+  });
+
+  // Get favorites list (must be before :id route)
+  app.get('/api/audiobooks/favorites', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT a.* FROM audiobooks a
+       INNER JOIN user_favorites f ON a.id = f.audiobook_id
+       WHERE f.user_id = ?
+       ORDER BY f.created_at DESC`,
+      [req.user.id],
+      (err, audiobooks) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(audiobooks);
+      }
+    );
+  });
+
+  // Get single audiobook
+  app.get('/api/audiobooks/:id', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    const userId = req.user.id;
+
+    db.get(
+      `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
+              CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+              ur.rating as user_rating
+       FROM audiobooks a
+       LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+       LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+       LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?
+       WHERE a.id = ?`,
+      [userId, userId, userId, audiobookId],
+      (err, audiobook) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+        const { progress_position, progress_completed, is_favorite, user_rating, ...rest } = audiobook;
+        res.json({
+          ...rest,
+          is_favorite: !!is_favorite,
+          user_rating: user_rating || null,
+          progress: progress_position !== null ? {
+            position: progress_position,
+            completed: progress_completed
+          } : null
+        });
+      }
+    );
+  });
+
+  // Update audiobook
+  app.put('/api/audiobooks/:id', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    const { title, author, narrator, description, genre, series, series_position } = req.body;
+
+    const updates = [];
+    const params = [];
+
+    if (title !== undefined) { updates.push('title = ?'); params.push(title); }
+    if (author !== undefined) { updates.push('author = ?'); params.push(author); }
+    if (narrator !== undefined) { updates.push('narrator = ?'); params.push(narrator); }
+    if (description !== undefined) { updates.push('description = ?'); params.push(description); }
+    if (genre !== undefined) { updates.push('genre = ?'); params.push(genre); }
+    if (series !== undefined) { updates.push('series = ?'); params.push(series); }
+    if (series_position !== undefined) { updates.push('series_position = ?'); params.push(series_position); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(audiobookId);
+
+    db.run(
+      `UPDATE audiobooks SET ${updates.join(', ')} WHERE id = ?`,
+      params,
+      function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (this.changes === 0) return res.status(404).json({ error: 'Audiobook not found' });
+        res.json({ message: 'Audiobook updated successfully' });
+      }
+    );
+  });
+
+  // Get audiobook progress
+  app.get('/api/audiobooks/:id/progress', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    db.get(
+      'SELECT position, completed, updated_at FROM playback_progress WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      (err, progress) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(progress || { position: 0, completed: 0 });
+      }
+    );
+  });
+
+  // Save audiobook progress
+  app.post('/api/audiobooks/:id/progress', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    const { position, completed } = req.body;
+
+    if (position === undefined) {
+      return res.status(400).json({ error: 'Position is required' });
+    }
+
+    // Check audiobook exists
+    db.get('SELECT id, duration FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+      // Determine if completed (position >= 95% of duration)
+      const isCompleted = completed !== undefined ? completed :
+        (audiobook.duration && position >= audiobook.duration * 0.95 ? 1 : 0);
+
+      db.run(
+        `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+           position = ?, completed = ?, updated_at = CURRENT_TIMESTAMP`,
+        [req.user.id, audiobookId, position, isCompleted, position, isCompleted],
+        function(err) {
+          if (err) return res.status(500).json({ error: 'Database error' });
+          res.json({
+            success: true,
+            position,
+            completed: isCompleted,
+            progressPercent: audiobook.duration ? Math.round((position / audiobook.duration) * 100) : 0
+          });
+        }
+      );
+    });
+  });
+
+  // Delete audiobook progress
+  app.delete('/api/audiobooks/:id/progress', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    db.run(
+      'DELETE FROM playback_progress WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true, deleted: this.changes > 0 });
+      }
+    );
+  });
+
+  // Check if audiobook is favorite
+  app.get('/api/audiobooks/:id/favorite', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    db.get(
+      'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      (err, row) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ is_favorite: !!row });
+      }
+    );
+  });
+
+  // Add audiobook to favorites
+  app.post('/api/audiobooks/:id/favorite', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+
+    // Check audiobook exists
+    db.get('SELECT id FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+      db.run(
+        'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+        [req.user.id, audiobookId],
+        function(err) {
+          if (err) return res.status(500).json({ error: 'Database error' });
+          res.json({ success: true, is_favorite: true });
+        }
+      );
+    });
+  });
+
+  // Remove audiobook from favorites
+  app.delete('/api/audiobooks/:id/favorite', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    db.run(
+      'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true, is_favorite: false });
+      }
+    );
+  });
+
+  // Toggle favorite status
+  app.post('/api/audiobooks/:id/favorite/toggle', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+
+    db.get(
+      'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      (err, row) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+
+        if (row) {
+          // Remove from favorites
+          db.run(
+            'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+            [req.user.id, audiobookId],
+            function(err) {
+              if (err) return res.status(500).json({ error: 'Database error' });
+              res.json({ success: true, is_favorite: false });
+            }
+          );
+        } else {
+          // Check audiobook exists then add
+          db.get('SELECT id FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
+            if (err) return res.status(500).json({ error: 'Database error' });
+            if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
+
+            db.run(
+              'INSERT INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+              [req.user.id, audiobookId],
+              function(err) {
+                if (err) return res.status(500).json({ error: 'Database error' });
+                res.json({ success: true, is_favorite: true });
+              }
+            );
+          });
+        }
+      }
+    );
+  });
+
+  // Meta: Get all series
+  app.get('/api/audiobooks/meta/series', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT series, COUNT(*) as book_count, MIN(series_position) as first_position
+       FROM audiobooks
+       WHERE series IS NOT NULL AND series != ''
+       AND (is_available = 1 OR is_available IS NULL)
+       GROUP BY series
+       ORDER BY series ASC`,
+      [],
+      (err, series) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(series);
+      }
+    );
+  });
+
+  // Meta: Get all authors
+  app.get('/api/audiobooks/meta/authors', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT author, COUNT(*) as book_count
+       FROM audiobooks
+       WHERE author IS NOT NULL AND author != ''
+       AND (is_available = 1 OR is_available IS NULL)
+       GROUP BY author
+       ORDER BY author ASC`,
+      [],
+      (err, authors) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(authors);
+      }
+    );
+  });
+
+  // Meta: Get all genres
+  app.get('/api/audiobooks/meta/genres', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT genre, COUNT(*) as book_count
+       FROM audiobooks
+       WHERE genre IS NOT NULL AND genre != ''
+       AND (is_available = 1 OR is_available IS NULL)
+       GROUP BY genre
+       ORDER BY book_count DESC`,
+      [],
+      (err, genres) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(genres);
+      }
+    );
+  });
+
+  // Meta: Get recent audiobooks
+  app.get('/api/audiobooks/meta/recent', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const limit = parseInt(req.query.limit) || 10;
+    db.all(
+      `SELECT * FROM audiobooks
+       WHERE (is_available = 1 OR is_available IS NULL)
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      [limit],
+      (err, audiobooks) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(audiobooks);
+      }
+    );
+  });
+
+  // Meta: Get in-progress audiobooks for current user
+  app.get('/api/audiobooks/meta/in-progress', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT a.*, p.position, p.completed, p.updated_at as progress_updated_at
+       FROM audiobooks a
+       INNER JOIN playback_progress p ON a.id = p.audiobook_id
+       WHERE p.user_id = ? AND p.position > 0 AND p.completed = 0
+       AND (a.is_available = 1 OR a.is_available IS NULL)
+       ORDER BY p.updated_at DESC`,
+      [req.user.id],
+      (err, audiobooks) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(audiobooks);
+      }
+    );
+  });
+
+  // Meta: Get finished audiobooks for current user
+  app.get('/api/audiobooks/meta/finished', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT a.*, p.position, p.completed, p.updated_at as progress_updated_at
+       FROM audiobooks a
+       INNER JOIN playback_progress p ON a.id = p.audiobook_id
+       WHERE p.user_id = ? AND p.completed = 1
+       AND (a.is_available = 1 OR a.is_available IS NULL)
+       ORDER BY p.updated_at DESC`,
+      [req.user.id],
+      (err, audiobooks) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(audiobooks);
+      }
+    );
+  });
+
+  // Meta: Get up-next audiobooks (queued)
+  app.get('/api/audiobooks/meta/up-next', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT a.*, p.position, p.completed, p.queued_at
+       FROM audiobooks a
+       INNER JOIN playback_progress p ON a.id = p.audiobook_id
+       WHERE p.user_id = ? AND p.queued_at IS NOT NULL AND p.completed = 0
+       AND (a.is_available = 1 OR a.is_available IS NULL)
+       ORDER BY p.queued_at DESC`,
+      [req.user.id],
+      (err, audiobooks) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(audiobooks);
+      }
+    );
+  });
+
+  // Batch: Mark multiple audiobooks as finished
+  app.post('/api/audiobooks/batch/mark-finished', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { audiobook_ids } = req.body;
+    if (!audiobook_ids || !Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+      return res.status(400).json({ error: 'audiobook_ids array is required' });
+    }
+
+    const placeholders = audiobook_ids.map(() => '(?, ?, 0, 1, CURRENT_TIMESTAMP)').join(', ');
+    const params = audiobook_ids.flatMap(id => [req.user.id, id]);
+
+    db.run(
+      `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
+       VALUES ${placeholders}
+       ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+         completed = 1, updated_at = CURRENT_TIMESTAMP`,
+      params,
+      function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true, updated: audiobook_ids.length });
+      }
+    );
+  });
+
+  // Batch: Clear progress for multiple audiobooks
+  app.post('/api/audiobooks/batch/clear-progress', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { audiobook_ids } = req.body;
+    if (!audiobook_ids || !Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+      return res.status(400).json({ error: 'audiobook_ids array is required' });
+    }
+
+    const placeholders = audiobook_ids.map(() => '?').join(', ');
+    db.run(
+      `DELETE FROM playback_progress WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+      [req.user.id, ...audiobook_ids],
+      function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true, deleted: this.changes });
+      }
+    );
+  });
+
+  // Batch: Delete audiobooks (admin only)
+  app.post('/api/audiobooks/batch/delete', requireAdmin, (req, res) => {
+    const { audiobook_ids, delete_files } = req.body;
+    if (!audiobook_ids || !Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+      return res.status(400).json({ error: 'audiobook_ids array is required' });
+    }
+
+    const placeholders = audiobook_ids.map(() => '?').join(', ');
+
+    // Delete related data first
+    db.serialize(() => {
+      db.run(`DELETE FROM playback_progress WHERE audiobook_id IN (${placeholders})`, audiobook_ids);
+      db.run(`DELETE FROM user_favorites WHERE audiobook_id IN (${placeholders})`, audiobook_ids);
+      db.run(`DELETE FROM user_ratings WHERE audiobook_id IN (${placeholders})`, audiobook_ids);
+      db.run(`DELETE FROM collection_items WHERE audiobook_id IN (${placeholders})`, audiobook_ids);
+      db.run(`DELETE FROM audiobooks WHERE id IN (${placeholders})`, audiobook_ids, function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true, deleted: this.changes, files_deleted: !!delete_files });
+      });
+    });
+  });
 
   // GET /api/users - List all users (admin only)
   app.get('/api/users', requireAdmin, (req, res) => {
@@ -607,9 +1205,52 @@ function createTestApp(db) {
   return app;
 }
 
+// Create test audiobook
+async function createTestAudiobook(db, {
+  title,
+  author = 'Test Author',
+  narrator = 'Test Narrator',
+  description = 'Test description',
+  duration = 3600,
+  file_path = '/test/audiobook.m4b',
+  file_size = 100000000,
+  genre = null,
+  series = null,
+  series_position = null,
+  published_year = null,
+  is_available = 1
+}) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO audiobooks (title, author, narrator, description, duration, file_path, file_size, genre, series, series_position, published_year, is_available)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, author, narrator, description, duration, file_path, file_size, genre, series, series_position, published_year, is_available],
+      function(err) {
+        if (err) return reject(err);
+        resolve({
+          id: this.lastID,
+          title,
+          author,
+          narrator,
+          description,
+          duration,
+          file_path,
+          file_size,
+          genre,
+          series,
+          series_position,
+          published_year,
+          is_available
+        });
+      }
+    );
+  });
+}
+
 module.exports = {
   createTestDatabase,
   createTestUser,
   generateTestToken,
-  createTestApp
+  createTestApp,
+  createTestAudiobook
 };
