@@ -119,13 +119,16 @@ describe('API Integration Tests', () => {
   });
 
   describe('Audiobooks', () => {
-    test('GET /api/audiobooks with valid token returns array', async () => {
+    test('GET /api/audiobooks with valid token returns paginated response', async () => {
       const response = await request(app)
         .get('/api/audiobooks')
         .set('Authorization', `Bearer ${userToken}`)
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
+      // Response is now paginated { audiobooks, total, limit, offset }
+      expect(response.body).toHaveProperty('audiobooks');
+      expect(Array.isArray(response.body.audiobooks)).toBe(true);
+      expect(response.body).toHaveProperty('total');
     });
 
     test('GET /api/audiobooks without token returns 401', async () => {
