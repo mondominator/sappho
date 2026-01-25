@@ -192,7 +192,20 @@ function createTestDatabase() {
             user_id INTEGER NOT NULL,
             permissions TEXT,
             expires_at DATETIME,
+            last_used_at DATETIME,
+            is_active INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Series recaps cache table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS series_recaps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_name TEXT NOT NULL UNIQUE,
+            recap TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `, (err) => {
           if (err) return reject(err);
@@ -2177,6 +2190,405 @@ function createTestApp(db) {
           res.status(500).json({ error: err.message });
         });
     });
+  });
+
+
+
+  // ==================== API KEYS ROUTES ====================
+
+  // Helper to generate API key
+  const generateApiKey = () => {
+    const key = crypto.randomBytes(32).toString('hex');
+    const fullKey = `sapho_${key}`;
+    const prefix = key.substring(0, 8);
+    const hash = crypto.createHash('sha256').update(fullKey).digest('hex');
+    return { key: fullKey, prefix: `sapho_${prefix}`, hash };
+  };
+
+  // GET /api/api-keys - List all API keys for current user
+  app.get('/api/api-keys', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT id, name, key_prefix, permissions, last_used_at, expires_at, is_active, created_at
+       FROM api_keys
+       WHERE user_id = ?
+       ORDER BY created_at DESC`,
+      [req.user.id],
+      (err, keys) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(keys || []);
+      }
+    );
+  });
+
+  // POST /api/api-keys - Create a new API key
+  app.post('/api/api-keys', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { name, permissions, expires_in_days } = req.body;
+
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const { key, prefix, hash } = generateApiKey();
+    const permissionsStr = permissions || 'read';
+
+    // Default and maximum expiration for API keys
+    const DEFAULT_EXPIRY_DAYS = 90;
+    const MAX_EXPIRY_DAYS = 365;
+
+    let expiryDays = expires_in_days || DEFAULT_EXPIRY_DAYS;
+    expiryDays = Math.min(Math.max(1, expiryDays), MAX_EXPIRY_DAYS);
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + expiryDays);
+    const expiresAt = expiry.toISOString();
+
+    db.run(
+      `INSERT INTO api_keys (name, key_hash, key_prefix, user_id, permissions, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [name, hash, prefix, req.user.id, permissionsStr, expiresAt],
+      function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) {
+            return res.status(409).json({ error: 'An API key with this hash already exists' });
+          }
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          id: this.lastID,
+          name,
+          key,
+          key_prefix: prefix,
+          permissions: permissionsStr,
+          expires_at: expiresAt,
+          created_at: new Date().toISOString(),
+          message: 'Save this key securely - it will not be shown again!'
+        });
+      }
+    );
+  });
+
+  // PUT /api/api-keys/:id - Update an API key
+  app.put('/api/api-keys/:id', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { name, permissions, is_active } = req.body;
+    const updates = [];
+    const params = [];
+
+    if (name !== undefined) {
+      updates.push('name = ?');
+      params.push(name);
+    }
+
+    if (permissions !== undefined) {
+      updates.push('permissions = ?');
+      params.push(permissions);
+    }
+
+    if (is_active !== undefined) {
+      updates.push('is_active = ?');
+      params.push(is_active ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(req.params.id);
+    params.push(req.user.id);
+
+    db.run(
+      `UPDATE api_keys SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
+      params,
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: 'API key not found' });
+        res.json({ message: 'API key updated successfully' });
+      }
+    );
+  });
+
+  // DELETE /api/api-keys/:id - Delete an API key
+  app.delete('/api/api-keys/:id', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.run(
+      'DELETE FROM api_keys WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: 'API key not found' });
+        res.json({ message: 'API key deleted successfully' });
+      }
+    );
+  });
+
+  // ==================== RATINGS ROUTES ====================
+
+  // GET /api/ratings/my-ratings - Get all ratings by current user (MUST be before :audiobookId routes)
+  app.get('/api/ratings/my-ratings', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT ur.*, a.title, a.author, a.cover_image
+       FROM user_ratings ur
+       JOIN audiobooks a ON ur.audiobook_id = a.id
+       WHERE ur.user_id = ?
+       ORDER BY ur.updated_at DESC`,
+      [req.user.id],
+      (err, ratings) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(ratings || []);
+      }
+    );
+  });
+
+  // GET /api/ratings/audiobook/:audiobookId - Get current user's rating for an audiobook
+  app.get('/api/ratings/audiobook/:audiobookId', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.get(
+      'SELECT * FROM user_ratings WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, req.params.audiobookId],
+      (err, rating) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rating || null);
+      }
+    );
+  });
+
+  // GET /api/ratings/audiobook/:audiobookId/all - Get all ratings for an audiobook
+  app.get('/api/ratings/audiobook/:audiobookId/all', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.all(
+      `SELECT ur.*, u.username, u.display_name
+       FROM user_ratings ur
+       JOIN users u ON ur.user_id = u.id
+       WHERE ur.audiobook_id = ?
+       ORDER BY ur.updated_at DESC`,
+      [req.params.audiobookId],
+      (err, ratings) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(ratings || []);
+      }
+    );
+  });
+
+  // GET /api/ratings/audiobook/:audiobookId/average - Get average rating for an audiobook
+  app.get('/api/ratings/audiobook/:audiobookId/average', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.get(
+      `SELECT
+         AVG(rating) as average_rating,
+         COUNT(*) as rating_count
+       FROM user_ratings
+       WHERE audiobook_id = ? AND rating IS NOT NULL`,
+      [req.params.audiobookId],
+      (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({
+          average: result.average_rating ? Math.round(result.average_rating * 10) / 10 : null,
+          count: result.rating_count || 0
+        });
+      }
+    );
+  });
+
+  // POST /api/ratings/audiobook/:audiobookId - Set or update rating/review for an audiobook
+  app.post('/api/ratings/audiobook/:audiobookId', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { audiobookId } = req.params;
+    const { rating, review } = req.body;
+
+    // Validate rating if provided
+    if (rating !== undefined && rating !== null) {
+      const ratingNum = parseInt(rating);
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      }
+    }
+
+    // Check if rating already exists
+    db.get(
+      'SELECT id FROM user_ratings WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      (err, existing) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (existing) {
+          // Update existing rating
+          db.run(
+            `UPDATE user_ratings
+             SET rating = ?, review = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE user_id = ? AND audiobook_id = ?`,
+            [rating || null, review || null, req.user.id, audiobookId],
+            function(err) {
+              if (err) return res.status(500).json({ error: err.message });
+
+              db.get('SELECT * FROM user_ratings WHERE id = ?', [existing.id], (err, updated) => {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json(updated);
+              });
+            }
+          );
+        } else {
+          // Create new rating
+          db.run(
+            'INSERT INTO user_ratings (user_id, audiobook_id, rating, review) VALUES (?, ?, ?, ?)',
+            [req.user.id, audiobookId, rating || null, review || null],
+            function(err) {
+              if (err) return res.status(500).json({ error: err.message });
+
+              db.get('SELECT * FROM user_ratings WHERE id = ?', [this.lastID], (err, created) => {
+                if (err) return res.status(500).json({ error: err.message });
+                res.status(201).json(created);
+              });
+            }
+          );
+        }
+      }
+    );
+  });
+
+  // DELETE /api/ratings/audiobook/:audiobookId - Delete rating/review for an audiobook
+  app.delete('/api/ratings/audiobook/:audiobookId', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    db.run(
+      'DELETE FROM user_ratings WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, req.params.audiobookId],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: 'Rating not found' });
+        res.json({ success: true });
+      }
+    );
+  });
+
+  // ==================== SESSIONS ROUTES ====================
+
+  // Mock session manager for tests
+  const mockSessions = new Map();
+
+  const getTestSessionManager = () => ({
+    getAllSessions: () => Array.from(mockSessions.values()),
+    getUserSessions: (userId) => Array.from(mockSessions.values()).filter(s => s.userId === userId),
+    getSession: (sessionId) => mockSessions.get(sessionId) || null,
+    stopSession: (sessionId) => mockSessions.delete(sessionId),
+    createSession: (session) => { mockSessions.set(session.id, session); return session; }
+  });
+
+  // Expose session manager for tests
+  app.testSessionManager = getTestSessionManager();
+
+  // GET /api/sessions - Get all active sessions
+  app.get('/api/sessions', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      const sessions = app.testSessionManager.getAllSessions();
+      res.json({ sessions });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/sessions/user/:userId - Get sessions for a specific user
+  app.get('/api/sessions/user/:userId', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      const sessions = app.testSessionManager.getUserSessions(parseInt(req.params.userId));
+      res.json({ sessions });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/sessions/:sessionId - Get a specific session by ID
+  app.get('/api/sessions/:sessionId', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      const session = app.testSessionManager.getSession(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      res.json({ session });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/sessions/:sessionId - Stop a session
+  app.delete('/api/sessions/:sessionId', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      app.testSessionManager.stopSession(req.params.sessionId);
+      res.json({ success: true, message: 'Session stopped' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== SERIES ROUTES ====================
+
+  // GET /api/series/:seriesName/recap - Get series recap (limited test - returns mock data)
+  app.get('/api/series/:seriesName/recap', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { seriesName } = req.params;
+    const decodedSeriesName = decodeURIComponent(seriesName);
+
+    // Check cache first
+    db.get(
+      'SELECT * FROM series_recaps WHERE series_name = ?',
+      [decodedSeriesName],
+      (err, cached) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (cached) {
+          return res.json({
+            seriesName: decodedSeriesName,
+            recap: cached.recap,
+            cached: true,
+            generatedAt: cached.created_at
+          });
+        }
+
+        // In real app, would call AI here. For tests, return mock
+        res.json({
+          seriesName: decodedSeriesName,
+          recap: 'Mock series recap for testing purposes.',
+          cached: false,
+          generatedAt: new Date().toISOString()
+        });
+      }
+    );
+  });
+
+  // DELETE /api/series/:seriesName/recap - Clear cached recap (admin only)
+  app.delete('/api/series/:seriesName/recap', requireAdmin, (req, res) => {
+    const { seriesName } = req.params;
+    const decodedSeriesName = decodeURIComponent(seriesName);
+
+    db.run(
+      'DELETE FROM series_recaps WHERE series_name = ?',
+      [decodedSeriesName],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, deleted: this.changes > 0 });
+      }
+    );
   });
 
   return app;
