@@ -54,14 +54,6 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: unit-coverage
-          path: coverage/
-          retention-days: 7
-
   # Job 3: Integration tests (API tests with in-memory database)
   integration-tests:
     name: Integration Tests
@@ -85,14 +77,6 @@ jobs:
         env:
           JWT_SECRET: test-secret-for-ci
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: integration-coverage
-          path: coverage/
-          retention-days: 7
-
   # Job 4: Docker configuration validation
   docker-validation:
     name: Docker Config Validation
@@ -114,11 +98,42 @@ jobs:
       - name: Validate Docker configuration
         run: npm run test:docker
 
-  # Job 5: Test summary
+  # Job 5: Coverage threshold enforcement
+  coverage-check:
+    name: Coverage Thresholds
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run all tests with coverage
+        run: npm run test:all
+        env:
+          JWT_SECRET: test-secret-for-ci
+
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: combined-coverage
+          path: coverage/
+          retention-days: 7
+
+  # Job 6: Test summary
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests, integration-tests, docker-validation]
+    needs: [lint, unit-tests, integration-tests, docker-validation, coverage-check]
     if: always()
 
     steps:
@@ -132,9 +147,10 @@ jobs:
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Docker Validation | ${{ needs.docker-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage Thresholds | ${{ needs.coverage-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Check Overall Status
-        if: needs.lint.result == 'failure' || needs.unit-tests.result == 'failure' || needs.integration-tests.result == 'failure' || needs.docker-validation.result == 'failure'
+        if: needs.lint.result == 'failure' || needs.unit-tests.result == 'failure' || needs.integration-tests.result == 'failure' || needs.docker-validation.result == 'failure' || needs.coverage-check.result == 'failure'
         run: |
           echo "::error::One or more test suites failed. Please review and fix the issues."
           exit 1
