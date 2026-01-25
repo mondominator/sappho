@@ -13,8 +13,8 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "test": "jest",
-    "test:unit": "jest tests/unit --coverage",
-    "test:integration": "jest tests/integration --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
     "test:docker": "jest tests/docker",
     "test:all": "jest --coverage",
     "lint": "eslint server/"
