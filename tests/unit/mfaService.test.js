@@ -104,6 +104,20 @@ describe('MFA Service', () => {
       const result = verifyToken('123456', 'invalid-secret');
       expect(result).toBe(false);
     });
+
+    test('handles undefined secret by catching error', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const result = verifyToken('123456', undefined);
+      expect(result).toBe(false);
+      consoleSpy.mockRestore();
+    });
+
+    test('handles null token by catching error', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const result = verifyToken(null, 'JBSWY3DPEHPK3PXP');
+      expect(result).toBe(false);
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('generateBackupCodes', () => {
@@ -232,6 +246,31 @@ describe('MFA Service', () => {
       // Test with lowercase and dashes
       const result = await verifyBackupCode(1, plainCodes[0].toLowerCase());
       expect(result).toBe(true);
+    });
+
+    test('logs error but still returns true when db.run fails to update used code', async () => {
+      const { plainCodes, hashedCodes } = generateBackupCodes(1);
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      db.get.mockImplementation((query, params, callback) => {
+        callback(null, { mfa_backup_codes: JSON.stringify(hashedCodes) });
+      });
+      db.run.mockImplementation((query, params, callback) => {
+        // Simulate db.run error when marking code as used
+        callback(new Error('Update failed'));
+      });
+
+      // Should still return true because the code was valid
+      const result = await verifyBackupCode(1, plainCodes[0]);
+      expect(result).toBe(true);
+
+      // Should have logged the error
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Error updating backup codes:',
+        expect.any(Error)
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 
