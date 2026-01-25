@@ -231,5 +231,17 @@ async function main() {
   }
 }
 
-// Run the script
-main();
+// Export functions for testing
+module.exports = {
+  findMultiFileAudiobooks,
+  groupByDirectory,
+  consolidateGroup,
+  main,
+  // Export db for tests to close connection
+  getDb: () => db
+};
+
+// Run the script only if called directly
+if (require.main === module) {
+  main();
+}

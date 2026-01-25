@@ -108,13 +108,22 @@ async function processAllAudiobooks() {
   });
 }
 
-// Run the script
-processAllAudiobooks()
-  .then(() => {
-    console.log('Done!');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('Fatal error:', error);
-    process.exit(1);
-  });
+// Export functions for testing
+module.exports = {
+  saveCoverArt,
+  extractCoverFromFile,
+  processAllAudiobooks
+};
+
+// Run the script only if called directly
+if (require.main === module) {
+  processAllAudiobooks()
+    .then(() => {
+      console.log('Done!');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Fatal error:', error);
+      process.exit(1);
+    });
+}
