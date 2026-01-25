@@ -391,4 +391,115 @@ describe('SessionManager', () => {
       clearIntervalSpy.mockRestore();
     });
   });
+
+  describe('cleanupStaleSessions', () => {
+    const mockAudiobook = { id: 1, title: 'Test', duration: 3600, file_path: '/test.m4b' };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('removes sessions older than SESSION_TIMEOUT', () => {
+      // Create a session
+      sessionManager.updateSession({
+        sessionId: 'stale-session',
+        userId: 1,
+        username: 'testuser',
+        audiobook: mockAudiobook,
+        position: 0,
+        state: 'playing'
+      });
+
+      expect(sessionManager.getSession('stale-session')).toBeDefined();
+
+      // Advance time past the session timeout (5 minutes = 300000ms)
+      jest.advanceTimersByTime(sessionManager.SESSION_TIMEOUT + 1000);
+
+      // Manually trigger cleanup (normally done by interval)
+      sessionManager.cleanupStaleSessions();
+
+      // Session should be stopped
+      const session = sessionManager.getSession('stale-session');
+      expect(session.state).toBe('stopped');
+    });
+
+    test('keeps sessions within timeout period', () => {
+      // Create a session
+      sessionManager.updateSession({
+        sessionId: 'active-session',
+        userId: 1,
+        username: 'testuser',
+        audiobook: mockAudiobook,
+        position: 0,
+        state: 'playing'
+      });
+
+      // Advance time but stay within timeout
+      jest.advanceTimersByTime(sessionManager.SESSION_TIMEOUT - 1000);
+
+      // Manually trigger cleanup
+      sessionManager.cleanupStaleSessions();
+
+      // Session should still be active
+      const session = sessionManager.getSession('active-session');
+      expect(session.state).toBe('playing');
+    });
+
+    test('cleans up multiple stale sessions', () => {
+      // Create multiple sessions
+      sessionManager.updateSession({
+        sessionId: 'stale-1',
+        userId: 1,
+        username: 'user1',
+        audiobook: mockAudiobook,
+        position: 0,
+        state: 'playing'
+      });
+
+      sessionManager.updateSession({
+        sessionId: 'stale-2',
+        userId: 2,
+        username: 'user2',
+        audiobook: mockAudiobook,
+        position: 0,
+        state: 'paused'
+      });
+
+      // Advance time past timeout
+      jest.advanceTimersByTime(sessionManager.SESSION_TIMEOUT + 1000);
+
+      // Trigger cleanup
+      sessionManager.cleanupStaleSessions();
+
+      // Both sessions should be stopped
+      expect(sessionManager.getSession('stale-1').state).toBe('stopped');
+      expect(sessionManager.getSession('stale-2').state).toBe('stopped');
+    });
+
+    test('logs cleanup message for stale sessions', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      sessionManager.updateSession({
+        sessionId: 'logged-session',
+        userId: 1,
+        username: 'testuser',
+        audiobook: mockAudiobook,
+        position: 0,
+        state: 'playing'
+      });
+
+      jest.advanceTimersByTime(sessionManager.SESSION_TIMEOUT + 1000);
+      sessionManager.cleanupStaleSessions();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Cleaning up stale session: logged-session')
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
 });
