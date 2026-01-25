@@ -54,14 +54,6 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: unit-coverage
-          path: coverage/
-          retention-days: 7
-
   # Job 3: Integration tests (API tests with in-memory database)
   integration-tests:
     name: Integration Tests
@@ -84,14 +76,6 @@ jobs:
         run: npm run test:integration
         env:
           JWT_SECRET: test-secret-for-ci
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: integration-coverage
-          path: coverage/
-          retention-days: 7
 
   # Job 4: Docker configuration validation
   docker-validation:
