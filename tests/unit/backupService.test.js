@@ -1,168 +1,732 @@
 /**
  * Unit tests for Backup Service
- * Tests backup filename generation, path validation, and formatBytes helper
  */
 
-describe('Backup Service - Utility Functions', () => {
-  describe('formatBytes helper', () => {
-    // Test the formatBytes logic directly
-    function formatBytes(bytes) {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
+// Mock fs before requiring the module
+jest.mock('fs', () => ({
+  existsSync: jest.fn(),
+  mkdirSync: jest.fn(),
+  readdirSync: jest.fn(),
+  statSync: jest.fn(),
+  unlinkSync: jest.fn(),
+  createWriteStream: jest.fn(),
+  createReadStream: jest.fn(),
+  copyFileSync: jest.fn()
+}));
 
-    it('formats 0 bytes', () => {
-      expect(formatBytes(0)).toBe('0 B');
-    });
+// Mock archiver
+const mockArchive = {
+  pipe: jest.fn(),
+  file: jest.fn(),
+  directory: jest.fn(),
+  append: jest.fn(),
+  finalize: jest.fn(),
+  on: jest.fn()
+};
+jest.mock('archiver', () => jest.fn(() => mockArchive));
 
-    it('formats bytes', () => {
-      expect(formatBytes(512)).toBe('512 B');
-    });
+// Mock unzipper
+jest.mock('unzipper', () => ({
+  Parse: jest.fn()
+}));
 
-    it('formats kilobytes', () => {
-      expect(formatBytes(1024)).toBe('1 KB');
-      expect(formatBytes(1536)).toBe('1.5 KB');
-    });
+const fs = require('fs');
+const archiver = require('archiver');
+const {
+  createBackup,
+  listBackups,
+  getBackupPath,
+  deleteBackup,
+  restoreBackup,
+  applyRetention,
+  startScheduledBackups,
+  stopScheduledBackups,
+  getStatus,
+  BACKUP_DIR
+} = require('../../server/services/backupService');
 
-    it('formats megabytes', () => {
-      expect(formatBytes(1048576)).toBe('1 MB');
-      expect(formatBytes(5242880)).toBe('5 MB');
-    });
+describe('Backup Service', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'error').mockImplementation();
+  });
 
-    it('formats gigabytes', () => {
-      expect(formatBytes(1073741824)).toBe('1 GB');
+  afterEach(() => {
+    console.log.mockRestore();
+    console.error.mockRestore();
+    stopScheduledBackups();
+  });
+
+  describe('BACKUP_DIR', () => {
+    test('exports backup directory path', () => {
+      expect(BACKUP_DIR).toBeDefined();
+      expect(typeof BACKUP_DIR).toBe('string');
+      expect(BACKUP_DIR).toContain('backups');
     });
   });
 
-  describe('generateBackupFilename logic', () => {
-    function generateBackupFilename() {
-      const now = new Date();
-      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      return `sappho-backup-${timestamp}.zip`;
-    }
+  describe('listBackups', () => {
+    test('returns empty array when no backups exist', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([]);
 
-    it('generates filename with sappho-backup prefix', () => {
-      const filename = generateBackupFilename();
-      expect(filename).toMatch(/^sappho-backup-/);
+      const result = listBackups();
+
+      expect(result).toEqual([]);
     });
 
-    it('generates filename with .zip extension', () => {
-      const filename = generateBackupFilename();
-      expect(filename).toMatch(/\.zip$/);
+    test('creates backup directory if it does not exist', () => {
+      fs.existsSync.mockReturnValue(false);
+      fs.readdirSync.mockReturnValue([]);
+
+      listBackups();
+
+      expect(fs.mkdirSync).toHaveBeenCalledWith(
+        expect.stringContaining('backups'),
+        { recursive: true }
+      );
     });
 
-    it('generates filename with ISO timestamp format', () => {
-      const filename = generateBackupFilename();
-      // Should match pattern: sappho-backup-YYYY-MM-DDTHH-MM-SS.zip
-      expect(filename).toMatch(/^sappho-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/);
+    test('returns formatted backup list', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-15T10-00-00.zip',
+        'sappho-backup-2024-01-14T10-00-00.zip'
+      ]);
+      fs.statSync.mockReturnValue({
+        size: 1048576,
+        mtime: new Date('2024-01-15T10:00:00Z')
+      });
+
+      const result = listBackups();
+
+      expect(result.length).toBe(2);
+      expect(result[0].filename).toContain('sappho-backup');
+      expect(result[0].size).toBe(1048576);
+      expect(result[0].sizeFormatted).toBe('1 MB');
+    });
+
+    test('filters out non-backup files', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-15T10-00-00.zip',
+        'other-file.txt',
+        'random.zip'
+      ]);
+      fs.statSync.mockReturnValue({ size: 1024, mtime: new Date() });
+
+      const result = listBackups();
+
+      expect(result.length).toBe(1);
+    });
+
+    test('sorts backups by date descending', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-13T10-00-00.zip',
+        'sappho-backup-2024-01-15T10-00-00.zip',
+        'sappho-backup-2024-01-14T10-00-00.zip'
+      ]);
+      fs.statSync.mockReturnValue({ size: 1024, mtime: new Date() });
+
+      const result = listBackups();
+
+      expect(result[0].filename).toContain('2024-01-15');
+      expect(result[1].filename).toContain('2024-01-14');
+      expect(result[2].filename).toContain('2024-01-13');
     });
   });
 
-  describe('getBackupPath validation logic', () => {
-    const path = require('path');
+  describe('getBackupPath', () => {
+    test('returns path for valid backup filename', () => {
+      fs.existsSync.mockReturnValue(true);
 
-    function validateBackupFilename(filename) {
-      const sanitized = path.basename(filename);
-      if (!sanitized.endsWith('.zip') || !sanitized.startsWith('sappho-backup-')) {
-        throw new Error('Invalid backup filename');
-      }
-      return sanitized;
-    }
+      const result = getBackupPath('sappho-backup-2024-01-15T10-00-00.zip');
 
-    it('accepts valid backup filename', () => {
-      const result = validateBackupFilename('sappho-backup-2024-01-15T10-00-00.zip');
-      expect(result).toBe('sappho-backup-2024-01-15T10-00-00.zip');
+      expect(result).toContain('sappho-backup-2024-01-15T10-00-00.zip');
     });
 
-    it('rejects filename without sappho-backup- prefix', () => {
-      expect(() => validateBackupFilename('malicious.zip')).toThrow('Invalid backup filename');
+    test('throws error for invalid filename without prefix', () => {
+      expect(() => getBackupPath('malicious.zip')).toThrow('Invalid backup filename');
     });
 
-    it('rejects filename without .zip extension', () => {
-      expect(() => validateBackupFilename('sappho-backup-2024-01-15T10-00-00.tar')).toThrow('Invalid backup filename');
+    test('throws error for invalid filename without .zip', () => {
+      expect(() => getBackupPath('sappho-backup-2024-01-15T10-00-00.tar')).toThrow('Invalid backup filename');
     });
 
-    it('prevents directory traversal by using basename', () => {
-      const result = validateBackupFilename('../../../etc/sappho-backup-2024-01-15T10-00-00.zip');
-      expect(result).toBe('sappho-backup-2024-01-15T10-00-00.zip');
+    test('throws error when backup not found', () => {
+      fs.existsSync.mockReturnValue(false);
+
+      expect(() => getBackupPath('sappho-backup-2024-01-15T10-00-00.zip')).toThrow('Backup not found');
+    });
+
+    test('prevents directory traversal', () => {
+      fs.existsSync.mockReturnValue(true);
+
+      const result = getBackupPath('../../../etc/sappho-backup-2024-01-15T10-00-00.zip');
+
       expect(result).not.toContain('..');
-    });
-
-    it('strips subdirectory paths', () => {
-      const result = validateBackupFilename('subdir/sappho-backup-2024-01-15T10-00-00.zip');
-      expect(result).not.toContain('subdir');
+      expect(result).toContain('sappho-backup-2024-01-15T10-00-00.zip');
     });
   });
 
-  describe('retention policy logic', () => {
-    function getBackupsToDelete(backupCount, retentionCount = 7) {
-      if (backupCount <= retentionCount) {
-        return 0;
+  describe('deleteBackup', () => {
+    test('deletes valid backup file', () => {
+      fs.existsSync.mockReturnValue(true);
+
+      const result = deleteBackup('sappho-backup-2024-01-15T10-00-00.zip');
+
+      expect(fs.unlinkSync).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.filename).toBe('sappho-backup-2024-01-15T10-00-00.zip');
+    });
+
+    test('logs deletion message', () => {
+      fs.existsSync.mockReturnValue(true);
+
+      deleteBackup('sappho-backup-2024-01-15T10-00-00.zip');
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deleted'));
+    });
+  });
+
+  describe('applyRetention', () => {
+    test('does nothing when below retention limit', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-15T10-00-00.zip',
+        'sappho-backup-2024-01-14T10-00-00.zip'
+      ]);
+      fs.statSync.mockReturnValue({ size: 1024, mtime: new Date() });
+
+      const result = applyRetention(7);
+
+      expect(result.deleted).toBe(0);
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+    });
+
+    test('deletes old backups over retention limit', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-10T10-00-00.zip',
+        'sappho-backup-2024-01-09T10-00-00.zip',
+        'sappho-backup-2024-01-08T10-00-00.zip',
+        'sappho-backup-2024-01-07T10-00-00.zip'
+      ]);
+      fs.statSync.mockReturnValue({ size: 1024, mtime: new Date() });
+
+      const result = applyRetention(2);
+
+      expect(result.deleted).toBe(2);
+      expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
+    });
+
+    test('handles deletion errors gracefully', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-10T10-00-00.zip',
+        'sappho-backup-2024-01-09T10-00-00.zip',
+        'sappho-backup-2024-01-08T10-00-00.zip'
+      ]);
+      fs.statSync.mockReturnValue({ size: 1024, mtime: new Date() });
+      fs.unlinkSync.mockImplementation(() => {
+        throw new Error('Permission denied');
+      });
+
+      const result = applyRetention(1);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to delete'),
+        expect.any(String)
+      );
+      expect(result.deleted).toBe(0);
+    });
+  });
+
+  describe('startScheduledBackups', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('logs start message', () => {
+      startScheduledBackups(24);
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Starting scheduled backups')
+      );
+    });
+
+    test('does not start if already running', () => {
+      startScheduledBackups(24);
+      jest.clearAllMocks();
+
+      startScheduledBackups(24);
+
+      expect(console.log).toHaveBeenCalledWith('Scheduled backups already running');
+    });
+  });
+
+  describe('stopScheduledBackups', () => {
+    test('stops scheduled backups', () => {
+      jest.useFakeTimers();
+      startScheduledBackups(24);
+
+      stopScheduledBackups();
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('stopped'));
+      jest.useRealTimers();
+    });
+
+    test('does nothing if not running', () => {
+      stopScheduledBackups();
+      // Should not throw
+    });
+  });
+
+  describe('getStatus', () => {
+    test('returns status object', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([]);
+
+      const status = getStatus();
+
+      expect(status).toHaveProperty('backupDir');
+      expect(status).toHaveProperty('scheduledBackups');
+      expect(status).toHaveProperty('lastBackup');
+      expect(status).toHaveProperty('lastResult');
+      expect(status).toHaveProperty('backupCount');
+    });
+
+    test('reports scheduled backup status', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([]);
+
+      let status = getStatus();
+      expect(status.scheduledBackups).toBe(false);
+
+      jest.useFakeTimers();
+      startScheduledBackups(24);
+      status = getStatus();
+      expect(status.scheduledBackups).toBe(true);
+
+      stopScheduledBackups();
+      jest.useRealTimers();
+    });
+
+    test('reports backup count', () => {
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue([
+        'sappho-backup-2024-01-15T10-00-00.zip',
+        'sappho-backup-2024-01-14T10-00-00.zip'
+      ]);
+      fs.statSync.mockReturnValue({ size: 1024, mtime: new Date() });
+
+      const status = getStatus();
+
+      expect(status.backupCount).toBe(2);
+    });
+  });
+
+  describe('createBackup', () => {
+    let mockOutput;
+
+    beforeEach(() => {
+      mockOutput = {
+        on: jest.fn()
+      };
+      fs.createWriteStream.mockReturnValue(mockOutput);
+      fs.existsSync.mockReturnValue(true);
+      fs.readdirSync.mockReturnValue(['cover1.jpg', 'cover2.png']);
+      fs.statSync.mockReturnValue({ size: 5242880 }); // 5 MB
+    });
+
+    test('creates backup archive with database', async () => {
+      mockOutput.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setTimeout(callback, 0);
+        }
+        return mockOutput;
+      });
+
+      mockArchive.on.mockImplementation((event, callback) => {
+        return mockArchive;
+      });
+
+      const resultPromise = createBackup(false);
+
+      // Wait for the close callback to be triggered
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const result = await resultPromise;
+
+      expect(archiver).toHaveBeenCalledWith('zip', { zlib: { level: 9 } });
+      expect(mockArchive.pipe).toHaveBeenCalledWith(mockOutput);
+      expect(mockArchive.file).toHaveBeenCalled();
+      expect(mockArchive.append).toHaveBeenCalled();
+      expect(mockArchive.finalize).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.filename).toContain('sappho-backup-');
+    });
+
+    test('includes covers when requested', async () => {
+      mockOutput.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setTimeout(callback, 0);
+        }
+        return mockOutput;
+      });
+
+      mockArchive.on.mockReturnValue(mockArchive);
+
+      const resultPromise = createBackup(true);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      await resultPromise;
+
+      expect(mockArchive.directory).toHaveBeenCalled();
+    });
+
+    test('handles archive error event', async () => {
+      let errorCallback;
+      mockOutput.on.mockReturnValue(mockOutput);
+      mockArchive.on.mockImplementation((event, callback) => {
+        if (event === 'error') {
+          errorCallback = callback;
+        }
+        return mockArchive;
+      });
+
+      const resultPromise = createBackup(false);
+
+      // Trigger the error callback
+      if (errorCallback) {
+        errorCallback(new Error('Archive failed'));
       }
-      return backupCount - retentionCount;
-    }
 
-    it('deletes nothing when below retention limit', () => {
-      expect(getBackupsToDelete(5, 7)).toBe(0);
+      await expect(resultPromise).rejects.toThrow('Archive failed');
     });
 
-    it('deletes nothing when at retention limit', () => {
-      expect(getBackupsToDelete(7, 7)).toBe(0);
+    test('skips covers if directory is empty', async () => {
+      fs.readdirSync.mockReturnValue([]);
+
+      mockOutput.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setTimeout(callback, 0);
+        }
+        return mockOutput;
+      });
+      mockArchive.on.mockReturnValue(mockArchive);
+
+      const resultPromise = createBackup(true);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      await resultPromise;
+
+      expect(mockArchive.directory).not.toHaveBeenCalled();
     });
 
-    it('deletes excess backups over retention limit', () => {
-      expect(getBackupsToDelete(10, 7)).toBe(3);
-    });
+    test('formats backup size correctly', async () => {
+      fs.statSync.mockReturnValue({ size: 0 }); // 0 bytes
 
-    it('uses default retention of 7', () => {
-      expect(getBackupsToDelete(10)).toBe(3);
+      mockOutput.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setTimeout(callback, 0);
+        }
+        return mockOutput;
+      });
+      mockArchive.on.mockReturnValue(mockArchive);
+
+      const resultPromise = createBackup(false);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const result = await resultPromise;
+
+      expect(result.size).toBe(0);
     });
   });
 
-  describe('backup manifest structure', () => {
-    function createManifest(includesDatabase, includesCovers, coverCount = 0) {
-      const manifest = {
-        version: '1.0',
-        created: new Date().toISOString(),
-        includes: ['database'],
+  describe('restoreBackup', () => {
+    let mockReadStream;
+    let mockParseStream;
+    let mockEntries;
+
+    beforeEach(() => {
+      const unzipper = require('unzipper');
+
+      mockEntries = [];
+      mockParseStream = {
+        on: jest.fn()
+      };
+      mockReadStream = {
+        pipe: jest.fn().mockReturnValue(mockParseStream)
       };
 
-      if (includesCovers && coverCount > 0) {
-        manifest.includes.push('covers');
-        manifest.coverCount = coverCount;
+      fs.createReadStream.mockReturnValue(mockReadStream);
+      unzipper.Parse.mockReturnValue({});
+    });
+
+    test('throws error if backup file not found', async () => {
+      fs.existsSync.mockReturnValue(false);
+
+      await expect(restoreBackup('/path/to/nonexistent.zip')).rejects.toThrow('Backup file not found');
+    });
+
+    test('restores backup successfully', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setTimeout(callback, 0);
+        }
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const result = await resultPromise;
+
+      expect(fs.createReadStream).toHaveBeenCalledWith('/path/to/backup.zip');
+      expect(result).toHaveProperty('database');
+      expect(result).toHaveProperty('covers');
+      expect(result).toHaveProperty('manifest');
+    });
+
+    test('handles restore with database only option', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          setTimeout(callback, 0);
+        }
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip', { restoreDatabase: true, restoreCovers: false });
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const result = await resultPromise;
+
+      expect(result.database).toBe(false); // No entry processed yet
+      expect(result.covers).toBe(0);
+    });
+
+    test('handles stream error event', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      let errorCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'error') {
+          errorCallback = callback;
+        }
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      // Trigger error callback
+      if (errorCallback) {
+        errorCallback(new Error('Stream error'));
       }
 
-      return manifest;
-    }
-
-    it('includes version field', () => {
-      const manifest = createManifest(true, false);
-      expect(manifest.version).toBe('1.0');
+      await expect(resultPromise).rejects.toThrow('Stream error');
     });
 
-    it('includes created timestamp', () => {
-      const manifest = createManifest(true, false);
-      expect(manifest.created).toBeDefined();
-      expect(new Date(manifest.created)).toBeInstanceOf(Date);
+    test('processes manifest entry', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') {
+          entryCallback = callback;
+        }
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      // Simulate manifest entry
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'manifest.json',
+          buffer: jest.fn().mockResolvedValue(Buffer.from(JSON.stringify({ version: '1.0', includes: ['database'] })))
+        };
+        await entryCallback(mockEntry);
+      }
+
+      // Close the stream
+      if (closeCallback) {
+        closeCallback();
+      }
+
+      const result = await resultPromise;
+      expect(result.manifest).toEqual({ version: '1.0', includes: ['database'] });
     });
 
-    it('includes database by default', () => {
-      const manifest = createManifest(true, false);
-      expect(manifest.includes).toContain('database');
+    test('processes database entry with existing backup', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') {
+          entryCallback = callback;
+        }
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+        return mockParseStream;
+      });
+
+      const mockWriteStream = {
+        on: jest.fn((event, cb) => {
+          if (event === 'finish') setTimeout(cb, 0);
+          return mockWriteStream;
+        })
+      };
+      fs.createWriteStream.mockReturnValue(mockWriteStream);
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      // Simulate database entry
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'sappho.db',
+          pipe: jest.fn().mockReturnValue(mockWriteStream)
+        };
+        await entryCallback(mockEntry);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      // Close the stream
+      if (closeCallback) {
+        closeCallback();
+      }
+
+      const result = await resultPromise;
+      expect(fs.copyFileSync).toHaveBeenCalled(); // Backup of current db
     });
 
-    it('includes covers when present', () => {
-      const manifest = createManifest(true, true, 5);
-      expect(manifest.includes).toContain('covers');
-      expect(manifest.coverCount).toBe(5);
+    test('processes cover entries', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') {
+          entryCallback = callback;
+        }
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+        return mockParseStream;
+      });
+
+      const mockWriteStream = {
+        on: jest.fn((event, cb) => {
+          if (event === 'finish') setTimeout(cb, 0);
+          return mockWriteStream;
+        })
+      };
+      fs.createWriteStream.mockReturnValue(mockWriteStream);
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      // Simulate cover entry
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'covers/cover1.jpg',
+          pipe: jest.fn().mockReturnValue(mockWriteStream)
+        };
+        await entryCallback(mockEntry);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      // Close the stream
+      if (closeCallback) {
+        closeCallback();
+      }
+
+      const result = await resultPromise;
+      expect(result).toBeDefined();
     });
 
-    it('omits covers when none present', () => {
-      const manifest = createManifest(true, true, 0);
-      expect(manifest.includes).not.toContain('covers');
+    test('autodrains unhandled entries', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') {
+          entryCallback = callback;
+        }
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      // Simulate unhandled entry
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'some-other-file.txt',
+          autodrain: jest.fn()
+        };
+        await entryCallback(mockEntry);
+        expect(mockEntry.autodrain).toHaveBeenCalled();
+      }
+
+      // Close the stream
+      if (closeCallback) {
+        closeCallback();
+      }
+
+      await resultPromise;
+    });
+
+    test('autodrains empty cover directory entry', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') {
+          entryCallback = callback;
+        }
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      // Simulate cover directory entry (no filename after covers/)
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'covers/',
+          autodrain: jest.fn()
+        };
+        await entryCallback(mockEntry);
+        expect(mockEntry.autodrain).toHaveBeenCalled();
+      }
+
+      // Close the stream
+      if (closeCallback) {
+        closeCallback();
+      }
+
+      await resultPromise;
     });
   });
 });
