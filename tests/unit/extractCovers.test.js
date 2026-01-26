@@ -183,5 +183,39 @@ describe('extractCovers script', () => {
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Processing complete'));
     }, 15000); // Increase timeout for this test
+
+    test('logs no cover found for books without cover', async () => {
+      const mockBooks = [
+        { id: 1, file_path: '/audiobooks/book1.m4b' }
+      ];
+
+      db.all.mockImplementation((query, callback) => {
+        callback(null, mockBooks);
+      });
+
+      await processAllAudiobooks();
+
+      // Since we can't mock the dynamic import, extractCoverFromFile returns null
+      // which triggers the "no cover found" log
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('No cover found')
+      );
+    }, 15000);
+
+    test('logs processing complete with correct counts', async () => {
+      const mockBooks = [
+        { id: 1, file_path: '/audiobooks/book1.m4b' },
+        { id: 2, file_path: '/audiobooks/book2.m4b' }
+      ];
+
+      db.all.mockImplementation((query, callback) => {
+        callback(null, mockBooks);
+      });
+
+      await processAllAudiobooks();
+
+      expect(console.log).toHaveBeenCalledWith('Total: 2');
+      expect(console.log).toHaveBeenCalledWith('Processed: 2');
+    }, 15000);
   });
 });
