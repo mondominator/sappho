@@ -45,6 +45,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const activeChapterRef = useRef(null);
   const progressBarRef = useRef(null);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
+  const [seekPreviewTime, setSeekPreviewTime] = useState(null);
+  const [isDraggingFullscreen, setIsDraggingFullscreen] = useState(false);
+  const seekPreviewRef = useRef(null); // For smoother seeking without re-renders
+  const tooltipRef = useRef(null);
+  const fullscreenTooltipRef = useRef(null);
+  const seekSettleTimeoutRef = useRef(null); // For debounced "settle" seek
 
   // Expose closeFullscreen method to parent
   useImperativeHandle(ref, () => ({
@@ -408,6 +414,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const handleTimeUpdate = () => {
+    // Don't update state during drag - it causes re-renders that fight with direct DOM manipulation
+    if (isDraggingProgress || isDraggingFullscreen) return;
     setCurrentTime(audioRef.current.currentTime);
   };
 
@@ -524,12 +532,35 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   // Progress bar drag handlers
   const handleProgressMouseDown = (e) => {
     setIsDraggingProgress(true);
+    // Set initial preview time to show tooltip
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const newTime = percentage * duration;
+    seekPreviewRef.current = newTime;
+    setSeekPreviewTime(newTime); // Only state update to show tooltip
     handleProgressDrag(e);
   };
 
   const handleProgressTouchStart = (e) => {
     setIsDraggingProgress(true);
-    handleProgressDrag(e.touches[0]);
+    // Set initial preview time to show tooltip
+    const touch = e.touches[0];
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const newTime = percentage * duration;
+    seekPreviewRef.current = newTime;
+    setSeekPreviewTime(newTime); // Only state update to show tooltip
+    handleProgressDrag(touch);
+  };
+
+  // Apply seek from preview ref
+  const applySeekFromPreview = () => {
+    if (seekPreviewRef.current !== null && audioRef.current) {
+      audioRef.current.currentTime = seekPreviewRef.current;
+      setCurrentTime(seekPreviewRef.current);
+    }
   };
 
   const handleProgressDrag = (e) => {
@@ -540,8 +571,18 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     const percentage = Math.max(0, Math.min(1, x / rect.width));
     const newTime = percentage * duration;
 
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+    // Store in ref and state (safe now since timeupdate won't re-render during drag)
+    seekPreviewRef.current = newTime;
+    setSeekPreviewTime(newTime);
+
+    // Direct synchronous DOM updates for immediate visual feedback
+    const progressPercent = (newTime / duration) * 100;
+    progressBarRef.current.style.setProperty('--progress-percent', `${progressPercent}%`);
+
+    if (tooltipRef.current) {
+      tooltipRef.current.textContent = formatTime(newTime);
+      tooltipRef.current.style.setProperty('--preview-percent', `${progressPercent}%`);
+    }
   };
 
   const handleProgressMouseMove = (e) => {
@@ -556,10 +597,18 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const handleProgressMouseUp = () => {
+    // Apply the seek only when finger/mouse is lifted
+    applySeekFromPreview();
+    seekPreviewRef.current = null;
+    setSeekPreviewTime(null);
     setIsDraggingProgress(false);
   };
 
   const handleProgressTouchEnd = () => {
+    // Apply the seek only when finger is lifted
+    applySeekFromPreview();
+    seekPreviewRef.current = null;
+    setSeekPreviewTime(null);
     setIsDraggingProgress(false);
   };
 
@@ -838,10 +887,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </button>
       </div>
 
+      {/* Seek preview tooltip - rendered outside progress bar for mobile visibility */}
+      {isDraggingProgress && seekPreviewTime !== null && (
+        <div
+          ref={tooltipRef}
+          className="seek-preview-tooltip"
+          style={{ '--preview-percent': `${duration ? (seekPreviewTime / duration) * 100 : 0}%` }}
+        >
+          {formatTime(seekPreviewTime)}
+        </div>
+      )}
+
       <div
         ref={progressBarRef}
-        className="player-progress"
-        style={{ '--progress-percent': `${duration ? (currentTime / duration) * 100 : 0}%` }}
+        className={`player-progress ${isDraggingProgress ? 'seeking' : ''}`}
+        style={{ '--progress-percent': `${duration ? ((seekPreviewTime !== null ? seekPreviewTime : currentTime) / duration) * 100 : 0}%` }}
         onMouseDown={handleProgressMouseDown}
         onTouchStart={handleProgressTouchStart}
       >
@@ -951,7 +1011,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </div>
 
               <div className="fullscreen-info">
-                <h2 onClick={() => navigate(`/audiobook/${audiobook.id}`)} style={{ cursor: 'pointer' }}>{audiobook.title}</h2>
+                <div className="fullscreen-title-wrapper" onClick={() => navigate(`/audiobook/${audiobook.id}`)}>
+                  <h2 className="fullscreen-title">
+                    <span className="fullscreen-title-text">
+                      {audiobook.title}
+                      <span className="fullscreen-title-spacer"> • </span>
+                      {audiobook.title}
+                    </span>
+                  </h2>
+                </div>
                 {audiobook.series && (
                   <p className="series-info" onClick={() => navigate(`/series/${encodeURIComponent(audiobook.series)}`)} style={{ cursor: 'pointer', color: '#9ca3af', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
                     {audiobook.series}{(audiobook.series_index || audiobook.series_position) ? ` • Book ${audiobook.series_index || audiobook.series_position}` : ''}
@@ -1007,19 +1075,73 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 </div>
               </div>
 
-              <div className="fullscreen-progress">
+              <div className={`fullscreen-progress ${isDraggingFullscreen ? 'seeking' : ''}`}>
                 <div className="fullscreen-time">
-                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(isDraggingFullscreen && seekPreviewTime !== null ? seekPreviewTime : currentTime)}</span>
                   <span>{formatTime(duration)}</span>
                 </div>
+                {isDraggingFullscreen && seekPreviewTime !== null && (
+                  <div
+                    ref={fullscreenTooltipRef}
+                    className="fullscreen-seek-tooltip"
+                    style={{ '--preview-percent': `${duration ? (seekPreviewTime / duration) * 100 : 0}%` }}
+                  >
+                    {formatTime(seekPreviewTime)}
+                  </div>
+                )}
                 <input
                   type="range"
                   min="0"
                   max={duration || 0}
-                  value={currentTime}
-                  onChange={handleSeek}
+                  value={isDraggingFullscreen && seekPreviewTime !== null ? seekPreviewTime : currentTime}
+                  onTouchStart={(e) => {
+                    setIsDraggingFullscreen(true);
+                    const val = parseFloat(e.target.value);
+                    seekPreviewRef.current = val;
+                    setSeekPreviewTime(val);
+                  }}
+                  onMouseDown={(e) => {
+                    setIsDraggingFullscreen(true);
+                    const val = parseFloat(e.target.value);
+                    seekPreviewRef.current = val;
+                    setSeekPreviewTime(val);
+                  }}
+                  onInput={(e) => {
+                    const newValue = parseFloat(e.target.value);
+                    seekPreviewRef.current = newValue;
+                    // Update state to keep slider value in sync (now safe since timeupdate won't re-render during drag)
+                    setSeekPreviewTime(newValue);
+
+                    // Direct synchronous DOM update for tooltip
+                    if (fullscreenTooltipRef.current) {
+                      fullscreenTooltipRef.current.textContent = formatTime(newValue);
+                      fullscreenTooltipRef.current.style.setProperty('--preview-percent', `${(newValue / duration) * 100}%`);
+                    }
+                  }}
+                  onChange={(e) => {
+                    // For non-drag interactions (tapping on track)
+                    if (!isDraggingFullscreen) {
+                      const time = parseFloat(e.target.value);
+                      audioRef.current.currentTime = time;
+                      setCurrentTime(time);
+                    }
+                  }}
+                  onTouchEnd={() => {
+                    // Apply seek only when finger is lifted
+                    applySeekFromPreview();
+                    seekPreviewRef.current = null;
+                    setSeekPreviewTime(null);
+                    setIsDraggingFullscreen(false);
+                  }}
+                  onMouseUp={() => {
+                    // Apply seek only when mouse is released
+                    applySeekFromPreview();
+                    seekPreviewRef.current = null;
+                    setSeekPreviewTime(null);
+                    setIsDraggingFullscreen(false);
+                  }}
                   className="fullscreen-slider"
-                  style={{ '--progress': `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                  style={{ '--progress': `${duration > 0 ? ((isDraggingFullscreen && seekPreviewTime !== null ? seekPreviewTime : currentTime) / duration) * 100 : 0}%` }}
                 />
               </div>
 
