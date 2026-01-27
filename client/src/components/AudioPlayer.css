@@ -172,6 +172,62 @@
   border-bottom: 1px solid #374151;
   z-index: 1;
   pointer-events: auto;
+  touch-action: none;
+  overflow: visible;
+}
+
+.player-progress.dragging {
+  background: #1f2937;
+}
+
+.seek-preview-tooltip {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 8px;
+  transform: translateX(-50%);
+  background: #3b82f6;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.seek-preview-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #3b82f6;
+}
+
+/* Fixed position tooltip that escapes overflow:hidden containers */
+.seek-preview-tooltip-fixed {
+  background: #3b82f6;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.seek-preview-tooltip-fixed::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #3b82f6;
 }
 
 .time-display {
@@ -298,6 +354,8 @@
   display: flex;
   flex-direction: column;
   backdrop-filter: blur(10px);
+  touch-action: pan-x;
+  overscroll-behavior: none;
 }
 
 .fullscreen-player-top {
@@ -400,6 +458,27 @@
   font-weight: 700;
   color: #fff;
   margin: 0 0 0.5rem 0;
+}
+
+.fullscreen-title {
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.fullscreen-title-content {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee 45s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .fullscreen-info p {
@@ -561,6 +640,11 @@
 
 .fullscreen-progress {
   width: 100%;
+  touch-action: none;
+  cursor: pointer;
+  padding: 20px 0;
+  margin: -20px 0;
+  position: relative;
 }
 
 .fullscreen-time {
@@ -571,7 +655,98 @@
   margin-bottom: 0.5rem;
 }
 
+.fullscreen-time span:first-child {
+  transition: color 0.15s ease;
+}
+
+.fullscreen-progress.dragging .fullscreen-time span:first-child {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.fullscreen-progress-track {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #374151;
+}
+
+.fullscreen-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 4px;
+  background: #3b82f6;
+  pointer-events: none;
+  transition: width 0.1s ease;
+}
+
+.fullscreen-progress.dragging .fullscreen-progress-fill {
+  transition: none;
+  opacity: 0.5;
+}
+
+.fullscreen-progress-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 4px;
+  background: #60a5fa;
+  pointer-events: none;
+}
+
+.fullscreen-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 3px solid #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 0.1s ease;
+}
+
+.fullscreen-progress.dragging .fullscreen-progress-thumb {
+  transition: none;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.fullscreen-seek-tooltip {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 16px;
+  transform: translateX(-50%);
+  background: #3b82f6;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.fullscreen-seek-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #3b82f6;
+}
+
+/* Keep old slider styles for backwards compatibility but hide them */
 .fullscreen-slider {
+  display: none;
   width: 100%;
   height: 8px;
   border-radius: 4px;
@@ -1422,36 +1597,6 @@
     z-index: 2;
   }
 
-  /* Mobile seek preview tooltip - use fixed positioning to escape overflow:hidden */
-  .seek-preview-tooltip {
-    position: fixed;
-    bottom: calc(90px + env(safe-area-inset-bottom, 0) + 24px);
-    left: calc(var(--preview-percent, 0%) * (100vw - 24px) / 100% + 12px);
-    padding: 10px 16px;
-    font-size: 18px;
-    border-radius: 10px;
-    margin-bottom: 0;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-    z-index: 9999;
-  }
-
-  .seek-preview-tooltip::after {
-    display: none;
-  }
-
-  .player-progress.seeking .progress-thumb {
-    transform: translate(-50%, -50%) scale(1.5);
-    width: 16px;
-    height: 16px;
-  }
-
-  /* Mobile fullscreen seek tooltip */
-  .fullscreen-seek-tooltip {
-    padding: 12px 20px;
-    font-size: 20px;
-    border-radius: 12px;
-  }
-
   .time-display {
     display: none;
   }
@@ -1875,172 +2020,4 @@
 .chapter-modal-time {
   color: #9ca3af;
   font-size: 0.875rem;
-}
-
-/* Seek Preview Tooltip Styles - uses fixed positioning for visibility */
-.seek-preview-tooltip {
-  position: fixed;
-  bottom: 130px;
-  left: calc(var(--preview-percent, 0%) * (100vw - 40px) / 100% + 20px);
-  transform: translateX(-50%);
-  background: rgba(59, 130, 246, 0.95);
-  color: #fff;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 9999;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  animation: tooltipFadeIn 0.15s ease-out;
-}
-
-.seek-preview-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: rgba(59, 130, 246, 0.95);
-}
-
-.fullscreen-seek-tooltip {
-  position: absolute;
-  bottom: calc(100% + 16px);
-  left: calc(var(--preview-percent, 0%));
-  transform: translateX(-50%);
-  background: rgba(59, 130, 246, 0.95);
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 10px;
-  font-size: 18px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 100;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  animation: tooltipFadeIn 0.15s ease-out;
-}
-
-.fullscreen-seek-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 8px solid transparent;
-  border-top-color: rgba(59, 130, 246, 0.95);
-}
-
-@keyframes tooltipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* Seeking state styles */
-.player-progress.seeking .progress-thumb {
-  transform: translate(-50%, -50%) scale(1.3);
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
-}
-
-/* Disable transitions during seeking for immediate response */
-.player-progress.seeking::after {
-  transition: none !important;
-}
-
-.player-progress.seeking .progress-thumb {
-  transition: none !important;
-}
-
-.fullscreen-progress.seeking .fullscreen-slider::-webkit-slider-thumb {
-  transform: scale(1.2);
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.6);
-  transition: none !important;
-}
-
-.fullscreen-progress.seeking .fullscreen-slider::-moz-range-thumb {
-  transform: scale(1.2);
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.6);
-  transition: none !important;
-}
-
-/* Disable track transitions during seeking */
-.fullscreen-progress.seeking .fullscreen-slider::-webkit-slider-runnable-track {
-  transition: none !important;
-}
-
-.fullscreen-progress.seeking .fullscreen-slider::-moz-range-track {
-  transition: none !important;
-}
-
-/* Make fullscreen-progress position relative for tooltip positioning */
-.fullscreen-progress {
-  position: relative;
-}
-
-/* Fullscreen title marquee for long titles */
-.fullscreen-title-wrapper {
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.fullscreen-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 0.5rem 0;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.fullscreen-title-text {
-  display: inline-block;
-  white-space: nowrap;
-  animation: fullscreenMarquee 15s linear infinite;
-}
-
-.fullscreen-title-spacer {
-  padding: 0 1rem;
-  opacity: 0.5;
-}
-
-@keyframes fullscreenMarquee {
-  0% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-/* On mobile, make title smaller */
-@media (max-width: 768px) {
-  .fullscreen-title {
-    font-size: 1.4rem;
-  }
-}
-
-/* Smoother slider transitions */
-.fullscreen-slider {
-  touch-action: none;
-}
-
-.fullscreen-slider::-webkit-slider-thumb {
-  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
-}
-
-.fullscreen-slider::-moz-range-thumb {
-  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
 }
