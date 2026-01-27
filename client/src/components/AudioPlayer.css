@@ -469,6 +469,9 @@
 .fullscreen-title-content {
   display: inline-block;
   white-space: nowrap;
+}
+
+.fullscreen-title.marquee .fullscreen-title-content {
   animation: marquee 45s linear infinite;
 }
 
@@ -946,6 +949,9 @@
   .marquee-content {
     display: inline-block;
     white-space: nowrap;
+  }
+
+  .player-title.marquee .marquee-content {
     animation: marquee 20s linear infinite;
   }
 
@@ -1306,6 +1312,9 @@
   .marquee-content {
     display: inline-block;
     white-space: nowrap;
+  }
+
+  .player-title.marquee .marquee-content {
     animation: marquee 20s linear infinite;
   }
 

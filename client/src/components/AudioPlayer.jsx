@@ -53,6 +53,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const seekPreviewTimeRef = useRef(null); // Ref to track preview time for event handlers
   const dragStateRef = useRef({ startY: 0, isDragging: false }); // Ref for native event handlers
+  const miniTitleRef = useRef(null);
+  const fullscreenTitleRef = useRef(null);
+  const [miniTitleOverflows, setMiniTitleOverflows] = useState(false);
+  const [fullscreenTitleOverflows, setFullscreenTitleOverflows] = useState(false);
 
   // Expose closeFullscreen method to parent
   useImperativeHandle(ref, () => ({
@@ -717,6 +721,52 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }, [currentChapter, showFullscreen, showChapterModal]);
 
+  // Detect title overflow for marquee animation
+  useEffect(() => {
+    const checkOverflow = () => {
+      // Check mini player title
+      if (miniTitleRef.current) {
+        const container = miniTitleRef.current;
+        const content = container.querySelector('.marquee-content');
+        if (content) {
+          // If already marquee-ing (has duplicate), divide by ~2 to get single title width
+          // Otherwise just use scrollWidth directly
+          const hasMarquee = miniTitleOverflows;
+          const singleTitleWidth = hasMarquee ? content.scrollWidth / 2.1 : content.scrollWidth;
+          setMiniTitleOverflows(singleTitleWidth > container.clientWidth);
+        }
+      }
+
+      // Check fullscreen title
+      if (fullscreenTitleRef.current && showFullscreen) {
+        const container = fullscreenTitleRef.current;
+        const content = container.querySelector('.fullscreen-title-content');
+        if (content) {
+          // If already marquee-ing (has duplicate), divide by ~2 to get single title width
+          // Otherwise just use scrollWidth directly
+          const hasMarquee = fullscreenTitleOverflows;
+          const singleTitleWidth = hasMarquee ? content.scrollWidth / 2.1 : content.scrollWidth;
+          setFullscreenTitleOverflows(singleTitleWidth > container.clientWidth);
+        }
+      }
+    };
+
+    // Check after a brief delay to allow rendering
+    const timeout = setTimeout(checkOverflow, 100);
+
+    // For fullscreen, check again after a longer delay to ensure it's rendered
+    const fullscreenTimeout = showFullscreen ? setTimeout(checkOverflow, 300) : null;
+
+    // Also check on window resize
+    window.addEventListener('resize', checkOverflow);
+
+    return () => {
+      clearTimeout(timeout);
+      if (fullscreenTimeout) clearTimeout(fullscreenTimeout);
+      window.removeEventListener('resize', checkOverflow);
+    };
+  }, [audiobook?.title, showFullscreen, miniTitleOverflows, fullscreenTitleOverflows]);
+
   // Native event listeners for progress bar seeking (with passive: false for iOS)
   useEffect(() => {
     const miniBar = progressBarRef.current;
@@ -917,17 +967,25 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           />
         )}
         <div className="player-text">
-          <div className="player-title" onClick={(e) => {
-            if (window.innerWidth > 768) {
-              navigate(`/audiobook/${audiobook.id}`);
-            } else {
-              setShowFullscreen(true);
-            }
-          }}>
+          <div
+            ref={miniTitleRef}
+            className={`player-title ${miniTitleOverflows ? 'marquee' : ''}`}
+            onClick={(e) => {
+              if (window.innerWidth > 768) {
+                navigate(`/audiobook/${audiobook.id}`);
+              } else {
+                setShowFullscreen(true);
+              }
+            }}
+          >
             <span className="marquee-content">
               {audiobook.title}
-              <span className="marquee-spacer"> • </span>
-              {audiobook.title}
+              {miniTitleOverflows && (
+                <>
+                  <span className="marquee-spacer"> • </span>
+                  {audiobook.title}
+                </>
+              )}
             </span>
           </div>
           {audiobook.series && (
@@ -1134,7 +1192,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </div>
       )}
 
-      {/* Chapter Modal - available on both desktop and fullscreen */}
+    </div>
+
+      {/* Chapter Modal - rendered outside audio-player so it works in fullscreen */}
       {showChapterModal && chapters.length > 0 && (
         <div className="chapter-modal-overlay" onClick={() => setShowChapterModal(false)}>
           <div className="chapter-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1171,8 +1231,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </div>
       )}
 
-    </div>
-
       {showFullscreen && (
         <div
           ref={fullscreenPlayerRef}
@@ -1203,11 +1261,20 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </div>
 
               <div className="fullscreen-info">
-                <h2 className="fullscreen-title" onClick={() => navigate(`/audiobook/${audiobook.id}`)} style={{ cursor: 'pointer' }}>
+                <h2
+                  ref={fullscreenTitleRef}
+                  className={`fullscreen-title ${fullscreenTitleOverflows ? 'marquee' : ''}`}
+                  onClick={() => navigate(`/audiobook/${audiobook.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <span className="fullscreen-title-content">
                     {audiobook.title}
-                    <span className="marquee-spacer"> • </span>
-                    {audiobook.title}
+                    {fullscreenTitleOverflows && (
+                      <>
+                        <span className="marquee-spacer"> • </span>
+                        {audiobook.title}
+                      </>
+                    )}
                   </span>
                 </h2>
                 {audiobook.series && (
