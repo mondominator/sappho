@@ -1230,7 +1230,7 @@
 }
 
 @media (max-width: 768px) {
-  /* Compact mobile player bar - dock to screen bottom */
+  /* Compact mobile player bar - extends into safe area so background touches screen edge */
   .audio-player {
     position: fixed !important;
     left: 0 !important;
@@ -1238,8 +1238,10 @@
     bottom: 0 !important;
     top: auto !important;
     width: 100% !important;
-    height: 90px !important;
-    padding: 0 !important;
+    /* Extend height INTO safe area - background will cover home indicator */
+    height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
+    /* Padding keeps content above home indicator */
+    padding: 0 0 env(safe-area-inset-bottom, 0) 0 !important;
     margin: 0 !important;
     border: none !important;
     border-top: 1px solid #2a2a2a !important;
@@ -1248,8 +1250,6 @@
     overflow: hidden !important;
     transform: none !important;
     -webkit-transform: none !important;
-    /* Try to break out of any safe area constraints */
-    -webkit-box-sizing: border-box !important;
     box-sizing: border-box !important;
   }
 
@@ -2024,7 +2024,7 @@
   font-size: 0.875rem;
 }
 
-/* Fullscreen Bottom Bar */
+/* Fullscreen Bottom Bar - extends into safe area */
 .fullscreen-bottom-bar {
   position: fixed;
   bottom: 0;
@@ -2033,7 +2033,8 @@
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 1rem 2rem;
+  /* Extend into safe area - content padding keeps buttons above home indicator */
+  padding: 1rem 2rem calc(1rem + env(safe-area-inset-bottom, 0)) 2rem;
   background: rgba(0, 0, 0, 0.8);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
