@@ -1230,16 +1230,16 @@
 }
 
 @media (max-width: 768px) {
-  /* Compact mobile player bar - extends into safe area so background touches screen edge */
+  /* Compact mobile player bar - shift down into safe area */
   .audio-player {
     position: fixed !important;
     left: 0 !important;
     right: 0 !important;
-    bottom: 0 !important;
+    /* Negative bottom shifts player DOWN into safe area */
+    bottom: calc(-1 * env(safe-area-inset-bottom, 0)) !important;
     top: auto !important;
     width: 100% !important;
-    /* Extend height INTO safe area - background will cover home indicator */
-    height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
+    height: 90px !important;
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
