@@ -28,12 +28,12 @@
     }
   }
 
-  /* Add bottom padding when player is present - matches player height including safe area */
+  /* Add bottom padding when player is present */
   .app.player-active {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 90px;
   }
 
   .app.player-active .main-content {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 90px;
   }
 }
