@@ -44,8 +44,8 @@ body {
   transition: background-color 0.3s, color 0.3s;
   /* Prevent pull-to-refresh on mobile */
   overscroll-behavior-y: contain;
-  /* Support safe areas on notched devices */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Only apply horizontal safe area padding, not bottom */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
 #root {
