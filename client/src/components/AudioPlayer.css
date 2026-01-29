@@ -1240,8 +1240,7 @@
     width: 100% !important;
     /* Extend height INTO safe area - background will cover home indicator */
     height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
-    /* Padding keeps content above home indicator */
-    padding: 0 0 env(safe-area-inset-bottom, 0) 0 !important;
+    padding: 0 !important;
     margin: 0 !important;
     border: none !important;
     border-top: 1px solid #2a2a2a !important;
