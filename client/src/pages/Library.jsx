@@ -234,8 +234,6 @@ export default function Library({ onPlay }) {
 
   const tabs = [
     { id: 'browse', label: 'Browse', count: stats.totalBooks },
-    { id: 'reading-list', label: 'Reading List', count: stats.totalFavorites },
-    { id: 'collections', label: 'Collections', count: stats.totalCollections },
   ];
 
   if (isAdmin) {
@@ -426,6 +424,74 @@ export default function Library({ onPlay }) {
                 <div className="category-text">
                   <h3>Genres</h3>
                   <p>Browse by category</p>
+                </div>
+                <div className="category-arrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Reading List Card */}
+            <div
+              className="category-card"
+              onClick={() => { setActiveTab('reading-list'); loadFavorites(); }}
+            >
+              <div className="category-card-bg">
+                <svg viewBox="0 0 200 200" className="category-bg-pattern">
+                  <defs>
+                    <linearGradient id="grad-reading" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.1" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="160" cy="40" r="70" fill="url(#grad-reading)" />
+                </svg>
+              </div>
+              <div className="category-card-content">
+                <div className="category-icon-wrapper reading-list">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <div className="category-text">
+                  <h3>Reading List</h3>
+                  <p>{stats.totalFavorites} saved</p>
+                </div>
+                <div className="category-arrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Collections Card */}
+            <div
+              className="category-card"
+              onClick={() => { setActiveTab('collections'); loadCollections(); }}
+            >
+              <div className="category-card-bg">
+                <svg viewBox="0 0 200 200" className="category-bg-pattern">
+                  <defs>
+                    <linearGradient id="grad-collections" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#a855f7" stopOpacity="0.1" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="150" cy="50" r="65" fill="url(#grad-collections)" />
+                </svg>
+              </div>
+              <div className="category-card-content">
+                <div className="category-icon-wrapper collections">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <div className="category-text">
+                  <h3>Collections</h3>
+                  <p>{stats.totalCollections} collections</p>
                 </div>
                 <div className="category-arrow">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
