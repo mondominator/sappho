@@ -1250,13 +1250,6 @@
     transform: none !important;
   }
 
-  /* iOS only: add safe area padding for home indicator */
-  @supports (-webkit-touch-callout: none) {
-    .audio-player {
-      padding-bottom: env(safe-area-inset-bottom, 0) !important;
-    }
-  }
-
   .player-info {
     padding: 20px 12px 12px 12px !important;
     margin-bottom: 0 !important;
