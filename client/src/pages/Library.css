@@ -748,6 +748,58 @@
   margin-bottom: 1.5rem;
 }
 
+/* Section Header with Back Button */
+.section-header-with-back {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #374151;
+}
+
+.section-header-with-back h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(55, 65, 81, 0.5);
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: rgba(75, 85, 99, 0.5);
+  color: #fff;
+}
+
+.back-btn:active {
+  transform: scale(0.98);
+}
+
+.back-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-new-collection {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
 .collections-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
