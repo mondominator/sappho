@@ -28,12 +28,23 @@
     }
   }
 
-  /* Add bottom padding when player is present - include safe area since player extends into it */
+  /* Add bottom padding when player is present */
   .app.player-active {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 90px;
   }
 
   .app.player-active .main-content {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 90px;
+  }
+
+  /* iOS only: include safe area since player extends into it */
+  @supports (-webkit-touch-callout: none) {
+    .app.player-active {
+      padding-bottom: calc(90px + env(safe-area-inset-bottom, 0));
+    }
+
+    .app.player-active .main-content {
+      padding-bottom: calc(90px + env(safe-area-inset-bottom, 0));
+    }
   }
 }
