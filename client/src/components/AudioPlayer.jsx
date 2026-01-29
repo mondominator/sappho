@@ -13,6 +13,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     const saved = localStorage.getItem('playerVolume')
     return saved ? parseFloat(saved) : 1
   });
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [sleepTimer, setSleepTimer] = useState(null); // minutes remaining or 'chapter'
+  const [sleepTimerEnd, setSleepTimerEnd] = useState(null); // timestamp when timer ends
+  const [showSleepMenu, setShowSleepMenu] = useState(false);
+  const sleepTimerIntervalRef = useRef(null);
+  const [progressDisplayMode, setProgressDisplayMode] = useState(() => {
+    return localStorage.getItem('progressDisplayMode') || 'book';
+  });
   const [hasRestoredPosition, setHasRestoredPosition] = useState(false);
   const [isNewLoad, setIsNewLoad] = useState(() => {
     // Check if this is a page refresh by checking session storage
@@ -55,8 +64,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const dragStateRef = useRef({ startY: 0, isDragging: false }); // Ref for native event handlers
   const miniTitleRef = useRef(null);
   const fullscreenTitleRef = useRef(null);
+  const chapterLabelRef = useRef(null);
   const [miniTitleOverflows, setMiniTitleOverflows] = useState(false);
   const [fullscreenTitleOverflows, setFullscreenTitleOverflows] = useState(false);
+  const [chapterLabelOverflows, setChapterLabelOverflows] = useState(false);
 
   // Expose closeFullscreen method to parent
   useImperativeHandle(ref, () => ({
@@ -419,6 +430,42 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     setCurrentTime(newTime);
   };
 
+  const handleSpeedChange = (speed) => {
+    setPlaybackSpeed(speed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+    // Save to localStorage for this book
+    localStorage.setItem(`playbackSpeed_${audiobook.id}`, speed.toString());
+    setShowSpeedMenu(false);
+  };
+
+  const handleSleepTimer = (minutes) => {
+    if (minutes === null) {
+      // Cancel timer
+      setSleepTimer(null);
+      setSleepTimerEnd(null);
+    } else if (minutes === 'chapter') {
+      setSleepTimer('chapter');
+      setSleepTimerEnd(null);
+    } else {
+      setSleepTimer(minutes);
+      setSleepTimerEnd(Date.now() + minutes * 60000);
+    }
+    setShowSleepMenu(false);
+  };
+
+  const formatSleepTimer = () => {
+    if (sleepTimer === 'chapter') return 'End of chapter';
+    if (sleepTimer === null) return null;
+    if (sleepTimer >= 60) {
+      const hours = Math.floor(sleepTimer / 60);
+      const mins = sleepTimer % 60;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    return `${sleepTimer}m`;
+  };
+
   const handleTimeUpdate = () => {
     setCurrentTime(audioRef.current.currentTime);
   };
@@ -467,6 +514,28 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
     return `${minutes} min`;
   };
+
+  // Calculate chapter progress for chapter display mode
+  const getChapterProgress = () => {
+    if (chapters.length === 0 || progressDisplayMode !== 'chapter') {
+      return null;
+    }
+
+    const chapter = chapters[currentChapter];
+    const nextChapter = chapters[currentChapter + 1];
+    const chapterStart = chapter?.start_time || 0;
+    const chapterEnd = nextChapter ? nextChapter.start_time : duration;
+    const chapterDuration = chapterEnd - chapterStart;
+    const chapterPosition = currentTime - chapterStart;
+
+    return {
+      position: Math.max(0, chapterPosition),
+      duration: chapterDuration,
+      percent: chapterDuration > 0 ? (chapterPosition / chapterDuration) * 100 : 0
+    };
+  };
+
+  const chapterProgress = getChapterProgress();
 
   const handleClose = () => {
     // Stop playback and send stopped state when closing the player
@@ -525,10 +594,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const handleFullscreenTouchStart = (e) => {
     const target = e.target;
 
-    // Don't handle swipe if touching progress bar, controls, or buttons
+    // Don't handle swipe if touching progress bar, controls, bottom bar, or buttons
     if (target.closest('.fullscreen-progress') ||
         target.closest('.fullscreen-controls') ||
-        target.closest('.fullscreen-chapter-btn') ||
+        target.closest('.fullscreen-bottom-bar') ||
         target.closest('button')) {
       return;
     }
@@ -721,6 +790,104 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }, [currentChapter, showFullscreen, showChapterModal]);
 
+  // Listen for player settings changes from Profile page
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setProgressDisplayMode(localStorage.getItem('progressDisplayMode') || 'book');
+    };
+
+    window.addEventListener('playerSettingsChanged', handleSettingsChange);
+    return () => window.removeEventListener('playerSettingsChanged', handleSettingsChange);
+  }, []);
+
+  // Load and save playback speed per audiobook
+  useEffect(() => {
+    if (!audiobook?.id) return;
+
+    // Load saved speed for this book
+    const savedSpeed = localStorage.getItem(`playbackSpeed_${audiobook.id}`);
+    if (savedSpeed) {
+      const speed = parseFloat(savedSpeed);
+      setPlaybackSpeed(speed);
+      if (audioRef.current) {
+        audioRef.current.playbackRate = speed;
+      }
+    } else {
+      // Reset to 1x for new books without saved speed
+      setPlaybackSpeed(1);
+      if (audioRef.current) {
+        audioRef.current.playbackRate = 1;
+      }
+    }
+  }, [audiobook?.id]);
+
+  // Apply playback speed when audio element is ready
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
+
+  // Sleep timer countdown
+  useEffect(() => {
+    // Clear any existing interval
+    if (sleepTimerIntervalRef.current) {
+      clearInterval(sleepTimerIntervalRef.current);
+      sleepTimerIntervalRef.current = null;
+    }
+
+    if (sleepTimer === null || sleepTimer === 'chapter') {
+      return;
+    }
+
+    // Update timer every second
+    sleepTimerIntervalRef.current = setInterval(() => {
+      if (!sleepTimerEnd) return;
+
+      const remaining = Math.max(0, Math.ceil((sleepTimerEnd - Date.now()) / 60000));
+
+      if (remaining <= 0) {
+        // Timer expired - pause playback
+        if (audioRef.current && playing) {
+          audioRef.current.pause();
+          setPlaying(false);
+          updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+        }
+        setSleepTimer(null);
+        setSleepTimerEnd(null);
+        clearInterval(sleepTimerIntervalRef.current);
+        sleepTimerIntervalRef.current = null;
+      } else if (remaining !== sleepTimer) {
+        setSleepTimer(remaining);
+      }
+    }, 1000);
+
+    return () => {
+      if (sleepTimerIntervalRef.current) {
+        clearInterval(sleepTimerIntervalRef.current);
+        sleepTimerIntervalRef.current = null;
+      }
+    };
+  }, [sleepTimer, sleepTimerEnd, playing, audiobook?.id]);
+
+  // Handle "end of chapter" sleep timer
+  useEffect(() => {
+    if (sleepTimer !== 'chapter' || !chapters.length) return;
+
+    const currentChapterObj = chapters[currentChapter];
+    const nextChapter = chapters[currentChapter + 1];
+
+    if (nextChapter && currentTime >= nextChapter.start_time - 0.5) {
+      // We've reached the next chapter - pause
+      if (audioRef.current && playing) {
+        audioRef.current.pause();
+        setPlaying(false);
+        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+      }
+      setSleepTimer(null);
+    }
+  }, [currentTime, currentChapter, chapters, sleepTimer, playing, audiobook?.id]);
+
   // Detect title overflow for marquee animation
   useEffect(() => {
     const checkOverflow = () => {
@@ -749,6 +916,17 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           setFullscreenTitleOverflows(singleTitleWidth > container.clientWidth);
         }
       }
+
+      // Check chapter label
+      if (chapterLabelRef.current && showFullscreen) {
+        const container = chapterLabelRef.current;
+        const content = container.querySelector('.chapter-label-content');
+        if (content) {
+          const hasMarquee = chapterLabelOverflows;
+          const singleWidth = hasMarquee ? content.scrollWidth / 2.1 : content.scrollWidth;
+          setChapterLabelOverflows(singleWidth > container.clientWidth);
+        }
+      }
     };
 
     // Check after a brief delay to allow rendering
@@ -765,7 +943,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       if (fullscreenTimeout) clearTimeout(fullscreenTimeout);
       window.removeEventListener('resize', checkOverflow);
     };
-  }, [audiobook?.title, showFullscreen, miniTitleOverflows, fullscreenTitleOverflows]);
+  }, [audiobook?.title, showFullscreen, miniTitleOverflows, fullscreenTitleOverflows, chapterLabelOverflows, currentChapter, chapters]);
 
   // Native event listeners for progress bar seeking (with passive: false for iOS)
   useEffect(() => {
@@ -876,10 +1054,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
     const handleTouchStart = (e) => {
       const target = e.target;
-      // Don't handle swipe if touching progress bar, controls, or buttons
+      // Don't handle swipe if touching progress bar, controls, bottom bar, or buttons
       if (target.closest('.fullscreen-progress') ||
           target.closest('.fullscreen-controls') ||
-          target.closest('.fullscreen-chapter-btn') ||
+          target.closest('.fullscreen-bottom-bar') ||
           target.closest('button')) {
         return;
       }
@@ -1012,7 +1190,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </div>
           <div className="player-metadata">
             <div className={`metadata-time ${playing ? 'playing' : ''}`}>
-              {formatTimeShort(currentTime)} / {formatTimeShort(duration)}
+              {chapterProgress
+                ? `${formatTimeShort(chapterProgress.position)} / ${formatTimeShort(chapterProgress.duration)}`
+                : `${formatTimeShort(currentTime)} / ${formatTimeShort(duration)}`
+              }
             </div>
           </div>
         </div>
@@ -1029,7 +1210,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             </button>
           )}
           <div className={`mobile-time-display ${playing ? 'playing' : ''}`}>
-            <div>{formatTimeShort(currentTime)} / {formatTimeShort(duration)}</div>
+            <div>
+              {chapterProgress
+                ? `${formatTimeShort(chapterProgress.position)} / ${formatTimeShort(chapterProgress.duration)}`
+                : `${formatTimeShort(currentTime)} / ${formatTimeShort(duration)}`
+              }
+            </div>
           </div>
           {chapters.length > 0 && (
             <>
@@ -1134,13 +1320,18 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         ref={progressBarRef}
         className={`player-progress ${isDraggingProgress && !showFullscreen ? 'dragging' : ''}`}
         style={{
-          '--progress-percent': `${duration ? (currentTime / duration) * 100 : 0}%`,
+          '--progress-percent': `${chapterProgress ? chapterProgress.percent : (duration ? (currentTime / duration) * 100 : 0)}%`,
           '--preview-percent': `${seekPreviewPercent}%`
         }}
         onMouseDown={handleProgressMouseDown}
       >
         <div className="progress-thumb"></div>
-        <span className="time-display">{formatTime(currentTime)} / {formatTime(duration)}</span>
+        <span className="time-display">
+          {chapterProgress
+            ? `${formatTime(chapterProgress.position)} / ${formatTime(chapterProgress.duration)}`
+            : `${formatTime(currentTime)} / ${formatTime(duration)}`
+          }
+        </span>
         <input
           type="range"
           min="0"
@@ -1338,13 +1529,20 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 onMouseDown={handleFullscreenProgressMouseDown}
               >
                 <div className="fullscreen-time">
-                  <span>{isDraggingProgress && seekPreviewTime !== null ? formatTime(seekPreviewTime) : formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
+                  <span>
+                    {isDraggingProgress && seekPreviewTime !== null
+                      ? formatTime(seekPreviewTime)
+                      : chapterProgress
+                        ? formatTime(chapterProgress.position)
+                        : formatTime(currentTime)
+                    }
+                  </span>
+                  <span>{chapterProgress ? formatTime(chapterProgress.duration) : formatTime(duration)}</span>
                 </div>
                 <div className="fullscreen-progress-track">
                   <div
                     className="fullscreen-progress-fill"
-                    style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                    style={{ width: `${chapterProgress ? chapterProgress.percent : (duration > 0 ? (currentTime / duration) * 100 : 0)}%` }}
                   />
                   {isDraggingProgress && showFullscreen && seekPreviewTime !== null && (
                     <div
@@ -1354,7 +1552,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   )}
                   <div
                     className="fullscreen-progress-thumb"
-                    style={{ left: isDraggingProgress && seekPreviewTime !== null ? `${seekPreviewPercent}%` : `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                    style={{ left: isDraggingProgress && seekPreviewTime !== null ? `${seekPreviewPercent}%` : `${chapterProgress ? chapterProgress.percent : (duration > 0 ? (currentTime / duration) * 100 : 0)}%` }}
                   />
                   {isDraggingProgress && showFullscreen && seekPreviewTime !== null && (
                     <div
@@ -1367,30 +1565,136 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 </div>
               </div>
 
-              {chapters.length > 0 && (
-                <button className="fullscreen-chapter-btn" onClick={() => setShowChapterModal(true)}>
-                  {playing ? (
-                    <div className="equalizer">
-                      <span className="eq-bar"></span>
-                      <span className="eq-bar"></span>
-                      <span className="eq-bar"></span>
-                    </div>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="8" y1="6" x2="21" y2="6"></line>
-                      <line x1="8" y1="12" x2="21" y2="12"></line>
-                      <line x1="8" y1="18" x2="21" y2="18"></line>
-                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                    </svg>
-                  )}
-                  <span>{chapters[currentChapter]?.title || ''}</span>
-                </button>
-              )}
             </div>
           </div>
 
+          {/* Bottom control bar */}
+          <div className="fullscreen-bottom-bar">
+            {/* Chapter button - left */}
+            <button
+              className={`fullscreen-bottom-btn ${!chapters.length ? 'disabled' : ''}`}
+              onClick={() => chapters.length > 0 && setShowChapterModal(true)}
+              disabled={!chapters.length}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+              <span
+                ref={chapterLabelRef}
+                className={`chapter-label ${chapterLabelOverflows ? 'marquee' : ''}`}
+              >
+                <span className="chapter-label-content">
+                  {chapters.length > 0 ? (chapters[currentChapter]?.title || 'Chapters') : 'No chapters'}
+                  {chapterLabelOverflows && (
+                    <>
+                      <span className="marquee-spacer"> • </span>
+                      {chapters[currentChapter]?.title || 'Chapters'}
+                    </>
+                  )}
+                </span>
+              </span>
+            </button>
+
+            {/* Speed button - center */}
+            <button
+              className="fullscreen-bottom-btn"
+              onClick={() => setShowSpeedMenu(true)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span>{playbackSpeed === 1 ? '1x' : `${playbackSpeed}x`}</span>
+            </button>
+
+            {/* Sleep timer button - right */}
+            <button
+              className={`fullscreen-bottom-btn ${sleepTimer !== null ? 'active' : ''}`}
+              onClick={() => setShowSleepMenu(true)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span>{formatSleepTimer() || 'Sleep'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Speed selection menu */}
+      {showSpeedMenu && (
+        <div className="speed-menu-overlay" onClick={() => setShowSpeedMenu(false)}>
+          <div className="speed-menu-content" onClick={(e) => e.stopPropagation()}>
+            <div className="speed-menu-header">
+              <h3>Playback Speed</h3>
+              <button className="speed-menu-close" onClick={() => setShowSpeedMenu(false)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="speed-menu-options">
+              {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((speed) => (
+                <button
+                  key={speed}
+                  className={`speed-option ${playbackSpeed === speed ? 'active' : ''}`}
+                  onClick={() => handleSpeedChange(speed)}
+                >
+                  {speed}x
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sleep timer menu */}
+      {showSleepMenu && (
+        <div className="sleep-menu-overlay" onClick={() => setShowSleepMenu(false)}>
+          <div className="sleep-menu-content" onClick={(e) => e.stopPropagation()}>
+            <div className="sleep-menu-header">
+              <h3>Sleep Timer</h3>
+              <button className="sleep-menu-close" onClick={() => setShowSleepMenu(false)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="sleep-menu-options">
+              {sleepTimer !== null && (
+                <button
+                  className="sleep-option cancel"
+                  onClick={() => handleSleepTimer(null)}
+                >
+                  Cancel Timer
+                </button>
+              )}
+              {chapters.length > 0 && (
+                <button
+                  className={`sleep-option ${sleepTimer === 'chapter' ? 'active' : ''}`}
+                  onClick={() => handleSleepTimer('chapter')}
+                >
+                  End of chapter
+                </button>
+              )}
+              {[5, 10, 15, 30, 45, 60, 90, 120].map((mins) => (
+                <button
+                  key={mins}
+                  className={`sleep-option ${sleepTimer === mins ? 'active' : ''}`}
+                  onClick={() => handleSleepTimer(mins)}
+                >
+                  {mins >= 60 ? `${mins / 60} hour${mins > 60 ? 's' : ''}` : `${mins} minutes`}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </>
