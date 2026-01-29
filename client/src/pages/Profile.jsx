@@ -730,6 +730,32 @@ export default function Profile() {
               </div>
             </form>
 
+            {/* Player Settings Section */}
+            <div className="form-section">
+              <h3>Player Settings</h3>
+
+              <div className="setting-toggle-group">
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={localStorage.getItem('progressDisplayMode') === 'chapter'}
+                    onChange={(e) => {
+                      const mode = e.target.checked ? 'chapter' : 'book';
+                      localStorage.setItem('progressDisplayMode', mode);
+                      // Force re-render
+                      setProfile({ ...profile });
+                      // Dispatch event so AudioPlayer can update
+                      window.dispatchEvent(new CustomEvent('playerSettingsChanged'));
+                    }}
+                  />
+                  <span className="toggle-text">
+                    <strong>Show chapter progress</strong>
+                    <span className="toggle-description">Display progress within current chapter instead of entire book</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             {/* Password Change Section */}
             <form onSubmit={handlePasswordChange} className="password-form">
               <div className="form-section">
