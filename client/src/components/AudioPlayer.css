@@ -1230,7 +1230,7 @@
 }
 
 @media (max-width: 768px) {
-  /* Compact mobile player bar - use transform to shift into safe area */
+  /* Compact mobile player bar */
   .audio-player {
     position: fixed !important;
     left: 0 !important;
@@ -1245,11 +1245,17 @@
     border-top: 1px solid #2a2a2a !important;
     z-index: 9999 !important;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3) !important;
-    overflow: hidden !important;
-    /* Transform shifts player DOWN into safe area */
-    transform: translateY(env(safe-area-inset-bottom, 0)) !important;
-    -webkit-transform: translateY(env(safe-area-inset-bottom, 0)) !important;
+    overflow: visible !important;
+    transform: none !important;
+    -webkit-transform: none !important;
     box-sizing: border-box !important;
+    pointer-events: auto !important;
+    touch-action: auto !important;
+  }
+
+  /* Ensure all player children receive touches */
+  .audio-player * {
+    pointer-events: auto !important;
   }
 
   .player-info {
