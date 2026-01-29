@@ -28,12 +28,12 @@
     }
   }
 
-  /* Add bottom padding when player is present */
+  /* Add bottom padding when player is present - no safe area here, player handles it */
   .app.player-active {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 90px;
   }
 
   .app.player-active .main-content {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0));
+    padding-bottom: 90px;
   }
 }
