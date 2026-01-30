@@ -12,11 +12,24 @@ import EmailSettings from '../components/settings/EmailSettings';
 import UsersSettings from '../components/settings/UsersSettings';
 import './Settings.css';
 
+const sections = [
+  { id: 'library', label: 'Library', desc: 'Scan & organize' },
+  { id: 'users', label: 'Users', desc: 'Manage accounts' },
+  { id: 'jobs', label: 'Jobs', desc: 'Background tasks' },
+  { id: 'statistics', label: 'Statistics', desc: 'Usage analytics' },
+  { id: 'server', label: 'Server', desc: 'System settings' },
+  { id: 'backup', label: 'Backup', desc: 'Export & restore' },
+  { id: 'logs', label: 'Logs', desc: 'System logs' },
+  { id: 'ai', label: 'AI', desc: 'AI features' },
+  { id: 'email', label: 'Email', desc: 'Notifications' },
+  { id: 'api-keys', label: 'API Keys', desc: 'External access' },
+];
+
 export default function Settings() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('library');
+  const [activeSection, setActiveSection] = useState(null);
   const [apiKeys, setApiKeys] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [expiresInDays, setExpiresInDays] = useState('');
@@ -26,21 +39,16 @@ export default function Settings() {
   const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(() => {
-    // Fetch current user profile from server to get up-to-date is_admin status
-    // Redirect non-admins away from this page
     const loadCurrentUser = async () => {
       try {
         const response = await getProfile();
         setCurrentUser(response.data);
-        // Redirect non-admins to home page
         if (!response.data.is_admin) {
           navigate('/', { replace: true });
           return;
         }
         setAccessChecked(true);
       } catch (error) {
-        console.error('Error loading profile:', error);
-        // Redirect on error - can't verify admin status
         navigate('/', { replace: true });
       }
     };
@@ -48,13 +56,8 @@ export default function Settings() {
   }, [navigate]);
 
   useEffect(() => {
-    if (activeTab === 'api-keys') {
-      loadApiKeys();
-    } else {
-      // For other tabs - no initial loading needed
-      setLoading(false);
-    }
-  }, [activeTab]);
+    if (activeSection === 'api-keys') loadApiKeys();
+  }, [activeSection]);
 
   const loadApiKeys = async () => {
     setLoading(true);
@@ -68,36 +71,26 @@ export default function Settings() {
     }
   };
 
-  
-  // API Key handlers
   const handleCreateKey = async (e) => {
     e.preventDefault();
     try {
-      const response = await createApiKey(
-        newKeyName,
-        'read',
-        expiresInDays ? parseInt(expiresInDays) : null
-      );
+      const response = await createApiKey(newKeyName, 'read', expiresInDays ? parseInt(expiresInDays) : null);
       setNewKeyData(response.data);
       setNewKeyName('');
       setExpiresInDays('');
       setShowCreateForm(false);
       loadApiKeys();
     } catch (error) {
-      console.error('Error creating API key:', error);
       alert('Failed to create API key');
     }
   };
 
   const handleDeleteKey = async (id) => {
-    if (!confirm('Are you sure you want to delete this API key?')) {
-      return;
-    }
+    if (!confirm('Delete this API key?')) return;
     try {
       await deleteApiKey(id);
       loadApiKeys();
     } catch (error) {
-      console.error('Error deleting API key:', error);
       alert('Failed to delete API key');
     }
   };
@@ -107,12 +100,10 @@ export default function Settings() {
       await updateApiKey(id, { is_active: currentStatus ? 0 : 1 });
       loadApiKeys();
     } catch (error) {
-      console.error('Error updating API key:', error);
       alert('Failed to update API key');
     }
   };
 
-  // Password validation helper
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(true);
@@ -124,265 +115,146 @@ export default function Settings() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const renderTabContent = () => {
-    if (loading && activeTab === 'api-keys') {
-      return <div className="loading">Loading...</div>;
-    }
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'library': return <LibrarySettings />;
+      case 'server': return <ServerSettings />;
+      case 'jobs': return <JobsSettings />;
+      case 'statistics': return <StatisticsSettings />;
+      case 'backup': return <BackupSettings />;
+      case 'logs': return <LogsSettings />;
+      case 'ai': return <AISettings />;
+      case 'email': return <EmailSettings />;
+      case 'users': return <UsersSettings currentUserId={currentUser?.id} />;
+      case 'api-keys': return (
+        <div className="settings-content">
+          <button className="settings-btn primary full" onClick={() => setShowCreateForm(true)}>
+            Create New Key
+          </button>
 
-    switch (activeTab) {
-      case 'library':
-        return <LibrarySettings />;
-      case 'server':
-        return <ServerSettings />;
-      case 'jobs':
-        return <JobsSettings />;
-      case 'statistics':
-        return <StatisticsSettings />;
-      case 'backup':
-        return <BackupSettings />;
-      case 'logs':
-        return <LogsSettings />;
-      case 'ai':
-        return <AISettings />;
-      case 'email':
-        return <EmailSettings />;
-      case 'api-keys':
-        return renderApiKeysTab();
-      case 'users':
-        return <UsersSettings currentUserId={currentUser?.id} />;
-      default:
-        return null;
+          {loading ? (
+            <div className="settings-loading">Loading...</div>
+          ) : apiKeys.length === 0 ? (
+            <div className="settings-empty">No API keys created yet</div>
+          ) : (
+            <div className="api-list">
+              {apiKeys.map((key) => (
+                <div key={key.id} className="api-item">
+                  <div className="api-item-header">
+                    <span className="api-item-name">{key.name}</span>
+                    <span className={`api-item-status ${key.is_active ? 'active' : ''}`}>
+                      {key.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="api-item-key">{key.key_prefix}...</div>
+                  <div className="api-item-meta">
+                    Created {formatDate(key.created_at)}
+                    {key.expires_at && ` · Expires ${formatDate(key.expires_at)}`}
+                  </div>
+                  <div className="api-item-actions">
+                    <button className="settings-btn small" onClick={() => handleToggleActive(key.id, key.is_active)}>
+                      {key.is_active ? 'Disable' : 'Enable'}
+                    </button>
+                    <button className="settings-btn small danger" onClick={() => handleDeleteKey(key.id)}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showCreateForm && (
+            <div className="modal-overlay" onClick={() => setShowCreateForm(false)}>
+              <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                <h3>Create API Key</h3>
+                <form onSubmit={handleCreateKey}>
+                  <div className="form-field">
+                    <label>Name</label>
+                    <input
+                      type="text"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      placeholder="e.g., OpsDec"
+                      required
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Expires in days (optional)</label>
+                    <input
+                      type="number"
+                      value={expiresInDays}
+                      onChange={(e) => setExpiresInDays(e.target.value)}
+                      placeholder="Leave empty for no expiration"
+                      min="1"
+                    />
+                  </div>
+                  <div className="modal-actions">
+                    <button type="button" className="settings-btn" onClick={() => setShowCreateForm(false)}>Cancel</button>
+                    <button type="submit" className="settings-btn primary">Create</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {newKeyData && (
+            <div className="modal-overlay" onClick={() => setNewKeyData(null)}>
+              <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                <h3>API Key Created</h3>
+                <div className="warning-box">Save this key now - it won't be shown again!</div>
+                <div className="key-display">{newKeyData.key}</div>
+                <div className="modal-actions">
+                  <button className="settings-btn" onClick={() => copyToClipboard(newKeyData.key)}>
+                    {copiedKey ? 'Copied!' : 'Copy'}
+                  </button>
+                  <button className="settings-btn primary" onClick={() => setNewKeyData(null)}>Done</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+      default: return null;
     }
   };
 
-  const renderApiKeysTab = () => (
-    <div className="tab-content">
-      <div className="section-header">
-        <div>
-          <h2>API Keys</h2>
-          <p className="section-description">
-            API keys allow external applications to access your Sappho library.
-            Keep your API keys secure and never share them publicly.
-          </p>
-        </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowCreateForm(true)}
-        >
-          Create New Key
-        </button>
-      </div>
-
-      {showCreateForm && (
-        <div className="modal-overlay" onClick={() => setShowCreateForm(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Create New API Key</h3>
-            <form onSubmit={handleCreateKey}>
-              <div className="form-group">
-                <label>Key Name</label>
-                <input
-                  type="text"
-                  className="input"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  placeholder="e.g., OpsDec Integration"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Expires In (days, optional)</label>
-                <input
-                  type="number"
-                  className="input"
-                  value={expiresInDays}
-                  onChange={(e) => setExpiresInDays(e.target.value)}
-                  placeholder="Leave empty for no expiration"
-                  min="1"
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="submit" className="btn btn-primary">
-                  Create Key
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowCreateForm(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {newKeyData && (
-        <div className="modal-overlay" onClick={() => setNewKeyData(null)}>
-          <div className="modal new-key-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>API Key Created</h3>
-            <div className="warning-box">
-              <p className="warning-text">
-                Save this key securely - it will not be shown again!
-              </p>
-            </div>
-            <div className="key-display">
-              <code>{newKeyData.key}</code>
-              <button
-                className="btn btn-small"
-                onClick={() => copyToClipboard(newKeyData.key)}
-              >
-                {copiedKey ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="btn btn-primary"
-                onClick={() => setNewKeyData(null)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {apiKeys.length === 0 ? (
-        <div className="empty-state">
-          <p>No API keys created yet.</p>
-        </div>
-      ) : (
-        <div className="api-keys-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Key Prefix</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Expires</th>
-                <th>Last Used</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apiKeys.map((key) => (
-                <tr key={key.id}>
-                  <td className="key-name" data-label="Name">{key.name}</td>
-                  <td className="key-prefix" data-label="Key Prefix">
-                    <code>{key.key_prefix}...</code>
-                  </td>
-                  <td data-label="Status">
-                    <span className={`status-badge ${key.is_active ? 'active' : 'inactive'}`}>
-                      {key.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td data-label="Created">{formatDate(key.created_at)}</td>
-                  <td data-label="Expires">{formatDate(key.expires_at)}</td>
-                  <td data-label="Last Used">{formatDate(key.last_used_at)}</td>
-                  <td className="actions">
-                    <button
-                      className="btn btn-small btn-secondary"
-                      onClick={() => handleToggleActive(key.id, key.is_active)}
-                    >
-                      {key.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      className="btn btn-small btn-danger"
-                      onClick={() => handleDeleteKey(key.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-
-
-  // Don't render anything until access is verified
   if (!accessChecked) {
-    return (
-      <div className="settings-page container">
-        <div className="loading">Verifying access...</div>
-      </div>
-    );
+    return <div className="settings-page"><div className="settings-loading">Loading...</div></div>;
   }
 
   return (
-    <div className="settings-page container">
-      <h1 className="settings-header">Administration</h1>
-
-      <div className="settings-tabs">
-        <button
-          className={`tab-button ${activeTab === 'library' ? 'active' : ''}`}
-          onClick={() => setActiveTab('library')}
-        >
-          Library
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'server' ? 'active' : ''}`}
-          onClick={() => setActiveTab('server')}
-        >
-          Server
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('jobs')}
-        >
-          Jobs
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'statistics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('statistics')}
-        >
-          Statistics
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'backup' ? 'active' : ''}`}
-          onClick={() => setActiveTab('backup')}
-        >
-          Backup
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
-          onClick={() => setActiveTab('logs')}
-        >
-          Logs
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'ai' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ai')}
-        >
-          AI
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'email' ? 'active' : ''}`}
-          onClick={() => setActiveTab('email')}
-        >
-          Email
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'api-keys' ? 'active' : ''}`}
-          onClick={() => setActiveTab('api-keys')}
-        >
-          API Keys
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
-        >
-          Users
-        </button>
-      </div>
-
-      <div className="settings-content">
-        {renderTabContent()}
-      </div>
+    <div className="settings-page">
+      {!activeSection ? (
+        <>
+          <h1 className="settings-title">Admin</h1>
+          <div className="settings-menu">
+            {sections.map((s) => (
+              <button key={s.id} className="settings-menu-item" onClick={() => setActiveSection(s.id)}>
+                <div className="settings-menu-text">
+                  <span className="settings-menu-label">{s.label}</span>
+                  <span className="settings-menu-desc">{s.desc}</span>
+                </div>
+                <svg className="settings-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="settings-header">
+            <button className="settings-back" onClick={() => setActiveSection(null)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h2 className="settings-section-title">{sections.find(s => s.id === activeSection)?.label}</h2>
+          </div>
+          {renderContent()}
+        </>
+      )}
     </div>
   );
 }

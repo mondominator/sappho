@@ -1,247 +1,313 @@
-.jobs-settings .section-header {
+/* Jobs Settings - Clean Minimal Design */
+
+.jobs-page {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 1rem;
 }
 
-.jobs-settings .header-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.settings-loading {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-secondary);
 }
 
-.jobs-settings .checkbox-inline {
+/* Tabs */
+.jobs-tabs {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #9ca3af;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.jobs-tab {
+  flex: 1;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
 }
 
-.jobs-settings .checkbox-inline input {
-  accent-color: #3b82f6;
+.jobs-tab.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
-.jobs-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
+/* Jobs List */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.job-card {
-  background: #1f2937;
-  border: 1px solid #374151;
+.job-item {
+  background: var(--bg-secondary);
   border-radius: 8px;
-  padding: 1rem;
-  transition: all 0.2s ease;
+  padding: 0.75rem 1rem;
 }
 
-.job-card:hover {
-  border-color: #4b5563;
-}
-
-.job-card.running {
-  border-color: #22c55e;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), transparent);
-}
-
-.job-card.locked {
-  border-color: #f59e0b;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), transparent);
-}
-
-.job-header {
+.job-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
 }
 
 .job-name {
-  font-weight: 600;
-  color: #f3f4f6;
-  font-size: 1rem;
-}
-
-.job-status-badge {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
   font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
 }
 
-.job-status-badge.idle {
-  background: #374151;
-  color: #9ca3af;
+.job-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(107, 114, 128, 0.2);
+  color: var(--text-secondary);
 }
 
-.job-status-badge.running {
+.job-status.running {
   background: rgba(34, 197, 94, 0.2);
   color: #22c55e;
-  animation: pulse 2s infinite;
 }
 
-.job-status-badge.locked {
+.job-status.locked {
   background: rgba(245, 158, 11, 0.2);
   color: #f59e0b;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+.job-meta {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-.job-description {
-  color: #9ca3af;
-  font-size: 0.875rem;
-  margin-bottom: 1rem;
-}
-
-.job-details {
+/* Action List */
+.action-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #374151;
 }
 
-.job-detail {
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.action-btn:active {
+  background: var(--bg-hover);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+}
+
+.action-btn.danger {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.action-btn.danger .action-title {
+  color: #f87171;
+}
+
+.action-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.action-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Scan Section */
+.scan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.scan-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.scan-btn:disabled {
+  opacity: 0.6;
+}
+
+.no-results {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent-primary);
+}
+
+/* Duplicate List */
+.duplicate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dup-item {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
 }
 
-.job-detail-label {
-  color: #6b7280;
-}
-
-.job-detail-value {
-  color: #d1d5db;
-  text-align: right;
-}
-
-.job-actions {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #374151;
+.dup-info {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
 }
 
-.job-actions .btn {
+.dup-title {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dup-author {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.dup-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.merge-btn {
   padding: 0.4rem 0.75rem;
-  font-size: 0.8rem;
-}
-
-.job-actions .btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@media (max-width: 768px) {
-  .jobs-settings .section-header {
-    flex-direction: column;
-  }
-
-  .jobs-settings .header-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .jobs-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Section tabs for Jobs page */
-.section-tabs {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #374151;
-  padding-bottom: 0;
-  overflow-x: auto;
-}
-
-.section-tab {
-  padding: 0.75rem 1.25rem;
-  background: transparent;
+  background: var(--accent-primary);
   border: none;
-  color: #9ca3af;
-  font-size: 0.875rem;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  white-space: nowrap;
-  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-.section-tab:hover {
-  color: #e5e7eb;
-  background: rgba(255, 255, 255, 0.05);
+.merge-btn:disabled {
+  opacity: 0.6;
 }
 
-.section-tab.active {
-  color: #3b82f6;
-  border-bottom-color: #3b82f6;
+/* Orphan List */
+.orphan-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
-/* Library Management action cards */
-.management-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+.orphan-actions .scan-btn {
+  flex: 1;
 }
 
-.action-card {
-  background: #1f2937;
-  border: 1px solid #374151;
+.delete-btn {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: none;
   border-radius: 8px;
-  padding: 1.5rem;
+  color: #f87171;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
 }
 
-.action-card h3 {
-  margin: 0 0 0.5rem 0;
-  color: #f3f4f6;
-  font-size: 1.1rem;
+.delete-btn:disabled {
+  opacity: 0.6;
 }
 
-.action-card p {
-  color: #9ca3af;
-  font-size: 0.875rem;
-  margin: 0 0 1rem 0;
-  line-height: 1.5;
+.orphan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.action-card.danger {
-  background: #7f1d1d;
-  border-color: #dc2626;
+.orphan-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  cursor: pointer;
 }
 
-.action-card.danger h3 {
-  color: #fecaca;
+.orphan-item input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent-primary);
+  flex-shrink: 0;
 }
 
-.action-card.danger p {
-  color: #fca5a5;
+.orphan-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
 }
 
-@media (max-width: 768px) {
-  .section-tabs {
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-  }
+.orphan-path {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  .section-tab {
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
-  }
-
-  .management-actions {
-    grid-template-columns: 1fr;
-  }
+.orphan-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
