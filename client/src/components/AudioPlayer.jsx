@@ -717,6 +717,19 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     const rect = barRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
+
+    // In chapter mode, seek within the current chapter's time range
+    if (progressDisplayMode === 'chapter' && chapters.length > 0) {
+      const chapter = chapters[currentChapter];
+      const nextChapter = chapters[currentChapter + 1];
+      const chapterStart = chapter?.start_time || 0;
+      const chapterEnd = nextChapter ? nextChapter.start_time : duration;
+      const chapterDuration = chapterEnd - chapterStart;
+      const seekTime = chapterStart + (percentage * chapterDuration);
+      return { time: seekTime, percent: percentage * 100 };
+    }
+
+    // Default: seek within full book duration
     return { time: percentage * duration, percent: percentage * 100 };
   };
 
