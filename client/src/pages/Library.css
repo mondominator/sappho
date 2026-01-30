@@ -64,6 +64,14 @@
   white-space: nowrap;
 }
 
+.stat-unit {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-left: 0.1em;
+  margin-right: 0.25em;
+}
+
 .stat-label {
   font-size: clamp(0.6rem, 2.5vw, 0.75rem);
   color: #9ca3af;

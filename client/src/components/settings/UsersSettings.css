@@ -1,31 +1,42 @@
+/* Users Settings - Modern Mobile-First Design */
+
 .users-settings {
-  max-width: 1200px;
+  max-width: 100%;
 }
 
 .users-settings .section-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   gap: 1rem;
 }
 
 .users-settings .header-actions {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.users-settings .header-actions .btn {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
 }
 
 /* User Form */
 .user-form-section {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-secondary);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .user-form-section h3 {
   margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -43,7 +54,7 @@
 }
 
 .form-group label {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -51,26 +62,26 @@
 .form-group input[type="text"],
 .form-group input[type="email"],
 .form-group input[type="password"] {
-  padding: 0.625rem 0.875rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-  border-radius: 6px;
+  padding: 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
   color: var(--text-primary);
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--accent-primary);
 }
 
 .form-group input.error {
-  border-color: #ef4444;
+  border-color: var(--accent-danger);
 }
 
 .error-text {
   font-size: 0.75rem;
-  color: #ef4444;
+  color: var(--accent-danger);
 }
 
 .checkbox-group label {
@@ -79,20 +90,23 @@
   gap: 0.5rem;
   cursor: pointer;
   color: var(--text-primary);
+  font-size: 0.9rem;
 }
 
 .checkbox-group input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent-primary);
 }
 
 .error-banner {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  color: var(--accent-danger);
   padding: 0.75rem 1rem;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 1rem;
+  font-size: 0.875rem;
 }
 
 .form-actions {
@@ -100,71 +114,96 @@
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-primary);
 }
 
-/* Users Table */
+/* Users List - Card Based */
 .users-table {
-  background: var(--bg-card);
-  border: 1px solid var(--border-secondary);
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .users-table table {
-  width: 100%;
-  border-collapse: collapse;
+  display: none;
 }
 
-.users-table th,
-.users-table td {
-  padding: 0.875rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-secondary);
+/* User Cards (mobile-first) */
+.user-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 1rem;
 }
 
-.users-table th {
-  background: var(--bg-tertiary);
-  font-weight: 600;
-  font-size: 0.8125rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-
-.users-table tr:last-child td {
-  border-bottom: none;
-}
-
-.users-table tr.disabled-row {
-  opacity: 0.6;
+.user-card.disabled-row {
+  opacity: 0.7;
   background: rgba(239, 68, 68, 0.05);
 }
 
-.user-cell .user-info {
+.user-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.user-card-info {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: 0.25rem;
 }
 
-.user-cell .username {
-  font-weight: 500;
+.user-card-name {
+  font-weight: 600;
   color: var(--text-primary);
+  font-size: 1rem;
 }
 
-.user-cell .email {
-  font-size: 0.8125rem;
+.user-card-email {
+  font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.user-card-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.user-card-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.user-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-primary);
+}
+
+.user-card-actions .btn {
+  flex: 1;
+  min-width: fit-content;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
 }
 
 /* Status Badges */
 .status-badge {
   display: inline-block;
-  padding: 0.25rem 0.625rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
 }
 
 .status-badge.active {
@@ -184,9 +223,9 @@
 
 .role-badge {
   display: inline-block;
-  padding: 0.25rem 0.625rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
 }
 
@@ -196,31 +235,20 @@
 }
 
 .role-badge.user {
-  background: rgba(156, 163, 175, 0.15);
-  color: #9ca3af;
-}
-
-.date-cell {
-  font-size: 0.875rem;
+  background: rgba(107, 114, 128, 0.15);
   color: var(--text-secondary);
-}
-
-.actions-cell {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 /* Buttons */
 .btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.8rem;
 }
 
 .btn-warning {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: none;
 }
 
 .btn-warning:hover {
@@ -230,7 +258,7 @@
 .btn-success {
   background: rgba(34, 197, 94, 0.15);
   color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  border: none;
 }
 
 .btn-success:hover {
@@ -240,7 +268,7 @@
 .btn-danger {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: none;
 }
 
 .btn-danger:hover {
@@ -258,18 +286,19 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   padding: 1rem;
 }
 
 .modal-content {
   background: var(--bg-card);
-  border-radius: 12px;
-  max-width: 700px;
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  max-width: 500px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
@@ -280,8 +309,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border-secondary);
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border-primary);
   position: sticky;
   top: 0;
   background: var(--bg-card);
@@ -290,6 +319,7 @@
 
 .modal-header h3 {
   margin: 0;
+  font-size: 1.125rem;
   color: var(--text-primary);
 }
 
@@ -301,15 +331,17 @@
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   line-height: 1;
+  border-radius: 6px;
 }
 
 .modal-close:hover {
   color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 /* User Details Modal */
 .user-details-content {
-  padding: 1.5rem;
+  padding: 1.25rem;
 }
 
 .details-section {
@@ -323,9 +355,10 @@
 .details-section h4 {
   margin: 0 0 0.75rem 0;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-secondary);
+  border-bottom: 1px solid var(--border-primary);
   color: var(--text-primary);
-  font-size: 0.9375rem;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .details-grid {
@@ -341,15 +374,16 @@
 }
 
 .detail-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .detail-value {
   color: var(--text-primary);
+  font-size: 0.9rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -363,7 +397,7 @@
 .disabled-info {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 1rem;
   margin-top: 0.75rem;
 }
@@ -371,6 +405,7 @@
 .disabled-info p {
   margin: 0 0 0.5rem 0;
   color: var(--text-primary);
+  font-size: 0.875rem;
 }
 
 .disabled-info p:last-of-type {
@@ -389,8 +424,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem;
-  background: var(--bg-tertiary);
-  border-radius: 6px;
+  background: var(--bg-input);
+  border-radius: 8px;
   gap: 1rem;
 }
 
@@ -398,32 +433,35 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  gap: 0.125rem;
 }
 
 .activity-title {
   font-weight: 500;
   color: var(--text-primary);
+  font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .activity-author {
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
 .activity-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
 .completion-badge {
-  padding: 0.25rem 0.5rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 500;
   background: var(--bg-secondary);
   color: var(--text-secondary);
 }
@@ -434,8 +472,8 @@
 }
 
 .activity-date {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 /* Mobile */
@@ -444,16 +482,24 @@
     flex-direction: column;
   }
 
+  .users-settings .header-actions {
+    width: 100%;
+  }
+
+  .users-settings .header-actions .btn {
+    flex: 1;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
   }
 
-  .users-table {
-    overflow-x: auto;
+  .form-actions {
+    flex-direction: column-reverse;
   }
 
-  .actions-cell {
-    flex-direction: column;
+  .form-actions .btn {
+    width: 100%;
   }
 
   .details-grid {
@@ -463,6 +509,7 @@
   .activity-item {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.5rem;
   }
 
   .activity-meta {

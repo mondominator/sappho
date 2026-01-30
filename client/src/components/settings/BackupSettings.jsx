@@ -4,7 +4,6 @@ import './BackupSettings.css';
 
 export default function BackupSettings() {
   const [backups, setBackups] = useState([]);
-  const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(null);
@@ -24,10 +23,9 @@ export default function BackupSettings() {
       setError(null);
       const response = await getBackups();
       setBackups(response.data.backups || []);
-      setStatus(response.data.status || null);
     } catch (err) {
       console.error('Error loading backups:', err);
-      setError(err.response?.data?.error || 'Failed to load backups');
+      setError('Failed to load backups');
     } finally {
       setLoading(false);
     }
@@ -38,12 +36,11 @@ export default function BackupSettings() {
       setCreating(true);
       setError(null);
       setSuccess(null);
-      const response = await createBackup(includeCovers);
-      setSuccess(`Backup created: ${response.data.filename} (${response.data.size ? formatBytes(response.data.size) : 'unknown size'})`);
+      await createBackup(includeCovers);
+      setSuccess('Backup created');
       loadBackups();
     } catch (err) {
-      console.error('Error creating backup:', err);
-      setError(err.response?.data?.error || 'Failed to create backup');
+      setError('Failed to create backup');
     } finally {
       setCreating(false);
     }
@@ -55,35 +52,27 @@ export default function BackupSettings() {
   };
 
   const handleDelete = async (filename) => {
-    if (!confirm(`Delete backup "${filename}"? This cannot be undone.`)) {
-      return;
-    }
-
+    if (!confirm(`Delete "${filename}"?`)) return;
     try {
       setError(null);
       await deleteBackup(filename);
-      setSuccess(`Deleted: ${filename}`);
+      setSuccess('Deleted');
       loadBackups();
     } catch (err) {
-      console.error('Error deleting backup:', err);
-      setError(err.response?.data?.error || 'Failed to delete backup');
+      setError('Failed to delete');
     }
   };
 
   const handleRestore = async (filename) => {
-    if (!confirm(`Restore from "${filename}"?\n\nThis will replace the current database and covers. A backup of the current database will be created first.\n\nThe server may need to be restarted after restore.`)) {
-      return;
-    }
-
+    if (!confirm(`Restore from "${filename}"?\n\nThis will replace current data.`)) return;
     try {
       setRestoring(filename);
       setError(null);
       setSuccess(null);
       await restoreBackup(filename, { restoreDatabase: true, restoreCovers: true });
-      setSuccess('Restore complete! You may need to refresh the page or restart the server.');
+      setSuccess('Restored! Refresh the page.');
     } catch (err) {
-      console.error('Error restoring backup:', err);
-      setError(err.response?.data?.error || 'Failed to restore backup');
+      setError('Failed to restore');
     } finally {
       setRestoring(null);
     }
@@ -92,22 +81,19 @@ export default function BackupSettings() {
   const handleUploadRestore = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (!confirm(`Restore from uploaded file "${file.name}"?\n\nThis will replace the current database and covers. A backup of the current database will be created first.\n\nThe server may need to be restarted after restore.`)) {
+    if (!confirm(`Restore from "${file.name}"?\n\nThis will replace current data.`)) {
       e.target.value = '';
       return;
     }
-
     try {
       setUploading(true);
       setError(null);
       setSuccess(null);
       await uploadAndRestoreBackup(file, { restoreDatabase: true, restoreCovers: true });
-      setSuccess('Restore complete! You may need to refresh the page or restart the server.');
+      setSuccess('Restored! Refresh the page.');
       loadBackups();
     } catch (err) {
-      console.error('Error uploading and restoring backup:', err);
-      setError(err.response?.data?.error || 'Failed to restore from uploaded backup');
+      setError('Failed to restore');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -115,81 +101,55 @@ export default function BackupSettings() {
   };
 
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B';
+    if (!bytes) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown';
-    return new Date(dateString).toLocaleString();
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    return d.toLocaleDateString();
   };
 
   if (loading) {
-    return <div className="backup-settings loading">Loading backups...</div>;
+    return <div className="backup-loading">Loading...</div>;
   }
 
   return (
-    <div className="backup-settings">
-      <div className="section-header">
-        <div>
-          <h2>Backup & Restore</h2>
-          <p className="section-description">
-            Create and manage backups of your database and cover images.
-            Backups are stored on the server in the data directory.
-          </p>
-        </div>
-      </div>
-
+    <div className="backup-page">
       {error && (
-        <div className="alert alert-error">
-          {error}
-          <button className="alert-dismiss" onClick={() => setError(null)}>&times;</button>
-        </div>
+        <div className="backup-alert error" onClick={() => setError(null)}>{error}</div>
       )}
-
       {success && (
-        <div className="alert alert-success">
-          {success}
-          <button className="alert-dismiss" onClick={() => setSuccess(null)}>&times;</button>
-        </div>
+        <div className="backup-alert success" onClick={() => setSuccess(null)}>{success}</div>
       )}
 
-      {/* Create Backup Section */}
+      {/* Create Section */}
       <div className="backup-section">
-        <h3>Create Backup</h3>
-        <div className="backup-create-form">
-          <label className="checkbox-label">
+        <div className="backup-create">
+          <label className="backup-checkbox">
             <input
               type="checkbox"
               checked={includeCovers}
               onChange={(e) => setIncludeCovers(e.target.checked)}
             />
-            <span>Include cover images</span>
+            <span>Include covers</span>
           </label>
           <button
-            className="btn btn-primary"
+            className="backup-btn primary"
             onClick={handleCreateBackup}
             disabled={creating}
           >
             {creating ? 'Creating...' : 'Create Backup'}
           </button>
         </div>
-        {status?.lastBackup && (
-          <p className="last-backup-info">
-            Last backup: {formatDate(status.lastBackup)}
-          </p>
-        )}
       </div>
 
-      {/* Upload & Restore Section */}
+      {/* Upload Section */}
       <div className="backup-section">
-        <h3>Upload & Restore</h3>
-        <p className="section-description">
-          Upload a backup file from your computer to restore.
-        </p>
         <input
           type="file"
           accept=".zip"
@@ -198,98 +158,46 @@ export default function BackupSettings() {
           style={{ display: 'none' }}
         />
         <button
-          className="btn btn-secondary"
+          className="backup-btn full"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
         >
-          {uploading ? 'Uploading & Restoring...' : 'Upload Backup File'}
+          {uploading ? 'Restoring...' : 'Upload & Restore'}
         </button>
       </div>
 
-      {/* Existing Backups Section */}
-      <div className="backup-section">
-        <h3>Available Backups</h3>
+      {/* Backups List */}
+      <div className="backup-list">
         {backups.length === 0 ? (
-          <p className="empty-state">No backups found. Create your first backup above.</p>
+          <div className="backup-empty">No backups yet</div>
         ) : (
-          <div className="backups-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Filename</th>
-                  <th>Size</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {backups.map((backup) => (
-                  <tr key={backup.filename}>
-                    <td data-label="Filename" className="backup-filename">
-                      {backup.filename}
-                    </td>
-                    <td data-label="Size">
-                      {backup.sizeFormatted || formatBytes(backup.size)}
-                    </td>
-                    <td data-label="Created">
-                      {backup.createdFormatted || formatDate(backup.created)}
-                    </td>
-                    <td className="actions">
-                      <div className="action-buttons">
-                        <button
-                          className="btn btn-small btn-secondary"
-                          onClick={() => handleDownload(backup.filename)}
-                          title="Download backup"
-                        >
-                          Download
-                        </button>
-                        <button
-                          className="btn btn-small btn-primary"
-                          onClick={() => handleRestore(backup.filename)}
-                          disabled={restoring === backup.filename}
-                          title="Restore from this backup"
-                        >
-                          {restoring === backup.filename ? 'Restoring...' : 'Restore'}
-                        </button>
-                        <button
-                          className="btn btn-small btn-danger"
-                          onClick={() => handleDelete(backup.filename)}
-                          title="Delete backup"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          backups.map((backup) => (
+            <div key={backup.filename} className="backup-item">
+              <div className="backup-item-info">
+                <span className="backup-item-name">{backup.filename}</span>
+                <span className="backup-item-meta">
+                  {formatBytes(backup.size)} · {formatDate(backup.created)}
+                </span>
+              </div>
+              <div className="backup-item-actions">
+                <button className="backup-btn small" onClick={() => handleDownload(backup.filename)}>
+                  Download
+                </button>
+                <button
+                  className="backup-btn small primary"
+                  onClick={() => handleRestore(backup.filename)}
+                  disabled={restoring === backup.filename}
+                >
+                  {restoring === backup.filename ? '...' : 'Restore'}
+                </button>
+                <button className="backup-btn small danger" onClick={() => handleDelete(backup.filename)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
-
-      {/* Status Info */}
-      {status && (
-        <div className="backup-section backup-status">
-          <h3>Backup Status</h3>
-          <div className="status-grid">
-            <div className="status-item">
-              <span className="status-label">Backup Directory:</span>
-              <span className="status-value">{status.backupDir}</span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">Total Backups:</span>
-              <span className="status-value">{status.backupCount}</span>
-            </div>
-            {status.scheduledBackups && (
-              <div className="status-item">
-                <span className="status-label">Scheduled Backups:</span>
-                <span className="status-value status-active">Enabled</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
