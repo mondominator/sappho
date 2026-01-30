@@ -55,6 +55,8 @@ body {
 
 html {
   background: var(--bg-primary);
+  /* Prevent overscroll revealing anything behind */
+  overscroll-behavior: none;
 }
 
 .container {
@@ -65,25 +67,31 @@ html {
 
 @media (max-width: 768px) {
   html {
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     height: 100%;
+    /* Prevent elastic bounce */
+    overscroll-behavior: none;
+    position: fixed;
+    width: 100%;
   }
 
   body {
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     height: 100%;
     min-height: 100%;
     padding: 0;
-    /* No padding-bottom - player handles safe area */
+    /* Prevent elastic bounce */
+    overscroll-behavior: none;
+    position: fixed;
+    width: 100%;
   }
 
   #root {
-    min-height: 100%;
+    height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* Only #root scrolls, not html/body */
+    overscroll-behavior-y: contain;
   }
 
   /* Hide scrollbars on mobile */
