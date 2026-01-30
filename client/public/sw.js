@@ -18,7 +18,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // Service Worker for Sappho PWA
-const CACHE_NAME = 'sappho-v1.5.46';
+const CACHE_NAME = 'sappho-v1.5.47';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -69,6 +69,13 @@ self.addEventListener('fetch', (event) => {
 
   // Skip cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
+  // IMPORTANT: Never cache API requests - they contain auth tokens and dynamic data
+  // This includes streams, progress updates, and all authenticated endpoints
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(fetch(event.request));
     return;
   }
 
