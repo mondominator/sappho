@@ -67,21 +67,25 @@ html {
   html {
     overflow-x: hidden;
     overflow-y: auto;
-    height: 100%;
+    min-height: 100%;
+    min-height: 100dvh;
+    background: var(--bg-primary);
   }
 
   body {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    height: 100%;
     min-height: 100%;
+    min-height: 100dvh;
     padding: 0;
-    /* No padding-bottom - player handles safe area */
+    margin: 0;
+    background: var(--bg-primary);
   }
 
   #root {
     min-height: 100%;
+    min-height: 100dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
