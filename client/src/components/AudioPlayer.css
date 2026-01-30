@@ -1230,45 +1230,34 @@
 }
 
 @media (max-width: 768px) {
-  /* Compact mobile player bar - sits at safe area bottom, background extends below */
+  /* Compact mobile player bar - extends into safe area */
   .audio-player {
-    position: fixed !important;
+    padding: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    z-index: 1002 !important;
+    bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    bottom: 0 !important;
-    top: auto !important;
-    width: 100% !important;
-    height: 90px !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
+    border-bottom: none !important;
     border-top: 1px solid #2a2a2a !important;
-    z-index: 1001 !important;
+    margin: 0 !important;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3) !important;
-    overflow: visible !important;
+    position: fixed !important;
+    height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
+    max-height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
+    overflow: hidden !important;
     transform: none !important;
-    -webkit-transform: none !important;
-    box-sizing: border-box !important;
-    pointer-events: auto !important;
-    touch-action: auto !important;
   }
 
-  /* Extend background into safe area (like native apps do) */
-  .audio-player::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 100%;
-    /* Use 50px to cover the safe area gap */
-    height: 50px;
-    background: #1a1a1a;
-    pointer-events: none;
-  }
-
-  /* Ensure all player children receive touches */
-  .audio-player * {
-    pointer-events: auto !important;
+  /* iOS: ensure player is truly docked to bottom */
+  @supports (-webkit-touch-callout: none) {
+    .audio-player {
+      /* Use padding-bottom for safe area, not margin */
+      padding-bottom: env(safe-area-inset-bottom) !important;
+      /* Ensure no gap at bottom */
+      margin-bottom: 0 !important;
+      bottom: 0 !important;
+    }
   }
 
   .player-info {
