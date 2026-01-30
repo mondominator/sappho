@@ -1260,9 +1260,12 @@
     left: 0;
     right: 0;
     top: 100%;
-    height: env(safe-area-inset-bottom, 0);
-    background: #1a1a1a;
+    /* Use 100px to ensure it covers the gap even if env() isn't working */
+    height: 100px;
+    height: env(safe-area-inset-bottom, 100px);
+    background: inherit;
     pointer-events: none;
+    z-index: -1;
   }
 
   /* Ensure all player children receive touches */
