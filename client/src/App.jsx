@@ -16,7 +16,6 @@ import GenresList from './pages/GenresList'
 import Collections from './pages/Collections'
 import CollectionDetail from './pages/CollectionDetail'
 import Settings from './pages/Settings'
-import Activity from './pages/Activity'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
 import { WebSocketProvider } from './contexts/WebSocketContext'
@@ -62,7 +61,6 @@ function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, cu
           <Route path="/genres" element={<GenresList />} />
           <Route path="/collections" element={<Collections />} />
           <Route path="/collections/:id" element={<CollectionDetail />} />
-          <Route path="/activity" element={<Activity />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

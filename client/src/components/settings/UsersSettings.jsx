@@ -345,99 +345,80 @@ export default function UsersSettings({ currentUserId }) {
         </div>
       )}
 
-      {/* Users Table */}
+      {/* Users List - Card Based */}
       <div className="users-table">
-        <table>
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Status</th>
-              <th>Role</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className={user.account_disabled ? 'disabled-row' : ''}>
-                <td className="user-cell">
-                  <div className="user-info">
-                    <span className="username">{user.username}</span>
-                    {user.email && <span className="email">{user.email}</span>}
-                  </div>
-                </td>
-                <td className="status-cell">
-                  {user.account_disabled ? (
-                    <span className="status-badge disabled">Disabled</span>
-                  ) : user.is_locked ? (
-                    <span className="status-badge locked">
-                      Locked ({Math.ceil(user.lockout_remaining / 60)}m)
-                    </span>
-                  ) : (
-                    <span className="status-badge active">Active</span>
-                  )}
-                </td>
-                <td>
-                  <span className={`role-badge ${user.is_admin ? 'admin' : 'user'}`}>
-                    {user.is_admin ? 'Admin' : 'User'}
+        {users.map((user) => (
+          <div key={user.id} className={`user-card ${user.account_disabled ? 'disabled-row' : ''}`}>
+            <div className="user-card-header">
+              <div className="user-card-info">
+                <span className="user-card-name">{user.username}</span>
+                {user.email && <span className="user-card-email">{user.email}</span>}
+              </div>
+              <div className="user-card-badges">
+                {user.account_disabled ? (
+                  <span className="status-badge disabled">Disabled</span>
+                ) : user.is_locked ? (
+                  <span className="status-badge locked">
+                    Locked ({Math.ceil(user.lockout_remaining / 60)}m)
                   </span>
-                </td>
-                <td className="date-cell">{formatDate(user.created_at)}</td>
-                <td className="actions-cell">
-                  <button
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => handleViewDetails(user)}
-                    title="View details"
-                  >
-                    Details
-                  </button>
-                  {user.is_locked && (
-                    <button
-                      className="btn btn-sm btn-warning"
-                      onClick={() => handleUnlock(user)}
-                      title="Clear login lockout"
-                    >
-                      Unlock
-                    </button>
-                  )}
-                  {user.account_disabled ? (
-                    <button
-                      className="btn btn-sm btn-success"
-                      onClick={() => handleEnable(user)}
-                      title="Enable account"
-                    >
-                      Enable
-                    </button>
-                  ) : user.id !== currentUserId && (
-                    <button
-                      className="btn btn-sm btn-warning"
-                      onClick={() => handleDisable(user)}
-                      title="Disable account"
-                    >
-                      Disable
-                    </button>
-                  )}
-                  <button
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => startEdit(user)}
-                    title="Edit user"
-                  >
-                    Edit
-                  </button>
-                  {user.id !== currentUserId && (
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => handleDeleteUser(user)}
-                      title="Delete user"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                ) : (
+                  <span className="status-badge active">Active</span>
+                )}
+                <span className={`role-badge ${user.is_admin ? 'admin' : 'user'}`}>
+                  {user.is_admin ? 'Admin' : 'User'}
+                </span>
+              </div>
+            </div>
+            <div className="user-card-meta">
+              <span>Created {formatDate(user.created_at)}</span>
+            </div>
+            <div className="user-card-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => handleViewDetails(user)}
+              >
+                Details
+              </button>
+              {user.is_locked && (
+                <button
+                  className="btn btn-warning"
+                  onClick={() => handleUnlock(user)}
+                >
+                  Unlock
+                </button>
+              )}
+              {user.account_disabled ? (
+                <button
+                  className="btn btn-success"
+                  onClick={() => handleEnable(user)}
+                >
+                  Enable
+                </button>
+              ) : user.id !== currentUserId && (
+                <button
+                  className="btn btn-warning"
+                  onClick={() => handleDisable(user)}
+                >
+                  Disable
+                </button>
+              )}
+              <button
+                className="btn btn-secondary"
+                onClick={() => startEdit(user)}
+              >
+                Edit
+              </button>
+              {user.id !== currentUserId && (
+                <button
+                  className="btn btn-danger"
+                  onClick={() => handleDeleteUser(user)}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* User Details Modal */}
