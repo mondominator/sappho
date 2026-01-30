@@ -37,7 +37,7 @@ html {
   /* Ensure background extends to screen edges */
   background: var(--bg-primary);
   min-height: 100%;
-  min-height: 100dvh;
+  min-height: -webkit-fill-available;
 }
 
 body {
@@ -54,7 +54,7 @@ body {
   /* Only apply horizontal safe area padding, not bottom */
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   min-height: 100%;
-  min-height: 100dvh;
+  min-height: -webkit-fill-available;
 }
 
 #root {
