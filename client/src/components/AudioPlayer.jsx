@@ -304,23 +304,93 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
       });
 
+      // Use inline handlers with audioRef to avoid stale state from rapid taps
       navigator.mediaSession.setActionHandler('seekbackward', () => {
-        skipBackward();
+        if (!audioRef.current) return;
+        const actualTime = audioRef.current.currentTime;
+        const newTime = Math.max(0, actualTime - 15);
+        audioRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
       });
 
       navigator.mediaSession.setActionHandler('seekforward', () => {
-        skipForward();
+        if (!audioRef.current) return;
+        const actualTime = audioRef.current.currentTime;
+        const audioDuration = audioRef.current.duration || 0;
+        const newTime = Math.min(audioDuration, actualTime + 15);
+        audioRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
       });
 
       navigator.mediaSession.setActionHandler('previoustrack', () => {
+        if (!audioRef.current) return;
+        const actualTime = audioRef.current.currentTime;
+
+        // If near the beginning (< 5 seconds), just skip back 15s instead of restarting
+        if (actualTime < 5) {
+          const newTime = Math.max(0, actualTime - 15);
+          audioRef.current.currentTime = newTime;
+          setCurrentTime(newTime);
+          return;
+        }
+
         if (chapters.length > 0) {
-          skipToPreviousChapter();
+          // Find current chapter based on actual time
+          const currentChapterIndex = chapters.findIndex((chapter, index) => {
+            const nextChapter = chapters[index + 1];
+            return actualTime >= chapter.start_time &&
+                   (!nextChapter || actualTime < nextChapter.start_time);
+          });
+
+          // If at the beginning of current chapter (< 3 seconds in), go to previous chapter
+          // Otherwise, go to start of current chapter
+          const chapter = chapters[currentChapterIndex];
+          const timeIntoChapter = actualTime - (chapter?.start_time || 0);
+
+          if (timeIntoChapter < 3 && currentChapterIndex > 0) {
+            // Go to previous chapter
+            const prevChapter = chapters[currentChapterIndex - 1];
+            audioRef.current.currentTime = prevChapter.start_time;
+            setCurrentTime(prevChapter.start_time);
+          } else if (chapter) {
+            // Go to start of current chapter
+            audioRef.current.currentTime = chapter.start_time;
+            setCurrentTime(chapter.start_time);
+          }
+        } else {
+          // No chapters - skip back 15 seconds
+          const newTime = Math.max(0, actualTime - 15);
+          audioRef.current.currentTime = newTime;
+          setCurrentTime(newTime);
         }
       });
 
       navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (!audioRef.current) return;
+
         if (chapters.length > 0) {
-          skipToNextChapter();
+          const actualTime = audioRef.current.currentTime;
+          const audioDuration = audioRef.current.duration || 0;
+
+          // Find current chapter based on actual time
+          const currentChapterIndex = chapters.findIndex((chapter, index) => {
+            const nextChapter = chapters[index + 1];
+            return actualTime >= chapter.start_time &&
+                   (!nextChapter || actualTime < nextChapter.start_time);
+          });
+
+          if (currentChapterIndex !== -1 && currentChapterIndex < chapters.length - 1) {
+            const nextChapter = chapters[currentChapterIndex + 1];
+            audioRef.current.currentTime = nextChapter.start_time;
+            setCurrentTime(nextChapter.start_time);
+          }
+        } else {
+          // No chapters - skip forward 15 seconds
+          const actualTime = audioRef.current.currentTime;
+          const audioDuration = audioRef.current.duration || 0;
+          const newTime = Math.min(audioDuration, actualTime + 15);
+          audioRef.current.currentTime = newTime;
+          setCurrentTime(newTime);
         }
       });
     }
@@ -403,13 +473,22 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const skipBackward = () => {
-    const newTime = Math.max(0, currentTime - 15);
+    if (!audioRef.current) return;
+    // Use audioRef.current.currentTime directly to avoid stale state on rapid taps
+    const actualTime = audioRef.current.currentTime;
+    const newTime = Math.max(0, actualTime - 15);
     audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
   };
 
   const skipForward = () => {
-    const newTime = Math.min(duration, currentTime + 15);
+    if (!audioRef.current) return;
+    // Use audioRef.current.currentTime directly to avoid stale state on rapid taps
+    const actualTime = audioRef.current.currentTime;
+    const audioDuration = audioRef.current.duration || duration;
+    const newTime = Math.min(audioDuration, actualTime + 15);
     audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
   };
 
   const skipToPreviousChapter = () => {
