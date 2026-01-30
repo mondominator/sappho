@@ -1230,13 +1230,17 @@
 }
 
 @media (max-width: 768px) {
-  /* Compact mobile player bar */
+  /* Compact mobile player bar - use dvh for iOS compatibility */
   .audio-player {
     position: fixed !important;
     left: 0 !important;
     right: 0 !important;
-    bottom: 0 !important;
-    top: auto !important;
+    /* Use dvh to position at actual screen bottom, not safe area bottom */
+    bottom: auto !important;
+    top: calc(100dvh - 90px) !important;
+    /* Fallback for browsers without dvh support */
+    top: calc(100vh - 90px) !important;
+    top: calc(100dvh - 90px) !important;
     width: 100% !important;
     height: 90px !important;
     padding: 0 !important;
