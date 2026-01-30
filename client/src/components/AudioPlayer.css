@@ -1233,7 +1233,6 @@
   /* Compact mobile player bar - extends into safe area */
   .audio-player {
     padding: 0 !important;
-    padding-bottom: env(safe-area-inset-bottom, 0) !important;
     z-index: 1002 !important;
     bottom: 0 !important;
     left: 0 !important;
@@ -1243,17 +1242,21 @@
     margin: 0 !important;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3) !important;
     position: fixed !important;
-    height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
-    max-height: calc(90px + env(safe-area-inset-bottom, 0)) !important;
+    height: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+    max-height: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     overflow: hidden !important;
     transform: none !important;
+    /* Align content to top, safe area fills bottom */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
   }
 
   .player-info {
-    padding: 20px 12px 12px 12px !important;
+    padding: 24px 12px 0 12px !important;
     margin-bottom: 0 !important;
     gap: 10px;
-    height: 90px !important;
+    height: 80px !important;
     box-sizing: border-box !important;
     align-items: center !important;
     position: relative !important;
