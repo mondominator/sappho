@@ -212,13 +212,10 @@ export default function Library({ onPlay }) {
   };
 
   const formatDuration = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
-      return `${days}d ${remainingHours}h`;
-    }
-    return `${hours}h`;
+    const totalMinutes = Math.floor(seconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return { hours, minutes };
   };
 
   if (loading) {
@@ -260,7 +257,10 @@ export default function Library({ onPlay }) {
         </div>
         <div className="stat-divider"></div>
         <div className="stat-item">
-          <span className="stat-value">{formatDuration(stats.totalDuration)}</span>
+          <span className="stat-value">
+            {formatDuration(stats.totalDuration).hours}<span className="stat-unit">h</span>{' '}
+            {formatDuration(stats.totalDuration).minutes}<span className="stat-unit">m</span>
+          </span>
           <span className="stat-label">Total</span>
         </div>
       </div>
