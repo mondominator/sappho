@@ -30,10 +30,10 @@
 
   /* Add bottom padding when player is present */
   .app.player-active {
-    padding-bottom: 90px;
+    padding-bottom: 80px;
   }
 
   .app.player-active .main-content {
-    padding-bottom: 90px;
+    padding-bottom: 80px;
   }
 }
