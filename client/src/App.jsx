@@ -16,11 +16,9 @@ import GenresList from './pages/GenresList'
 import Collections from './pages/Collections'
 import CollectionDetail from './pages/CollectionDetail'
 import Settings from './pages/Settings'
-import Downloads from './pages/Downloads'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
 import { WebSocketProvider } from './contexts/WebSocketContext'
-import { DownloadProvider } from './contexts/DownloadContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
 
@@ -64,7 +62,6 @@ function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, cu
           <Route path="/collections" element={<Collections />} />
           <Route path="/collections/:id" element={<CollectionDetail />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/downloads" element={<Downloads />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
@@ -262,7 +259,6 @@ function App() {
             <ForcePasswordChange onLogout={handleLogout} />
           ) : (
             <WebSocketProvider>
-              <DownloadProvider>
               <AppContent
                 token={token}
                 onLogout={handleLogout}
@@ -272,7 +268,6 @@ function App() {
                 setCurrentProgress={setCurrentProgress}
                 playAudiobook={playAudiobook}
               />
-              </DownloadProvider>
             </WebSocketProvider>
           )
         } />
