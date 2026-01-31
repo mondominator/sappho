@@ -263,7 +263,7 @@ function getGenreMetadata(genre) {
 module.exports = {
   GENRE_MAPPINGS,
   DEFAULT_GENRE_METADATA,
-  normalizeGenre,
+  normalizeGenre,  // Exported for testing
   normalizeGenres,
-  getGenreMetadata
+  getGenreMetadata // Exported for testing
 };
