@@ -412,53 +412,62 @@ async function cancelDownload(audiobookId) {
 self.onmessage = async (event) => {
   const { type, audiobookId, token, totalBytes, bytesDownloaded } = event.data;
 
-  if (!audiobookId) {
-    self.postMessage({
-      type: 'error',
-      audiobookId: null,
-      error: 'audiobookId is required'
-    });
-    return;
-  }
-
-  switch (type) {
-    case 'start':
-      if (!token) {
-        self.postMessage({
-          type: 'error',
-          audiobookId,
-          error: 'token is required for start'
-        });
-        return;
-      }
-      await startDownload(audiobookId, token, totalBytes || 0);
-      break;
-
-    case 'pause':
-      pauseDownload(audiobookId);
-      break;
-
-    case 'resume':
-      if (!token) {
-        self.postMessage({
-          type: 'error',
-          audiobookId,
-          error: 'token is required for resume'
-        });
-        return;
-      }
-      await resumeDownload(audiobookId, token, bytesDownloaded || 0);
-      break;
-
-    case 'cancel':
-      await cancelDownload(audiobookId);
-      break;
-
-    default:
+  try {
+    if (!audiobookId) {
       self.postMessage({
         type: 'error',
-        audiobookId,
-        error: `Unknown message type: ${type}`
+        audiobookId: null,
+        error: 'audiobookId is required'
       });
+      return;
+    }
+
+    switch (type) {
+      case 'start':
+        if (!token) {
+          self.postMessage({
+            type: 'error',
+            audiobookId,
+            error: 'token is required for start'
+          });
+          return;
+        }
+        await startDownload(audiobookId, token, totalBytes || 0);
+        break;
+
+      case 'pause':
+        pauseDownload(audiobookId);
+        break;
+
+      case 'resume':
+        if (!token) {
+          self.postMessage({
+            type: 'error',
+            audiobookId,
+            error: 'token is required for resume'
+          });
+          return;
+        }
+        await resumeDownload(audiobookId, token, bytesDownloaded || 0);
+        break;
+
+      case 'cancel':
+        await cancelDownload(audiobookId);
+        break;
+
+      default:
+        self.postMessage({
+          type: 'error',
+          audiobookId,
+          error: `Unknown message type: ${type}`
+        });
+    }
+  } catch (error) {
+    // Catch any unexpected errors to prevent worker crash
+    self.postMessage({
+      type: 'error',
+      audiobookId: audiobookId || null,
+      error: error.message || 'Unexpected worker error'
+    });
   }
 };
