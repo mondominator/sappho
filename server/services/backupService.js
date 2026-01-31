@@ -194,8 +194,16 @@ async function restoreBackup(backupPath, options = {}) {
             });
         } else if (fileName.startsWith('covers/') && restoreCovers) {
           const coverName = fileName.replace('covers/', '');
-          if (coverName) {
+          // SECURITY: Validate path to prevent directory traversal attacks
+          if (coverName && !coverName.includes('..') && !coverName.startsWith('/') && !path.isAbsolute(coverName)) {
             const coverPath = path.join(COVERS_DIR, coverName);
+            // Double-check resolved path is within COVERS_DIR
+            const resolvedPath = path.resolve(coverPath);
+            if (!resolvedPath.startsWith(path.resolve(COVERS_DIR) + path.sep)) {
+              console.warn(`⚠️ Skipping suspicious cover path: ${fileName}`);
+              entry.autodrain();
+              return;
+            }
 
             // Ensure covers directory exists
             if (!fs.existsSync(COVERS_DIR)) {
@@ -207,6 +215,10 @@ async function restoreBackup(backupPath, options = {}) {
                 results.covers++;
               });
           } else {
+            // Initial validation failed - skip with warning
+            if (coverName) {
+              console.warn(`⚠️ Skipping invalid cover path: ${fileName}`);
+            }
             entry.autodrain();
           }
         } else {

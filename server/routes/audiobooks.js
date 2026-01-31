@@ -975,6 +975,69 @@ router.delete('/:id', authenticateToken, requireAdmin, (req, res) => {
   });
 });
 
+/**
+ * Check if a hostname is a private/internal address (SSRF protection)
+ */
+function isPrivateHostname(hostname) {
+  // Normalize hostname
+  const host = hostname.toLowerCase();
+
+  // Block localhost variants
+  if (host === 'localhost' || host === 'localhost.localdomain') {
+    return true;
+  }
+
+  // Block IPv6 loopback
+  if (host === '::1' || host === '[::1]') {
+    return true;
+  }
+
+  // Check if it's an IP address
+  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const match = host.match(ipv4Regex);
+
+  if (match) {
+    const [, a, b, c, d] = match.map(Number);
+
+    // Loopback (127.0.0.0/8)
+    if (a === 127) return true;
+
+    // Private ranges (RFC 1918)
+    if (a === 10) return true;                                    // 10.0.0.0/8
+    if (a === 172 && b >= 16 && b <= 31) return true;            // 172.16.0.0/12
+    if (a === 192 && b === 168) return true;                     // 192.168.0.0/16
+
+    // Link-local (169.254.0.0/16) - includes AWS metadata endpoint
+    if (a === 169 && b === 254) return true;
+
+    // Carrier-grade NAT (100.64.0.0/10)
+    if (a === 100 && b >= 64 && b <= 127) return true;
+
+    // Documentation ranges (should not be routable)
+    if (a === 192 && b === 0 && c === 2) return true;            // 192.0.2.0/24
+    if (a === 198 && b === 51 && c === 100) return true;         // 198.51.100.0/24
+    if (a === 203 && b === 0 && c === 113) return true;          // 203.0.113.0/24
+
+    // Broadcast
+    if (a === 255 && b === 255 && c === 255 && d === 255) return true;
+
+    // 0.0.0.0
+    if (a === 0 && b === 0 && c === 0 && d === 0) return true;
+  }
+
+  // Block cloud metadata endpoints by hostname
+  const metadataHosts = [
+    'metadata.google.internal',
+    'metadata.goog',
+    'instance-data',
+  ];
+  if (metadataHosts.some(h => host === h || host.endsWith('.' + h))) {
+    return true;
+  }
+
+  return false;
+}
+
 // Helper function to download cover image from URL
 async function downloadCover(url, audiobookId) {
   try {
@@ -989,6 +1052,12 @@ async function downloadCover(url, audiobookId) {
 
     // Determine extension from URL or default to jpg
     const parsedUrl = new URL(url);
+
+    // SECURITY: SSRF protection - block private/internal addresses
+    if (isPrivateHostname(parsedUrl.hostname)) {
+      throw new Error('Private or internal URLs are not allowed');
+    }
+
     let ext = path.extname(parsedUrl.pathname).toLowerCase();
     if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
       ext = '.jpg';
@@ -2053,7 +2122,23 @@ router.get('/:id/cover', authenticateMediaToken, (req, res) => {
       return res.status(404).json({ error: 'Cover image not found' });
     }
 
-    res.sendFile(path.resolve(coverPath));
+    // SECURITY: Validate that cover path is within allowed directories
+    const dataDir = path.resolve(process.env.DATA_DIR || path.join(__dirname, '../../data'));
+    const audiobooksDir = path.resolve(process.env.AUDIOBOOKS_DIR || path.join(dataDir, 'audiobooks'));
+    const coversDir = path.resolve(path.join(dataDir, 'covers'));
+
+    const resolvedPath = path.resolve(coverPath);
+
+    // Cover must be within covers directory OR audiobooks directory
+    const isInCoversDir = resolvedPath.startsWith(coversDir + path.sep);
+    const isInAudiobooksDir = resolvedPath.startsWith(audiobooksDir + path.sep);
+
+    if (!isInCoversDir && !isInAudiobooksDir) {
+      console.warn(`⚠️ Cover path escapes allowed directories: ${coverPath}`);
+      return res.status(403).json({ error: 'Invalid cover path' });
+    }
+
+    res.sendFile(resolvedPath);
   });
 });
 
