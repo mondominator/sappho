@@ -1501,3 +1501,139 @@
   margin-left: 0.25rem;
   flex-shrink: 0;
 }
+
+/* More Menu (Three-dot menu) */
+.more-menu-container {
+  position: relative;
+}
+
+.more-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(107, 114, 128, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.more-menu-button:hover {
+  background: rgba(107, 114, 128, 0.25);
+  color: #e5e7eb;
+}
+
+.more-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+}
+
+.more-menu-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  min-width: 200px;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  overflow: hidden;
+  animation: menuSlideUp 0.2s ease-out;
+}
+
+@keyframes menuSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.more-menu-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: none;
+  border: none;
+  color: #e5e7eb;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.more-menu-dropdown button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.more-menu-dropdown button:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.more-menu-dropdown button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.more-menu-dropdown button svg {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.more-menu-dropdown button:hover svg {
+  color: #e5e7eb;
+}
+
+.menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.25rem 0;
+}
+
+.more-menu-dropdown button.menu-danger {
+  color: #fca5a5;
+}
+
+.more-menu-dropdown button.menu-danger svg {
+  color: #f87171;
+}
+
+.more-menu-dropdown button.menu-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Desktop: Hide more menu button, show detail-actions */
+@media (min-width: 769px) {
+  .more-menu-container {
+    display: none;
+  }
+}
+
+/* Mobile: Show more menu button */
+@media (max-width: 768px) {
+  .more-menu-container {
+    display: block;
+  }
+
+  .more-menu-button {
+    display: flex;
+  }
+
+  .play-chapters-row .more-menu-button {
+    flex-shrink: 0;
+  }
+}

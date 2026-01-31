@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStreamUrl, updateProgress, getCoverUrl, getChapters } from '../api';
-import { addOfflineProgress } from '../services/downloadStore';
 import './AudioPlayer.css';
 
 /**
- * Update progress, falling back to offline storage if network unavailable
+ * Update progress with error handling
  * @param {number} audiobookId - Audiobook ID
  * @param {number} position - Current playback position in seconds
  * @param {number} completed - 0 or 1
@@ -13,21 +12,9 @@ import './AudioPlayer.css';
  */
 async function updateProgressWithOfflineFallback(audiobookId, position, completed, state) {
   try {
-    // Try network request first
     await updateProgress(audiobookId, position, completed, state);
   } catch (error) {
-    // Network failed - store progress offline for later sync
-    if (!navigator.onLine || error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
-      console.log('Offline - storing progress locally for later sync');
-      await addOfflineProgress({
-        audiobookId: String(audiobookId),
-        position: Math.floor(position),
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      // Re-throw other errors
-      console.error('Error updating progress:', error);
-    }
+    console.error('Error updating progress:', error);
   }
 }
 
