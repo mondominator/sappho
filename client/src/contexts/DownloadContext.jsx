@@ -4,40 +4,92 @@ import {
   getAllDownloads,
   saveDownload,
   deleteDownload as deleteDownloadFromDB,
-  getNextQueuedDownload,
   createDownloadRecord,
   isIndexedDBSupported,
   getUnsyncedProgress,
   markProgressSynced,
   deleteOfflineProgress
 } from '../services/downloadStore';
-import { deleteAudioFile } from '../services/offlineStorage';
 import { updateProgress } from '../api';
 
 const DownloadContext = createContext(null);
 
+// Cache name for offline audio files
+const AUDIO_CACHE_NAME = 'sappho-audio-v1';
+
+/**
+ * Check if Cache API is supported (for offline downloads)
+ */
+function isCacheAPISupported() {
+  try {
+    return typeof window !== 'undefined' && 'caches' in window && typeof caches !== 'undefined';
+  } catch (e) {
+    console.error('Cache API check failed:', e);
+    return false;
+  }
+}
+
+/**
+ * Check if downloads are supported in this browser
+ */
+function checkDownloadSupport() {
+  const issues = [];
+
+  // Log browser info for debugging
+  console.log('Checking download support...');
+  console.log('- window.caches:', typeof window !== 'undefined' ? typeof window.caches : 'no window');
+  console.log('- indexedDB:', typeof indexedDB);
+  console.log('- isSecureContext:', typeof window !== 'undefined' ? window.isSecureContext : 'no window');
+
+  if (!isIndexedDBSupported()) {
+    issues.push('IndexedDB not supported');
+  }
+
+  if (!isCacheAPISupported()) {
+    // Check if it's a secure context issue
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      issues.push('Requires HTTPS (secure context)');
+    } else {
+      issues.push('Cache API not supported');
+    }
+  }
+
+  console.log('Download support issues:', issues.length === 0 ? 'none' : issues.join(', '));
+
+  return {
+    supported: issues.length === 0,
+    issues
+  };
+}
+
+/**
+ * Delete an audio file from the cache
+ */
+async function deleteAudioFromCache(audiobookId) {
+  if (!isCacheAPISupported()) return false;
+  try {
+    const cache = await caches.open(AUDIO_CACHE_NAME);
+    const url = `/api/audiobooks/${audiobookId}/stream`;
+    return await cache.delete(url);
+  } catch (error) {
+    console.error('Failed to delete from cache:', error);
+    return false;
+  }
+}
+
 /**
  * Download Provider - Manages offline downloads for audiobooks
- *
- * Provides:
- * - downloads: Map of audiobookId -> download status
- * - downloadBook(audiobook): Start a download
- * - pauseDownload(audiobookId): Pause active download
- * - resumeDownload(audiobookId): Resume paused download
- * - cancelDownload(audiobookId): Cancel and remove download
- * - deleteDownload(audiobookId): Delete completed download
- * - getDownloadStatus(audiobookId): Get download status for a book
- * - isDownloaded(audiobookId): Check if book is downloaded
- * - isReady: True when IndexedDB + worker initialized
+ * Uses Cache API for broad browser compatibility (including iOS Safari)
  */
 export function DownloadProvider({ children }) {
   const [downloads, setDownloads] = useState({});
   const [isReady, setIsReady] = useState(false);
   const [activeDownloadId, setActiveDownloadId] = useState(null);
   const [toast, setToast] = useState(null);
-  const workerRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const initializingRef = useRef(false);
   const syncingRef = useRef(false);
+  const downloadQueueRef = useRef([]);
 
   /**
    * Get auth token from localStorage
@@ -47,9 +99,16 @@ export function DownloadProvider({ children }) {
   }, []);
 
   /**
+   * Show toast notification
+   */
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+  }, []);
+
+  /**
    * Update a single download in state and IndexedDB
    */
-  const updateDownload = useCallback(async (audiobookId, updates) => {
+  const updateDownloadState = useCallback(async (audiobookId, updates) => {
     const id = String(audiobookId);
 
     setDownloads((prev) => {
@@ -68,144 +127,168 @@ export function DownloadProvider({ children }) {
   }, []);
 
   /**
-   * Start the next queued download if no download is active
+   * Process the download queue - start next download if nothing active
    */
-  const startNextDownload = useCallback(async () => {
+  const processQueue = useCallback(async () => {
+    // If already downloading, wait
     if (activeDownloadId) {
-      // A download is already active
       return;
     }
 
-    const nextQueued = await getNextQueuedDownload();
-    if (!nextQueued) {
-      // No queued downloads
-      return;
-    }
+    // Get next queued download from state
+    setDownloads((prev) => {
+      const queued = Object.values(prev)
+        .filter(d => d.status === 'queued')
+        .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
 
+      if (queued.length > 0) {
+        downloadQueueRef.current = queued.map(d => d.id);
+      }
+      return prev;
+    });
+
+    // Small delay to let state settle
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    if (downloadQueueRef.current.length > 0) {
+      const nextId = downloadQueueRef.current[0];
+      // Start download will be triggered by the effect
+      setActiveDownloadId(nextId);
+    }
+  }, [activeDownloadId]);
+
+  /**
+   * Perform the actual download using Cache API
+   */
+  const performDownload = useCallback(async (audiobookId, audiobook) => {
+    const id = String(audiobookId);
     const token = getToken();
+
     if (!token) {
-      console.error('No auth token available for download');
+      await updateDownloadState(id, { status: 'error', error: 'Not authenticated' });
+      setActiveDownloadId(null);
       return;
     }
 
-    const id = String(nextQueued.id);
+    // Create abort controller for this download
+    abortControllerRef.current = new AbortController();
 
-    // Update status to downloading
-    setActiveDownloadId(id);
-    await updateDownload(id, { status: 'downloading' });
+    try {
+      await updateDownloadState(id, { status: 'downloading', progress: 0 });
 
-    // Post message to worker
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'start',
-        audiobookId: id,
-        token,
-        totalBytes: nextQueued.totalBytes || 0
+      const url = `/api/audiobooks/${id}/stream?token=${encodeURIComponent(token)}`;
+
+      console.log('Starting download:', audiobook?.title || id);
+
+      const response = await fetch(url, {
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Get total size for progress
+      const contentLength = response.headers.get('content-length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (totalBytes > 0) {
+        await updateDownloadState(id, { totalBytes });
+      }
+
+      // Read the response as a stream to track progress
+      const reader = response.body.getReader();
+      const chunks = [];
+      let bytesDownloaded = 0;
+      let lastProgressUpdate = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        chunks.push(value);
+        bytesDownloaded += value.length;
+
+        // Update progress every 100KB or 500ms
+        const now = Date.now();
+        if (bytesDownloaded - lastProgressUpdate > 100 * 1024 || now - lastProgressUpdate > 500) {
+          const progress = totalBytes > 0 ? bytesDownloaded / totalBytes : 0;
+          await updateDownloadState(id, {
+            bytesDownloaded,
+            progress: Math.min(progress, 0.99) // Keep at 99% until fully cached
+          });
+          lastProgressUpdate = bytesDownloaded;
+        }
+      }
+
+      // Combine chunks into a single blob
+      const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'audio/mpeg' });
+
+      // Store in Cache API
+      const cache = await caches.open(AUDIO_CACHE_NAME);
+      const cacheUrl = `/api/audiobooks/${id}/stream`;
+      const cacheResponse = new Response(blob, {
+        headers: {
+          'Content-Type': blob.type,
+          'Content-Length': String(blob.size),
+          'X-Cached-At': new Date().toISOString()
+        }
+      });
+      await cache.put(cacheUrl, cacheResponse);
+
+      console.log('Download complete:', audiobook?.title || id, 'Size:', blob.size);
+
+      // Mark as completed
+      await updateDownloadState(id, {
+        status: 'completed',
+        progress: 1,
+        bytesDownloaded: blob.size,
+        completedAt: new Date().toISOString()
+      });
+
+      showToast('success', `Downloaded "${audiobook?.title || 'audiobook'}"`);
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Download aborted:', id);
+        // Don't update state - it was handled by pause/cancel
+        return;
+      }
+
+      console.error('Download failed:', error);
+      await updateDownloadState(id, {
+        status: 'error',
+        error: error.message || 'Download failed'
+      });
+      showToast('error', `Download failed: ${error.message}`);
+
+    } finally {
+      abortControllerRef.current = null;
+      setActiveDownloadId(null);
+
+      // Process next in queue
+      setTimeout(() => processQueue(), 100);
+    }
+  }, [getToken, updateDownloadState, showToast, processQueue]);
+
+  /**
+   * Effect to start download when activeDownloadId changes
+   */
+  useEffect(() => {
+    if (activeDownloadId && !abortControllerRef.current) {
+      setDownloads((prev) => {
+        const download = prev[activeDownloadId];
+        if (download && (download.status === 'queued' || download.status === 'downloading')) {
+          performDownload(activeDownloadId, download);
+        }
+        return prev;
       });
     }
-  }, [activeDownloadId, getToken, updateDownload]);
+  }, [activeDownloadId, performDownload]);
 
   /**
-   * Handle messages from the download worker
-   */
-  const handleWorkerMessage = useCallback(async (event) => {
-    const { type, audiobookId, bytesDownloaded, error } = event.data;
-    const id = String(audiobookId);
-
-    switch (type) {
-      case 'progress': {
-        setDownloads((prev) => {
-          const existing = prev[id];
-          if (!existing) return prev;
-
-          const progress = existing.totalBytes > 0
-            ? bytesDownloaded / existing.totalBytes
-            : 0;
-
-          const updated = {
-            ...existing,
-            bytesDownloaded,
-            progress: Math.min(progress, 1)
-          };
-
-          // Persist to IndexedDB (throttled by worker, so ok to persist each)
-          saveDownload(updated).catch((err) => {
-            console.error('Failed to persist progress:', err);
-          });
-
-          return { ...prev, [id]: updated };
-        });
-        break;
-      }
-
-      case 'complete': {
-        await updateDownload(id, {
-          status: 'completed',
-          progress: 1,
-          bytesDownloaded,
-          completedAt: new Date().toISOString()
-        });
-
-        setActiveDownloadId(null);
-
-        // Start next queued download (use setTimeout to avoid state sync issues)
-        setTimeout(() => {
-          startNextDownload();
-        }, 100);
-        break;
-      }
-
-      case 'paused': {
-        await updateDownload(id, {
-          status: 'paused',
-          bytesDownloaded
-        });
-
-        setActiveDownloadId(null);
-        break;
-      }
-
-      case 'cancelled': {
-        // Remove from state and IndexedDB
-        setDownloads((prev) => {
-          const { [id]: removed, ...rest } = prev;
-          return rest;
-        });
-
-        await deleteDownloadFromDB(id);
-        setActiveDownloadId(null);
-
-        // Start next queued download
-        setTimeout(() => {
-          startNextDownload();
-        }, 100);
-        break;
-      }
-
-      case 'error': {
-        console.error(`Download error for ${id}:`, error);
-
-        await updateDownload(id, {
-          status: 'error',
-          error: error || 'Download failed'
-        });
-
-        setActiveDownloadId(null);
-
-        // Start next queued download despite error
-        setTimeout(() => {
-          startNextDownload();
-        }, 100);
-        break;
-      }
-
-      default:
-        console.warn('Unknown worker message type:', type);
-    }
-  }, [updateDownload, startNextDownload]);
-
-  /**
-   * Initialize IndexedDB and Web Worker on mount
+   * Initialize on mount
    */
   useEffect(() => {
     if (initializingRef.current || isReady) {
@@ -216,94 +299,66 @@ export function DownloadProvider({ children }) {
 
     const initialize = async () => {
       try {
-        // Check IndexedDB support
-        if (!isIndexedDBSupported()) {
-          console.warn('IndexedDB not supported - downloads disabled');
+        // Check browser support
+        const support = checkDownloadSupport();
+        if (!support.supported) {
+          console.warn('Downloads not supported:', support.issues.join(', '));
           setIsReady(true);
           return;
         }
 
         // Open database
         await openDatabase();
+        console.log('IndexedDB opened successfully');
 
         // Load existing downloads
         const existingDownloads = await getAllDownloads();
         const downloadsMap = {};
-        let hasActiveDownload = false;
 
         for (const download of existingDownloads) {
           const id = String(download.id);
-          downloadsMap[id] = download;
 
-          // Check if there was an interrupted download (mark as paused)
+          // Mark interrupted downloads as paused
           if (download.status === 'downloading') {
             downloadsMap[id] = { ...download, status: 'paused' };
             await saveDownload(downloadsMap[id]);
-          } else if (download.status === 'queued') {
-            // Queue is preserved
+          } else {
+            downloadsMap[id] = download;
           }
         }
 
         setDownloads(downloadsMap);
-
-        // Create web worker
-        try {
-          workerRef.current = new Worker(
-            new URL('../workers/download.worker.js', import.meta.url),
-            { type: 'module' }
-          );
-
-          workerRef.current.onmessage = handleWorkerMessage;
-
-          workerRef.current.onerror = (error) => {
-            console.error('Download worker error:', error);
-          };
-        } catch (workerError) {
-          console.error('Failed to create download worker:', workerError);
-          // Continue without worker - downloads won't work but app will function
-        }
+        console.log('Loaded', Object.keys(downloadsMap).length, 'existing downloads');
 
         setIsReady(true);
 
-        // Check if we should start a queued download
-        // (setTimeout to let state settle)
-        setTimeout(() => {
-          if (!hasActiveDownload) {
-            startNextDownload();
-          }
-        }, 500);
+        // Start processing queue after a delay
+        setTimeout(() => processQueue(), 500);
 
       } catch (error) {
         console.error('Failed to initialize download context:', error);
-        setIsReady(true); // Set ready anyway so app doesn't hang
+        setIsReady(true);
       }
     };
 
     initialize();
 
-    // Cleanup
     return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
-  }, [handleWorkerMessage, startNextDownload, isReady]);
+  }, [isReady, processQueue]);
 
   /**
    * Sync offline progress to server when coming back online
    */
   const syncOfflineProgress = useCallback(async () => {
-    // Prevent concurrent syncs
-    if (syncingRef.current) {
-      return;
-    }
-
+    if (syncingRef.current) return;
     syncingRef.current = true;
 
     try {
       const unsyncedRecords = await getUnsyncedProgress();
-
       if (unsyncedRecords.length === 0) {
         syncingRef.current = false;
         return;
@@ -313,17 +368,15 @@ export function DownloadProvider({ children }) {
       const latestByBook = {};
       for (const record of unsyncedRecords) {
         const bookId = String(record.audiobookId);
-        const existingTimestamp = latestByBook[bookId]?.timestamp || '';
-        if (record.timestamp > existingTimestamp) {
+        if (!latestByBook[bookId] || record.timestamp > latestByBook[bookId].timestamp) {
           latestByBook[bookId] = record;
         }
       }
 
-      const booksToSync = Object.values(latestByBook);
       let syncedCount = 0;
       const syncedRecordIds = [];
 
-      for (const record of booksToSync) {
+      for (const record of Object.values(latestByBook)) {
         try {
           await updateProgress(
             record.audiobookId,
@@ -332,10 +385,9 @@ export function DownloadProvider({ children }) {
             record.state || 'stopped',
             record.clientInfo || {}
           );
-
           syncedCount++;
 
-          // Collect all record IDs for this audiobook to mark as synced
+          // Mark all records for this audiobook as synced
           for (const r of unsyncedRecords) {
             if (String(r.audiobookId) === String(record.audiobookId)) {
               syncedRecordIds.push(r.id);
@@ -343,68 +395,56 @@ export function DownloadProvider({ children }) {
           }
         } catch (error) {
           console.error(`Failed to sync progress for audiobook ${record.audiobookId}:`, error);
-          // Continue with other books even if one fails
         }
       }
 
-      // Mark synced records and delete them
+      // Clean up synced records
       for (const id of syncedRecordIds) {
         await markProgressSynced(id);
         await deleteOfflineProgress(id);
       }
 
-      // Show toast notification if any books were synced
       if (syncedCount > 0) {
-        const message = syncedCount === 1
+        showToast('success', syncedCount === 1
           ? 'Synced progress for 1 book'
-          : `Synced progress for ${syncedCount} books`;
-        setToast({ type: 'success', message });
+          : `Synced progress for ${syncedCount} books`);
       }
     } catch (error) {
       console.error('Failed to sync offline progress:', error);
     } finally {
       syncingRef.current = false;
     }
-  }, []);
+  }, [showToast]);
 
   /**
-   * Listen for online event to sync offline progress
+   * Listen for online event
    */
   useEffect(() => {
     const handleOnline = () => {
-      // Small delay to ensure network is stable
-      setTimeout(() => {
-        syncOfflineProgress();
-      }, 1000);
+      setTimeout(() => syncOfflineProgress(), 1000);
     };
 
     window.addEventListener('online', handleOnline);
 
-    // Also try to sync on mount if already online and ready
     if (isReady && navigator.onLine) {
       syncOfflineProgress();
     }
 
-    return () => {
-      window.removeEventListener('online', handleOnline);
-    };
+    return () => window.removeEventListener('online', handleOnline);
   }, [isReady, syncOfflineProgress]);
 
   /**
-   * Auto-dismiss toast after 4 seconds
+   * Auto-dismiss toast
    */
   useEffect(() => {
     if (toast) {
-      const timer = setTimeout(() => {
-        setToast(null);
-      }, 4000);
+      const timer = setTimeout(() => setToast(null), 4000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
 
   /**
    * Start downloading an audiobook
-   * @param {Object} audiobook - Audiobook object with id, title, author, etc.
    */
   const downloadBook = useCallback(async (audiobook) => {
     if (!audiobook || !audiobook.id) {
@@ -412,20 +452,26 @@ export function DownloadProvider({ children }) {
       return;
     }
 
+    // Check support
+    const support = checkDownloadSupport();
+    if (!support.supported) {
+      showToast('error', `Downloads not supported: ${support.issues[0]}`);
+      return;
+    }
+
     const id = String(audiobook.id);
 
-    // Check if already downloading or completed
+    // Check if already exists
     const existing = downloads[id];
     if (existing) {
       if (existing.status === 'completed') {
-        console.warn('Book already downloaded');
+        showToast('info', 'Book already downloaded');
         return;
       }
       if (existing.status === 'downloading' || existing.status === 'queued') {
-        console.warn('Book already in download queue');
+        showToast('info', 'Book already in download queue');
         return;
       }
-      // If paused or error, allow re-download (will be handled by resume or restart)
     }
 
     // Create download record
@@ -435,154 +481,102 @@ export function DownloadProvider({ children }) {
     setDownloads((prev) => ({ ...prev, [id]: downloadRecord }));
     await saveDownload(downloadRecord);
 
-    // If no active download, start this one
+    console.log('Download queued:', audiobook.title);
+
+    // If no active download, start this one immediately
     if (!activeDownloadId) {
-      const token = getToken();
-      if (!token) {
-        console.error('No auth token available for download');
-        return;
-      }
-
       setActiveDownloadId(id);
-
-      // Update status to downloading
-      const downloadingRecord = { ...downloadRecord, status: 'downloading' };
-      setDownloads((prev) => ({ ...prev, [id]: downloadingRecord }));
-      await saveDownload(downloadingRecord);
-
-      // Post message to worker
-      if (workerRef.current) {
-        workerRef.current.postMessage({
-          type: 'start',
-          audiobookId: id,
-          token,
-          totalBytes: downloadRecord.totalBytes || 0
-        });
-      }
+    } else {
+      showToast('success', `"${audiobook.title}" added to download queue`);
     }
-  }, [downloads, activeDownloadId, getToken]);
+  }, [downloads, activeDownloadId, showToast]);
 
   /**
    * Pause an active download
-   * @param {string|number} audiobookId - Audiobook ID
    */
   const pauseDownload = useCallback(async (audiobookId) => {
     const id = String(audiobookId);
-
     const download = downloads[id];
+
     if (!download || download.status !== 'downloading') {
-      console.warn('Cannot pause - not downloading');
       return;
     }
 
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'pause',
-        audiobookId: id
-      });
+    // Abort the current download
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-  }, [downloads]);
+
+    await updateDownloadState(id, { status: 'paused' });
+    setActiveDownloadId(null);
+
+    // Process next in queue
+    setTimeout(() => processQueue(), 100);
+  }, [downloads, updateDownloadState, processQueue]);
 
   /**
    * Resume a paused download
-   * @param {string|number} audiobookId - Audiobook ID
    */
   const resumeDownload = useCallback(async (audiobookId) => {
     const id = String(audiobookId);
-
     const download = downloads[id];
+
     if (!download || download.status !== 'paused') {
-      console.warn('Cannot resume - not paused');
       return;
     }
 
     // If another download is active, queue this one
     if (activeDownloadId && activeDownloadId !== id) {
-      await updateDownload(id, { status: 'queued' });
+      await updateDownloadState(id, { status: 'queued' });
       return;
     }
 
-    const token = getToken();
-    if (!token) {
-      console.error('No auth token available for resume');
-      return;
-    }
-
+    // Reset progress and start fresh (Cache API doesn't support partial)
+    await updateDownloadState(id, { status: 'queued', progress: 0, bytesDownloaded: 0 });
     setActiveDownloadId(id);
-    await updateDownload(id, { status: 'downloading' });
-
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'resume',
-        audiobookId: id,
-        token,
-        bytesDownloaded: download.bytesDownloaded || 0
-      });
-    }
-  }, [downloads, activeDownloadId, getToken, updateDownload]);
+  }, [downloads, activeDownloadId, updateDownloadState]);
 
   /**
-   * Cancel a download (removes from queue/active and deletes partial file)
-   * @param {string|number} audiobookId - Audiobook ID
+   * Cancel a download
    */
   const cancelDownload = useCallback(async (audiobookId) => {
     const id = String(audiobookId);
-
     const download = downloads[id];
-    if (!download) {
-      console.warn('Cannot cancel - download not found');
-      return;
+
+    if (!download) return;
+
+    // Abort if active
+    if (download.status === 'downloading' && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
 
-    if (download.status === 'downloading') {
-      // Worker will handle abort and file deletion
-      if (workerRef.current) {
-        workerRef.current.postMessage({
-          type: 'cancel',
-          audiobookId: id
-        });
-      }
-    } else {
-      // Not actively downloading - just remove from state/DB
-      setDownloads((prev) => {
-        const { [id]: removed, ...rest } = prev;
-        return rest;
-      });
+    // Remove from state
+    setDownloads((prev) => {
+      const { [id]: removed, ...rest } = prev;
+      return rest;
+    });
 
-      await deleteDownloadFromDB(id);
+    await deleteDownloadFromDB(id);
+    await deleteAudioFromCache(id);
 
-      // Try to delete any partial file
-      try {
-        await deleteAudioFile(id);
-      } catch {
-        // Ignore errors
-      }
-
-      // If this was the active download, clear it and start next
-      if (activeDownloadId === id) {
-        setActiveDownloadId(null);
-        setTimeout(() => {
-          startNextDownload();
-        }, 100);
-      }
+    if (activeDownloadId === id) {
+      setActiveDownloadId(null);
+      setTimeout(() => processQueue(), 100);
     }
-  }, [downloads, activeDownloadId, startNextDownload]);
+  }, [downloads, activeDownloadId, processQueue]);
 
   /**
-   * Delete a completed download (removes file and metadata)
-   * @param {string|number} audiobookId - Audiobook ID
+   * Delete a completed download
    */
   const deleteDownloadedBook = useCallback(async (audiobookId) => {
     const id = String(audiobookId);
-
     const download = downloads[id];
-    if (!download) {
-      console.warn('Cannot delete - download not found');
-      return;
-    }
+
+    if (!download) return;
 
     if (download.status === 'downloading') {
-      // Cancel if actively downloading
       await cancelDownload(id);
       return;
     }
@@ -593,74 +587,46 @@ export function DownloadProvider({ children }) {
       return rest;
     });
 
-    // Remove from IndexedDB
     await deleteDownloadFromDB(id);
-
-    // Delete file from OPFS
-    try {
-      await deleteAudioFile(id);
-    } catch (error) {
-      console.error('Failed to delete audio file:', error);
-      // Continue anyway - metadata is already removed
-    }
+    await deleteAudioFromCache(id);
   }, [downloads, cancelDownload]);
 
   /**
-   * Get download status for an audiobook
-   * @param {string|number} audiobookId - Audiobook ID
-   * @returns {Object|null} Download status or null if not found
+   * Get download status
    */
   const getDownloadStatus = useCallback((audiobookId) => {
-    const id = String(audiobookId);
-    return downloads[id] || null;
+    return downloads[String(audiobookId)] || null;
   }, [downloads]);
 
   /**
-   * Check if an audiobook is downloaded (completed status)
-   * @param {string|number} audiobookId - Audiobook ID
-   * @returns {boolean}
+   * Check if audiobook is downloaded
    */
   const isDownloaded = useCallback((audiobookId) => {
-    const id = String(audiobookId);
-    const download = downloads[id];
+    const download = downloads[String(audiobookId)];
     return download?.status === 'completed';
   }, [downloads]);
 
   /**
-   * Get count of downloads by status
+   * Get download counts by status
    */
   const getDownloadCounts = useCallback(() => {
-    const counts = {
-      queued: 0,
-      downloading: 0,
-      paused: 0,
-      completed: 0,
-      error: 0,
-      total: 0
-    };
-
-    Object.values(downloads).forEach((download) => {
-      counts[download.status] = (counts[download.status] || 0) + 1;
+    const counts = { queued: 0, downloading: 0, paused: 0, completed: 0, error: 0, total: 0 };
+    Object.values(downloads).forEach((d) => {
+      counts[d.status] = (counts[d.status] || 0) + 1;
       counts.total++;
     });
-
     return counts;
   }, [downloads]);
 
   const value = {
-    // State
     downloads,
     isReady,
     activeDownloadId,
-
-    // Actions
     downloadBook,
     pauseDownload,
     resumeDownload,
     cancelDownload,
     deleteDownload: deleteDownloadedBook,
-
-    // Queries
     getDownloadStatus,
     isDownloaded,
     getDownloadCounts
@@ -669,7 +635,6 @@ export function DownloadProvider({ children }) {
   return (
     <DownloadContext.Provider value={value}>
       {children}
-      {/* Sync toast notification */}
       {toast && (
         <div
           className="download-sync-toast"
@@ -686,8 +651,8 @@ export function DownloadProvider({ children }) {
             zIndex: 1000,
             cursor: 'pointer',
             animation: 'slideUp 0.3s ease-out',
-            background: toast.type === 'success'
-              ? 'rgba(34, 197, 94, 0.95)'
+            background: toast.type === 'success' ? 'rgba(34, 197, 94, 0.95)'
+              : toast.type === 'info' ? 'rgba(59, 130, 246, 0.95)'
               : 'rgba(239, 68, 68, 0.95)',
             color: '#fff',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
@@ -696,26 +661,16 @@ export function DownloadProvider({ children }) {
           {toast.message}
         </div>
       )}
-      {/* CSS animation for toast */}
       <style>{`
         @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(1rem);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-          }
+          from { opacity: 0; transform: translateX(-50%) translateY(1rem); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
     </DownloadContext.Provider>
   );
 }
 
-/**
- * Hook to access Download context
- */
 export function useDownload() {
   const context = useContext(DownloadContext);
   if (!context) {
@@ -724,11 +679,6 @@ export function useDownload() {
   return context;
 }
 
-/**
- * Hook to get download status for a specific audiobook
- * @param {string|number} audiobookId - Audiobook ID
- * @returns {Object|null} Download status or null
- */
 export function useDownloadStatus(audiobookId) {
   const { getDownloadStatus } = useDownload();
   return getDownloadStatus(audiobookId);

@@ -1,5 +1,7 @@
 // Service Worker for Sappho PWA
-const CACHE_NAME = 'sappho-v1.6.0';
+const CACHE_NAME = 'sappho-v1.7.0';
+const AUDIO_CACHE_NAME = 'sappho-audio-v1';
+
 const urlsToCache = [
   '/',
   '/index.html',
@@ -24,13 +26,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (but keep audio cache)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          // Keep the current app cache and audio cache
+          if (cacheName !== CACHE_NAME && cacheName !== AUDIO_CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -53,15 +56,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Check for audiobook stream requests - serve from OPFS if available
+  // Check for audiobook stream requests - serve from cache if available
   const streamMatch = event.request.url.match(/\/api\/audiobooks\/(\d+)\/stream/);
   if (streamMatch) {
-    event.respondWith(serveAudioFromOPFSOrNetwork(streamMatch[1], event.request));
+    event.respondWith(serveAudioFromCacheOrNetwork(streamMatch[1], event.request));
     return;
   }
 
   // IMPORTANT: Never cache API requests - they contain auth tokens and dynamic data
-  // This includes progress updates and all authenticated endpoints
   if (event.request.url.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
@@ -100,86 +102,69 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ============================================================================
-// OPFS Audio Streaming for Offline Playback
+// Cache-based Audio Streaming for Offline Playback
 // ============================================================================
 
-const AUDIO_DIR = 'audiobooks';
-
 /**
- * Get audio file from OPFS
- * @param {string} audiobookId - Audiobook ID
- * @returns {Promise<File|null>} File object or null if not found
- */
-async function getAudioFromOPFS(audiobookId) {
-  try {
-    const root = await navigator.storage.getDirectory();
-    const dir = await root.getDirectoryHandle(AUDIO_DIR);
-    const fileName = `${audiobookId}.audio`;
-    const fileHandle = await dir.getFileHandle(fileName);
-    return await fileHandle.getFile();
-  } catch (error) {
-    if (error.name === 'NotFoundError') {
-      return null;
-    }
-    console.error('Error getting audio from OPFS:', error);
-    return null;
-  }
-}
-
-/**
- * Serve audio from OPFS if available, otherwise fall back to network
+ * Serve audio from Cache API if available, otherwise fall back to network
  * Supports Range requests for seeking
  * @param {string} audiobookId - Audiobook ID
  * @param {Request} request - Original request
  * @returns {Promise<Response>}
  */
-async function serveAudioFromOPFSOrNetwork(audiobookId, request) {
+async function serveAudioFromCacheOrNetwork(audiobookId, request) {
   try {
-    const file = await getAudioFromOPFS(audiobookId);
+    // Check the audio cache
+    const cache = await caches.open(AUDIO_CACHE_NAME);
+    const cacheUrl = `/api/audiobooks/${audiobookId}/stream`;
+    const cachedResponse = await cache.match(cacheUrl);
 
-    if (file) {
-      console.log(`Serving audiobook ${audiobookId} from OPFS (offline)`);
+    if (cachedResponse) {
+      console.log(`Serving audiobook ${audiobookId} from cache (offline)`);
 
       // Check for Range header (seeking)
       const rangeHeader = request.headers.get('Range');
 
       if (rangeHeader) {
-        // Parse range request
+        // We need to handle range requests manually for cached responses
+        const blob = await cachedResponse.clone().blob();
         const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+
         if (match) {
           const start = parseInt(match[1], 10);
-          const end = match[2] ? parseInt(match[2], 10) : file.size - 1;
+          const end = match[2] ? parseInt(match[2], 10) : blob.size - 1;
           const chunkSize = end - start + 1;
 
-          // Create a slice of the file
-          const chunk = file.slice(start, end + 1);
+          // Create a slice of the blob
+          const chunk = blob.slice(start, end + 1);
 
           return new Response(chunk, {
             status: 206,
             statusText: 'Partial Content',
             headers: {
-              'Content-Type': file.type || 'audio/mpeg',
+              'Content-Type': blob.type || 'audio/mpeg',
               'Content-Length': chunkSize,
-              'Content-Range': `bytes ${start}-${end}/${file.size}`,
+              'Content-Range': `bytes ${start}-${end}/${blob.size}`,
               'Accept-Ranges': 'bytes'
             }
           });
         }
       }
 
-      // Full file response
-      return new Response(file, {
+      // Return full cached response (clone it since responses can only be used once)
+      const blob = await cachedResponse.blob();
+      return new Response(blob, {
         status: 200,
         headers: {
-          'Content-Type': file.type || 'audio/mpeg',
-          'Content-Length': file.size,
+          'Content-Type': blob.type || 'audio/mpeg',
+          'Content-Length': blob.size,
           'Accept-Ranges': 'bytes'
         }
       });
     }
 
-    // File not in OPFS, fall back to network
-    console.log(`Audiobook ${audiobookId} not in OPFS, fetching from network`);
+    // Not in cache, fall back to network
+    console.log(`Audiobook ${audiobookId} not cached, fetching from network`);
     return fetch(request);
 
   } catch (error) {
