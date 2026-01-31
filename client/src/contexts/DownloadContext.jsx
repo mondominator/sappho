@@ -6,9 +6,13 @@ import {
   deleteDownload as deleteDownloadFromDB,
   getNextQueuedDownload,
   createDownloadRecord,
-  isIndexedDBSupported
+  isIndexedDBSupported,
+  getUnsyncedProgress,
+  markProgressSynced,
+  deleteOfflineProgress
 } from '../services/downloadStore';
 import { deleteAudioFile } from '../services/offlineStorage';
+import { updateProgress } from '../api';
 
 const DownloadContext = createContext(null);
 
@@ -30,8 +34,10 @@ export function DownloadProvider({ children }) {
   const [downloads, setDownloads] = useState({});
   const [isReady, setIsReady] = useState(false);
   const [activeDownloadId, setActiveDownloadId] = useState(null);
+  const [toast, setToast] = useState(null);
   const workerRef = useRef(null);
   const initializingRef = useRef(false);
+  const syncingRef = useRef(false);
 
   /**
    * Get auth token from localStorage
@@ -283,6 +289,118 @@ export function DownloadProvider({ children }) {
       }
     };
   }, [handleWorkerMessage, startNextDownload, isReady]);
+
+  /**
+   * Sync offline progress to server when coming back online
+   */
+  const syncOfflineProgress = useCallback(async () => {
+    // Prevent concurrent syncs
+    if (syncingRef.current) {
+      return;
+    }
+
+    syncingRef.current = true;
+
+    try {
+      const unsyncedRecords = await getUnsyncedProgress();
+
+      if (unsyncedRecords.length === 0) {
+        syncingRef.current = false;
+        return;
+      }
+
+      // Group by audiobook ID and keep only the most recent position per book
+      const latestByBook = {};
+      for (const record of unsyncedRecords) {
+        const bookId = String(record.audiobookId);
+        const existingTimestamp = latestByBook[bookId]?.timestamp || '';
+        if (record.timestamp > existingTimestamp) {
+          latestByBook[bookId] = record;
+        }
+      }
+
+      const booksToSync = Object.values(latestByBook);
+      let syncedCount = 0;
+      const syncedRecordIds = [];
+
+      for (const record of booksToSync) {
+        try {
+          await updateProgress(
+            record.audiobookId,
+            record.position,
+            record.completed || 0,
+            record.state || 'stopped',
+            record.clientInfo || {}
+          );
+
+          syncedCount++;
+
+          // Collect all record IDs for this audiobook to mark as synced
+          for (const r of unsyncedRecords) {
+            if (String(r.audiobookId) === String(record.audiobookId)) {
+              syncedRecordIds.push(r.id);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to sync progress for audiobook ${record.audiobookId}:`, error);
+          // Continue with other books even if one fails
+        }
+      }
+
+      // Mark synced records and delete them
+      for (const id of syncedRecordIds) {
+        await markProgressSynced(id);
+        await deleteOfflineProgress(id);
+      }
+
+      // Show toast notification if any books were synced
+      if (syncedCount > 0) {
+        const message = syncedCount === 1
+          ? 'Synced progress for 1 book'
+          : `Synced progress for ${syncedCount} books`;
+        setToast({ type: 'success', message });
+      }
+    } catch (error) {
+      console.error('Failed to sync offline progress:', error);
+    } finally {
+      syncingRef.current = false;
+    }
+  }, []);
+
+  /**
+   * Listen for online event to sync offline progress
+   */
+  useEffect(() => {
+    const handleOnline = () => {
+      // Small delay to ensure network is stable
+      setTimeout(() => {
+        syncOfflineProgress();
+      }, 1000);
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    // Also try to sync on mount if already online and ready
+    if (isReady && navigator.onLine) {
+      syncOfflineProgress();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [isReady, syncOfflineProgress]);
+
+  /**
+   * Auto-dismiss toast after 4 seconds
+   */
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   /**
    * Start downloading an audiobook
@@ -551,6 +669,46 @@ export function DownloadProvider({ children }) {
   return (
     <DownloadContext.Provider value={value}>
       {children}
+      {/* Sync toast notification */}
+      {toast && (
+        <div
+          className="download-sync-toast"
+          onClick={() => setToast(null)}
+          style={{
+            position: 'fixed',
+            bottom: 'calc(5rem + env(safe-area-inset-bottom, 0))',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '0.75rem 1.25rem',
+            borderRadius: '8px',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            zIndex: 1000,
+            cursor: 'pointer',
+            animation: 'slideUp 0.3s ease-out',
+            background: toast.type === 'success'
+              ? 'rgba(34, 197, 94, 0.95)'
+              : 'rgba(239, 68, 68, 0.95)',
+            color: '#fff',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+          }}
+        >
+          {toast.message}
+        </div>
+      )}
+      {/* CSS animation for toast */}
+      <style>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(1rem);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
+      `}</style>
     </DownloadContext.Provider>
   );
 }
