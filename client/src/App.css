@@ -11,14 +11,16 @@
   .app {
     padding-bottom: 0;
     min-height: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* Don't create nested scroll container - let html/body scroll */
+    overflow: visible;
+    height: auto;
   }
 
   .main-content {
     padding-top: 48px;
     padding-bottom: 0;
-    overflow-y: visible;
+    overflow: visible;
+    height: auto;
   }
 
   /* iOS: account for safe area (notch/Dynamic Island) */

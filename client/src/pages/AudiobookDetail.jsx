@@ -453,8 +453,8 @@ export default function AudiobookDetail({ onPlay }) {
             )}
           </div>
 
-          {/* Play and Chapters row */}
-          <div className="play-chapters-row">
+          {/* Chapters and Menu row */}
+          <div className="chapters-menu-row">
             {/* Chapters button */}
             {chapters.length > 0 && (
               <button className="chapters-toggle-btn" onClick={() => setShowChapters(!showChapters)}>
@@ -474,14 +474,6 @@ export default function AudiobookDetail({ onPlay }) {
                 </svg>
               </button>
             )}
-
-            {/* Play Button */}
-            <button className="detail-play-button" onClick={handlePlay}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <polygon points="6 3 20 12 6 21 6 3"></polygon>
-              </svg>
-              {progress?.position > 0 && !isCompleted ? 'Continue' : 'Play'}
-            </button>
 
             {/* More Options Menu */}
             <div className="more-menu-container">
@@ -556,13 +548,32 @@ export default function AudiobookDetail({ onPlay }) {
             </div>
           </div>
 
-          {/* Chapters dropdown content */}
+          {/* Play Button row */}
+          <div className="play-button-row">
+            <button className="detail-play-button" onClick={handlePlay}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <polygon points="6 3 20 12 6 21 6 3"></polygon>
+              </svg>
+              {progress?.position > 0 && !isCompleted ? 'Continue' : 'Play'}
+            </button>
+          </div>
+
+          {/* Chapters modal (mobile) */}
           {chapters.length > 0 && showChapters && (
-            <div className="detail-chapters-container">
-              <div className="detail-chapters">
-                <div className="chapters-list">
+            <div className="chapters-modal-overlay" onClick={() => setShowChapters(false)}>
+              <div className="chapters-modal" onClick={e => e.stopPropagation()}>
+                <div className="chapters-modal-header">
+                  <h3>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</h3>
+                  <button className="chapters-modal-close" onClick={() => setShowChapters(false)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <div className="chapters-modal-list">
                   {chapters.map((chapter, index) => (
-                    <div key={chapter.id || index} className="chapter-item clickable" onClick={() => handleChapterClick(chapter, index)}>
+                    <div key={chapter.id || index} className="chapter-item clickable" onClick={() => { handleChapterClick(chapter, index); setShowChapters(false); }}>
                       <div className="chapter-info">
                         <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
                         <div className="chapter-meta">
