@@ -26,7 +26,7 @@ export function formatBytes(bytes, decimals = 2) {
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
 
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.max(0, Math.floor(Math.log(bytes) / Math.log(k)));
   const index = Math.min(i, sizes.length - 1);
 
   return parseFloat((bytes / Math.pow(k, index)).toFixed(dm)) + ' ' + sizes[index];
@@ -63,23 +63,16 @@ async function getOrCreateDir(name) {
 }
 
 /**
- * Save an audio file to OPFS by streaming
- * @param {string} audiobookId - Audiobook ID
- * @param {ReadableStream} stream - Audio data stream
- * @param {function} onProgress - Progress callback (bytesWritten, totalBytes)
+ * Stream data from reader to writable file
+ * @param {FileSystemWritableFileStream} writable - Writable file stream
+ * @param {ReadableStreamDefaultReader} reader - Stream reader
+ * @param {number} initialOffset - Starting byte position (for progress tracking)
+ * @param {function} onProgress - Progress callback (totalBytesWritten)
  * @param {AbortSignal} signal - AbortSignal for cancellation
  * @returns {Promise<{bytesWritten: number}>}
  */
-export async function saveAudioFile(audiobookId, stream, onProgress = null, signal = null) {
-  const dir = await getOrCreateDir(AUDIO_DIR);
-  const fileName = `${audiobookId}.audio`;
-
-  // Create or overwrite the file
-  const fileHandle = await dir.getFileHandle(fileName, { create: true });
-  const writable = await fileHandle.createWritable();
-
-  const reader = stream.getReader();
-  let bytesWritten = 0;
+async function streamToFile(writable, reader, initialOffset, onProgress, signal) {
+  let totalBytes = initialOffset;
 
   try {
     while (true) {
@@ -96,15 +89,15 @@ export async function saveAudioFile(audiobookId, stream, onProgress = null, sign
       }
 
       await writable.write(value);
-      bytesWritten += value.byteLength;
+      totalBytes += value.byteLength;
 
       if (onProgress) {
-        onProgress(bytesWritten);
+        onProgress(totalBytes);
       }
     }
 
     await writable.close();
-    return { bytesWritten };
+    return { bytesWritten: totalBytes };
   } catch (error) {
     // Try to abort the writable stream on error
     try {
@@ -116,6 +109,25 @@ export async function saveAudioFile(audiobookId, stream, onProgress = null, sign
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * Save an audio file to OPFS by streaming
+ * @param {string} audiobookId - Audiobook ID
+ * @param {ReadableStream} stream - Audio data stream
+ * @param {function} onProgress - Progress callback (bytesWritten, totalBytes)
+ * @param {AbortSignal} signal - AbortSignal for cancellation
+ * @returns {Promise<{bytesWritten: number}>}
+ */
+export async function saveAudioFile(audiobookId, stream, onProgress = null, signal = null) {
+  const dir = await getOrCreateDir(AUDIO_DIR);
+  const fileName = `${audiobookId}.audio`;
+
+  const fileHandle = await dir.getFileHandle(fileName, { create: true });
+  const writable = await fileHandle.createWritable();
+  const reader = stream.getReader();
+
+  return streamToFile(writable, reader, 0, onProgress, signal);
 }
 
 /**
@@ -131,53 +143,12 @@ export async function resumeAudioFile(audiobookId, stream, startOffset, onProgre
   const dir = await getOrCreateDir(AUDIO_DIR);
   const fileName = `${audiobookId}.audio`;
 
-  // Get existing file handle (should exist for resume)
   const fileHandle = await dir.getFileHandle(fileName, { create: true });
-
-  // Create writable starting at the offset
   const writable = await fileHandle.createWritable({ keepExistingData: true });
-
-  // Seek to the resume position
   await writable.seek(startOffset);
-
   const reader = stream.getReader();
-  let bytesWritten = startOffset;
 
-  try {
-    while (true) {
-      // Check for abort signal
-      if (signal?.aborted) {
-        await writable.abort();
-        throw new DOMException('Download aborted', 'AbortError');
-      }
-
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      await writable.write(value);
-      bytesWritten += value.byteLength;
-
-      if (onProgress) {
-        onProgress(bytesWritten);
-      }
-    }
-
-    await writable.close();
-    return { bytesWritten };
-  } catch (error) {
-    // Try to abort the writable stream on error
-    try {
-      await writable.abort();
-    } catch {
-      // Ignore abort errors
-    }
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
+  return streamToFile(writable, reader, startOffset, onProgress, signal);
 }
 
 /**
