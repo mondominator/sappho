@@ -1,24 +1,5 @@
-// Service Worker - Unregister immediately
-self.addEventListener('install', () => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          return caches.delete(cacheName);
-        })
-      );
-    }).then(() => {
-      return self.registration.unregister();
-    })
-  );
-});
-
 // Service Worker for Sappho PWA
-const CACHE_NAME = 'sappho-v1.5.47';
+const CACHE_NAME = 'sappho-v1.6.0';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -72,8 +53,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Check for audiobook stream requests - serve from OPFS if available
+  const streamMatch = event.request.url.match(/\/api\/audiobooks\/(\d+)\/stream/);
+  if (streamMatch) {
+    event.respondWith(serveAudioFromOPFSOrNetwork(streamMatch[1], event.request));
+    return;
+  }
+
   // IMPORTANT: Never cache API requests - they contain auth tokens and dynamic data
-  // This includes streams, progress updates, and all authenticated endpoints
+  // This includes progress updates and all authenticated endpoints
   if (event.request.url.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
@@ -110,3 +98,93 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// ============================================================================
+// OPFS Audio Streaming for Offline Playback
+// ============================================================================
+
+const AUDIO_DIR = 'audiobooks';
+
+/**
+ * Get audio file from OPFS
+ * @param {string} audiobookId - Audiobook ID
+ * @returns {Promise<File|null>} File object or null if not found
+ */
+async function getAudioFromOPFS(audiobookId) {
+  try {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle(AUDIO_DIR);
+    const fileName = `${audiobookId}.audio`;
+    const fileHandle = await dir.getFileHandle(fileName);
+    return await fileHandle.getFile();
+  } catch (error) {
+    if (error.name === 'NotFoundError') {
+      return null;
+    }
+    console.error('Error getting audio from OPFS:', error);
+    return null;
+  }
+}
+
+/**
+ * Serve audio from OPFS if available, otherwise fall back to network
+ * Supports Range requests for seeking
+ * @param {string} audiobookId - Audiobook ID
+ * @param {Request} request - Original request
+ * @returns {Promise<Response>}
+ */
+async function serveAudioFromOPFSOrNetwork(audiobookId, request) {
+  try {
+    const file = await getAudioFromOPFS(audiobookId);
+
+    if (file) {
+      console.log(`Serving audiobook ${audiobookId} from OPFS (offline)`);
+
+      // Check for Range header (seeking)
+      const rangeHeader = request.headers.get('Range');
+
+      if (rangeHeader) {
+        // Parse range request
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? parseInt(match[2], 10) : file.size - 1;
+          const chunkSize = end - start + 1;
+
+          // Create a slice of the file
+          const chunk = file.slice(start, end + 1);
+
+          return new Response(chunk, {
+            status: 206,
+            statusText: 'Partial Content',
+            headers: {
+              'Content-Type': file.type || 'audio/mpeg',
+              'Content-Length': chunkSize,
+              'Content-Range': `bytes ${start}-${end}/${file.size}`,
+              'Accept-Ranges': 'bytes'
+            }
+          });
+        }
+      }
+
+      // Full file response
+      return new Response(file, {
+        status: 200,
+        headers: {
+          'Content-Type': file.type || 'audio/mpeg',
+          'Content-Length': file.size,
+          'Accept-Ranges': 'bytes'
+        }
+      });
+    }
+
+    // File not in OPFS, fall back to network
+    console.log(`Audiobook ${audiobookId} not in OPFS, fetching from network`);
+    return fetch(request);
+
+  } catch (error) {
+    console.error('Error serving audio:', error);
+    // Fall back to network on any error
+    return fetch(request);
+  }
+}
