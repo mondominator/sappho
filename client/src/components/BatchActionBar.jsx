@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { getCollections, batchMarkFinished, batchClearProgress, batchAddToReadingList, batchAddToCollection, batchDelete } from '../api';
+import { getCollections, batchMarkFinished, batchClearProgress, batchAddToReadingList, batchAddToCollection } from '../api';
 import './BatchActionBar.css';
 
-export default function BatchActionBar({ selectedIds, onActionComplete, onClose, isAdmin }) {
+export default function BatchActionBar({ selectedIds, onActionComplete, onClose }) {
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -65,19 +65,6 @@ export default function BatchActionBar({ selectedIds, onActionComplete, onClose,
       onActionComplete('Added to collection');
     } catch (error) {
       alert('Failed to add to collection: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm(`DELETE ${count} book${count !== 1 ? 's' : ''}? This cannot be undone!`)) return;
-    setLoading(true);
-    try {
-      await batchDelete(selectedIds, false);
-      onActionComplete('Deleted');
-    } catch (error) {
-      alert('Failed to delete: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }

@@ -397,7 +397,6 @@ export default function SeriesDetail({ onPlay }) {
             setSelectedIds(new Set());
             setSelectionMode(false);
           }}
-          isAdmin={isAdmin}
         />
       )}
     </div>

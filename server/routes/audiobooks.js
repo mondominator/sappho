@@ -1728,8 +1728,8 @@ function formatOpenLibraryResult(book) {
   };
 }
 
-// Refresh metadata from file
-router.post('/:id/refresh-metadata', authenticateToken, async (req, res) => {
+// Refresh metadata from file (admin only)
+router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const audiobook = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
