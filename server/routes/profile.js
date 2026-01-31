@@ -401,13 +401,27 @@ router.get('/avatar', profileLimiter, authenticateMediaToken, (req, res) => {
         return res.status(404).json({ error: 'Avatar not found' });
       }
 
-      const avatarPath = path.join(__dirname, '../../data/avatars', user.avatar);
+      // SECURITY: Validate avatar filename pattern to prevent path traversal
+      if (!/^user-\d+\.(jpg|jpeg|png|gif|webp)$/i.test(user.avatar)) {
+        console.warn(`⚠️ Invalid avatar filename pattern: ${user.avatar}`);
+        return res.status(404).json({ error: 'Invalid avatar' });
+      }
 
-      if (!fs.existsSync(avatarPath)) {
+      const avatarsDir = path.resolve(__dirname, '../../data/avatars');
+      const avatarPath = path.join(avatarsDir, user.avatar);
+      const resolvedPath = path.resolve(avatarPath);
+
+      // SECURITY: Ensure resolved path is within avatars directory
+      if (!resolvedPath.startsWith(avatarsDir + path.sep)) {
+        console.warn(`⚠️ Avatar path escapes avatars directory: ${user.avatar}`);
+        return res.status(403).json({ error: 'Invalid avatar path' });
+      }
+
+      if (!fs.existsSync(resolvedPath)) {
         return res.status(404).json({ error: 'Avatar file not found' });
       }
 
-      res.sendFile(avatarPath);
+      res.sendFile(resolvedPath);
     }
   );
 });
