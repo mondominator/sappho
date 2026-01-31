@@ -1,7 +1,35 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStreamUrl, updateProgress, getCoverUrl, getChapters } from '../api';
+import { addOfflineProgress } from '../services/downloadStore';
 import './AudioPlayer.css';
+
+/**
+ * Update progress, falling back to offline storage if network unavailable
+ * @param {number} audiobookId - Audiobook ID
+ * @param {number} position - Current playback position in seconds
+ * @param {number} completed - 0 or 1
+ * @param {string} state - 'playing', 'paused', or 'stopped'
+ */
+async function updateProgressWithOfflineFallback(audiobookId, position, completed, state) {
+  try {
+    // Try network request first
+    await updateProgress(audiobookId, position, completed, state);
+  } catch (error) {
+    // Network failed - store progress offline for later sync
+    if (!navigator.onLine || error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
+      console.log('Offline - storing progress locally for later sync');
+      await addOfflineProgress({
+        audiobookId: String(audiobookId),
+        position: Math.floor(position),
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      // Re-throw other errors
+      console.error('Error updating progress:', error);
+    }
+  }
+}
 
 const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const navigate = useNavigate();
@@ -271,7 +299,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
         const isFinished = progressPercent >= 98;
 
-        updateProgress(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
+        updateProgressWithOfflineFallback(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
       }
     }, 5000);
 
@@ -418,7 +446,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       setPlaying(false);
       if (audioRef.current) {
         audioRef.current.pause();
-        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+        updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
       }
     };
 
@@ -444,7 +472,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       const duration = audioRef.current.duration;
       const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
       const isFinished = progressPercent >= 98;
-      updateProgress(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
+      updateProgressWithOfflineFallback(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
     } else {
       // Better error handling for play
       const playPromise = audioRef.current.play();
@@ -456,7 +484,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             const duration = audioRef.current.duration;
             const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
             const isFinished = progressPercent >= 98;
-            updateProgress(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
+            updateProgressWithOfflineFallback(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
           })
           .catch(err => {
             console.error('Playback failed:', err);
@@ -625,7 +653,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       const isFinished = progressPercent >= 98;
       audioRef.current.pause();
       setPlaying(false);
-      updateProgress(audiobook.id, currentPosition, isFinished ? 1 : 0, 'stopped');
+      updateProgressWithOfflineFallback(audiobook.id, currentPosition, isFinished ? 1 : 0, 'stopped');
     }
     onClose();
   };
@@ -943,7 +971,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         if (audioRef.current && playing) {
           audioRef.current.pause();
           setPlaying(false);
-          updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+          updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
         }
         setSleepTimer(null);
         setSleepTimerEnd(null);
@@ -974,7 +1002,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       if (audioRef.current && playing) {
         audioRef.current.pause();
         setPlaying(false);
-        updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+        updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
       }
       setSleepTimer(null);
     }
@@ -1212,7 +1240,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         onEnded={() => {
           setPlaying(false);
           // Mark as finished (100% completion)
-          updateProgress(audiobook.id, Math.floor(audioRef.current.currentTime), 1, 'stopped');
+          updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 1, 'stopped');
           // Close fullscreen player if open
           if (showFullscreen) {
             setShowFullscreen(false);

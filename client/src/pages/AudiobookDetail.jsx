@@ -5,6 +5,7 @@ import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook
 import EditMetadataModal from '../components/EditMetadataModal';
 import AddToCollectionModal from '../components/AddToCollectionModal';
 import StarRating from '../components/StarRating';
+import DownloadButton from '../components/DownloadButton';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -563,7 +564,8 @@ export default function AudiobookDetail({ onPlay }) {
             {hasProgress && (
               <button className="btn btn-warning" onClick={handleClearProgress}>Clear Progress</button>
             )}
-            <button className="btn btn-secondary" onClick={handleDownload}>Download</button>
+            <button className="btn btn-secondary" onClick={handleDownload}>Export</button>
+            <DownloadButton audiobook={audiobook} />
             <button
               className={`btn btn-refresh ${refreshingMetadata ? 'loading' : ''}`}
               onClick={handleRefreshMetadata}

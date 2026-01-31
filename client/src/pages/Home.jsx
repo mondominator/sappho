@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
+import OfflineBadge from '../components/OfflineBadge';
 import './Home.css';
 
 export default function Home({ onPlay }) {
@@ -136,6 +137,7 @@ export default function Home({ onPlay }) {
             aria-label={`Play ${book.title}`}
           />
         </div>
+        <OfflineBadge audiobookId={book.id} />
       </div>
     </div>
   );
