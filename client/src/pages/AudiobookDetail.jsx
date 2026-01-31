@@ -5,7 +5,6 @@ import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook
 import EditMetadataModal from '../components/EditMetadataModal';
 import AddToCollectionModal from '../components/AddToCollectionModal';
 import StarRating from '../components/StarRating';
-import DownloadButton from '../components/DownloadButton';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -31,6 +30,7 @@ export default function AudiobookDetail({ onPlay }) {
   const [aiConfigured, setAiConfigured] = useState(false);
   const [refreshingMetadata, setRefreshingMetadata] = useState(false);
   const [narratorIndex, setNarratorIndex] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -453,8 +453,8 @@ export default function AudiobookDetail({ onPlay }) {
             )}
           </div>
 
-          {/* Play and Chapters row */}
-          <div className="play-chapters-row">
+          {/* Chapters and Menu row */}
+          <div className="chapters-menu-row">
             {/* Chapters button */}
             {chapters.length > 0 && (
               <button className="chapters-toggle-btn" onClick={() => setShowChapters(!showChapters)}>
@@ -475,7 +475,81 @@ export default function AudiobookDetail({ onPlay }) {
               </button>
             )}
 
-            {/* Play Button */}
+            {/* More Options Menu */}
+            <div className="more-menu-container">
+              <button
+                className="more-menu-button"
+                onClick={() => setShowMenu(!showMenu)}
+                title="More options"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <circle cx="12" cy="5" r="2"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <circle cx="12" cy="19" r="2"></circle>
+                </svg>
+              </button>
+              {showMenu && (
+                <>
+                  <div className="more-menu-backdrop" onClick={() => setShowMenu(false)} />
+                  <div className="more-menu-dropdown">
+                    <button onClick={() => { setShowCollectionModal(true); setShowMenu(false); }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                        <line x1="12" y1="11" x2="12" y2="17"></line>
+                        <line x1="9" y1="14" x2="15" y2="14"></line>
+                      </svg>
+                      <span>Add to Collection</span>
+                    </button>
+                    <button onClick={() => { handleMarkFinished(); setShowMenu(false); }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                      </svg>
+                      <span>Mark Finished</span>
+                    </button>
+                    {hasProgress && (
+                      <button onClick={() => { handleClearProgress(); setShowMenu(false); }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="1 4 1 10 7 10"></polyline>
+                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        <span>Clear Progress</span>
+                      </button>
+                    )}
+                    <button onClick={() => { handleDownload(); setShowMenu(false); }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      <span>Export File</span>
+                    </button>
+                    {isAdmin && (
+                      <>
+                        <div className="menu-divider" />
+                        <button onClick={() => { handleRefreshMetadata(); setShowMenu(false); }} disabled={refreshingMetadata}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={refreshingMetadata ? 'spinning' : ''}>
+                            <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                          </svg>
+                          <span>{refreshingMetadata ? 'Refreshing...' : 'Refresh Metadata'}</span>
+                        </button>
+                        <button className="menu-danger" onClick={() => { handleDelete(); setShowMenu(false); }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Play Button row */}
+          <div className="play-button-row">
             <button className="detail-play-button" onClick={handlePlay}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                 <polygon points="6 3 20 12 6 21 6 3"></polygon>
@@ -484,13 +558,22 @@ export default function AudiobookDetail({ onPlay }) {
             </button>
           </div>
 
-          {/* Chapters dropdown content */}
+          {/* Chapters modal (mobile) */}
           {chapters.length > 0 && showChapters && (
-            <div className="detail-chapters-container">
-              <div className="detail-chapters">
-                <div className="chapters-list">
+            <div className="chapters-modal-overlay" onClick={() => setShowChapters(false)}>
+              <div className="chapters-modal" onClick={e => e.stopPropagation()}>
+                <div className="chapters-modal-header">
+                  <h3>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</h3>
+                  <button className="chapters-modal-close" onClick={() => setShowChapters(false)}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <div className="chapters-modal-list">
                   {chapters.map((chapter, index) => (
-                    <div key={chapter.id || index} className="chapter-item clickable" onClick={() => handleChapterClick(chapter, index)}>
+                    <div key={chapter.id || index} className="chapter-item clickable" onClick={() => { handleChapterClick(chapter, index); setShowChapters(false); }}>
                       <div className="chapter-info">
                         <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
                         <div className="chapter-meta">
@@ -545,43 +628,6 @@ export default function AudiobookDetail({ onPlay }) {
         <div className="detail-info">
           <div className="detail-title-row">
             <h1 className="detail-title">{audiobook.title}</h1>
-          </div>
-
-          <div className="detail-actions">
-            <button
-              className="btn btn-collection"
-              onClick={() => setShowCollectionModal(true)}
-              title="Add to collection"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                <line x1="12" y1="11" x2="12" y2="17"></line>
-                <line x1="9" y1="14" x2="15" y2="14"></line>
-              </svg>
-              Collection
-            </button>
-            <button className="btn btn-success" onClick={handleMarkFinished}>Mark Finished</button>
-            {hasProgress && (
-              <button className="btn btn-warning" onClick={handleClearProgress}>Clear Progress</button>
-            )}
-            <button className="btn btn-secondary" onClick={handleDownload}>Export</button>
-            <DownloadButton audiobook={audiobook} />
-            {isAdmin && (
-              <button
-                className={`btn btn-refresh ${refreshingMetadata ? 'loading' : ''}`}
-                onClick={handleRefreshMetadata}
-                disabled={refreshingMetadata}
-                title="Re-scan file and update metadata"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={refreshingMetadata ? 'spinning' : ''}>
-                  <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                </svg>
-                {refreshingMetadata ? 'Refreshing...' : 'Refresh'}
-              </button>
-            )}
-            {isAdmin && (
-              <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
-            )}
           </div>
 
           <div className="detail-metadata">

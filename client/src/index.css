@@ -66,28 +66,33 @@ html {
 @media (max-width: 768px) {
   html {
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: scroll;
     min-height: 100%;
     min-height: 100dvh;
     background: var(--bg-primary);
+    /* Force scroll on html for Android PWA */
+    height: auto;
   }
 
   body {
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: visible;
     -webkit-overflow-scrolling: touch;
     min-height: 100%;
     min-height: 100dvh;
     padding: 0;
     margin: 0;
     background: var(--bg-primary);
+    /* Let body content flow, html scrolls */
+    height: auto;
+    position: relative;
   }
 
   #root {
     min-height: 100%;
     min-height: 100dvh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* Don't create separate scroll container */
+    overflow: visible;
+    height: auto;
   }
 
   /* Hide scrollbars on mobile */

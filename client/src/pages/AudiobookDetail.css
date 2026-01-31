@@ -500,7 +500,8 @@
   margin-top: 1rem;
 }
 
-.play-chapters-row {
+/* Chapters and Menu row - hidden on desktop */
+.chapters-menu-row {
   display: none;
   flex-direction: row;
   gap: 0.75rem;
@@ -508,7 +509,7 @@
   width: 100%;
 }
 
-.play-chapters-row .chapters-toggle-btn {
+.chapters-menu-row .chapters-toggle-btn {
   flex: 1;
   width: auto;
   padding: 0.75rem 0.75rem;
@@ -516,30 +517,37 @@
   white-space: nowrap;
 }
 
-.play-chapters-row .chapters-toggle-content {
+.chapters-menu-row .chapters-toggle-content {
   gap: 0.5rem;
 }
 
-.play-chapters-row .chapters-toggle-content svg {
+.chapters-menu-row .chapters-toggle-content svg {
   width: 16px;
   height: 16px;
 }
 
-.play-chapters-row .chapters-toggle-icon {
+.chapters-menu-row .chapters-toggle-icon {
   position: static;
   margin-left: 0.25rem;
 }
 
+/* Play button row - hidden on desktop */
+.play-button-row {
+  display: none;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
 .detail-play-button {
   display: none;
-  flex: 1;
-  padding: 0.75rem 1.5rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
   background: rgba(16, 185, 129, 0.15);
   color: #6ee7b7;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   align-items: center;
@@ -560,8 +568,8 @@
 }
 
 .detail-play-button svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .detail-chapters-container {
@@ -908,6 +916,10 @@
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     margin: 0 !important;
+    /* Let content flow naturally - no scroll container here */
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
   }
 
   .detail-top-bar {
@@ -1019,19 +1031,27 @@
     margin-top: 1rem;
   }
 
-  .play-chapters-row {
+  .chapters-menu-row {
     display: flex !important;
     order: 3;
   }
 
-  .play-chapters-row .chapters-toggle-btn,
-  .play-chapters-row .detail-play-button {
+  .chapters-menu-row .chapters-toggle-btn {
+    display: flex !important;
+  }
+
+  .play-button-row {
+    display: block !important;
+    order: 4;
+  }
+
+  .play-button-row .detail-play-button {
     display: flex !important;
   }
 
   /* Chapters dropdown content - after play button row on mobile */
   .detail-cover-container > .detail-chapters-container {
-    order: 4;
+    order: 5;
   }
 
   .detail-info {
@@ -1500,4 +1520,230 @@
   color: #6b7280;
   margin-left: 0.25rem;
   flex-shrink: 0;
+}
+
+/* More Menu (Three-dot menu) */
+.more-menu-container {
+  position: relative;
+}
+
+.more-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(107, 114, 128, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.more-menu-button:hover {
+  background: rgba(107, 114, 128, 0.25);
+  color: #e5e7eb;
+}
+
+.more-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+}
+
+.more-menu-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  min-width: 200px;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  overflow: hidden;
+  animation: menuSlideUp 0.2s ease-out;
+}
+
+@keyframes menuSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.more-menu-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: none;
+  border: none;
+  color: #e5e7eb;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.more-menu-dropdown button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.more-menu-dropdown button:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.more-menu-dropdown button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.more-menu-dropdown button svg {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.more-menu-dropdown button:hover svg {
+  color: #e5e7eb;
+}
+
+.menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.25rem 0;
+}
+
+.more-menu-dropdown button.menu-danger {
+  color: #fca5a5;
+}
+
+.more-menu-dropdown button.menu-danger svg {
+  color: #f87171;
+}
+
+.more-menu-dropdown button.menu-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Desktop: Hide more menu button, show detail-actions */
+@media (min-width: 769px) {
+  .more-menu-container {
+    display: none;
+  }
+}
+
+/* Mobile: Show more menu button */
+@media (max-width: 768px) {
+  .more-menu-container {
+    display: block;
+  }
+
+  .more-menu-button {
+    display: flex;
+  }
+
+  .chapters-menu-row .more-menu-button {
+    flex-shrink: 0;
+  }
+}
+
+/* Chapters Modal (Bottom Sheet style) */
+.chapters-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chapters-modal {
+  width: 100%;
+  max-height: 70vh;
+  background: #1f2937;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.chapters-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.chapters-modal-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #f3f4f6;
+}
+
+.chapters-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chapters-modal-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.chapters-modal-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 0;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 20px));
+}
+
+.chapters-modal-list .chapter-item {
+  margin: 0 0.75rem 0.5rem;
+  border-radius: 10px;
+}
+
+.chapters-modal-list .chapter-item:last-child {
+  margin-bottom: 0.75rem;
 }
