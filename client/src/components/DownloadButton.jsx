@@ -40,7 +40,7 @@ export default function DownloadButton({ audiobook }) {
 
     const queuedDownloads = Object.values(downloads)
       .filter(d => d.status === 'queued')
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
 
     const position = queuedDownloads.findIndex(d => String(d.id) === String(audiobook.id));
     return position >= 0 ? position + 1 : 0;

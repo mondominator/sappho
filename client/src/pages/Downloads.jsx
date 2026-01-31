@@ -185,7 +185,9 @@ export default function Downloads() {
           ))}
 
           {/* Queued Downloads */}
-          {groupedDownloads.queued.map((download, index) => (
+          {groupedDownloads.queued
+            .sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt))
+            .map((download, index) => (
             <DownloadItem
               key={download.id}
               download={download}
