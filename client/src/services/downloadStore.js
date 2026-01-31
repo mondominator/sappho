@@ -111,21 +111,41 @@ async function getDB() {
 async function withTransaction(storeName, mode, operation) {
   const db = await getDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, mode);
-    const store = transaction.objectStore(storeName);
+    let settled = false;
 
-    const request = operation(store);
+    const settle = (fn, value) => {
+      if (!settled) {
+        settled = true;
+        fn(value);
+      }
+    };
+
+    let transaction;
+    let request;
+
+    try {
+      transaction = db.transaction(storeName, mode);
+      const store = transaction.objectStore(storeName);
+      request = operation(store);
+    } catch (error) {
+      settle(reject, error);
+      return;
+    }
 
     request.onsuccess = () => {
-      resolve(request.result);
+      settle(resolve, request.result);
     };
 
     request.onerror = () => {
-      reject(request.error);
+      settle(reject, request.error);
     };
 
     transaction.onerror = () => {
-      reject(transaction.error);
+      settle(reject, transaction.error);
+    };
+
+    transaction.onabort = () => {
+      settle(reject, transaction.error || new Error('Transaction aborted'));
     };
   });
 }
@@ -134,37 +154,53 @@ async function withTransaction(storeName, mode, operation) {
  * Execute a cursor-based query
  * @param {string} storeName - Store to query
  * @param {function(IDBObjectStore): IDBRequest} cursorOperation - Function that opens a cursor
- * @param {function(any): boolean} filter - Optional filter function
  * @returns {Promise<any[]>}
  */
-async function withCursor(storeName, cursorOperation, filter = null) {
+async function withCursor(storeName, cursorOperation) {
   const db = await getDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, 'readonly');
-    const store = transaction.objectStore(storeName);
+    let settled = false;
     const results = [];
 
-    const request = cursorOperation(store);
+    const settle = (fn, value) => {
+      if (!settled) {
+        settled = true;
+        fn(value);
+      }
+    };
+
+    let transaction;
+    let request;
+
+    try {
+      transaction = db.transaction(storeName, 'readonly');
+      const store = transaction.objectStore(storeName);
+      request = cursorOperation(store);
+    } catch (error) {
+      settle(reject, error);
+      return;
+    }
 
     request.onsuccess = (event) => {
       const cursor = event.target.result;
       if (cursor) {
-        const value = cursor.value;
-        if (!filter || filter(value)) {
-          results.push(value);
-        }
+        results.push(cursor.value);
         cursor.continue();
       } else {
-        resolve(results);
+        settle(resolve, results);
       }
     };
 
     request.onerror = () => {
-      reject(request.error);
+      settle(reject, request.error);
     };
 
     transaction.onerror = () => {
-      reject(transaction.error);
+      settle(reject, transaction.error);
+    };
+
+    transaction.onabort = () => {
+      settle(reject, transaction.error || new Error('Transaction aborted'));
     };
   });
 }
@@ -223,13 +259,18 @@ export async function saveDownload(download) {
     return false;
   }
 
-  if (!download || !download.id) {
+  if (!download || download.id === undefined || download.id === null) {
     console.error('saveDownload: download must have an id property');
     return false;
   }
 
   try {
-    await withTransaction(DOWNLOADS_STORE, 'readwrite', (store) => store.put(download));
+    // Normalize ID to string for consistent retrieval
+    const normalizedDownload = {
+      ...download,
+      id: String(download.id)
+    };
+    await withTransaction(DOWNLOADS_STORE, 'readwrite', (store) => store.put(normalizedDownload));
     return true;
   } catch (error) {
     console.error('Failed to save download:', error);
@@ -270,8 +311,7 @@ export async function getQueuedDownloads() {
   try {
     const downloads = await withCursor(
       DOWNLOADS_STORE,
-      (store) => store.index('status').openCursor(IDBKeyRange.only('queued')),
-      null
+      (store) => store.index('status').openCursor(IDBKeyRange.only('queued'))
     );
     // Sort by startedAt (oldest first - FIFO queue)
     return downloads.sort((a, b) => {
@@ -307,8 +347,7 @@ export async function getDownloadsByStatus(status) {
   try {
     return await withCursor(
       DOWNLOADS_STORE,
-      (store) => store.index('status').openCursor(IDBKeyRange.only(status)),
-      null
+      (store) => store.index('status').openCursor(IDBKeyRange.only(status))
     );
   } catch (error) {
     console.error('Failed to get downloads by status:', error);
@@ -364,8 +403,7 @@ export async function getUnsyncedProgress() {
   try {
     return await withCursor(
       OFFLINE_PROGRESS_STORE,
-      (store) => store.index('synced').openCursor(IDBKeyRange.only(false)),
-      null
+      (store) => store.index('synced').openCursor(IDBKeyRange.only(false))
     );
   } catch (error) {
     console.error('Failed to get unsynced progress:', error);
@@ -387,6 +425,15 @@ export async function markProgressSynced(id) {
     const db = await getDB();
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const settle = (fn, value) => {
+        if (!settled) {
+          settled = true;
+          fn(value);
+        }
+      };
+
       const transaction = db.transaction(OFFLINE_PROGRESS_STORE, 'readwrite');
       const store = transaction.objectStore(OFFLINE_PROGRESS_STORE);
 
@@ -397,16 +444,17 @@ export async function markProgressSynced(id) {
         if (record) {
           record.synced = true;
           const putRequest = store.put(record);
-          putRequest.onsuccess = () => resolve(true);
-          putRequest.onerror = () => reject(putRequest.error);
+          putRequest.onsuccess = () => settle(resolve, true);
+          putRequest.onerror = () => settle(reject, putRequest.error);
         } else {
           // Record not found, consider it already synced/deleted
-          resolve(true);
+          settle(resolve, true);
         }
       };
 
-      getRequest.onerror = () => reject(getRequest.error);
-      transaction.onerror = () => reject(transaction.error);
+      getRequest.onerror = () => settle(reject, getRequest.error);
+      transaction.onerror = () => settle(reject, transaction.error);
+      transaction.onabort = () => settle(reject, transaction.error || new Error('Transaction aborted'));
     });
   } catch (error) {
     console.error('Failed to mark progress synced:', error);
@@ -446,10 +494,19 @@ export async function cleanupSyncedProgress() {
     const db = await getDB();
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+      let deleted = 0;
+
+      const settle = (fn, value) => {
+        if (!settled) {
+          settled = true;
+          fn(value);
+        }
+      };
+
       const transaction = db.transaction(OFFLINE_PROGRESS_STORE, 'readwrite');
       const store = transaction.objectStore(OFFLINE_PROGRESS_STORE);
       const index = store.index('synced');
-      let deleted = 0;
 
       const request = index.openCursor(IDBKeyRange.only(true));
 
@@ -460,12 +517,13 @@ export async function cleanupSyncedProgress() {
           deleted++;
           cursor.continue();
         } else {
-          resolve(deleted);
+          settle(resolve, deleted);
         }
       };
 
-      request.onerror = () => reject(request.error);
-      transaction.onerror = () => reject(transaction.error);
+      request.onerror = () => settle(reject, request.error);
+      transaction.onerror = () => settle(reject, transaction.error);
+      transaction.onabort = () => settle(reject, transaction.error || new Error('Transaction aborted'));
     });
   } catch (error) {
     console.error('Failed to cleanup synced progress:', error);
@@ -488,8 +546,7 @@ export async function getProgressForAudiobook(audiobookId) {
     const id = String(audiobookId);
     return await withCursor(
       OFFLINE_PROGRESS_STORE,
-      (store) => store.index('audiobookId').openCursor(IDBKeyRange.only(id)),
-      null
+      (store) => store.index('audiobookId').openCursor(IDBKeyRange.only(id))
     );
   } catch (error) {
     console.error('Failed to get progress for audiobook:', error);
@@ -548,14 +605,25 @@ export async function deleteDatabase() {
  * Create a new download record with default values
  * @param {Object} audiobook - Audiobook metadata
  * @returns {Object} Download record ready to save
+ * @throws {TypeError} If audiobook is null/undefined or missing id
  */
 export function createDownloadRecord(audiobook) {
+  if (!audiobook || typeof audiobook !== 'object') {
+    throw new TypeError('createDownloadRecord: audiobook must be a non-null object');
+  }
+
+  if (audiobook.id === undefined || audiobook.id === null) {
+    throw new Error('createDownloadRecord: audiobook.id is required');
+  }
+
+  const id = String(audiobook.id);
+
   return {
-    id: String(audiobook.id),
+    id,
     status: 'queued',
     progress: 0,
     bytesDownloaded: 0,
-    totalBytes: audiobook.file_size || 0,
+    totalBytes: Number(audiobook.file_size) || 0,
     startedAt: new Date().toISOString(),
     completedAt: null,
     error: null,
@@ -563,7 +631,7 @@ export function createDownloadRecord(audiobook) {
     title: audiobook.title || 'Unknown Title',
     author: audiobook.author || 'Unknown Author',
     narrator: audiobook.narrator || null,
-    duration: audiobook.duration || 0,
-    coverUrl: `/api/audiobooks/${audiobook.id}/cover`
+    duration: Number(audiobook.duration) || 0,
+    coverUrl: `/api/audiobooks/${id}/cover`
   };
 }
