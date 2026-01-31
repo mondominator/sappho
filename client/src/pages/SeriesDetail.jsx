@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAudiobooks, getCoverUrl, getProgress, getProfile } from '../api';
 import BatchActionBar from '../components/BatchActionBar';
+import OfflineBadge from '../components/OfflineBadge';
 import './SeriesDetail.css';
 
 export default function SeriesDetail({ onPlay }) {
@@ -217,6 +218,7 @@ export default function SeriesDetail({ onPlay }) {
               />
             </div>
           )}
+          <OfflineBadge audiobookId={book.id} />
         </div>
       </div>
     );

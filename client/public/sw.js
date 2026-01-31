@@ -1,24 +1,7 @@
-// Service Worker - Unregister immediately
-self.addEventListener('install', () => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          return caches.delete(cacheName);
-        })
-      );
-    }).then(() => {
-      return self.registration.unregister();
-    })
-  );
-});
-
 // Service Worker for Sappho PWA
-const CACHE_NAME = 'sappho-v1.5.47';
+const CACHE_NAME = 'sappho-v1.7.0';
+const AUDIO_CACHE_NAME = 'sappho-audio-v1';
+
 const urlsToCache = [
   '/',
   '/index.html',
@@ -43,13 +26,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (but keep audio cache)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          // Keep the current app cache and audio cache
+          if (cacheName !== CACHE_NAME && cacheName !== AUDIO_CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -72,8 +56,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Check for audiobook stream requests - serve from cache if available
+  const streamMatch = event.request.url.match(/\/api\/audiobooks\/(\d+)\/stream/);
+  if (streamMatch) {
+    event.respondWith(serveAudioFromCacheOrNetwork(streamMatch[1], event.request));
+    return;
+  }
+
   // IMPORTANT: Never cache API requests - they contain auth tokens and dynamic data
-  // This includes streams, progress updates, and all authenticated endpoints
   if (event.request.url.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
@@ -110,3 +100,76 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// ============================================================================
+// Cache-based Audio Streaming for Offline Playback
+// ============================================================================
+
+/**
+ * Serve audio from Cache API if available, otherwise fall back to network
+ * Supports Range requests for seeking
+ * @param {string} audiobookId - Audiobook ID
+ * @param {Request} request - Original request
+ * @returns {Promise<Response>}
+ */
+async function serveAudioFromCacheOrNetwork(audiobookId, request) {
+  try {
+    // Check the audio cache
+    const cache = await caches.open(AUDIO_CACHE_NAME);
+    const cacheUrl = `/api/audiobooks/${audiobookId}/stream`;
+    const cachedResponse = await cache.match(cacheUrl);
+
+    if (cachedResponse) {
+      console.log(`Serving audiobook ${audiobookId} from cache (offline)`);
+
+      // Check for Range header (seeking)
+      const rangeHeader = request.headers.get('Range');
+
+      if (rangeHeader) {
+        // We need to handle range requests manually for cached responses
+        const blob = await cachedResponse.clone().blob();
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? parseInt(match[2], 10) : blob.size - 1;
+          const chunkSize = end - start + 1;
+
+          // Create a slice of the blob
+          const chunk = blob.slice(start, end + 1);
+
+          return new Response(chunk, {
+            status: 206,
+            statusText: 'Partial Content',
+            headers: {
+              'Content-Type': blob.type || 'audio/mpeg',
+              'Content-Length': chunkSize,
+              'Content-Range': `bytes ${start}-${end}/${blob.size}`,
+              'Accept-Ranges': 'bytes'
+            }
+          });
+        }
+      }
+
+      // Return full cached response (clone it since responses can only be used once)
+      const blob = await cachedResponse.blob();
+      return new Response(blob, {
+        status: 200,
+        headers: {
+          'Content-Type': blob.type || 'audio/mpeg',
+          'Content-Length': blob.size,
+          'Accept-Ranges': 'bytes'
+        }
+      });
+    }
+
+    // Not in cache, fall back to network
+    console.log(`Audiobook ${audiobookId} not cached, fetching from network`);
+    return fetch(request);
+
+  } catch (error) {
+    console.error('Error serving audio:', error);
+    // Fall back to network on any error
+    return fetch(request);
+  }
+}

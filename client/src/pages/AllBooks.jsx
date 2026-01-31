@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings, getProfile } from '../api';
 import BatchActionBar from '../components/BatchActionBar';
+import OfflineBadge from '../components/OfflineBadge';
 import './AllBooks.css';
 
 // Long press duration in ms
@@ -441,6 +442,7 @@ export default function AllBooks({ onPlay }) {
               />
             </div>
           )}
+          <OfflineBadge audiobookId={book.id} />
         </div>
       </div>
     );
