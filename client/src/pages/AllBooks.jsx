@@ -550,7 +550,6 @@ export default function AllBooks({ onPlay }) {
                 setSelectedIds(new Set());
                 setSelectionMode(false);
               }}
-              isAdmin={isAdmin}
             />
           )}
         </>
