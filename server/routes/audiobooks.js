@@ -899,6 +899,25 @@ router.get('/:id/stream', authenticateMediaToken, (req, res) => {
     const range = req.headers.range;
     const contentType = getAudioMimeType(filePath);
 
+    // Generate ETag from file size and modification time for cache validation
+    const etag = `"${stat.size}-${stat.mtime.getTime()}"`;
+    const lastModified = stat.mtime.toUTCString();
+
+    // Check if client has valid cached version
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+
+    // Common headers for caching and buffering optimization
+    const cacheHeaders = {
+      'Accept-Ranges': 'bytes',
+      'Content-Type': contentType,
+      'ETag': etag,
+      'Last-Modified': lastModified,
+      // Allow caching for 1 hour, revalidate after
+      'Cache-Control': 'private, max-age=3600, must-revalidate',
+    };
+
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
@@ -906,17 +925,16 @@ router.get('/:id/stream', authenticateMediaToken, (req, res) => {
       const chunksize = (end - start) + 1;
       const file = fs.createReadStream(filePath, { start, end });
       const head = {
+        ...cacheHeaders,
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
-        'Content-Type': contentType,
       };
       res.writeHead(206, head);
       file.pipe(res);
     } else {
       const head = {
+        ...cacheHeaders,
         'Content-Length': fileSize,
-        'Content-Type': contentType,
       };
       res.writeHead(200, head);
       fs.createReadStream(filePath).pipe(res);
