@@ -504,6 +504,21 @@ export default function Profile() {
             }}
           />
         </label>
+        <div className="select-row">
+          <span>Buffer size</span>
+          <select
+            value={localStorage.getItem('audioBufferSize') || '60'}
+            onChange={(e) => {
+              localStorage.setItem('audioBufferSize', e.target.value);
+              window.dispatchEvent(new CustomEvent('playerSettingsChanged'));
+            }}
+          >
+            <option value="30">30 seconds</option>
+            <option value="60">1 minute</option>
+            <option value="120">2 minutes</option>
+            <option value="300">5 minutes</option>
+          </select>
+        </div>
       </div>
 
       {/* Spacer for bottom nav */}
