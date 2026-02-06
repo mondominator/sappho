@@ -314,6 +314,150 @@
   flex-shrink: 0;
 }
 
+/* Rating Row - Android-style layout */
+.rating-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* Average Rating Display */
+.average-rating-display {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #fbbf24;
+}
+
+.average-rating-display svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.average-rating-display .average-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.average-rating-display .average-count {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin-left: 0.125rem;
+}
+
+/* Rate Button */
+.rate-button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rate-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.rate-button.rated {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+}
+
+.rate-button.rated:hover {
+  background: rgba(251, 191, 36, 0.2);
+}
+
+.rate-button svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Rate Spinner */
+.rate-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Star Picker - Expandable */
+.star-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(31, 41, 55, 0.8);
+  border-radius: 12px;
+  animation: fadeInScale 0.2s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.star-pick-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.star-pick-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.star-pick-btn:active {
+  transform: scale(0.95);
+}
+
+.star-pick-btn svg {
+  width: 28px;
+  height: 28px;
+  color: #6b7280;
+  stroke-width: 1.5;
+  transition: all 0.15s ease;
+}
+
+.star-pick-btn.filled svg {
+  color: #fbbf24;
+  fill: #fbbf24;
+}
+
+.star-pick-btn:hover svg {
+  color: #fbbf24;
+}
+
 /* Old detail-rating - hide on desktop, show on mobile as fallback */
 .detail-rating {
   display: none;
@@ -1041,12 +1185,36 @@
   }
 
   .play-button-row {
-    display: block !important;
+    display: flex !important;
+    align-items: center;
+    gap: 0.75rem;
     order: 4;
   }
 
   .play-button-row .detail-play-button {
     display: flex !important;
+    flex: 1;
+  }
+
+  .play-button-row .more-menu-container {
+    position: relative;
+  }
+
+  .play-button-row .more-menu-button {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(75, 85, 99, 0.3);
+    border: none;
+    color: #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .play-button-row .more-menu-button:hover {
+    background: rgba(75, 85, 99, 0.5);
   }
 
   /* Chapters dropdown content - after play button row on mobile */
@@ -1658,17 +1826,19 @@
   }
 }
 
-/* Chapters Modal (Bottom Sheet style) */
+/* Chapters Modal (Centered Modal style) */
 .chapters-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   z-index: 1000;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -1679,20 +1849,24 @@
 
 .chapters-modal {
   width: 100%;
-  max-height: 70vh;
+  max-width: 500px;
+  max-height: 80vh;
   background: #1f2937;
-  border-radius: 20px 20px 0 0;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.3s ease-out;
+  animation: modalZoomIn 0.2s ease-out;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-@keyframes slideUp {
+@keyframes modalZoomIn {
   from {
-    transform: translateY(100%);
+    opacity: 0;
+    transform: scale(0.95);
   }
   to {
-    transform: translateY(0);
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -1736,7 +1910,6 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0.5rem 0;
-  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 20px));
 }
 
 .chapters-modal-list .chapter-item {

@@ -66,6 +66,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [showChapterList, setShowChapterList] = useState(false);
   const [showChapterModal, setShowChapterModal] = useState(false);
   const [currentChapter, setCurrentChapter] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [bufferedPercent, setBufferedPercent] = useState(0);
   const activeChapterRef = useRef(null);
   const progressBarRef = useRef(null);
   const fullscreenProgressRef = useRef(null);
@@ -1222,6 +1224,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     >
       <audio
         ref={audioRef}
+        preload="auto"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={() => {
@@ -1231,6 +1234,17 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           // Close fullscreen player if open
           if (showFullscreen) {
             setShowFullscreen(false);
+          }
+        }}
+        onWaiting={() => setIsBuffering(true)}
+        onCanPlay={() => setIsBuffering(false)}
+        onPlaying={() => setIsBuffering(false)}
+        onProgress={() => {
+          // Update buffered percentage
+          if (audioRef.current && audioRef.current.buffered.length > 0 && audioRef.current.duration) {
+            const bufferedEnd = audioRef.current.buffered.end(audioRef.current.buffered.length - 1);
+            const percent = (bufferedEnd / audioRef.current.duration) * 100;
+            setBufferedPercent(Math.min(100, percent));
           }
         }}
       />
@@ -1347,8 +1361,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
             </svg>
           </button>
-          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
-            {playing ? (
+          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+            {isBuffering ? (
+              <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+            ) : playing ? (
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                 <rect x="6" y="4" width="4" height="16"></rect>
                 <rect x="14" y="4" width="4" height="16"></rect>
@@ -1385,8 +1403,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </svg>
           <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
         </button>
-        <button className={`control-btn play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
-          {playing ? (
+        <button className={`control-btn play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+          {isBuffering ? (
+            <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+          ) : playing ? (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
               <rect x="6" y="4" width="4" height="16"></rect>
               <rect x="14" y="4" width="4" height="16"></rect>
@@ -1428,10 +1450,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         className={`player-progress ${isDraggingProgress && !showFullscreen ? 'dragging' : ''}`}
         style={{
           '--progress-percent': `${chapterProgress ? chapterProgress.percent : (duration ? (currentTime / duration) * 100 : 0)}%`,
-          '--preview-percent': `${seekPreviewPercent}%`
+          '--preview-percent': `${seekPreviewPercent}%`,
+          '--buffered-percent': `${bufferedPercent}%`
         }}
         onMouseDown={handleProgressMouseDown}
       >
+        <div className="progress-buffered"></div>
         <div className="progress-thumb"></div>
         <span className="time-display">
           {chapterProgress
@@ -1600,8 +1624,12 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   </svg>
                   <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
                 </button>
-                <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''}`} onClick={togglePlay}>
-                  {playing ? (
+                <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay}>
+                  {isBuffering ? (
+                    <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                  ) : playing ? (
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                       <rect x="6" y="4" width="4" height="16"></rect>
                       <rect x="14" y="4" width="4" height="16"></rect>
@@ -1647,6 +1675,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                   <span>{chapterProgress ? formatTime(chapterProgress.duration) : formatTime(duration)}</span>
                 </div>
                 <div className="fullscreen-progress-track">
+                  <div
+                    className="fullscreen-progress-buffered"
+                    style={{ width: `${bufferedPercent}%` }}
+                  />
                   <div
                     className="fullscreen-progress-fill"
                     style={{ width: `${chapterProgress ? chapterProgress.percent : (duration > 0 ? (currentTime / duration) * 100 : 0)}%` }}
