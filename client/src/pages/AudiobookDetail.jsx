@@ -453,8 +453,14 @@ export default function AudiobookDetail({ onPlay }) {
             )}
           </div>
 
-          {/* More Options Menu */}
-          <div className="more-menu-row">
+          {/* Play Button row with overflow menu */}
+          <div className="play-button-row">
+            <button className="detail-play-button" onClick={handlePlay}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <polygon points="6 3 20 12 6 21 6 3"></polygon>
+              </svg>
+              {progress?.position > 0 && !isCompleted ? 'Continue' : 'Play'}
+            </button>
             <div className="more-menu-container">
               <button
                 className="more-menu-button"
@@ -538,16 +544,6 @@ export default function AudiobookDetail({ onPlay }) {
                 </>
               )}
             </div>
-          </div>
-
-          {/* Play Button row */}
-          <div className="play-button-row">
-            <button className="detail-play-button" onClick={handlePlay}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <polygon points="6 3 20 12 6 21 6 3"></polygon>
-              </svg>
-              {progress?.position > 0 && !isCompleted ? 'Continue' : 'Play'}
-            </button>
           </div>
 
           {/* Chapters modal (mobile) */}

@@ -1041,12 +1041,36 @@
   }
 
   .play-button-row {
-    display: block !important;
+    display: flex !important;
+    align-items: center;
+    gap: 0.75rem;
     order: 4;
   }
 
   .play-button-row .detail-play-button {
     display: flex !important;
+    flex: 1;
+  }
+
+  .play-button-row .more-menu-container {
+    position: relative;
+  }
+
+  .play-button-row .more-menu-button {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(75, 85, 99, 0.3);
+    border: none;
+    color: #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .play-button-row .more-menu-button:hover {
+    background: rgba(75, 85, 99, 0.5);
   }
 
   /* Chapters dropdown content - after play button row on mobile */

@@ -517,6 +517,11 @@ export default function Profile() {
             <option value="60">1 minute</option>
             <option value="120">2 minutes</option>
             <option value="300">5 minutes</option>
+            <option value="600">10 minutes</option>
+            <option value="1800">30 minutes</option>
+            <option value="3600">1 hour</option>
+            <option value="7200">2 hours</option>
+            <option value="10800">3 hours</option>
           </select>
         </div>
       </div>
