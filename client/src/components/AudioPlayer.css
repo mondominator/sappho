@@ -2304,3 +2304,68 @@
 .sleep-option.cancel:hover {
   background: rgba(239, 68, 68, 0.3);
 }
+
+/* ========================================
+   BUFFERING STYLES
+   ======================================== */
+
+/* Buffering spinner animation */
+@keyframes buffering-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.buffering-spinner {
+  animation: buffering-spin 1s linear infinite;
+}
+
+/* Play button buffering state */
+.play-btn.buffering {
+  opacity: 0.8;
+}
+
+.fullscreen-play-btn.buffering {
+  opacity: 0.8;
+}
+
+/* Buffer progress bar - mini player */
+.progress-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--buffered-percent, 0%);
+  background: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 0;
+  transition: width 0.3s ease-out;
+}
+
+/* Buffer progress bar - fullscreen */
+.fullscreen-progress-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 0;
+  transition: width 0.3s ease-out;
+}
+
+/* Mobile buffering styles */
+@media (max-width: 768px) {
+  .progress-buffered {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .mobile-play-btn.buffering {
+    background: rgba(59, 130, 246, 0.6);
+  }
+}

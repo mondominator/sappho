@@ -23,6 +23,8 @@ export default function AudiobookDetail({ onPlay }) {
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [userRating, setUserRating] = useState(null);
   const [averageRating, setAverageRating] = useState(null);
+  const [showRatingPicker, setShowRatingPicker] = useState(false);
+  const [isUpdatingRating, setIsUpdatingRating] = useState(false);
   const [recap, setRecap] = useState(null);
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapError, setRecapError] = useState(null);
@@ -210,14 +212,22 @@ export default function AudiobookDetail({ onPlay }) {
   };
 
   const handleRatingChange = async (newRating) => {
+    if (isUpdatingRating) return;
+    setIsUpdatingRating(true);
     try {
       await setRating(audiobook.id, newRating, null);
       setUserRating(newRating);
       // Refresh average rating after user rates
       const avgResponse = await getAverageRating(audiobook.id);
       setAverageRating(avgResponse.data);
+      // Collapse picker after rating (unless clearing)
+      if (newRating !== null) {
+        setShowRatingPicker(false);
+      }
     } catch (error) {
       console.error('Error setting rating:', error);
+    } finally {
+      setIsUpdatingRating(false);
     }
   };
 
@@ -352,30 +362,72 @@ export default function AudiobookDetail({ onPlay }) {
 
           {/* Rating Section - Under Cover */}
           <div className="detail-rating-section">
-            <StarRating
-              rating={userRating}
-              onRate={handleRatingChange}
-              size="medium"
-              showLabel={false}
-            />
-            <div className="rating-info">
-              {userRating ? (
-                <span className="your-rating-label">Your rating</span>
-              ) : (
-                <span className="tap-to-rate">Tap to rate</span>
-              )}
+            <div className="rating-row">
+              {/* Average rating display */}
               {averageRating && averageRating.count > 0 && (
-                <>
-                  <span className="rating-separator"> · </span>
-                  <span className="average-rating">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24" stroke="none">
+                <div className="average-rating-display">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#fbbf24" stroke="none">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                  <span className="average-value">{averageRating.average?.toFixed(1)}</span>
+                  <span className="average-count">({averageRating.count})</span>
+                </div>
+              )}
+
+              {/* Rate button */}
+              <button
+                className={`rate-button ${userRating ? 'rated' : ''}`}
+                onClick={() => setShowRatingPicker(!showRatingPicker)}
+                disabled={isUpdatingRating}
+              >
+                {isUpdatingRating ? (
+                  <span className="rate-spinner"></span>
+                ) : userRating ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#fbbf24" stroke="none">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                     </svg>
-                    {averageRating.average?.toFixed(1)} ({averageRating.count})
-                  </span>
-                </>
-              )}
+                    <span>Rate</span>
+                  </>
+                )}
+              </button>
             </div>
+
+            {/* Expandable star picker */}
+            {showRatingPicker && (
+              <div className="star-picker">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    className={`star-pick-btn ${userRating && star <= userRating ? 'filled' : ''}`}
+                    onClick={() => {
+                      if (userRating === star) {
+                        handleRatingChange(null); // Clear if same star
+                      } else {
+                        handleRatingChange(star);
+                      }
+                    }}
+                    disabled={isUpdatingRating}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="32"
+                      height="32"
+                      viewBox="0 0 24 24"
+                      fill={userRating && star <= userRating ? '#fbbf24' : 'none'}
+                      stroke={userRating && star <= userRating ? '#fbbf24' : '#6b7280'}
+                      strokeWidth="1.5"
+                    >
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Desktop Chapters and Files - Under Rating */}
@@ -453,29 +505,14 @@ export default function AudiobookDetail({ onPlay }) {
             )}
           </div>
 
-          {/* Chapters and Menu row */}
-          <div className="chapters-menu-row">
-            {/* Chapters button */}
-            {chapters.length > 0 && (
-              <button className="chapters-toggle-btn" onClick={() => setShowChapters(!showChapters)}>
-                <div className="chapters-toggle-content">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="8" y1="6" x2="21" y2="6"></line>
-                    <line x1="8" y1="12" x2="21" y2="12"></line>
-                    <line x1="8" y1="18" x2="21" y2="18"></line>
-                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                  </svg>
-                  <span>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</span>
-                </div>
-                <svg className={`chapters-toggle-icon ${showChapters ? 'open' : ''}`} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
-            )}
-
-            {/* More Options Menu */}
+          {/* Play Button row with overflow menu */}
+          <div className="play-button-row">
+            <button className="detail-play-button" onClick={handlePlay}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <polygon points="6 3 20 12 6 21 6 3"></polygon>
+              </svg>
+              {progress?.position > 0 && !isCompleted ? 'Continue' : 'Play'}
+            </button>
             <div className="more-menu-container">
               <button
                 className="more-menu-button"
@@ -492,6 +529,19 @@ export default function AudiobookDetail({ onPlay }) {
                 <>
                   <div className="more-menu-backdrop" onClick={() => setShowMenu(false)} />
                   <div className="more-menu-dropdown">
+                    {chapters.length > 0 && (
+                      <button onClick={() => { setShowChapters(true); setShowMenu(false); }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="8" y1="6" x2="21" y2="6"></line>
+                          <line x1="8" y1="12" x2="21" y2="12"></line>
+                          <line x1="8" y1="18" x2="21" y2="18"></line>
+                          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                        <span>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</span>
+                      </button>
+                    )}
                     <button onClick={() => { setShowCollectionModal(true); setShowMenu(false); }}>
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
@@ -546,16 +596,6 @@ export default function AudiobookDetail({ onPlay }) {
                 </>
               )}
             </div>
-          </div>
-
-          {/* Play Button row */}
-          <div className="play-button-row">
-            <button className="detail-play-button" onClick={handlePlay}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <polygon points="6 3 20 12 6 21 6 3"></polygon>
-              </svg>
-              {progress?.position > 0 && !isCompleted ? 'Continue' : 'Play'}
-            </button>
           </div>
 
           {/* Chapters modal (mobile) */}
