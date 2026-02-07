@@ -1,17 +1,19 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const db = require('../database');
 const { scrapeMetadata } = require('./metadataScraper');
 const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
 const { cleanDescription } = require('../utils/cleanDescription');
+const { sanitizeName } = require('./fileOrganizer');
+
+const execFileAsync = promisify(execFile);
 
 // music-metadata is ESM only, use dynamic import
 let parseFile;
-(async () => {
-  const mm = await import('music-metadata');
-  parseFile = mm.parseFile;
-})();
 
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
@@ -26,9 +28,16 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
     const fileMetadata = await extractFileMetadata(filePath);
 
     // Merge file metadata with manual metadata (manual takes precedence)
+    // Filter out empty/falsy manual values to avoid overriding extracted data
+    const filteredManual = {};
+    for (const [key, value] of Object.entries(manualMetadata)) {
+      if (value !== '' && value !== null && value !== undefined) {
+        filteredManual[key] = value;
+      }
+    }
     let metadata = {
       ...fileMetadata,
-      ...manualMetadata,
+      ...filteredManual,
     };
 
     // If we have title and author, try to scrape additional metadata
@@ -53,6 +62,53 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
 
     // Save to database
     const audiobook = await saveToDatabase(metadata, finalPath, stats.size, userId);
+
+    // Extract and save chapters for M4B/M4A files
+    const ext = path.extname(finalPath).toLowerCase();
+    if (ext === '.m4b' || ext === '.m4a') {
+      try {
+        const { stdout } = await execFileAsync('ffprobe', [
+          '-v', 'quiet',
+          '-print_format', 'json',
+          '-show_chapters',
+          finalPath
+        ]);
+
+        const data = JSON.parse(stdout);
+        if (data.chapters && data.chapters.length > 1) {
+          for (let i = 0; i < data.chapters.length; i++) {
+            const ch = data.chapters[i];
+            await new Promise((resolve, reject) => {
+              db.run(
+                `INSERT INTO audiobook_chapters
+                 (audiobook_id, chapter_number, file_path, duration, start_time, title)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                  audiobook.id,
+                  i + 1,
+                  finalPath,
+                  (parseFloat(ch.end_time) || 0) - (parseFloat(ch.start_time) || 0),
+                  parseFloat(ch.start_time) || 0,
+                  ch.tags?.title || `Chapter ${i + 1}`,
+                ],
+                (err) => { if (err) reject(err); else resolve(); }
+              );
+            });
+          }
+
+          // Update is_multi_file flag
+          await new Promise((resolve, reject) => {
+            db.run('UPDATE audiobooks SET is_multi_file = 1 WHERE id = ?', [audiobook.id], (err) => {
+              if (err) reject(err); else resolve();
+            });
+          });
+
+          console.log(`Extracted ${data.chapters.length} chapters from uploaded ${path.basename(finalPath)}`);
+        }
+      } catch (_error) {
+        console.log(`No chapters found in uploaded ${path.basename(finalPath)} or ffprobe not available`);
+      }
+    }
 
     return audiobook;
   } catch (error) {
@@ -133,18 +189,6 @@ async function extractFileMetadata(filePath) {
 
       // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
       // Priority: movement name (proper audiobook tag) > explicit SERIES tag > grouping > show
-      // Note: ©grp (grouping) is checked with genre filtering to avoid false positives
-      const seriesTagPriority = [
-        '©mvn',  // Movement Name - standard audiobook series tag (what tone writes)
-        'movementName',  // Alternative movement name key
-        '----:com.apple.iTunes:SERIES',
-        '----:com.apple.iTunes:series',
-        '----:com.pilabor.tone:SERIES',
-        '----:com.pilabor.tone:series',
-        '©grp',  // Grouping - commonly used for series (filtered by looksLikeGenres)
-        'tvsh',  // TV Show (sometimes used for series)
-        'sosn',  // Sort show name
-      ];
 
       // Helper to check if a value looks like genre/category tags rather than a series name
       const looksLikeGenres = (val) => {
@@ -158,12 +202,36 @@ async function extractFileMetadata(filePath) {
         return false;
       };
 
-      for (const tagId of seriesTagPriority) {
+      // Movement name tags are explicit series tags - no genre filtering needed
+      const movementTagIds = ['©mvn', 'movementName'];
+      for (const tagId of movementTagIds) {
         const tag = mp4Tags.find(t => t.id === tagId);
         const val = getTagValue(tag);
-        if (val && !looksLikeGenres(val)) {
+        if (val) {
           series = val;
           break;
+        }
+      }
+
+      // Other series tags need genre filtering to avoid false positives
+      if (!series) {
+        const otherSeriesTagIds = [
+          '----:com.apple.iTunes:SERIES',
+          '----:com.apple.iTunes:series',
+          '----:com.pilabor.tone:SERIES',
+          '----:com.pilabor.tone:series',
+          '©grp',  // Grouping - commonly used for series (filtered by looksLikeGenres)
+          'tvsh',  // TV Show (sometimes used for series)
+          'sosn',  // Sort show name
+        ];
+
+        for (const tagId of otherSeriesTagIds) {
+          const tag = mp4Tags.find(t => t.id === tagId);
+          const val = getTagValue(tag);
+          if (val && !looksLikeGenres(val)) {
+            series = val;
+            break;
+          }
         }
       }
 
@@ -485,9 +553,9 @@ async function extractFileMetadata(filePath) {
       }
     }
 
-    // Fallback for ISBN from common tags
-    if (!isbn && common.isrc) {
-      isbn = common.isrc;
+    // Fallback for language from common tags
+    if (!language && common.language) {
+      language = common.language;
     }
 
     // Extract published year - prefer rldt (release date from tone) over ©day
@@ -558,8 +626,8 @@ async function saveCoverArt(picture, audioFilePath) {
       fs.mkdirSync(coversDir, { recursive: true });
     }
 
-    // Generate unique filename based on audio file path
-    const hash = path.basename(audioFilePath, path.extname(audioFilePath));
+    // Generate unique filename based on full audio file path to avoid collisions
+    const hash = crypto.createHash('sha256').update(audioFilePath).digest('hex').substring(0, 16);
     const ext = picture.format.split('/')[1] || 'jpg';
     const coverPath = path.join(coversDir, `${hash}.${ext}`);
 
@@ -575,8 +643,9 @@ async function saveCoverArt(picture, audioFilePath) {
 
 async function organizeFile(sourcePath, metadata) {
   // Create clean folder names from title and author
-  const author = (metadata.author || 'Unknown Author').replace(/[^a-z0-9\s]/gi, '_').trim();
-  const title = (metadata.title || 'Unknown Title').replace(/[^a-z0-9\s]/gi, '_').trim();
+  // Use sanitizeName from fileOrganizer for consistency with library scanner
+  const author = sanitizeName(metadata.author) || 'Unknown Author';
+  const title = sanitizeName(metadata.title) || 'Unknown Title';
   const ext = path.extname(sourcePath);
 
   // Create Author/Book directory structure
@@ -639,8 +708,9 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
       `INSERT INTO audiobooks
        (title, author, narrator, description, duration, file_path, file_size,
         genre, published_year, isbn, series, series_position, cover_image, added_by,
+        tags, publisher, copyright_year, asin, language, rating, abridged, subtitle,
         content_hash, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [
         metadata.title,
         metadata.author,
@@ -656,6 +726,14 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
         metadata.series_position,
         metadata.cover_image,
         userId,
+        metadata.tags,
+        metadata.publisher,
+        metadata.copyright_year,
+        metadata.asin,
+        metadata.language,
+        metadata.rating,
+        metadata.abridged ? 1 : 0,
+        metadata.subtitle,
         contentHash,
       ],
       function (err) {

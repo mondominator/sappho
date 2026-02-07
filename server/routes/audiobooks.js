@@ -1804,13 +1804,16 @@ router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req
 
     const hasChapters = chapters && chapters.length > 1;
 
-    // Update database with new metadata
+    // Update database with new metadata (including extended fields)
     await new Promise((resolve, reject) => {
       db.run(
         `UPDATE audiobooks
          SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
              series = ?, series_position = ?, published_year = ?, cover_image = ?,
-             duration = ?, is_multi_file = ?, updated_at = CURRENT_TIMESTAMP
+             duration = ?, is_multi_file = ?, isbn = ?,
+             tags = ?, publisher = ?, copyright_year = ?, asin = ?,
+             language = ?, rating = ?, abridged = ?, subtitle = ?,
+             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           metadata.title,
@@ -1824,6 +1827,15 @@ router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req
           metadata.cover_image,
           metadata.duration,
           hasChapters ? 1 : 0,
+          metadata.isbn,
+          metadata.tags,
+          metadata.publisher,
+          metadata.copyright_year,
+          metadata.asin,
+          metadata.language,
+          metadata.rating,
+          metadata.abridged ? 1 : 0,
+          metadata.subtitle,
           req.params.id
         ],
         (err) => {
