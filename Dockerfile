@@ -30,6 +30,15 @@ COPY --from=frontend-builder /app/client/dist ./client/dist
 
 RUN mkdir -p /app/data/uploads /app/data/watch /app/data/audiobooks /app/data/covers
 
+# Run as non-root user for security
+RUN addgroup -g 1000 sappho && \
+    adduser -D -u 1000 -G sappho sappho && \
+    chown -R sappho:sappho /app /app/data
+USER sappho
+
 EXPOSE 3002
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "const http = require('http'); const port = process.env.PORT || 3002; http.get('http://localhost:' + port + '/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "server/index.js"]
