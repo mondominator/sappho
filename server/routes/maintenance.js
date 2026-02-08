@@ -1714,11 +1714,33 @@ router.get('/untracked-files', maintenanceLimiter, authenticateToken, async (req
       byDir[dir].push(path.basename(f));
     }
 
+    // Group ALL files by directory (showing file count per dir)
+    const allByDir = {};
+    for (const f of allFiles) {
+      const rel = path.relative(audiobooksDir, f);
+      const dir = path.dirname(rel);
+      if (!allByDir[dir]) allByDir[dir] = { files: [], tracked: 0, untracked: 0 };
+      const isTracked = trackedFiles.has(path.normalize(f));
+      allByDir[dir].files.push({ name: path.basename(f), tracked: isTracked });
+      if (isTracked) allByDir[dir].tracked++;
+      else allByDir[dir].untracked++;
+    }
+
+    // Only include directories with 2+ files
+    const multiFileDirs = {};
+    for (const [dir, info] of Object.entries(allByDir)) {
+      if (info.files.length > 1) {
+        multiFileDirs[dir] = info;
+      }
+    }
+
     res.json({
       totalFilesOnDisk: allFiles.length,
       trackedFiles: trackedFiles.size,
       untrackedCount: untrackedFiles.length,
       untrackedByDirectory: byDir,
+      multiFileDirectories: multiFileDirs,
+      multiFileDirCount: Object.keys(multiFileDirs).length,
     });
   } catch (error) {
     console.error('Error scanning for untracked files:', error);
