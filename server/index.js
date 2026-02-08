@@ -47,16 +47,20 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'", '\'unsafe-inline\''],
+      styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'", 'ws:', 'wss:', 'https://www.googleapis.com', 'https://openlibrary.org', 'https://api.audible.com', 'https://api.audnex.us'],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
+      scriptSrcAttr: null, // remove script-src-attr restriction (Helmet default breaks some SPA patterns)
+      upgradeInsecureRequests: null, // don't force HTTPS on localhost
     }
   },
   crossOriginEmbedderPolicy: false, // breaks audio loading cross-origin
+  crossOriginResourcePolicy: false, // breaks Vite module preload with crossorigin attribute
+  crossOriginOpenerPolicy: false, // not needed for SPA, can break popups
 }));
 
 // Middleware
