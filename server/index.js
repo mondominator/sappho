@@ -11,6 +11,10 @@ const { startScheduledBackups } = require('./services/backupService');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy headers (X-Forwarded-For) so rate limiting uses real client IPs
+// Required when running behind Docker/nginx/reverse proxy
+app.set('trust proxy', 1);
+
 // SECURITY: Configure allowed origins for CORS
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
