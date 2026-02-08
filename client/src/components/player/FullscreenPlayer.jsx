@@ -182,15 +182,15 @@ export default function FullscreenPlayer({
     <div ref={fullscreenPlayerRef} className="fullscreen-player">
       <div className="fullscreen-player-top">
         <div className="fullscreen-content" onClick={(e) => e.stopPropagation()}>
-          <button className="fullscreen-close" onClick={onClose}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <button className="fullscreen-close" onClick={onClose} aria-label="Close fullscreen player">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </button>
 
           <div className="fullscreen-cover">
             {audiobook.cover_image ? (
-              <img src={getCoverUrl(audiobook.id)} alt={audiobook.title} />
+              <img src={getCoverUrl(audiobook.id)} alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`} />
             ) : (
               <div className="fullscreen-cover-placeholder">{audiobook.title}</div>
             )}
@@ -248,8 +248,15 @@ export default function FullscreenPlayer({
             ref={fullscreenProgressRef}
             className={`fullscreen-progress ${isDraggingProgress ? 'dragging' : ''}`}
             onMouseDown={handleProgressMouseDown}
+            role="slider"
+            aria-label="Playback position"
+            aria-valuemin={0}
+            aria-valuemax={Math.floor(duration) || 0}
+            aria-valuenow={Math.floor(currentTime)}
+            aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+            tabIndex={0}
           >
-            <div className="fullscreen-time">
+            <div className="fullscreen-time" aria-live="polite" aria-atomic="true">
               <span>
                 {isDraggingProgress && seekPreviewTime !== null
                   ? formatTime(seekPreviewTime)
@@ -298,6 +305,7 @@ export default function FullscreenPlayer({
           className={`fullscreen-bottom-btn ${!chapters.length ? 'disabled' : ''}`}
           onClick={() => chapters.length > 0 && onShowChapterModal()}
           disabled={!chapters.length}
+          aria-label="Chapters"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="8" y1="6" x2="21" y2="6"></line>
@@ -323,7 +331,7 @@ export default function FullscreenPlayer({
           </span>
         </button>
 
-        <button className="fullscreen-bottom-btn" onClick={onShowSpeedMenu}>
+        <button className="fullscreen-bottom-btn" onClick={onShowSpeedMenu} aria-label={`Playback speed: ${playbackSpeed}x`}>
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
@@ -334,6 +342,7 @@ export default function FullscreenPlayer({
         <button
           className={`fullscreen-bottom-btn ${sleepTimer !== null ? 'active' : ''}`}
           onClick={onShowSleepMenu}
+          aria-label={sleepTimer !== null ? `Sleep timer: ${formatSleepTimer()}` : 'Sleep timer'}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>

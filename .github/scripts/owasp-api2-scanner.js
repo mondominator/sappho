@@ -327,12 +327,12 @@ function checkPasswordPolicy() {
       'server/routes/auth.js',
       1,
       'Registration endpoint has no password complexity requirements.',
-      'Enforce minimum 6 characters with complexity requirements.'
+      'Enforce minimum 8 characters with complexity requirements.'
     );
   }
 
   // Check if password change has weak requirements (looking for the old pattern)
-  if (profileRoutes && /newPassword\.length\s*<\s*6/.test(profileRoutes) && !/validatePassword/.test(profileRoutes)) {
+  if (profileRoutes && /newPassword\.length\s*<\s*8/.test(profileRoutes) && !/validatePassword/.test(profileRoutes)) {
     const line = findLineNumber(profileRoutes, 'newPassword.length');
     addFinding(
       'API2-009',
@@ -340,8 +340,8 @@ function checkPasswordPolicy() {
       SEVERITY.MEDIUM,
       'server/routes/profile.js',
       line,
-      'Password change only requires 6 character minimum, which is too weak.',
-      'Increase minimum to 6 characters and add complexity requirements.'
+      'Password change only requires 8 character minimum, which is too weak.',
+      'Increase minimum to 8 characters and add complexity requirements.'
     );
   }
 }

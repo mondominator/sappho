@@ -178,8 +178,8 @@ export default function Profile() {
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+    if (passwordData.newPassword.length < 8) {
+      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
       return;
     }
 
@@ -270,7 +270,7 @@ export default function Profile() {
       <div className="profile-header">
         <div className="profile-avatar-wrapper" onClick={handleAvatarClick}>
           {avatarPreview ? (
-            <img src={avatarPreview} alt="" className="profile-avatar" />
+            <img src={avatarPreview} alt="Profile avatar" className="profile-avatar" />
           ) : (
             <div className="profile-avatar-placeholder">
               {(profile.displayName || profile.username || '?').charAt(0).toUpperCase()}
@@ -330,7 +330,7 @@ export default function Profile() {
                 onClick={() => navigate(`/audiobook/${book.id}`)}
               >
                 {book.cover_image ? (
-                  <img src={getCoverUrl(book.id)} alt="" className="recent-book-cover" loading="lazy" />
+                  <img src={getCoverUrl(book.id)} alt={`${book.title || 'Audiobook'} by ${book.author || 'Unknown Author'}`} className="recent-book-cover" loading="lazy" />
                 ) : (
                   <div className="recent-book-placeholder">{book.title?.charAt(0)}</div>
                 )}

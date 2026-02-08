@@ -166,14 +166,14 @@ describe('Auth Routes', () => {
   });
 
   describe('Password Validation', () => {
-    it('rejects password shorter than 6 characters', async () => {
+    it('rejects password shorter than 8 characters', async () => {
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ username: 'shortpw', password: 'Aa1!' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('6 characters');
+      expect(res.body.error).toContain('8 characters');
     });
 
     it('rejects password without uppercase', async () => {

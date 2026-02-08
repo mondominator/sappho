@@ -48,8 +48,9 @@ function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, cu
 
   return (
     <div className={`app ${currentAudiobook ? 'player-active' : ''}`}>
+      <a href="#main-content" className="skip-to-content">Skip to main content</a>
       <Navigation onLogout={onLogout} />
-      <main className="main-content">
+      <main id="main-content" className="main-content">
         <Suspense fallback={<div className="loading-screen">Loading...</div>}>
           <Routes>
             <Route path="/" element={<Home onPlay={playAudiobook} />} />

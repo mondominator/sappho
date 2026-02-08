@@ -16,6 +16,18 @@ export default function SearchModal({ isOpen, onClose }) {
     }
   }, [isOpen]);
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   useEffect(() => {
     const searchAll = async () => {
       if (!searchQuery.trim()) {
@@ -130,7 +142,7 @@ export default function SearchModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="search-modal-overlay" onClick={onClose}>
+    <div className="search-modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Search audiobooks">
       <div className="search-modal" onClick={(e) => e.stopPropagation()}>
         <div className="search-modal-header">
           <input
@@ -138,10 +150,11 @@ export default function SearchModal({ isOpen, onClose }) {
             type="text"
             className="search-modal-input"
             placeholder="Search books, series, authors..."
+            aria-label="Search books, series, authors"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <button className="search-modal-close" onClick={onClose}>
+          <button className="search-modal-close" onClick={onClose} aria-label="Close search">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -162,6 +175,9 @@ export default function SearchModal({ isOpen, onClose }) {
                       key={book.id}
                       className="search-result-item"
                       onClick={() => handleBookClick(book)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBookClick(book); } }}
+                      role="button"
+                      tabIndex={0}
                     >
                       {book.cover_image && (
                         <img
@@ -191,6 +207,9 @@ export default function SearchModal({ isOpen, onClose }) {
                       key={index}
                       className="search-result-item"
                       onClick={() => handleSeriesClick(series)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSeriesClick(series); } }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <div className="search-result-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -214,6 +233,9 @@ export default function SearchModal({ isOpen, onClose }) {
                       key={index}
                       className="search-result-item"
                       onClick={() => handleAuthorClick(author)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAuthorClick(author); } }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <div className="search-result-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

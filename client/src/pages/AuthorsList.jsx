@@ -97,7 +97,7 @@ export default function AuthorsList() {
                       <div key={index} className="cover-item">
                         <img
                           src={getCoverUrl(coverId)}
-                          alt=""
+                          alt={`Book by ${author.author}`}
                           loading="lazy"
                           onError={(e) => e.target.style.display = 'none'}
                         />

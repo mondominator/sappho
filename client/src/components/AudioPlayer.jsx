@@ -59,6 +59,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [currentChapter, setCurrentChapter] = useState(0);
   const [isBuffering, setIsBuffering] = useState(false);
   const [bufferedPercent, setBufferedPercent] = useState(0);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
+  const [mediaError, setMediaError] = useState(null); // { message, type: 'error'|'warning' }
+  const mediaErrorTimerRef = useRef(null);
   const progressBarRef = useRef(null);
   const fullscreenPlayerRef = useRef(null);
   const miniPlayerRef = useRef(null);
@@ -531,6 +535,62 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     setVolume(vol);
   };
 
+  const showMediaError = (message, type = 'error') => {
+    setMediaError({ message, type });
+    if (mediaErrorTimerRef.current) {
+      clearTimeout(mediaErrorTimerRef.current);
+    }
+    mediaErrorTimerRef.current = setTimeout(() => {
+      setMediaError(null);
+      mediaErrorTimerRef.current = null;
+    }, 6000);
+  };
+
+  const handleAudioError = () => {
+    const error = audioRef.current?.error;
+    if (!error) return;
+
+    switch (error.code) {
+      case MediaError.MEDIA_ERR_NETWORK:
+        if (retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current++;
+          console.error(`Network error, retrying (${retryCountRef.current}/${MAX_RETRIES})...`);
+          showMediaError(`Network error. Retrying (${retryCountRef.current}/${MAX_RETRIES})...`, 'warning');
+          setTimeout(() => {
+            if (audioRef.current) {
+              const savedTime = audioRef.current.currentTime;
+              audioRef.current.load();
+              audioRef.current.currentTime = savedTime;
+              audioRef.current.play().catch(() => {});
+            }
+          }, 2000);
+        } else {
+          console.error('Network error: unable to load audio after retries');
+          showMediaError('Network error: unable to load audio after multiple retries.', 'error');
+          setPlaying(false);
+        }
+        break;
+      case MediaError.MEDIA_ERR_DECODE:
+        console.error('Decode error: audio file may be corrupted');
+        showMediaError('Playback error: this audio file may be corrupted.', 'error');
+        setPlaying(false);
+        break;
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+        console.error('Format not supported');
+        showMediaError('This audio format is not supported by your browser.', 'error');
+        setPlaying(false);
+        break;
+      default:
+        console.error('Unknown media error:', error.code);
+        break;
+    }
+  };
+
+  const handlePlayingEvent = () => {
+    retryCountRef.current = 0;
+    setIsBuffering(false);
+  };
+
   const formatTime = (seconds) => {
     if (isNaN(seconds)) return '0m 0s';
     const hours = Math.floor(seconds / 3600);
@@ -978,6 +1038,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     };
   }, [duration, showFullscreen]);
 
+  // Cleanup media error toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaErrorTimerRef.current) {
+        clearTimeout(mediaErrorTimerRef.current);
+      }
+    };
+  }, []);
+
   // Native event listeners for fullscreen swipe-down gesture (with passive: false for iOS)
   useEffect(() => {
     const element = fullscreenPlayerRef.current;
@@ -1033,9 +1102,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
   return (
     <>
+    {/* Media error toast notification */}
+    {mediaError && (
+      <div
+        className={`media-error-toast ${mediaError.type}`}
+        onClick={() => setMediaError(null)}
+      >
+        {mediaError.message}
+      </div>
+    )}
+
     <div
       ref={miniPlayerRef}
       className="audio-player"
+      role="region"
+      aria-label={`Now playing: ${audiobook.title}`}
       style={{
         transform: !showFullscreen && isDragging ? `translateY(${Math.min(0, dragOffset)}px)` : 'none',
         transition: isDragging ? 'none' : 'transform 0.3s ease-out',
@@ -1058,9 +1139,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             setShowFullscreen(false);
           }
         }}
+        onError={handleAudioError}
         onWaiting={() => setIsBuffering(true)}
         onCanPlay={() => setIsBuffering(false)}
-        onPlaying={() => setIsBuffering(false)}
+        onPlaying={handlePlayingEvent}
         onProgress={() => {
           // Update buffered percentage
           if (audioRef.current && audioRef.current.buffered.length > 0 && audioRef.current.duration) {
@@ -1075,7 +1157,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         {audiobook.cover_image && (
           <img
             src={getCoverUrl(audiobook.id)}
-            alt={audiobook.title}
+            alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`}
             className="player-cover"
             onClick={(e) => {
               if (window.innerWidth > 768) {
@@ -1132,7 +1214,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             {audiobook.author || 'Unknown Author'}
           </div>
           <div className="player-metadata">
-            <div className={`metadata-time ${playing ? 'playing' : ''}`}>
+            <div className={`metadata-time ${playing ? 'playing' : ''}`} aria-live="polite" aria-atomic="true">
               {chapterProgress
                 ? `${formatTimeShort(chapterProgress.position)} / ${formatTimeShort(chapterProgress.duration)}`
                 : `${formatTimeShort(currentTime)} / ${formatTimeShort(duration)}`
@@ -1162,13 +1244,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </div>
           {chapters.length > 0 && (
             <>
-              <button className="control-btn chapter-skip-btn" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
+              <button className="control-btn chapter-skip-btn" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter" aria-label="Previous chapter">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="19 20 9 12 19 4 19 20"></polygon>
                   <line x1="5" y1="19" x2="5" y2="5"></line>
                 </svg>
               </button>
-              <button className="control-btn chapter-skip-btn" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
+              <button className="control-btn chapter-skip-btn" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter" aria-label="Next chapter">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="5 4 15 12 5 20 5 4"></polygon>
                   <line x1="19" y1="5" x2="19" y2="19"></line>
@@ -1176,14 +1258,14 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </button>
             </>
           )}
-          <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s">
+          <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s" aria-label="Rewind 15 seconds">
             <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
               <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
             </svg>
           </button>
-          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'} aria-label={playing ? 'Pause' : 'Play'}>
             {isBuffering ? (
               <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
@@ -1199,7 +1281,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </svg>
             )}
           </button>
-          <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s">
+          <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s" aria-label="Forward 15 seconds">
             <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
               <path d="M21 3v5h-5"></path>
@@ -1223,7 +1305,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       />
 
       <div className="player-actions">
-        <button className="btn-close" onClick={handleClose} title="Close Player">
+        <button className="btn-close" onClick={handleClose} title="Close Player" aria-label="Close player">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1256,6 +1338,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           value={currentTime}
           onChange={handleSeek}
           className="progress-slider"
+          aria-label="Playback position"
+          aria-valuemin={0}
+          aria-valuemax={duration || 0}
+          aria-valuenow={Math.floor(currentTime)}
+          aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
         />
       </div>
 
