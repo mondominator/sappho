@@ -29,7 +29,7 @@ export async function queueProgressUpdate(audiobookId, position, completed, stat
   });
 }
 
-export async function getQueuedUpdates() {
+async function getQueuedUpdates() {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readonly');
   const store = tx.objectStore(STORE_NAME);
@@ -40,7 +40,7 @@ export async function getQueuedUpdates() {
   });
 }
 
-export async function clearQueue() {
+async function clearQueue() {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
   tx.objectStore(STORE_NAME).clear();

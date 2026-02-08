@@ -9,6 +9,7 @@ const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
 const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
+const { cleanupOldActivity } = require('./activityService');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -919,6 +920,13 @@ async function scanLibrary() {
     console.log(`Removed ${emptyDirsRemoved} empty directories`);
   }
 
+  // Clean up old activity events (older than 90 days)
+  try {
+    await cleanupOldActivity();
+  } catch (error) {
+    console.error('Error cleaning up old activity:', error.message);
+  }
+
   const stats = {
     imported,
     skipped,
@@ -1078,7 +1086,6 @@ function stopPeriodicScan() {
 
 module.exports = {
   scanLibrary,
-  importAudiobook,
   startPeriodicScan,
   stopPeriodicScan,
   lockScanning,

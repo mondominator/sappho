@@ -1,13 +1,7 @@
 /**
  * Promisified wrappers around the callback-based sqlite3 API.
  *
- * Two usage patterns:
- *
- * 1. Direct import (services that use the default database):
- *    const { dbGet, dbAll, dbRun } = require('../utils/db');
- *    const row = await dbGet('SELECT * FROM users WHERE id = ?', [1]);
- *
- * 2. Factory function (route modules with dependency injection):
+ * Usage (factory function for route modules with dependency injection):
  *    const { createDbHelpers } = require('../../utils/db');
  *    const { dbGet, dbAll, dbRun } = createDbHelpers(db);
  */
@@ -48,8 +42,4 @@ function createDbHelpers(database) {
   return { dbGet, dbAll, dbRun };
 }
 
-// Default helpers using the main database (for services)
-const defaultDb = require('../database');
-const { dbGet, dbAll, dbRun } = createDbHelpers(defaultDb);
-
-module.exports = { dbGet, dbAll, dbRun, createDbHelpers };
+module.exports = { createDbHelpers };

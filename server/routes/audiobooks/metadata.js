@@ -469,7 +469,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       });
     } catch (error) {
       console.error('Error fetching chapters:', error);
-      res.status(500).json({ error: 'Failed to fetch chapters: ' + error.message });
+      res.status(500).json({ error: 'Failed to fetch chapters' });
     }
   });
 
@@ -520,7 +520,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       });
     } catch (error) {
       console.error('Multi-source search error:', error);
-      res.status(500).json({ error: 'Failed to search: ' + error.message });
+      res.status(500).json({ error: 'Metadata search failed' });
     }
   });
 
@@ -811,6 +811,11 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid audiobook ID' });
+    }
+
     const { execFile } = require('child_process');
     const { promisify } = require('util');
     const execFileAsync = promisify(execFile);
@@ -821,7 +826,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     try {
       // Get audiobook from database
       const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
           if (err) reject(err);
           else resolve(row);
         });
@@ -839,7 +844,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       const chapters = await new Promise((resolve, reject) => {
         db.all(
           'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
-          [req.params.id],
+          [id],
           (err, rows) => {
             if (err) reject(err);
             else resolve(rows || []);
@@ -875,7 +880,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       // Use tone for M4B/M4A files - supports proper audiobook tags (MVNM, MVIN, narrator, etc.)
       if (ext === '.m4b' || ext === '.m4a') {
         // Create a JSON file with metadata to avoid command line escaping issues
-        metadataJsonFile = path.join(dir, `metadata_${req.params.id}.json`);
+        metadataJsonFile = path.join(dir, `metadata_${id}.json`);
 
         // Build metadata object for tone
         const toneMetadata = {
@@ -1131,7 +1136,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           fs.unlinkSync(tempPath);
         }
       } catch (_e) { /* ignore cleanup errors */ }
-      res.status(500).json({ error: 'Failed to embed metadata: ' + error.message });
+      res.status(500).json({ error: 'Failed to embed metadata' });
     }
   });
 
@@ -1140,6 +1145,11 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     // Check if user is admin
     if (!req.user.is_admin) {
       return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid audiobook ID' });
     }
 
     const {
@@ -1151,7 +1161,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     try {
       // Get current audiobook to check if author/title changed
       const currentBook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+        db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
           if (err) reject(err);
           else resolve(row);
         });
@@ -1173,7 +1183,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       if (cover_url) {
         try {
           console.log(`Downloading cover from URL: ${cover_url}`);
-          const downloadedCover = await downloadCover(cover_url, req.params.id);
+          const downloadedCover = await downloadCover(cover_url, id);
           if (downloadedCover) {
             newCoverImage = downloadedCover;
             newCoverPath = downloadedCover;
@@ -1199,7 +1209,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
             series, series_position, published_year, copyright_year,
             publisher, isbn, asin, language, rating, abridged ? 1 : 0,
             newCoverPath, newCoverImage,
-            req.params.id
+            id
           ],
           function (err) {
             if (err) reject(err);
@@ -1216,7 +1226,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           fs.existsSync(currentBook.file_path)) {
         // Re-fetch the audiobook with updated metadata
         const updatedBook = await new Promise((resolve, reject) => {
-          db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+          db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
             if (err) reject(err);
             else resolve(row);
           });
