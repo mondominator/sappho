@@ -1330,6 +1330,21 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
         ? audiobook.cover_image
         : null;
 
+    // Create backup of original file before embedding
+    const backupDir = path.join(dir, '.metadata-backups');
+    let backupPath = null;
+    try {
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      backupPath = path.join(backupDir, path.basename(audiobook.file_path));
+      fs.copyFileSync(audiobook.file_path, backupPath);
+      console.log(`Created backup at ${backupPath}`);
+    } catch (backupErr) {
+      console.warn(`Could not create backup: ${backupErr.message} — proceeding anyway`);
+      backupPath = null;
+    }
+
     // Use tone for M4B/M4A files - supports proper audiobook tags (MVNM, MVIN, narrator, etc.)
     if (ext === '.m4b' || ext === '.m4a') {
       // Create a JSON file with metadata to avoid command line escaping issues
@@ -1472,31 +1487,45 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
 
       console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
       res.json({
-        message: `Metadata embedded successfully with tone${chapters.length > 0 ? ` (${chapters.length} chapters)` : ''}`
+        message: `Metadata embedded successfully with tone${chapters.length > 0 ? ` (${chapters.length} chapters)` : ''}`,
+        backup: backupPath
       });
 
     } else {
-      // For MP3 and other formats, use ffmpeg
+      // For MP3, FLAC, OGG, and other formats, use ffmpeg
       tempPath = audiobook.file_path + '.tmp' + ext;
+
+      const isMP3 = ext === '.mp3';
+      const isVorbis = ext === '.flac' || ext === '.ogg' || ext === '.opus';
 
       const args = ['-i', audiobook.file_path];
 
       // Add cover image as second input if available
-      const hasCover = coverFile && ext === '.mp3';  // Cover embedding works best for MP3
+      const hasCover = coverFile && isMP3;  // Cover embedding works best for MP3
       if (hasCover) {
         args.push('-i', coverFile);
       }
 
-      // Add metadata flags
+      // Preserve existing metadata and merge with new values
+      args.push('-map_metadata', '0');
+
+      // Basic metadata
       if (audiobook.title) args.push('-metadata', `title=${audiobook.title}`);
-      if (audiobook.author) args.push('-metadata', `artist=${audiobook.author}`);
-      if (audiobook.author) args.push('-metadata', `album_artist=${audiobook.author}`);
-      if (audiobook.narrator) args.push('-metadata', `composer=${audiobook.narrator}`);
+      if (audiobook.author) {
+        args.push('-metadata', `artist=${audiobook.author}`);
+        args.push('-metadata', `album_artist=${audiobook.author}`);
+      }
+      if (audiobook.narrator) {
+        args.push('-metadata', `composer=${audiobook.narrator}`);
+        // For Vorbis (FLAC/OGG), write explicit NARRATOR tag
+        if (isVorbis) args.push('-metadata', `NARRATOR=${audiobook.narrator}`);
+      }
       if (audiobook.description) args.push('-metadata', `description=${audiobook.description}`);
       if (audiobook.genre) args.push('-metadata', `genre=${audiobook.genre}`);
       if (audiobook.published_year) args.push('-metadata', `date=${audiobook.published_year}`);
+      if (audiobook.subtitle) args.push('-metadata', `subtitle=${audiobook.subtitle}`);
 
-      // Series info
+      // Series info — write format-appropriate tags for proper round-trip
       if (audiobook.series) {
         args.push('-metadata', `album=${audiobook.series}`);
         const seriesWithPosition = audiobook.series_position
@@ -1504,10 +1533,27 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
           : audiobook.series;
         args.push('-metadata', `grouping=${seriesWithPosition}`);
         if (audiobook.series_position) {
-          args.push('-metadata', `track=${audiobook.series_position}`);
+          args.push('-metadata', `disc=${audiobook.series_position}`);
+        }
+        // For Vorbis (FLAC/OGG), write explicit SERIES and PART tags
+        if (isVorbis) {
+          args.push('-metadata', `SERIES=${audiobook.series}`);
+          if (audiobook.series_position) {
+            args.push('-metadata', `PART=${audiobook.series_position}`);
+          }
         }
       }
+
+      // Additional metadata fields
       if (audiobook.publisher) args.push('-metadata', `publisher=${audiobook.publisher}`);
+      if (audiobook.copyright_year) args.push('-metadata', `copyright=${audiobook.copyright_year}`);
+      if (audiobook.isbn) {
+        if (isVorbis) args.push('-metadata', `ISBN=${audiobook.isbn}`);
+      }
+      if (audiobook.asin) {
+        if (isVorbis) args.push('-metadata', `ASIN=${audiobook.asin}`);
+      }
+      if (audiobook.language) args.push('-metadata', `language=${audiobook.language}`);
 
       // Map streams and set codecs
       if (hasCover) {
@@ -1543,7 +1589,8 @@ router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
 
       console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
       res.json({
-        message: `Metadata embedded successfully with ffmpeg${hasCover ? ' (with cover)' : ''}`
+        message: `Metadata embedded successfully with ffmpeg${hasCover ? ' (with cover)' : ''}`,
+        backup: backupPath
       });
     }
   } catch (error) {
