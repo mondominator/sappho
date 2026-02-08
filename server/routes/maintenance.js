@@ -1657,6 +1657,75 @@ router.post('/organize/:id', maintenanceWriteLimiter, authenticateToken, async (
   }
 });
 
+// List all untracked audio files on disk (diagnostic)
+router.get('/untracked-files', maintenanceLimiter, authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+  const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.wav', '.aac'];
+
+  try {
+    // Get all tracked file paths from DB
+    const trackedFiles = await new Promise((resolve, reject) => {
+      const db = defaultDependencies.db();
+      db.all(
+        `SELECT file_path FROM audiobooks
+         UNION
+         SELECT file_path FROM audiobook_chapters`,
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(new Set((rows || []).map(r => path.normalize(r.file_path))));
+        }
+      );
+    });
+
+    // Recursively find all audio files on disk
+    const allFiles = [];
+    function walkDir(dir) {
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name.startsWith('.')) continue;
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walkDir(fullPath);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (audioExtensions.includes(ext)) {
+              allFiles.push(fullPath);
+            }
+          }
+        }
+      } catch (_err) { /* skip inaccessible dirs */ }
+    }
+    walkDir(audiobooksDir);
+
+    // Find untracked files
+    const untrackedFiles = allFiles.filter(f => !trackedFiles.has(path.normalize(f)));
+
+    // Group by parent directory
+    const byDir = {};
+    for (const f of untrackedFiles) {
+      const rel = path.relative(audiobooksDir, f);
+      const dir = path.dirname(rel);
+      if (!byDir[dir]) byDir[dir] = [];
+      byDir[dir].push(path.basename(f));
+    }
+
+    res.json({
+      totalFilesOnDisk: allFiles.length,
+      trackedFiles: trackedFiles.size,
+      untrackedCount: untrackedFiles.length,
+      untrackedByDirectory: byDir,
+    });
+  } catch (error) {
+    console.error('Error scanning for untracked files:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
   return router;
 }
 
