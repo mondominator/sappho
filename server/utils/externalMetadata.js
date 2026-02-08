@@ -76,7 +76,7 @@ function extractTagContent(xml, tag) {
     // Strip well-formed tags, then remove any remaining angle brackets
     let text = String(match[1]).replace(/<[^>]*>/g, '').replace(/[<>]/g, '');
     const entityMap = { '&amp;': '&', '&quot;': '"', '&apos;': "'" };
-    text = text.replace(/&(amp|quot|apos);/gi, (m) => entityMap[m.toLowerCase()] || m);
+    text = text.replace(/&(amp|quot|apos);/gi, (m) => entityMap[m.toLowerCase()]);
     text = text.replace(/&lt;/gi, '').replace(/&gt;/gi, '');
     text = text.replace(/&#(\d+);/g, (_, num) => {
       const ch = Number(num);
