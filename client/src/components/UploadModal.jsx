@@ -365,11 +365,11 @@ export default function UploadModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div className="modal-overlay" onClick={handleClose} role="dialog" aria-modal="true" aria-label="Upload audiobooks">
       <div className="modal upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Upload Audiobooks</h2>
-          <button className="close-button" onClick={handleClose} disabled={uploading}>
+          <button className="close-button" onClick={handleClose} disabled={uploading} aria-label="Close">
             ×
           </button>
         </div>

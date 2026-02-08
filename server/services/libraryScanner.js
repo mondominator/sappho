@@ -8,6 +8,8 @@ const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
+const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
+const { cleanupOldActivity } = require('./activityService');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -22,7 +24,7 @@ const execFileAsync = promisify(execFile);
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
 // Audio file extensions we support
-const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac'];
+const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma'];
 
 /**
  * Recursively scan a directory for audio files, grouped by directory
@@ -70,7 +72,8 @@ function scanDirectory(dir, groupByDirectory = false) {
 }
 
 /**
- * Extract chapters from an m4b file using ffprobe
+ * Extract chapters from an audio file using ffprobe.
+ * Works on any format with embedded chapters (M4B, M4A, MP3, OGG, FLAC, etc.)
  */
 async function extractM4BChapters(filePath) {
   try {
@@ -99,34 +102,71 @@ async function extractM4BChapters(filePath) {
   }
 }
 
+// In-memory caches for scan-time lookups (populated at scan start, cleared after)
+let knownFilePaths = null;  // Set of all file_path values in audiobooks table
+let knownDirectories = null;  // Map of directory -> { id, file_path } for directory-level dedup
+
 /**
- * Check if a file already exists in the database
+ * Load all existing audiobook paths into memory for fast O(1) lookup during scan.
+ * Call this once at the start of a scan instead of querying per-file.
  */
-function fileExistsInDatabase(filePath) {
+function loadPathCache() {
   return new Promise((resolve, reject) => {
-    db.get('SELECT id FROM audiobooks WHERE file_path = ?', [filePath], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(!!row);
+    db.all('SELECT id, file_path FROM audiobooks', [], (err, rows) => {
+      if (err) return reject(err);
+
+      knownFilePaths = new Set();
+      knownDirectories = new Map();
+
+      for (const row of (rows || [])) {
+        knownFilePaths.add(row.file_path);
+        const dir = path.dirname(row.file_path);
+        if (!knownDirectories.has(dir)) {
+          knownDirectories.set(dir, { id: row.id, file_path: row.file_path });
+        }
       }
+
+      console.log(`Path cache loaded: ${knownFilePaths.size} files in ${knownDirectories.size} directories`);
+      resolve();
     });
   });
 }
 
 /**
- * Check if another audiobook already exists in the same directory
- * This prevents duplicates when files are converted (e.g., MP3 -> M4B)
+ * Clear the in-memory path cache (call after scan completes)
+ */
+function clearPathCache() {
+  knownFilePaths = null;
+  knownDirectories = null;
+}
+
+/**
+ * Check if a file already exists in the database (uses cache if available)
+ */
+function fileExistsInDatabase(filePath) {
+  if (knownFilePaths) {
+    return Promise.resolve(knownFilePaths.has(filePath));
+  }
+  return new Promise((resolve, reject) => {
+    db.get('SELECT id FROM audiobooks WHERE file_path = ?', [filePath], (err, row) => {
+      if (err) reject(err);
+      else resolve(!!row);
+    });
+  });
+}
+
+/**
+ * Check if another audiobook already exists in the same directory (uses cache if available)
  */
 function audiobookExistsInDirectory(filePath) {
   const dir = path.dirname(filePath);
+  if (knownDirectories) {
+    return Promise.resolve(knownDirectories.get(dir) || null);
+  }
   return new Promise((resolve, reject) => {
     db.get('SELECT id, file_path FROM audiobooks WHERE file_path LIKE ?', [`${dir}/%`], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row || null);
-      }
+      if (err) reject(err);
+      else resolve(row || null);
     });
   });
 }
@@ -352,6 +392,12 @@ async function importAudiobook(filePath, userId = 1) {
     // Extract metadata from the file
     const metadata = await extractFileMetadata(filePath);
 
+    // Supplement with external metadata files (desc.txt, narrator.txt, *.opf)
+    // External data fills gaps but never overwrites audio tag data
+    const bookDir = path.dirname(filePath);
+    const externalMeta = await readExternalMetadata(bookDir);
+    mergeExternalMetadata(metadata, externalMeta);
+
     // Generate content hash for stable identification
     const contentHash = generateBestHash(metadata, filePath);
 
@@ -376,14 +422,9 @@ async function importAudiobook(filePath, userId = 1) {
     // Get file stats
     const stats = fs.statSync(filePath);
 
-    // Check if this is an m4b or m4a file with chapters (both can have embedded chapters)
-    const ext = path.extname(filePath).toLowerCase();
-    const canHaveChapters = ext === '.m4b' || ext === '.m4a';
+    // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
     let chapters = null;
-
-    if (canHaveChapters) {
-      chapters = await extractM4BChapters(filePath);
-    }
+    chapters = await extractM4BChapters(filePath);
 
     // Determine if this should be marked as multi-file (has embedded chapters)
     const hasChapters = chapters && chapters.length > 1;
@@ -540,6 +581,11 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
     if (metadata.title && /chapter|part|\d+/i.test(metadata.title)) {
       metadata.title = dirName;
     }
+
+    // Supplement with external metadata files (desc.txt, narrator.txt, *.opf)
+    // External data fills gaps but never overwrites audio tag data
+    const externalMeta = await readExternalMetadata(directory);
+    mergeExternalMetadata(metadata, externalMeta);
 
     // Store first file path as reference (will use chapters for playback)
     const firstFilePath = sortedFiles[0];
@@ -714,11 +760,9 @@ function mergeSubdirectories(groupedFiles) {
       /^\d+$/.test(name) // Just a number
     );
 
-    // Also check if all subdirectories have non-M4B files (MP3, FLAC, M4A)
     const allFiles = children.flatMap(c => c.files);
-    const hasM4BFiles = allFiles.some(f => path.extname(f).toLowerCase() === '.m4b');
 
-    if (looksLikeMultiPart && !hasM4BFiles) {
+    if (looksLikeMultiPart) {
       // Merge all files from subdirectories into parent
       console.log(`Merging ${children.length} subdirectories under ${parent}`);
       mergedGroups.set(parent, allFiles);
@@ -793,6 +837,9 @@ async function scanLibrary() {
     return { imported: 0, skipped: 0, errors: 0 };
   }
 
+  // Load all existing paths into memory for fast lookups during scan
+  await loadPathCache();
+
   // Scan files grouped by directory
   const groupedFiles = scanDirectory(audiobooksDir, true);
   console.log(`Found audio files in ${groupedFiles.size} directories`);
@@ -861,6 +908,9 @@ async function scanLibrary() {
     }
   }
 
+  // Clear the path cache now that import phase is done
+  clearPathCache();
+
   // Check availability of all existing books (mark missing as unavailable)
   const availabilityStats = await checkAvailability();
 
@@ -868,6 +918,13 @@ async function scanLibrary() {
   const emptyDirsRemoved = cleanupAllEmptyDirectories();
   if (emptyDirsRemoved > 0) {
     console.log(`Removed ${emptyDirsRemoved} empty directories`);
+  }
+
+  // Clean up old activity events (older than 90 days)
+  try {
+    await cleanupOldActivity();
+  } catch (error) {
+    console.error('Error cleaning up old activity:', error.message);
   }
 
   const stats = {
@@ -1029,7 +1086,6 @@ function stopPeriodicScan() {
 
 module.exports = {
   scanLibrary,
-  importAudiobook,
   startPeriodicScan,
   stopPeriodicScan,
   lockScanning,

@@ -44,6 +44,16 @@ loadPersistedSettings();
 
 // Helper to update persisted settings file
 const updateEnvFile = (updates) => {
+  // SECURITY: Validate keys and values to prevent injection
+  for (const [key, value] of Object.entries(updates)) {
+    if (!/^[A-Z_]+$/.test(key)) {
+      throw new Error(`Invalid settings key: ${key}`);
+    }
+    if (typeof value === 'string' && value.includes('\n')) {
+      throw new Error(`Settings value for ${key} must not contain newlines`);
+    }
+  }
+
   const settingsPath = getSettingsPath();
   let envContent = '';
 
@@ -77,6 +87,14 @@ const updateEnvFile = (updates) => {
 // Helper to validate directory path
 const validateDirectory = (dir) => {
   try {
+    // SECURITY: Reject paths with null bytes or non-string input
+    if (typeof dir !== 'string' || dir.includes('\0')) {
+      return false;
+    }
+    // SECURITY: Only allow absolute paths (expected in Docker container)
+    if (!path.isAbsolute(dir)) {
+      return false;
+    }
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -146,7 +164,9 @@ STYLE: Be funny, irreverent, and use colorful language. Roast the characters and
 
 // Get the current recap prompt (exported for use in series.js)
 const getRecapPrompt = () => {
-  const customPrompt = process.env.RECAP_CUSTOM_PROMPT;
+  const rawPrompt = process.env.RECAP_CUSTOM_PROMPT;
+  // Decode escaped newlines from env file storage
+  const customPrompt = rawPrompt ? rawPrompt.replace(/\\n/g, '\n') : rawPrompt;
   const offensiveMode = process.env.RECAP_OFFENSIVE_MODE === 'true';
 
   let prompt = customPrompt || DEFAULT_RECAP_PROMPT;
@@ -435,7 +455,7 @@ router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     geminiApiKey: process.env.GEMINI_API_KEY ? '••••••••' : '',
     geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-    recapCustomPrompt: process.env.RECAP_CUSTOM_PROMPT || '',
+    recapCustomPrompt: (process.env.RECAP_CUSTOM_PROMPT || '').replace(/\\n/g, '\n'),
     recapOffensiveMode: process.env.RECAP_OFFENSIVE_MODE === 'true',
     recapDefaultPrompt: DEFAULT_RECAP_PROMPT
   };
@@ -495,7 +515,8 @@ router.put('/ai', authenticateToken, requireAdmin, (req, res) => {
   // Recap prompt customization
   if (recapCustomPrompt !== undefined) {
     // Empty string means use default, otherwise save custom prompt
-    updates.RECAP_CUSTOM_PROMPT = recapCustomPrompt;
+    // Encode newlines so the value is safe for single-line env file storage
+    updates.RECAP_CUSTOM_PROMPT = recapCustomPrompt.replace(/\n/g, '\\n');
   }
 
   // Offensive mode toggle
@@ -528,12 +549,15 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
 
     const model = geminiModel || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           contents: [{
             parts: [{
@@ -561,6 +585,8 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
     } catch (error) {
       console.error('Gemini test error:', error);
       res.status(500).json({ error: 'Failed to connect to Gemini API' });
+    } finally {
+      clearTimeout(timeout);
     }
   } else {
     // Test OpenAI
@@ -574,6 +600,8 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
 
     const model = openaiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -581,6 +609,7 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           model: model,
           messages: [{ role: 'user', content: 'Say "Connection successful!" in exactly those words.' }],
@@ -603,6 +632,8 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
     } catch (error) {
       console.error('OpenAI test error:', error);
       res.status(500).json({ error: 'Failed to connect to OpenAI API' });
+    } finally {
+      clearTimeout(timeout);
     }
   }
 });

@@ -38,8 +38,8 @@ function createSessionsRouter(deps = {}) {
     try {
       const sessions = sessionManager.getAllSessions();
       res.json({ sessions });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    } catch (_error) {
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -52,8 +52,8 @@ function createSessionsRouter(deps = {}) {
       const { userId } = req.params;
       const sessions = sessionManager.getUserSessions(parseInt(userId));
       res.json({ sessions });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    } catch (_error) {
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -71,8 +71,8 @@ function createSessionsRouter(deps = {}) {
       }
 
       res.json({ session });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    } catch (_error) {
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -85,8 +85,8 @@ function createSessionsRouter(deps = {}) {
       const { sessionId } = req.params;
       sessionManager.stopSession(sessionId);
       res.json({ success: true, message: 'Session stopped' });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    } catch (_error) {
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

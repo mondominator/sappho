@@ -98,9 +98,9 @@ describe('Security Tests', () => {
       });
     });
 
-    test('requires minimum length of 6', () => {
+    test('requires minimum length of 8', () => {
       const errors = validatePassword('Ab1!');
-      expect(errors).toContain('Password must be at least 6 characters long');
+      expect(errors).toContain('Password must be at least 8 characters long');
     });
 
     test('requires mixed case', () => {

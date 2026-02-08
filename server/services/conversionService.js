@@ -15,8 +15,41 @@ class ConversionService {
     // Directories with active conversions (to prevent scanner interference)
     this.activeConversions = new Set();
 
+    // Concurrency limiter for ffmpeg processes
+    this.MAX_CONCURRENT = 2;
+    this.runningConversions = 0;
+    this.conversionQueue = [];
+
     // Clean up stale jobs every 5 minutes
     this.cleanupInterval = setInterval(() => this.cleanupStaleJobs(), 5 * 60 * 1000).unref();
+  }
+
+  /**
+   * Acquire a concurrency slot. Resolves immediately if a slot is available,
+   * otherwise queues the request until a slot opens up.
+   */
+  acquireSlot() {
+    return new Promise(resolve => {
+      if (this.runningConversions < this.MAX_CONCURRENT) {
+        this.runningConversions++;
+        resolve();
+      } else {
+        this.conversionQueue.push(resolve);
+      }
+    });
+  }
+
+  /**
+   * Release a concurrency slot. If there are queued conversions waiting,
+   * the next one is started immediately.
+   */
+  releaseSlot() {
+    this.runningConversions--;
+    if (this.conversionQueue.length > 0) {
+      this.runningConversions++;
+      const next = this.conversionQueue.shift();
+      next();
+    }
   }
 
   /**
@@ -123,10 +156,38 @@ class ConversionService {
     // Broadcast job started
     this.broadcastJobStatus(job);
 
-    // Start conversion in background
-    this.runConversion(job, audiobook, db);
+    // Start conversion in background with concurrency limiting
+    this.runConversionWithLimit(job, audiobook, db);
 
     return { jobId, status: 'started' };
+  }
+
+  /**
+   * Acquire a concurrency slot, then run the conversion.
+   * Ensures the slot is always released when the conversion finishes.
+   */
+  async runConversionWithLimit(job, audiobook, db) {
+    // Update status while waiting in queue
+    if (this.runningConversions >= this.MAX_CONCURRENT) {
+      job.status = 'queued';
+      job.message = `Waiting for available slot (${this.runningConversions}/${this.MAX_CONCURRENT} running)...`;
+      this.broadcastJobStatus(job);
+      console.log(`Conversion queued for "${audiobook.title}" (${this.runningConversions}/${this.MAX_CONCURRENT} active, ${this.conversionQueue.length + 1} waiting)`);
+    }
+
+    await this.acquireSlot();
+
+    // Check if job was cancelled while waiting in queue
+    if (job.status === 'cancelled') {
+      this.releaseSlot();
+      return;
+    }
+
+    try {
+      await this.runConversion(job, audiobook, db);
+    } finally {
+      this.releaseSlot();
+    }
   }
 
   /**
@@ -509,12 +570,12 @@ class ConversionService {
   }
 
   /**
-   * Get all active jobs
+   * Get all active jobs (including queued)
    */
   getActiveJobs() {
     const active = [];
     for (const job of this.jobs.values()) {
-      if (job.status === 'starting' || job.status === 'converting') {
+      if (job.status === 'starting' || job.status === 'converting' || job.status === 'queued') {
         active.push(this.getJobStatus(job.id));
       }
     }
@@ -522,12 +583,12 @@ class ConversionService {
   }
 
   /**
-   * Get active job for a specific audiobook
+   * Get active job for a specific audiobook (including queued)
    */
   getActiveJobForAudiobook(audiobookId) {
     for (const job of this.jobs.values()) {
       if (job.audiobookId === audiobookId &&
-          (job.status === 'starting' || job.status === 'converting')) {
+          (job.status === 'starting' || job.status === 'converting' || job.status === 'queued')) {
         return this.getJobStatus(job.id);
       }
     }
@@ -547,7 +608,7 @@ class ConversionService {
       return { error: 'Job already finished' };
     }
 
-    // Kill the ffmpeg process
+    // Kill the ffmpeg process if actively running
     if (job.process) {
       job.process.kill('SIGTERM');
     }
@@ -557,6 +618,9 @@ class ConversionService {
     this.broadcastJobStatus(job);
     this.cleanupJobFiles(job);
     this.activeConversions.delete(job.dir);
+
+    // Note: if the job was queued, the acquireSlot promise will resolve eventually
+    // and runConversionWithLimit checks for cancellation before proceeding.
 
     return { success: true };
   }
@@ -584,8 +648,8 @@ class ConversionService {
         continue;
       }
 
-      // Check for stuck jobs (running for more than 2 hours)
-      if ((job.status === 'starting' || job.status === 'converting')
+      // Check for stuck jobs (running or queued for more than 2 hours)
+      if ((job.status === 'starting' || job.status === 'converting' || job.status === 'queued')
           && startTime < Date.now() - 2 * 60 * 60 * 1000) {
         console.log(`Cleaning up stuck conversion job: ${jobId}`);
         if (job.process) {

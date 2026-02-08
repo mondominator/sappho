@@ -32,9 +32,9 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 describe('validatePassword', () => {
-  test('rejects passwords shorter than 6 characters', () => {
+  test('rejects passwords shorter than 8 characters', () => {
     const errors = validatePassword('Ab1!');
-    expect(errors).toContain('Password must be at least 6 characters long');
+    expect(errors).toContain('Password must be at least 8 characters long');
   });
 
   test('rejects passwords without uppercase letters', () => {

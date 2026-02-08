@@ -1,26 +1,28 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import Login from './pages/Login'
-import UnlockAccount from './pages/UnlockAccount'
-import ForcePasswordChange from './components/ForcePasswordChange'
-import Home from './pages/Home'
-import Library from './pages/Library'
-import AllBooks from './pages/AllBooks'
-import Profile from './pages/Profile'
-import AudiobookDetail from './pages/AudiobookDetail'
-import AuthorDetail from './pages/AuthorDetail'
-import AuthorsList from './pages/AuthorsList'
-import SeriesList from './pages/SeriesList'
-import SeriesDetail from './pages/SeriesDetail'
-import GenresList from './pages/GenresList'
-import Collections from './pages/Collections'
-import CollectionDetail from './pages/CollectionDetail'
-import Settings from './pages/Settings'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
+
+// Lazy-loaded pages
+const Login = lazy(() => import('./pages/Login'))
+const UnlockAccount = lazy(() => import('./pages/UnlockAccount'))
+const ForcePasswordChange = lazy(() => import('./components/ForcePasswordChange'))
+const Home = lazy(() => import('./pages/Home'))
+const Library = lazy(() => import('./pages/Library'))
+const AllBooks = lazy(() => import('./pages/AllBooks'))
+const Profile = lazy(() => import('./pages/Profile'))
+const AudiobookDetail = lazy(() => import('./pages/AudiobookDetail'))
+const AuthorDetail = lazy(() => import('./pages/AuthorDetail'))
+const AuthorsList = lazy(() => import('./pages/AuthorsList'))
+const SeriesList = lazy(() => import('./pages/SeriesList'))
+const SeriesDetail = lazy(() => import('./pages/SeriesDetail'))
+const GenresList = lazy(() => import('./pages/GenresList'))
+const Collections = lazy(() => import('./pages/Collections'))
+const CollectionDetail = lazy(() => import('./pages/CollectionDetail'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -46,24 +48,27 @@ function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, cu
 
   return (
     <div className={`app ${currentAudiobook ? 'player-active' : ''}`}>
+      <a href="#main-content" className="skip-to-content">Skip to main content</a>
       <Navigation onLogout={onLogout} />
-      <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Home onPlay={playAudiobook} />} />
-          <Route path="/library" element={<Library onPlay={playAudiobook} />} />
-          <Route path="/all-books" element={<AllBooks onPlay={playAudiobook} />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/audiobook/:id" element={<AudiobookDetail onPlay={playAudiobook} />} />
-          <Route path="/authors" element={<AuthorsList />} />
-          <Route path="/author/:name" element={<AuthorDetail onPlay={playAudiobook} />} />
-          <Route path="/series" element={<SeriesList />} />
-          <Route path="/series/:name" element={<SeriesDetail onPlay={playAudiobook} />} />
-          <Route path="/genres" element={<GenresList />} />
-          <Route path="/collections" element={<Collections />} />
-          <Route path="/collections/:id" element={<CollectionDetail />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+      <main id="main-content" className="main-content">
+        <Suspense fallback={<div className="loading-screen">Loading...</div>}>
+          <Routes>
+            <Route path="/" element={<Home onPlay={playAudiobook} />} />
+            <Route path="/library" element={<Library onPlay={playAudiobook} />} />
+            <Route path="/all-books" element={<AllBooks onPlay={playAudiobook} />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/audiobook/:id" element={<AudiobookDetail onPlay={playAudiobook} />} />
+            <Route path="/authors" element={<AuthorsList />} />
+            <Route path="/author/:name" element={<AuthorDetail onPlay={playAudiobook} />} />
+            <Route path="/series" element={<SeriesList />} />
+            <Route path="/series/:name" element={<SeriesDetail onPlay={playAudiobook} />} />
+            <Route path="/genres" element={<GenresList />} />
+            <Route path="/collections" element={<Collections />} />
+            <Route path="/collections/:id" element={<CollectionDetail />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
       </main>
       {currentAudiobook && currentAudiobook.id && (
         <AudioPlayer
@@ -132,7 +137,6 @@ function App() {
         .catch((error) => {
           if (error.response && (error.response.status === 401 || error.response.status === 403)) {
             // Token is invalid/expired - clear state
-            console.log('Token expired, logging out');
             setToken(null);
             setMustChangePassword(false);
             setCurrentAudiobook(null);
@@ -157,7 +161,6 @@ function App() {
             receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
             autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
           });
-          console.log('Cast SDK initialized successfully');
         } catch (error) {
           console.error('Error initializing Cast SDK:', error);
         }
@@ -187,10 +190,8 @@ function App() {
     const fetchLatestProgress = async () => {
       if (currentAudiobook && currentAudiobook.id && token) {
         try {
-          console.log('Fetching latest progress for audiobook:', currentAudiobook.id);
           const progressResponse = await getProgress(currentAudiobook.id);
           const latestProgress = progressResponse.data;
-          console.log('Latest progress from server:', latestProgress);
           setCurrentProgress(latestProgress);
         } catch (error) {
           console.error('Error fetching latest progress on load:', error);
@@ -247,31 +248,33 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <Routes>
-        {/* Public route for account unlock - accessible without authentication */}
-        <Route path="/unlock" element={<UnlockAccount />} />
+      <Suspense fallback={<div className="loading-screen">Loading...</div>}>
+        <Routes>
+          {/* Public route for account unlock - accessible without authentication */}
+          <Route path="/unlock" element={<UnlockAccount />} />
 
-        {/* All other routes require authentication */}
-        <Route path="*" element={
-          !token ? (
-            <Login onLogin={handleLogin} />
-          ) : mustChangePassword ? (
-            <ForcePasswordChange onLogout={handleLogout} />
-          ) : (
-            <WebSocketProvider>
-              <AppContent
-                token={token}
-                onLogout={handleLogout}
-                currentAudiobook={currentAudiobook}
-                setCurrentAudiobook={setCurrentAudiobook}
-                currentProgress={currentProgress}
-                setCurrentProgress={setCurrentProgress}
-                playAudiobook={playAudiobook}
-              />
-            </WebSocketProvider>
-          )
-        } />
-      </Routes>
+          {/* All other routes require authentication */}
+          <Route path="*" element={
+            !token ? (
+              <Login onLogin={handleLogin} />
+            ) : mustChangePassword ? (
+              <ForcePasswordChange onLogout={handleLogout} />
+            ) : (
+              <WebSocketProvider>
+                <AppContent
+                  token={token}
+                  onLogout={handleLogout}
+                  currentAudiobook={currentAudiobook}
+                  setCurrentAudiobook={setCurrentAudiobook}
+                  currentProgress={currentProgress}
+                  setCurrentProgress={setCurrentProgress}
+                  playAudiobook={playAudiobook}
+                />
+              </WebSocketProvider>
+            )
+          } />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

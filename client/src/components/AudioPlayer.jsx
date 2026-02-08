@@ -1,22 +1,14 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStreamUrl, updateProgress, getCoverUrl, getChapters } from '../api';
+import { getStreamUrl, getCoverUrl, getChapters } from '../api';
+import { useProgressSync } from './player/useProgressSync';
+import PlaybackControls from './player/PlaybackControls';
+import FullscreenPlayer from './player/FullscreenPlayer';
+import ChapterModal from './player/ChapterModal';
+import SpeedMenu from './player/SpeedMenu';
+import SleepTimerMenu from './player/SleepTimerMenu';
 import './AudioPlayer.css';
 
-/**
- * Update progress with error handling
- * @param {number} audiobookId - Audiobook ID
- * @param {number} position - Current playback position in seconds
- * @param {number} completed - 0 or 1
- * @param {string} state - 'playing', 'paused', or 'stopped'
- */
-async function updateProgressWithOfflineFallback(audiobookId, position, completed, state) {
-  try {
-    await updateProgress(audiobookId, position, completed, state);
-  } catch (error) {
-    console.error('Error updating progress:', error);
-  }
-}
 
 const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const navigate = useNavigate();
@@ -63,14 +55,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [dragCurrentY, setDragCurrentY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
-  const [showChapterList, setShowChapterList] = useState(false);
   const [showChapterModal, setShowChapterModal] = useState(false);
   const [currentChapter, setCurrentChapter] = useState(0);
   const [isBuffering, setIsBuffering] = useState(false);
   const [bufferedPercent, setBufferedPercent] = useState(0);
-  const activeChapterRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
+  const [mediaError, setMediaError] = useState(null); // { message, type: 'error'|'warning' }
+  const mediaErrorTimerRef = useRef(null);
   const progressBarRef = useRef(null);
-  const fullscreenProgressRef = useRef(null);
   const fullscreenPlayerRef = useRef(null);
   const miniPlayerRef = useRef(null);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
@@ -80,11 +73,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const seekPreviewTimeRef = useRef(null); // Ref to track preview time for event handlers
   const dragStateRef = useRef({ startY: 0, isDragging: false }); // Ref for native event handlers
   const miniTitleRef = useRef(null);
-  const fullscreenTitleRef = useRef(null);
-  const chapterLabelRef = useRef(null);
+
+  // Progress sync hook - sends progress every 5s while playing
+  const { updateProgressSafe } = useProgressSync(audiobook.id, playing, audioRef);
   const [miniTitleOverflows, setMiniTitleOverflows] = useState(false);
-  const [fullscreenTitleOverflows, setFullscreenTitleOverflows] = useState(false);
-  const [chapterLabelOverflows, setChapterLabelOverflows] = useState(false);
 
   // Expose closeFullscreen method to parent
   useImperativeHandle(ref, () => ({
@@ -141,7 +133,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (audioRef.current && playing) {
-        console.log('Pausing audio before page unload');
         audioRef.current.pause();
         // Save the playing state so we can resume after refresh
         localStorage.setItem('playerPlaying', 'true');
@@ -187,24 +178,14 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
                       window.navigator.standalone === true;
 
-        console.log('Playback restore:', {
-          isNewLoad,
-          savedPlaying,
-          isMobile,
-          isPWA,
-          isDesktop: !isMobile && !isPWA
-        });
-
         // Mobile/PWA: Only auto-play if _openFullscreen is true (explicit play from detail page)
         // AND it's a new load (not a page refresh)
         if (isMobile || isPWA) {
           const shouldAutoPlay = audiobook._openFullscreen === true && isNewLoad;
           if (shouldAutoPlay) {
-            console.log('Mobile/PWA - fullscreen play requested on new load, auto-playing');
             setTimeout(() => {
               if (audioRef.current) {
                 audioRef.current.play().then(() => {
-                  console.log('Playback started successfully (fullscreen request on mobile)');
                   setPlaying(true);
                   setIsNewLoad(false);
                   localStorage.setItem('playerPlaying', 'true');
@@ -216,7 +197,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               }
             }, 100);
           } else {
-            console.log('Mobile/PWA detected - no auto-play (page refresh or no explicit request), waiting for user interaction');
             setPlaying(false);
             setIsNewLoad(false);
             localStorage.setItem('playerPlaying', 'false');
@@ -227,11 +207,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
         // Desktop + New book load: Auto-play
         else if (isNewLoad) {
-          console.log('Desktop + New book load - auto-playing');
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
-                console.log('Playback started successfully (new book on desktop)');
                 setPlaying(true);
                 setIsNewLoad(false);
                 localStorage.setItem('playerPlaying', 'true');
@@ -245,11 +223,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
         // Desktop + Page refresh + Was playing: Resume playback
         else if (savedPlaying === 'true') {
-          console.log('Desktop + Page refresh + Was playing - resuming playback');
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
-                console.log('Playback resumed successfully on desktop');
                 setPlaying(true);
                 setIsNewLoad(false);
               }).catch(err => {
@@ -262,7 +238,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
         // Desktop + Page refresh + Was paused: Stay paused
         else {
-          console.log('Desktop + Page refresh + Was paused - staying paused');
           setPlaying(false);
           setIsNewLoad(false);
         }
@@ -276,24 +251,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }, [progress, hasRestoredPosition, isNewLoad]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Only send updates when actively playing
-      // Don't send periodic updates when paused to allow OpsDec to timeout the session
-      if (audioRef.current && playing) {
-        const currentTime = Math.floor(audioRef.current.currentTime);
-        const duration = audioRef.current.duration;
-
-        // Calculate progress percentage and mark as finished if >= 98%
-        const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-        const isFinished = progressPercent >= 98;
-
-        updateProgressWithOfflineFallback(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [audiobook.id, playing]);
+  // 5s progress sync is handled by useProgressSync hook
 
   // Set up Media Session API for OS-level media controls
   useEffect(() => {
@@ -431,11 +389,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     if (!audio) return;
 
     const handleAudioInterruption = () => {
-      console.log('Audio interrupted - pausing playback');
       setPlaying(false);
       if (audioRef.current) {
         audioRef.current.pause();
-        updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+        updateProgressSafe(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
       }
     };
 
@@ -461,7 +418,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       const duration = audioRef.current.duration;
       const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
       const isFinished = progressPercent >= 98;
-      updateProgressWithOfflineFallback(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
+      updateProgressSafe(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
     } else {
       // Better error handling for play
       const playPromise = audioRef.current.play();
@@ -473,7 +430,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             const duration = audioRef.current.duration;
             const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
             const isFinished = progressPercent >= 98;
-            updateProgressWithOfflineFallback(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
+            updateProgressSafe(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
           })
           .catch(err => {
             console.error('Playback failed:', err);
@@ -563,7 +520,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const handleTimeUpdate = () => {
-    setCurrentTime(audioRef.current.currentTime);
+    const newTime = audioRef.current.currentTime;
+    // Only trigger re-render when the second changes (~1x/sec instead of ~4x/sec)
+    setCurrentTime(prev => Math.floor(prev) === Math.floor(newTime) ? prev : newTime);
   };
 
   const handleLoadedMetadata = () => {
@@ -574,6 +533,62 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     const vol = parseFloat(e.target.value);
     audioRef.current.volume = vol;
     setVolume(vol);
+  };
+
+  const showMediaError = (message, type = 'error') => {
+    setMediaError({ message, type });
+    if (mediaErrorTimerRef.current) {
+      clearTimeout(mediaErrorTimerRef.current);
+    }
+    mediaErrorTimerRef.current = setTimeout(() => {
+      setMediaError(null);
+      mediaErrorTimerRef.current = null;
+    }, 6000);
+  };
+
+  const handleAudioError = () => {
+    const error = audioRef.current?.error;
+    if (!error) return;
+
+    switch (error.code) {
+      case MediaError.MEDIA_ERR_NETWORK:
+        if (retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current++;
+          console.error(`Network error, retrying (${retryCountRef.current}/${MAX_RETRIES})...`);
+          showMediaError(`Network error. Retrying (${retryCountRef.current}/${MAX_RETRIES})...`, 'warning');
+          setTimeout(() => {
+            if (audioRef.current) {
+              const savedTime = audioRef.current.currentTime;
+              audioRef.current.load();
+              audioRef.current.currentTime = savedTime;
+              audioRef.current.play().catch(() => {});
+            }
+          }, 2000);
+        } else {
+          console.error('Network error: unable to load audio after retries');
+          showMediaError('Network error: unable to load audio after multiple retries.', 'error');
+          setPlaying(false);
+        }
+        break;
+      case MediaError.MEDIA_ERR_DECODE:
+        console.error('Decode error: audio file may be corrupted');
+        showMediaError('Playback error: this audio file may be corrupted.', 'error');
+        setPlaying(false);
+        break;
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+        console.error('Format not supported');
+        showMediaError('This audio format is not supported by your browser.', 'error');
+        setPlaying(false);
+        break;
+      default:
+        console.error('Unknown media error:', error.code);
+        break;
+    }
+  };
+
+  const handlePlayingEvent = () => {
+    retryCountRef.current = 0;
+    setIsBuffering(false);
   };
 
   const formatTime = (seconds) => {
@@ -600,16 +615,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     return `${minutes}m ${secs}s`;
   };
 
-  const formatTimeWithLabels = (seconds) => {
-    if (isNaN(seconds)) return '0 min';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes} min`;
-    }
-    return `${minutes} min`;
-  };
 
   // Calculate chapter progress for chapter display mode
   const getChapterProgress = () => {
@@ -642,7 +647,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       const isFinished = progressPercent >= 98;
       audioRef.current.pause();
       setPlaying(false);
-      updateProgressWithOfflineFallback(audiobook.id, currentPosition, isFinished ? 1 : 0, 'stopped');
+      updateProgressSafe(audiobook.id, currentPosition, isFinished ? 1 : 0, 'stopped');
     }
     onClose();
   };
@@ -764,79 +769,32 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   };
 
-  const handleProgressTouchStart = (e) => {
-    const pos = calculateSeekPosition(e.touches[0].clientX, progressBarRef);
-    if (pos && progressBarRef.current) {
-      const rect = progressBarRef.current.getBoundingClientRect();
-      const tooltipX = rect.left + (pos.percent / 100 * rect.width);
-      const tooltipY = rect.top - 10;
-      setTooltipPosition({ x: tooltipX, y: tooltipY });
-      seekPreviewTimeRef.current = pos.time;
-      setSeekPreviewTime(pos.time);
-      setSeekPreviewPercent(pos.percent);
-      setIsDraggingProgress(true);
-    }
-  };
 
-  const handleFullscreenProgressMouseDown = (e) => {
-    e.stopPropagation();
-    const pos = calculateSeekPosition(e.clientX, fullscreenProgressRef);
-    if (pos) {
-      seekPreviewTimeRef.current = pos.time;
-      setSeekPreviewTime(pos.time);
-      setSeekPreviewPercent(pos.percent);
-      setIsDraggingProgress(true);
-    }
-  };
 
-  const handleFullscreenProgressTouchStart = (e) => {
-    e.stopPropagation();
-    const pos = calculateSeekPosition(e.touches[0].clientX, fullscreenProgressRef);
-    if (pos) {
-      seekPreviewTimeRef.current = pos.time;
-      setSeekPreviewTime(pos.time);
-      setSeekPreviewPercent(pos.percent);
-      setIsDraggingProgress(true);
-    }
-  };
-
-  // Add global event listeners for progress dragging
-  // Handlers defined inside useEffect to ensure consistent references for cleanup
+  // Global event listeners for mini player progress bar dragging
   useEffect(() => {
-    if (!isDraggingProgress) return;
+    if (!isDraggingProgress || showFullscreen) return;
 
-    // Capture current values to avoid stale closures
     const currentDuration = duration;
-    const isFullscreen = showFullscreen;
+    const miniBar = progressBarRef.current;
 
     const updatePreview = (clientX) => {
-      // Try both progress bar refs
-      const miniBar = progressBarRef.current;
-      const fullBar = fullscreenProgressRef.current;
-      const barRef = isFullscreen && fullBar ? fullBar : miniBar;
-
-      if (!barRef || !currentDuration) return;
-      const rect = barRef.getBoundingClientRect();
+      if (!miniBar || !currentDuration) return;
+      const rect = miniBar.getBoundingClientRect();
       const x = clientX - rect.left;
       const percentage = Math.max(0, Math.min(1, x / rect.width));
       const newTime = percentage * currentDuration;
 
-      // Update both state and ref
       seekPreviewTimeRef.current = newTime;
       setSeekPreviewTime(newTime);
       setSeekPreviewPercent(percentage * 100);
 
-      // Calculate fixed tooltip position for mini player
-      if (!isFullscreen) {
-        const tooltipX = rect.left + (percentage * rect.width);
-        const tooltipY = rect.top - 10; // 10px above the progress bar
-        setTooltipPosition({ x: tooltipX, y: tooltipY });
-      }
+      const tooltipX = rect.left + (percentage * rect.width);
+      const tooltipY = rect.top - 10;
+      setTooltipPosition({ x: tooltipX, y: tooltipY });
     };
 
-    const handleMouseMove = (e) => {
-      updatePreview(e.clientX);
-    };
+    const handleMouseMove = (e) => updatePreview(e.clientX);
 
     const handleTouchMove = (e) => {
       e.preventDefault();
@@ -844,7 +802,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     };
 
     const handleEnd = () => {
-      // Apply the seek on release using the ref (always has current value)
       const previewTime = seekPreviewTimeRef.current;
       if (previewTime !== null && audioRef.current) {
         audioRef.current.currentTime = previewTime;
@@ -886,18 +843,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }, [currentTime, chapters]);
 
-  // Scroll active chapter into view in fullscreen or chapter modal
-  useEffect(() => {
-    if ((showFullscreen || showChapterModal) && activeChapterRef.current) {
-      // Small delay to allow modal to render
-      setTimeout(() => {
-        activeChapterRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }, 100);
-    }
-  }, [currentChapter, showFullscreen, showChapterModal]);
 
   // Listen for player settings changes from Profile page
   useEffect(() => {
@@ -960,7 +905,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         if (audioRef.current && playing) {
           audioRef.current.pause();
           setPlaying(false);
-          updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+          updateProgressSafe(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
         }
         setSleepTimer(null);
         setSleepTimerEnd(null);
@@ -991,170 +936,116 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       if (audioRef.current && playing) {
         audioRef.current.pause();
         setPlaying(false);
-        updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
+        updateProgressSafe(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
       }
       setSleepTimer(null);
     }
   }, [currentTime, currentChapter, chapters, sleepTimer, playing, audiobook?.id]);
 
-  // Detect title overflow for marquee animation
+  // Detect mini player title overflow for marquee animation
   useEffect(() => {
     const checkOverflow = () => {
-      // Check mini player title
       if (miniTitleRef.current) {
         const container = miniTitleRef.current;
         const content = container.querySelector('.marquee-content');
         if (content) {
-          // If already marquee-ing (has duplicate), divide by ~2 to get single title width
-          // Otherwise just use scrollWidth directly
           const hasMarquee = miniTitleOverflows;
           const singleTitleWidth = hasMarquee ? content.scrollWidth / 2.1 : content.scrollWidth;
           setMiniTitleOverflows(singleTitleWidth > container.clientWidth);
         }
       }
-
-      // Check fullscreen title
-      if (fullscreenTitleRef.current && showFullscreen) {
-        const container = fullscreenTitleRef.current;
-        const content = container.querySelector('.fullscreen-title-content');
-        if (content) {
-          // If already marquee-ing (has duplicate), divide by ~2 to get single title width
-          // Otherwise just use scrollWidth directly
-          const hasMarquee = fullscreenTitleOverflows;
-          const singleTitleWidth = hasMarquee ? content.scrollWidth / 2.1 : content.scrollWidth;
-          setFullscreenTitleOverflows(singleTitleWidth > container.clientWidth);
-        }
-      }
-
-      // Check chapter label
-      if (chapterLabelRef.current && showFullscreen) {
-        const container = chapterLabelRef.current;
-        const content = container.querySelector('.chapter-label-content');
-        if (content) {
-          const hasMarquee = chapterLabelOverflows;
-          const singleWidth = hasMarquee ? content.scrollWidth / 2.1 : content.scrollWidth;
-          setChapterLabelOverflows(singleWidth > container.clientWidth);
-        }
-      }
     };
 
-    // Check after a brief delay to allow rendering
     const timeout = setTimeout(checkOverflow, 100);
-
-    // For fullscreen, check again after a longer delay to ensure it's rendered
-    const fullscreenTimeout = showFullscreen ? setTimeout(checkOverflow, 300) : null;
-
-    // Also check on window resize
     window.addEventListener('resize', checkOverflow);
 
     return () => {
       clearTimeout(timeout);
-      if (fullscreenTimeout) clearTimeout(fullscreenTimeout);
       window.removeEventListener('resize', checkOverflow);
     };
-  }, [audiobook?.title, showFullscreen, miniTitleOverflows, fullscreenTitleOverflows, chapterLabelOverflows, currentChapter, chapters]);
+  }, [audiobook?.title, miniTitleOverflows]);
 
-  // Native event listeners for progress bar seeking (with passive: false for iOS)
+  // Native touch event listeners for mini player progress bar (with passive: false for iOS)
   useEffect(() => {
     const miniBar = progressBarRef.current;
-    const fullBar = fullscreenProgressRef.current;
+    if (!miniBar || showFullscreen) return;
 
-    const createSeekHandlers = (barRef, isFullscreen) => {
-      let isSeeking = false;
+    let isSeeking = false;
 
-      const getSeekPosition = (clientX) => {
-        if (!barRef || !duration) return null;
-        const rect = barRef.getBoundingClientRect();
-        const x = clientX - rect.left;
-        const percentage = Math.max(0, Math.min(1, x / rect.width));
-        return { time: percentage * duration, percent: percentage * 100 };
-      };
-
-      const handleTouchStart = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        isSeeking = true;
-        const pos = getSeekPosition(e.touches[0].clientX);
-        if (pos) {
-          seekPreviewTimeRef.current = pos.time;
-          setSeekPreviewTime(pos.time);
-          setSeekPreviewPercent(pos.percent);
-          setIsDraggingProgress(true);
-          if (!isFullscreen) {
-            const rect = barRef.getBoundingClientRect();
-            setTooltipPosition({
-              x: rect.left + (pos.percent / 100 * rect.width),
-              y: rect.top - 10
-            });
-          }
-        }
-      };
-
-      const handleTouchMove = (e) => {
-        if (!isSeeking) return;
-        e.preventDefault();
-        const pos = getSeekPosition(e.touches[0].clientX);
-        if (pos) {
-          seekPreviewTimeRef.current = pos.time;
-          setSeekPreviewTime(pos.time);
-          setSeekPreviewPercent(pos.percent);
-          if (!isFullscreen) {
-            const rect = barRef.getBoundingClientRect();
-            setTooltipPosition({
-              x: rect.left + (pos.percent / 100 * rect.width),
-              y: rect.top - 10
-            });
-          }
-        }
-      };
-
-      const handleTouchEnd = () => {
-        if (!isSeeking) return;
-        isSeeking = false;
-        const previewTime = seekPreviewTimeRef.current;
-        if (previewTime !== null && audioRef.current) {
-          audioRef.current.currentTime = previewTime;
-          setCurrentTime(previewTime);
-        }
-        setIsDraggingProgress(false);
-        setSeekPreviewTime(null);
-        seekPreviewTimeRef.current = null;
-      };
-
-      return { handleTouchStart, handleTouchMove, handleTouchEnd };
+    const getSeekPosition = (clientX) => {
+      if (!miniBar || !duration) return null;
+      const rect = miniBar.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const percentage = Math.max(0, Math.min(1, x / rect.width));
+      return { time: percentage * duration, percent: percentage * 100 };
     };
 
-    // Mini player progress bar
-    let miniHandlers = null;
-    if (miniBar && !showFullscreen) {
-      miniHandlers = createSeekHandlers(miniBar, false);
-      miniBar.addEventListener('touchstart', miniHandlers.handleTouchStart, { passive: false });
-      miniBar.addEventListener('touchmove', miniHandlers.handleTouchMove, { passive: false });
-      miniBar.addEventListener('touchend', miniHandlers.handleTouchEnd);
-    }
+    const handleTouchStart = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      isSeeking = true;
+      const pos = getSeekPosition(e.touches[0].clientX);
+      if (pos) {
+        seekPreviewTimeRef.current = pos.time;
+        setSeekPreviewTime(pos.time);
+        setSeekPreviewPercent(pos.percent);
+        setIsDraggingProgress(true);
+        const rect = miniBar.getBoundingClientRect();
+        setTooltipPosition({
+          x: rect.left + (pos.percent / 100 * rect.width),
+          y: rect.top - 10
+        });
+      }
+    };
 
-    // Fullscreen progress bar
-    let fullHandlers = null;
-    if (fullBar && showFullscreen) {
-      fullHandlers = createSeekHandlers(fullBar, true);
-      fullBar.addEventListener('touchstart', fullHandlers.handleTouchStart, { passive: false });
-      fullBar.addEventListener('touchmove', fullHandlers.handleTouchMove, { passive: false });
-      fullBar.addEventListener('touchend', fullHandlers.handleTouchEnd);
-    }
+    const handleTouchMove = (e) => {
+      if (!isSeeking) return;
+      e.preventDefault();
+      const pos = getSeekPosition(e.touches[0].clientX);
+      if (pos) {
+        seekPreviewTimeRef.current = pos.time;
+        setSeekPreviewTime(pos.time);
+        setSeekPreviewPercent(pos.percent);
+        const rect = miniBar.getBoundingClientRect();
+        setTooltipPosition({
+          x: rect.left + (pos.percent / 100 * rect.width),
+          y: rect.top - 10
+        });
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (!isSeeking) return;
+      isSeeking = false;
+      const previewTime = seekPreviewTimeRef.current;
+      if (previewTime !== null && audioRef.current) {
+        audioRef.current.currentTime = previewTime;
+        setCurrentTime(previewTime);
+      }
+      setIsDraggingProgress(false);
+      setSeekPreviewTime(null);
+      seekPreviewTimeRef.current = null;
+    };
+
+    miniBar.addEventListener('touchstart', handleTouchStart, { passive: false });
+    miniBar.addEventListener('touchmove', handleTouchMove, { passive: false });
+    miniBar.addEventListener('touchend', handleTouchEnd);
 
     return () => {
-      if (miniBar && miniHandlers) {
-        miniBar.removeEventListener('touchstart', miniHandlers.handleTouchStart);
-        miniBar.removeEventListener('touchmove', miniHandlers.handleTouchMove);
-        miniBar.removeEventListener('touchend', miniHandlers.handleTouchEnd);
-      }
-      if (fullBar && fullHandlers) {
-        fullBar.removeEventListener('touchstart', fullHandlers.handleTouchStart);
-        fullBar.removeEventListener('touchmove', fullHandlers.handleTouchMove);
-        fullBar.removeEventListener('touchend', fullHandlers.handleTouchEnd);
-      }
+      miniBar.removeEventListener('touchstart', handleTouchStart);
+      miniBar.removeEventListener('touchmove', handleTouchMove);
+      miniBar.removeEventListener('touchend', handleTouchEnd);
     };
   }, [duration, showFullscreen]);
+
+  // Cleanup media error toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaErrorTimerRef.current) {
+        clearTimeout(mediaErrorTimerRef.current);
+      }
+    };
+  }, []);
 
   // Native event listeners for fullscreen swipe-down gesture (with passive: false for iOS)
   useEffect(() => {
@@ -1211,9 +1102,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
   return (
     <>
+    {/* Media error toast notification */}
+    {mediaError && (
+      <div
+        className={`media-error-toast ${mediaError.type}`}
+        onClick={() => setMediaError(null)}
+      >
+        {mediaError.message}
+      </div>
+    )}
+
     <div
       ref={miniPlayerRef}
       className="audio-player"
+      role="region"
+      aria-label={`Now playing: ${audiobook.title}`}
       style={{
         transform: !showFullscreen && isDragging ? `translateY(${Math.min(0, dragOffset)}px)` : 'none',
         transition: isDragging ? 'none' : 'transform 0.3s ease-out',
@@ -1230,15 +1133,16 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         onEnded={() => {
           setPlaying(false);
           // Mark as finished (100% completion)
-          updateProgressWithOfflineFallback(audiobook.id, Math.floor(audioRef.current.currentTime), 1, 'stopped');
+          updateProgressSafe(audiobook.id, Math.floor(audioRef.current.currentTime), 1, 'stopped');
           // Close fullscreen player if open
           if (showFullscreen) {
             setShowFullscreen(false);
           }
         }}
+        onError={handleAudioError}
         onWaiting={() => setIsBuffering(true)}
         onCanPlay={() => setIsBuffering(false)}
-        onPlaying={() => setIsBuffering(false)}
+        onPlaying={handlePlayingEvent}
         onProgress={() => {
           // Update buffered percentage
           if (audioRef.current && audioRef.current.buffered.length > 0 && audioRef.current.duration) {
@@ -1253,7 +1157,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         {audiobook.cover_image && (
           <img
             src={getCoverUrl(audiobook.id)}
-            alt={audiobook.title}
+            alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`}
             className="player-cover"
             onClick={(e) => {
               if (window.innerWidth > 768) {
@@ -1310,7 +1214,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
             {audiobook.author || 'Unknown Author'}
           </div>
           <div className="player-metadata">
-            <div className={`metadata-time ${playing ? 'playing' : ''}`}>
+            <div className={`metadata-time ${playing ? 'playing' : ''}`} aria-live="polite" aria-atomic="true">
               {chapterProgress
                 ? `${formatTimeShort(chapterProgress.position)} / ${formatTimeShort(chapterProgress.duration)}`
                 : `${formatTimeShort(currentTime)} / ${formatTimeShort(duration)}`
@@ -1340,13 +1244,13 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           </div>
           {chapters.length > 0 && (
             <>
-              <button className="control-btn chapter-skip-btn" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
+              <button className="control-btn chapter-skip-btn" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter" aria-label="Previous chapter">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="19 20 9 12 19 4 19 20"></polygon>
                   <line x1="5" y1="19" x2="5" y2="5"></line>
                 </svg>
               </button>
-              <button className="control-btn chapter-skip-btn" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
+              <button className="control-btn chapter-skip-btn" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter" aria-label="Next chapter">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="5 4 15 12 5 20 5 4"></polygon>
                   <line x1="19" y1="5" x2="19" y2="19"></line>
@@ -1354,14 +1258,14 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </button>
             </>
           )}
-          <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s">
+          <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s" aria-label="Rewind 15 seconds">
             <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
               <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
             </svg>
           </button>
-          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
+          <button className={`control-btn play-btn mobile-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'} aria-label={playing ? 'Pause' : 'Play'}>
             {isBuffering ? (
               <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
@@ -1377,7 +1281,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               </svg>
             )}
           </button>
-          <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s">
+          <button className="control-btn mobile-seek-btn" onClick={skipForward} title="Forward 15s" aria-label="Forward 15 seconds">
             <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
               <path d="M21 3v5h-5"></path>
@@ -1387,57 +1291,21 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </div>
       </div>
 
-      <div className="player-controls">
-        {chapters.length > 0 && (
-          <button className="control-btn chapter-skip-desktop" onClick={skipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="19 20 9 12 19 4 19 20"></polygon>
-              <line x1="5" y1="19" x2="5" y2="5"></line>
-            </svg>
-          </button>
-        )}
-        <button className="control-btn" onClick={skipBackward} title="Skip back 15 seconds">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-          </svg>
-          <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
-        </button>
-        <button className={`control-btn play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
-          {isBuffering ? (
-            <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            </svg>
-          ) : playing ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-              <rect x="6" y="4" width="4" height="16"></rect>
-              <rect x="14" y="4" width="4" height="16"></rect>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-              <polygon points="6 3 20 12 6 21 6 3"></polygon>
-            </svg>
-          )}
-        </button>
-        <button className="control-btn" onClick={skipForward} title="Skip forward 15 seconds">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-            <path d="M21 3v5h-5"/>
-          </svg>
-          <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
-        </button>
-        {chapters.length > 0 && (
-          <button className="control-btn chapter-skip-desktop" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 4 15 12 5 20 5 4"></polygon>
-              <line x1="19" y1="5" x2="19" y2="19"></line>
-            </svg>
-          </button>
-        )}
-      </div>
+      <PlaybackControls
+        variant="desktop"
+        playing={playing}
+        isBuffering={isBuffering}
+        chapters={chapters}
+        currentChapter={currentChapter}
+        onTogglePlay={togglePlay}
+        onSkipBackward={skipBackward}
+        onSkipForward={skipForward}
+        onSkipToPreviousChapter={skipToPreviousChapter}
+        onSkipToNextChapter={skipToNextChapter}
+      />
 
       <div className="player-actions">
-        <button className="btn-close" onClick={handleClose} title="Close Player">
+        <button className="btn-close" onClick={handleClose} title="Close Player" aria-label="Close player">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1470,6 +1338,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           value={currentTime}
           onChange={handleSeek}
           className="progress-slider"
+          aria-label="Playback position"
+          aria-valuemin={0}
+          aria-valuemax={duration || 0}
+          aria-valuenow={Math.floor(currentTime)}
+          aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
         />
       </div>
 
@@ -1489,352 +1362,78 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         </div>
       )}
 
-      {showChapterList && chapters.length > 0 && (
-        <div className="chapter-list-popup" onClick={() => setShowChapterList(false)}>
-          <div className="chapter-list-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Chapters</h3>
-            <div className="chapters-list">
-              {chapters.map((chapter, index) => (
-                <div
-                  key={index}
-                  className={`chapter-item ${index === currentChapter ? 'active' : ''}`}
-                  onClick={() => {
-                    audioRef.current.currentTime = chapter.start_time;
-                    setCurrentTime(chapter.start_time);
-                    setShowChapterList(false);
-                  }}
-                >
-                  <span className="chapter-number">Chapter {index + 1}</span>
-                  <span className="chapter-title">{chapter.title}</span>
-                  <span className="chapter-time">{formatTime(chapter.start_time)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
 
-      {/* Chapter Modal - rendered outside audio-player so it works in fullscreen */}
+      {/* Chapter Modal */}
       {showChapterModal && chapters.length > 0 && (
-        <div className="chapter-modal-overlay" onClick={() => setShowChapterModal(false)}>
-          <div className="chapter-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="chapter-modal-header">
-              <h3>Chapters</h3>
-              <button className="chapter-modal-close" onClick={() => setShowChapterModal(false)}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div className="chapter-modal-list">
-              {chapters.map((chapter, index) => {
-                const isActive = currentTime >= chapter.start_time && currentTime < (chapters[index + 1]?.start_time || duration);
-                return (
-                  <div
-                    key={index}
-                    ref={isActive ? activeChapterRef : null}
-                    className={`chapter-modal-item ${isActive ? 'active' : ''}`}
-                    onClick={() => {
-                      audioRef.current.currentTime = chapter.start_time;
-                      setCurrentTime(chapter.start_time);
-                      setShowChapterModal(false);
-                    }}
-                  >
-                    <span className="chapter-modal-title">{chapter.title}</span>
-                    <span className="chapter-modal-time">{formatTime(chapter.start_time)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <ChapterModal
+          chapters={chapters}
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={(time) => {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+          }}
+          onClose={() => setShowChapterModal(false)}
+          formatTime={formatTime}
+        />
       )}
 
+      {/* Fullscreen Player */}
       {showFullscreen && (
-        <div
-          ref={fullscreenPlayerRef}
-          className="fullscreen-player"
-        >
-          <div className="fullscreen-player-top">
-            <div className="fullscreen-content" onClick={(e) => e.stopPropagation()}>
-              <button className="fullscreen-close" onClick={() => setShowFullscreen(false)}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
-
-              <div className="fullscreen-cover">
-                {audiobook.cover_image ? (
-                  <img src={getCoverUrl(audiobook.id)} alt={audiobook.title} />
-                ) : (
-                  <div className="fullscreen-cover-placeholder">{audiobook.title}</div>
-                )}
-                {progress && progress.position > 0 && duration > 0 && (
-                  <div className="fullscreen-cover-progress-overlay">
-                    <div
-                      className="fullscreen-cover-progress-fill"
-                      style={{ width: `${(currentTime / duration) * 100}%` }}
-                    ></div>
-                  </div>
-                )}
-              </div>
-
-              <div className="fullscreen-info">
-                <h2
-                  ref={fullscreenTitleRef}
-                  className={`fullscreen-title ${fullscreenTitleOverflows ? 'marquee' : ''}`}
-                  onClick={() => navigate(`/audiobook/${audiobook.id}`)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <span className="fullscreen-title-content">
-                    {audiobook.title}
-                    {fullscreenTitleOverflows && (
-                      <>
-                        <span className="marquee-spacer"> • </span>
-                        {audiobook.title}
-                      </>
-                    )}
-                  </span>
-                </h2>
-                {audiobook.series && (
-                  <p className="series-info" onClick={() => navigate(`/series/${encodeURIComponent(audiobook.series)}`)} style={{ cursor: 'pointer', color: '#9ca3af', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
-                    {audiobook.series}{(audiobook.series_index || audiobook.series_position) ? ` • Book ${audiobook.series_index || audiobook.series_position}` : ''}
-                  </p>
-                )}
-                <p onClick={() => navigate(`/author/${encodeURIComponent(audiobook.author || 'Unknown Author')}`)} style={{ cursor: 'pointer' }}>{audiobook.author || 'Unknown Author'}</p>
-              </div>
-
-              <div className="fullscreen-controls-wrapper">
-                <div className="fullscreen-controls">
-                {chapters.length > 0 && (
-                  <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={skipToPreviousChapter} disabled={currentChapter === 0}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="19 20 9 12 19 4 19 20"></polygon>
-                      <line x1="5" y1="19" x2="5" y2="5"></line>
-                    </svg>
-                  </button>
-                )}
-                <button className="fullscreen-control-btn" onClick={skipBackward}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                    <path d="M3 3v5h5"/>
-                  </svg>
-                  <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
-                </button>
-                <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={togglePlay}>
-                  {isBuffering ? (
-                    <svg className="buffering-spinner" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                    </svg>
-                  ) : playing ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                      <rect x="6" y="4" width="4" height="16"></rect>
-                      <rect x="14" y="4" width="4" height="16"></rect>
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                      <polygon points="6 3 20 12 6 21 6 3"></polygon>
-                    </svg>
-                  )}
-                </button>
-                <button className="fullscreen-control-btn" onClick={skipForward}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-                    <path d="M21 3v5h-5"/>
-                  </svg>
-                  <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
-                </button>
-                {chapters.length > 0 && (
-                  <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={skipToNextChapter} disabled={currentChapter === chapters.length - 1}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5 4 15 12 5 20 5 4"></polygon>
-                      <line x1="19" y1="5" x2="19" y2="19"></line>
-                    </svg>
-                  </button>
-                )}
-                </div>
-              </div>
-
-              <div
-                ref={fullscreenProgressRef}
-                className={`fullscreen-progress ${isDraggingProgress && showFullscreen ? 'dragging' : ''}`}
-                onMouseDown={handleFullscreenProgressMouseDown}
-              >
-                <div className="fullscreen-time">
-                  <span>
-                    {isDraggingProgress && seekPreviewTime !== null
-                      ? formatTime(seekPreviewTime)
-                      : chapterProgress
-                        ? formatTime(chapterProgress.position)
-                        : formatTime(currentTime)
-                    }
-                  </span>
-                  <span>{chapterProgress ? formatTime(chapterProgress.duration) : formatTime(duration)}</span>
-                </div>
-                <div className="fullscreen-progress-track">
-                  <div
-                    className="fullscreen-progress-buffered"
-                    style={{ width: `${bufferedPercent}%` }}
-                  />
-                  <div
-                    className="fullscreen-progress-fill"
-                    style={{ width: `${chapterProgress ? chapterProgress.percent : (duration > 0 ? (currentTime / duration) * 100 : 0)}%` }}
-                  />
-                  {isDraggingProgress && showFullscreen && seekPreviewTime !== null && (
-                    <div
-                      className="fullscreen-progress-preview"
-                      style={{ width: `${seekPreviewPercent}%` }}
-                    />
-                  )}
-                  <div
-                    className="fullscreen-progress-thumb"
-                    style={{ left: isDraggingProgress && seekPreviewTime !== null ? `${seekPreviewPercent}%` : `${chapterProgress ? chapterProgress.percent : (duration > 0 ? (currentTime / duration) * 100 : 0)}%` }}
-                  />
-                  {isDraggingProgress && showFullscreen && seekPreviewTime !== null && (
-                    <div
-                      className="fullscreen-seek-tooltip"
-                      style={{ left: `${seekPreviewPercent}%` }}
-                    >
-                      {formatTime(seekPreviewTime)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Bottom control bar */}
-          <div className="fullscreen-bottom-bar">
-            {/* Chapter button - left */}
-            <button
-              className={`fullscreen-bottom-btn ${!chapters.length ? 'disabled' : ''}`}
-              onClick={() => chapters.length > 0 && setShowChapterModal(true)}
-              disabled={!chapters.length}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="8" y1="6" x2="21" y2="6"></line>
-                <line x1="8" y1="12" x2="21" y2="12"></line>
-                <line x1="8" y1="18" x2="21" y2="18"></line>
-                <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                <line x1="3" y1="18" x2="3.01" y2="18"></line>
-              </svg>
-              <span
-                ref={chapterLabelRef}
-                className={`chapter-label ${chapterLabelOverflows ? 'marquee' : ''}`}
-              >
-                <span className="chapter-label-content">
-                  {chapters.length > 0 ? (chapters[currentChapter]?.title || 'Chapters') : 'No chapters'}
-                  {chapterLabelOverflows && (
-                    <>
-                      <span className="marquee-spacer"> • </span>
-                      {chapters[currentChapter]?.title || 'Chapters'}
-                    </>
-                  )}
-                </span>
-              </span>
-            </button>
-
-            {/* Speed button - center */}
-            <button
-              className="fullscreen-bottom-btn"
-              onClick={() => setShowSpeedMenu(true)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              <span>{playbackSpeed === 1 ? '1x' : `${playbackSpeed}x`}</span>
-            </button>
-
-            {/* Sleep timer button - right */}
-            <button
-              className={`fullscreen-bottom-btn ${sleepTimer !== null ? 'active' : ''}`}
-              onClick={() => setShowSleepMenu(true)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-              </svg>
-              <span>{formatSleepTimer() || 'Sleep'}</span>
-            </button>
-          </div>
-        </div>
+        <FullscreenPlayer
+          audiobook={audiobook}
+          audioRef={audioRef}
+          playing={playing}
+          currentTime={currentTime}
+          duration={duration}
+          chapters={chapters}
+          currentChapter={currentChapter}
+          isBuffering={isBuffering}
+          bufferedPercent={bufferedPercent}
+          playbackSpeed={playbackSpeed}
+          sleepTimer={sleepTimer}
+          chapterProgress={chapterProgress}
+          progress={progress}
+          showFullscreen={showFullscreen}
+          onTogglePlay={togglePlay}
+          onSkipBackward={skipBackward}
+          onSkipForward={skipForward}
+          onSkipToPreviousChapter={skipToPreviousChapter}
+          onSkipToNextChapter={skipToNextChapter}
+          onShowSpeedMenu={() => setShowSpeedMenu(true)}
+          onShowSleepMenu={() => setShowSleepMenu(true)}
+          onShowChapterModal={() => setShowChapterModal(true)}
+          onClose={() => setShowFullscreen(false)}
+          onSeek={(time) => {
+            if (audioRef.current) {
+              audioRef.current.currentTime = time;
+              setCurrentTime(time);
+            }
+          }}
+          formatTime={formatTime}
+          formatSleepTimer={formatSleepTimer}
+          fullscreenPlayerRef={fullscreenPlayerRef}
+        />
       )}
 
       {/* Speed selection menu */}
       {showSpeedMenu && (
-        <div className="speed-menu-overlay" onClick={() => setShowSpeedMenu(false)}>
-          <div className="speed-menu-content" onClick={(e) => e.stopPropagation()}>
-            <div className="speed-menu-header">
-              <h3>Playback Speed</h3>
-              <button className="speed-menu-close" onClick={() => setShowSpeedMenu(false)}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div className="speed-menu-options">
-              {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((speed) => (
-                <button
-                  key={speed}
-                  className={`speed-option ${playbackSpeed === speed ? 'active' : ''}`}
-                  onClick={() => handleSpeedChange(speed)}
-                >
-                  {speed}x
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <SpeedMenu
+          currentSpeed={playbackSpeed}
+          onSelect={handleSpeedChange}
+          onClose={() => setShowSpeedMenu(false)}
+        />
       )}
 
       {/* Sleep timer menu */}
       {showSleepMenu && (
-        <div className="sleep-menu-overlay" onClick={() => setShowSleepMenu(false)}>
-          <div className="sleep-menu-content" onClick={(e) => e.stopPropagation()}>
-            <div className="sleep-menu-header">
-              <h3>Sleep Timer</h3>
-              <button className="sleep-menu-close" onClick={() => setShowSleepMenu(false)}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div className="sleep-menu-options">
-              {sleepTimer !== null && (
-                <button
-                  className="sleep-option cancel"
-                  onClick={() => handleSleepTimer(null)}
-                >
-                  Cancel Timer
-                </button>
-              )}
-              {chapters.length > 0 && (
-                <button
-                  className={`sleep-option ${sleepTimer === 'chapter' ? 'active' : ''}`}
-                  onClick={() => handleSleepTimer('chapter')}
-                >
-                  End of chapter
-                </button>
-              )}
-              {[5, 10, 15, 30, 45, 60, 90, 120].map((mins) => (
-                <button
-                  key={mins}
-                  className={`sleep-option ${sleepTimer === mins ? 'active' : ''}`}
-                  onClick={() => handleSleepTimer(mins)}
-                >
-                  {mins >= 60 ? `${mins / 60} hour${mins > 60 ? 's' : ''}` : `${mins} minutes`}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <SleepTimerMenu
+          sleepTimer={sleepTimer}
+          hasChapters={chapters.length > 0}
+          onSelect={handleSleepTimer}
+          onClose={() => setShowSleepMenu(false)}
+        />
       )}
     </>
   );

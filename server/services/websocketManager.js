@@ -14,6 +14,7 @@ class WebSocketManager {
   constructor() {
     this.wss = null;
     this.clients = new Map(); // WebSocket -> { userId, authenticated }
+    this.heartbeatInterval = null;
   }
 
   /**
@@ -27,6 +28,10 @@ class WebSocketManager {
 
     this.wss.on('connection', (ws, req) => {
       console.log('🔌 New WebSocket connection');
+
+      // Initialize heartbeat tracking for this client
+      ws.isAlive = true;
+      ws.on('pong', () => { ws.isAlive = true; });
 
       // Parse token from query string
       const params = url.parse(req.url, true).query;
@@ -56,6 +61,23 @@ class WebSocketManager {
       });
     });
 
+    // Ping/pong heartbeat: detect and terminate dead connections every 30s
+    this.heartbeatInterval = setInterval(() => {
+      this.wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+          this.clients.delete(ws);
+          return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, 30000);
+
+    // Clear heartbeat interval when the WebSocket server closes
+    this.wss.on('close', () => {
+      clearInterval(this.heartbeatInterval);
+    });
+
     console.log('✅ WebSocket server initialized at /ws/notifications');
   }
 
@@ -83,23 +105,30 @@ class WebSocketManager {
       const crypto = require('crypto');
       const keyHash = crypto.createHash('sha256').update(token).digest('hex');
 
-      try {
-        const key = db.get('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1', [keyHash]);
-        if (key && (!key.expires_at || new Date(key.expires_at) >= new Date())) {
-          const user = db.get('SELECT id, username FROM users WHERE id = ?', [key.user_id]);
-          if (user) {
-            this.clients.set(ws, {
-              userId: user.id,
-              username: user.username,
-              authenticated: true,
-            });
-            console.log(`✅ WebSocket client authenticated (API Key): ${user.username}`);
+      db.get('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1', [keyHash], (err, key) => {
+        if (err) {
+          console.error('API key auth error:', err.message);
+          ws.close(1008, 'Authentication error');
+          return;
+        }
+        if (!key || (key.expires_at && new Date(key.expires_at) < new Date())) {
+          ws.close(1008, 'Invalid or expired API key');
+          return;
+        }
+        db.get('SELECT id, username FROM users WHERE id = ?', [key.user_id], (userErr, user) => {
+          if (userErr || !user) {
+            ws.close(1008, 'API key user not found');
             return;
           }
-        }
-      } catch (error) {
-        console.error('API key auth error:', error.message);
-      }
+          this.clients.set(ws, {
+            userId: user.id,
+            username: user.username,
+            authenticated: true,
+          });
+          console.log(`✅ WebSocket client authenticated (API Key): ${user.username}`);
+        });
+      });
+      return;
     }
 
     // Authentication failed
@@ -234,6 +263,10 @@ class WebSocketManager {
    * Shutdown
    */
   close() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     if (this.wss) {
       this.wss.close();
     }

@@ -80,7 +80,7 @@ function createBackupRouter(deps = {}) {
     });
   } catch (error) {
     console.error('Error listing backups:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -100,7 +100,7 @@ router.post('/', backupWriteLimiter, authenticateToken, async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error creating backup:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -117,7 +117,7 @@ router.get('/:filename', backupLimiter, authenticateToken, (req, res) => {
     res.download(backupPath, req.params.filename);
   } catch (error) {
     console.error('Error downloading backup:', error);
-    res.status(404).json({ error: error.message });
+    res.status(404).json({ error: 'Internal server error' });
   }
 });
 
@@ -134,7 +134,7 @@ router.delete('/:filename', backupWriteLimiter, authenticateToken, (req, res) =>
     res.json(result);
   } catch (error) {
     console.error('Error deleting backup:', error);
-    res.status(404).json({ error: error.message });
+    res.status(404).json({ error: 'Internal server error' });
   }
 });
 
@@ -164,7 +164,7 @@ router.post('/restore/:filename', backupWriteLimiter, authenticateToken, async (
     });
   } catch (error) {
     console.error('Error restoring backup:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -205,7 +205,7 @@ router.post('/upload', backupWriteLimiter, authenticateToken, upload.single('bac
     }
 
     console.error('Error restoring backup:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -224,7 +224,7 @@ router.post('/retention', backupWriteLimiter, authenticateToken, (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error applying retention:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
