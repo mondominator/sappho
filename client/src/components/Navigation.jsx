@@ -56,9 +56,7 @@ export default function Navigation({ onLogout }) {
     try {
       const castContext = window.cast.framework.CastContext.getInstance();
       castContext.requestSession().then(
-        () => {
-          console.log('Cast session started');
-        },
+        () => {},
         (error) => {
           if (error !== 'cancel') {
             console.error('Error starting cast session:', error);
@@ -82,7 +80,6 @@ export default function Navigation({ onLogout }) {
       })
         .then(res => res.json())
         .then(profile => {
-          console.log('Profile data:', profile);
           setUser({
             id: profile.id,
             username: profile.username,

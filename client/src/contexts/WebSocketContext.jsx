@@ -57,7 +57,6 @@ export function WebSocketProvider({ children }) {
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log('🔌 WebSocket connected');
         setIsConnected(true);
         reconnectAttempts.current = 0;
       };
@@ -73,7 +72,6 @@ export function WebSocketProvider({ children }) {
       };
 
       wsRef.current.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected:', event.code);
         setIsConnected(false);
         wsRef.current = null;
 

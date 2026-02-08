@@ -129,7 +129,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (audioRef.current && playing) {
-        console.log('Pausing audio before page unload');
         audioRef.current.pause();
         // Save the playing state so we can resume after refresh
         localStorage.setItem('playerPlaying', 'true');
@@ -175,24 +174,14 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
                       window.navigator.standalone === true;
 
-        console.log('Playback restore:', {
-          isNewLoad,
-          savedPlaying,
-          isMobile,
-          isPWA,
-          isDesktop: !isMobile && !isPWA
-        });
-
         // Mobile/PWA: Only auto-play if _openFullscreen is true (explicit play from detail page)
         // AND it's a new load (not a page refresh)
         if (isMobile || isPWA) {
           const shouldAutoPlay = audiobook._openFullscreen === true && isNewLoad;
           if (shouldAutoPlay) {
-            console.log('Mobile/PWA - fullscreen play requested on new load, auto-playing');
             setTimeout(() => {
               if (audioRef.current) {
                 audioRef.current.play().then(() => {
-                  console.log('Playback started successfully (fullscreen request on mobile)');
                   setPlaying(true);
                   setIsNewLoad(false);
                   localStorage.setItem('playerPlaying', 'true');
@@ -204,7 +193,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               }
             }, 100);
           } else {
-            console.log('Mobile/PWA detected - no auto-play (page refresh or no explicit request), waiting for user interaction');
             setPlaying(false);
             setIsNewLoad(false);
             localStorage.setItem('playerPlaying', 'false');
@@ -215,11 +203,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
         // Desktop + New book load: Auto-play
         else if (isNewLoad) {
-          console.log('Desktop + New book load - auto-playing');
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
-                console.log('Playback started successfully (new book on desktop)');
                 setPlaying(true);
                 setIsNewLoad(false);
                 localStorage.setItem('playerPlaying', 'true');
@@ -233,11 +219,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
         // Desktop + Page refresh + Was playing: Resume playback
         else if (savedPlaying === 'true') {
-          console.log('Desktop + Page refresh + Was playing - resuming playback');
           setTimeout(() => {
             if (audioRef.current) {
               audioRef.current.play().then(() => {
-                console.log('Playback resumed successfully on desktop');
                 setPlaying(true);
                 setIsNewLoad(false);
               }).catch(err => {
@@ -250,7 +234,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         }
         // Desktop + Page refresh + Was paused: Stay paused
         else {
-          console.log('Desktop + Page refresh + Was paused - staying paused');
           setPlaying(false);
           setIsNewLoad(false);
         }
@@ -402,7 +385,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     if (!audio) return;
 
     const handleAudioInterruption = () => {
-      console.log('Audio interrupted - pausing playback');
       setPlaying(false);
       if (audioRef.current) {
         audioRef.current.pause();

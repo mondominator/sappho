@@ -25,14 +25,11 @@ export default function SearchModal({ isOpen, onClose }) {
 
       setLoading(true);
       try {
-        console.log('Searching for:', searchQuery);
         const [booksRes, seriesRes, authorsRes] = await Promise.all([
           getAudiobooks({ search: searchQuery, limit: 100 }),
           getSeries(),
           getAuthors()
         ]);
-
-        console.log('Books response:', booksRes.data.audiobooks?.length, 'results');
 
         const books = booksRes.data.audiobooks || [];
         const allSeries = seriesRes.data.series || [];

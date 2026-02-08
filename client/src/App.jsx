@@ -132,7 +132,6 @@ function App() {
         .catch((error) => {
           if (error.response && (error.response.status === 401 || error.response.status === 403)) {
             // Token is invalid/expired - clear state
-            console.log('Token expired, logging out');
             setToken(null);
             setMustChangePassword(false);
             setCurrentAudiobook(null);
@@ -157,7 +156,6 @@ function App() {
             receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
             autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
           });
-          console.log('Cast SDK initialized successfully');
         } catch (error) {
           console.error('Error initializing Cast SDK:', error);
         }
@@ -187,10 +185,8 @@ function App() {
     const fetchLatestProgress = async () => {
       if (currentAudiobook && currentAudiobook.id && token) {
         try {
-          console.log('Fetching latest progress for audiobook:', currentAudiobook.id);
           const progressResponse = await getProgress(currentAudiobook.id);
           const latestProgress = progressResponse.data;
-          console.log('Latest progress from server:', latestProgress);
           setCurrentProgress(latestProgress);
         } catch (error) {
           console.error('Error fetching latest progress on load:', error);
