@@ -95,8 +95,17 @@ console.log = (...args) => {
   originalConsoleLog.apply(console, args);
 };
 
+// SECURITY: Redact sensitive patterns before buffering
+function redactSensitive(msg) {
+  return msg
+    .replace(/password["\s:=]+[^\s,}"']*/gi, 'password=[REDACTED]')
+    .replace(/secret["\s:=]+[^\s,}"']*/gi, 'secret=[REDACTED]')
+    .replace(/token["\s:=]+[^\s,}"']*/gi, 'token=[REDACTED]');
+}
+
 console.error = (...args) => {
-  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const raw = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const message = redactSensitive(raw);
   logBuffer.push({ timestamp: new Date().toISOString(), level: 'error', category: 'error', message });
   if (logBuffer.length > LOG_BUFFER_SIZE) {
     logBuffer.shift();

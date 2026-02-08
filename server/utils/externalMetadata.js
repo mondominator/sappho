@@ -81,6 +81,7 @@ function extractTagContent(xml, tag) {
       .replace(/&apos;/g, "'")
       .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(num))
       .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/<[^>]*>/g, '') // SECURITY: re-strip tags that may appear after entity decoding
       .trim();
     return text || null;
   }
