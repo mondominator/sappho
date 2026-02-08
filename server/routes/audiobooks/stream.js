@@ -71,26 +71,23 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
-      // SECURITY: Normalize and validate file path to prevent path traversal
+      // SECURITY: Only allow deleting files within the audiobook's own directory
+      // Extract basename to prevent path traversal (strips ../ and directory components)
       const audiobookDir = path.dirname(audiobook.file_path);
-      const resolvedPath = path.resolve(file_path);
-      const resolvedDir = path.resolve(audiobookDir);
-
-      if (!resolvedPath.startsWith(resolvedDir + path.sep) && resolvedPath !== resolvedDir) {
-        return res.status(403).json({ error: 'Cannot delete files outside audiobook directory' });
-      }
+      const safeFilename = path.basename(file_path);
+      const targetPath = path.join(audiobookDir, safeFilename);
 
       // Prevent deleting the main audiobook file
-      if (resolvedPath === path.resolve(audiobook.file_path)) {
+      if (targetPath === audiobook.file_path) {
         return res.status(400).json({ error: 'Cannot delete the main audiobook file. Use delete audiobook instead.' });
       }
 
       try {
-        if (!fs.existsSync(resolvedPath)) {
+        if (!fs.existsSync(targetPath)) {
           return res.status(404).json({ error: 'File not found' });
         }
 
-        fs.unlinkSync(resolvedPath);
+        fs.unlinkSync(targetPath);
         console.log('Deleted audiobook file in directory:', audiobookDir);
         res.json({ message: 'File deleted successfully' });
       } catch (error) {

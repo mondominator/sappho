@@ -158,13 +158,11 @@ function createAuthRouter(deps = {}) {
             );
             res.status(201).json({ message: 'User registered successfully', user });
           })
-          .catch(error => {
-            console.error('Registration error:', error.message);
+          .catch(() => {
             res.status(400).json({ error: 'Registration failed' });
           });
       });
-    } catch (error) {
-      console.error('Registration error:', error.message);
+    } catch (_error) {
       res.status(400).json({ error: 'Registration failed' });
     }
   });

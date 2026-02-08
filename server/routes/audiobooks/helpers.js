@@ -49,20 +49,16 @@ function clearSessionId(userId, audiobookId) {
  */
 function sanitizeHtml(text) {
   if (!text) return text;
-  return text
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(num))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/<[^>]*>/g, '') // SECURITY: re-strip tags that may appear after entity decoding
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Step 1: Strip all HTML tags
+  let cleaned = text.replace(/<[^>]*>/g, '');
+  // Step 2: Decode HTML entities to plain text
+  const entityMap = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'" };
+  cleaned = cleaned.replace(/&(nbsp|amp|lt|gt|quot|#39|apos);/gi, (match) => entityMap[match.toLowerCase()] || match);
+  cleaned = cleaned.replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number(num)));
+  cleaned = cleaned.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // Step 3: Final safety pass - strip any tags that emerged from entity decoding
+  cleaned = cleaned.replace(/<[^>]*>/g, '');
+  return cleaned.replace(/\s+/g, ' ').trim();
 }
 
 /**
