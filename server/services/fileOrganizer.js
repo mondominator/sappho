@@ -135,11 +135,20 @@ function moveFile(source, destination) {
         throw new Error('File size mismatch after copy');
       }
 
-      fs.unlinkSync(source);
+      try {
+        fs.unlinkSync(source);
+      } catch (deleteErr) {
+        // Source couldn't be deleted - remove the copy to avoid duplicates
+        console.error(`Failed to delete source ${source}: ${deleteErr.message}, removing copy`);
+        fs.unlinkSync(destination);
+        return false;
+      }
       console.log(`Moved file (copy+delete): ${path.basename(source)}`);
       return true;
     } catch (copyErr) {
       console.error(`Failed to move file ${source}:`, copyErr.message);
+      // Clean up destination if it was created
+      try { if (fs.existsSync(destination)) fs.unlinkSync(destination); } catch (_e) { /* ignore */ }
       return false;
     }
   }
