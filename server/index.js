@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const pinoHttp = require('pino-http');
 const compression = require('compression');
 const cors = require('cors');
@@ -13,7 +14,6 @@ const { startScheduledBackups } = require('./services/backupService');
 const conversionService = require('./services/conversionService');
 
 const app = express();
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // Trust proxy headers (X-Forwarded-For) so rate limiting uses real client IPs
@@ -58,9 +58,9 @@ app.use(helmet({
       upgradeInsecureRequests: null, // don't force HTTPS on localhost
     }
   },
-  crossOriginEmbedderPolicy: false, // breaks audio loading cross-origin
-  crossOriginResourcePolicy: false, // breaks Vite module preload with crossorigin attribute
-  crossOriginOpenerPolicy: false, // not needed for SPA, can break popups
+  crossOriginEmbedderPolicy: { policy: 'credentialless' },
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'unsafe-none' },
 }));
 
 // Middleware
@@ -85,6 +85,16 @@ app.use(pinoHttp({
     ignore: (req) => req.url.includes('/health')
   }
 }));
+
+// SECURITY: Global API rate limiter (baseline for all endpoints)
+const globalApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', globalApiLimiter);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
