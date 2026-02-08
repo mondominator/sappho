@@ -89,7 +89,7 @@ app.use(pinoHttp({
 // SECURITY: Global API rate limiter (baseline for all endpoints)
 const globalApiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 200,
+  max: 1000,
   message: { error: 'Too many requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
