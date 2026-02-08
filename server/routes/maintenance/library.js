@@ -115,7 +115,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
       });
     } catch (error) {
       console.error('Consolidation error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -139,7 +139,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
       });
     } catch (error) {
       console.error('Error clearing library:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -243,7 +243,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
       }
     } catch (error) {
       console.error('Error scanning library:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -310,7 +310,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
       });
     } catch (error) {
       console.error('Migration error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

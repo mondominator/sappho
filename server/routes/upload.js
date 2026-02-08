@@ -126,7 +126,7 @@ function createUploadRouter(deps = {}) {
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -159,7 +159,7 @@ router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks
     });
   } catch (error) {
     console.error('Batch upload error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -372,7 +372,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
         }
       }
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

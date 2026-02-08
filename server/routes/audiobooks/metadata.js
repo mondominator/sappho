@@ -299,7 +299,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       [req.params.id],
       (err, chapters) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(chapters || []);
       }
@@ -743,7 +743,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       });
     } catch (error) {
       console.error('Error refreshing metadata:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -1188,7 +1188,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     } catch (error) {
       console.error('Error updating audiobook:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 }

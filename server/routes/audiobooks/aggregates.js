@@ -30,7 +30,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [userId],
       (err, series) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         // Convert comma-separated IDs to array and take first 4
         // Filter out series with only one book
@@ -66,7 +66,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [userId],
       (err, authors) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         // Convert comma-separated IDs to array and take first 4 for covers
         const authorsWithCovers = authors.map(a => ({
@@ -97,7 +97,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [],
       (err, books) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Build genre data with counts and cover IDs
@@ -151,7 +151,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [userId, userId, limit],
       (err, audiobooks) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Transform progress fields into nested object
@@ -207,7 +207,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [userId, userId, limit],
       (err, audiobooks) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Transform progress fields into nested object
@@ -247,7 +247,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [limit],
       (err, audiobooks) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         // Add normalized genre
         const transformedAudiobooks = audiobooks.map(book => ({
@@ -307,7 +307,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       (err, audiobooks) => {
         if (err) {
           console.error('Error in up-next query:', err);
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Transform progress fields into nested object
@@ -349,7 +349,7 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
       [userId, userId, limit],
       (err, audiobooks) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Transform progress fields into nested object
