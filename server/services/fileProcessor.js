@@ -809,7 +809,6 @@ async function saveCoverArt(picture, audioFilePath) {
     }
 
     // Generate unique filename using a hash of the full file path to avoid collisions
-    const crypto = require('crypto');
     const pathHash = crypto.createHash('md5').update(audioFilePath).digest('hex').slice(0, 12);
     const ext = picture.format.split('/')[1] || 'jpg';
     const coverPath = path.join(coversDir, `${pathHash}.${ext}`);
