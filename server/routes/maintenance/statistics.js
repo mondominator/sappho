@@ -112,7 +112,7 @@ function register(router, { db, authenticateToken }) {
       });
     } catch (error) {
       console.error('Error fetching statistics:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -134,7 +134,7 @@ function register(router, { db, authenticateToken }) {
       res.json(books);
     } catch (error) {
       console.error('Error fetching books by format:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 }

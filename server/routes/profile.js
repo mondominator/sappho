@@ -106,7 +106,7 @@ function createProfileRouter(deps = {}) {
     [req.user.id],
     (err, user) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -323,7 +323,7 @@ router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
       return res.status(400).json({ error: `Upload error: ${err.message}` });
     } else if (err) {
       console.error('[Profile Update] Upload error:', err.message);
-      return res.status(400).json({ error: err.message });
+      return res.status(400).json({ error: 'Internal server error' });
     }
 
     console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
@@ -367,7 +367,7 @@ router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
     params,
     function (err) {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (this.changes === 0) {
         return res.status(404).json({ error: 'User not found' });
@@ -378,7 +378,7 @@ router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
         [req.user.id],
         (err, user) => {
           if (err) {
-            return res.status(500).json({ error: err.message });
+            return res.status(500).json({ error: 'Internal server error' });
           }
           res.json({
             ...user,
@@ -430,7 +430,7 @@ router.get('/avatar', profileLimiter, authenticateMediaToken, (req, res) => {
 router.delete('/avatar', profileWriteLimiter, authenticateToken, (req, res) => {
   db.get('SELECT avatar FROM users WHERE id = ?', [req.user.id], (err, user) => {
     if (err) {
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     if (user && user.avatar) {
@@ -445,7 +445,7 @@ router.delete('/avatar', profileWriteLimiter, authenticateToken, (req, res) => {
       [req.user.id],
       function (err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json({ message: 'Avatar removed successfully' });
       }
@@ -473,7 +473,7 @@ router.put('/password', passwordChangeLimiter, authenticateToken, (req, res) => 
     [req.user.id],
     (err, user) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -492,7 +492,7 @@ router.put('/password', passwordChangeLimiter, authenticateToken, (req, res) => 
         [newPasswordHash, req.user.id],
         function (err) {
           if (err) {
-            return res.status(500).json({ error: err.message });
+            return res.status(500).json({ error: 'Internal server error' });
           }
 
           // SECURITY: Invalidate all existing tokens after password change

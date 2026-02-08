@@ -133,7 +133,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
       });
     } catch (error) {
       console.error('Error scanning for orphan directories:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -213,7 +213,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
       });
     } catch (error) {
       console.error('Error deleting orphan directories:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -233,7 +233,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
       });
     } catch (error) {
       console.error('Error getting organization preview:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -261,7 +261,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
       });
     } catch (error) {
       console.error('Error organizing library:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     } finally {
       unlockScanning();
     }
@@ -300,7 +300,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
       }
     } catch (error) {
       console.error('Error organizing audiobook:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 }

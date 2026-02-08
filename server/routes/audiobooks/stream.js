@@ -15,7 +15,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   router.get('/:id/directory-files', authenticateToken, (req, res) => {
     db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook || !audiobook.file_path) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -64,7 +64,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
 
     db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -101,7 +101,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   router.get('/:id/stream', authenticateMediaToken, (req, res) => {
     db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -183,7 +183,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   router.get('/:id/download', authenticateToken, (req, res) => {
     db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -204,7 +204,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   router.get('/:id/cover', authenticateMediaToken, (req, res) => {
     db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });

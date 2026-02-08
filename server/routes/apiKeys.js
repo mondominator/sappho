@@ -77,7 +77,7 @@ function createApiKeysRouter(deps = {}) {
       [req.user.id],
       (err, keys) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(keys);
       }
@@ -118,7 +118,7 @@ function createApiKeysRouter(deps = {}) {
           if (err.message.includes('UNIQUE')) {
             return res.status(409).json({ error: 'An API key with this hash already exists' });
           }
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Return the key ONLY this one time
@@ -175,7 +175,7 @@ function createApiKeysRouter(deps = {}) {
       params,
       function (err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (this.changes === 0) {
           return res.status(404).json({ error: 'API key not found' });
@@ -195,7 +195,7 @@ function createApiKeysRouter(deps = {}) {
       [req.params.id, req.user.id],
       function (err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (this.changes === 0) {
           return res.status(404).json({ error: 'API key not found' });

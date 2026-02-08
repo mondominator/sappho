@@ -180,7 +180,7 @@ function createEmailRouter(deps = {}) {
       }
     } catch (error) {
       console.error('Error sending test email:', error);
-      res.status(500).json({ error: error.message || 'Failed to send test email' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 

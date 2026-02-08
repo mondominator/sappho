@@ -64,7 +64,7 @@ function register(router, { db, authenticateToken, activityService }) {
       [req.user.id, req.params.id],
       (err, progress) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(progress || { position: 0, completed: 0 });
       }
@@ -95,7 +95,7 @@ function register(router, { db, authenticateToken, activityService }) {
       [userId, audiobookId, position, completed],
       (err) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // If book was marked as completed, queue the next book in the series
@@ -180,7 +180,7 @@ function register(router, { db, authenticateToken, activityService }) {
       [userId, audiobookId],
       function(err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         // Also stop any active session

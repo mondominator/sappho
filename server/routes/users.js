@@ -73,7 +73,7 @@ function createUsersRouter(deps = {}) {
       [],
       (err, users) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         // Add lockout status for each user
         const usersWithLockout = users.map(user => ({
@@ -97,7 +97,7 @@ function createUsersRouter(deps = {}) {
       [req.params.id],
       (err, user) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (!user) {
           return res.status(404).json({ error: 'User not found' });
@@ -205,7 +205,7 @@ function createUsersRouter(deps = {}) {
       });
     } catch (error) {
       console.error('Error fetching user details:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -236,7 +236,7 @@ function createUsersRouter(deps = {}) {
           if (err.message.includes('UNIQUE')) {
             return res.status(400).json({ error: 'Username already exists' });
           }
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.status(201).json({
           message: 'User created successfully',
@@ -289,7 +289,7 @@ function createUsersRouter(deps = {}) {
           if (err.message.includes('UNIQUE')) {
             return res.status(400).json({ error: 'Username already exists' });
           }
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (this.changes === 0) {
           return res.status(404).json({ error: 'User not found' });
@@ -317,12 +317,12 @@ function createUsersRouter(deps = {}) {
       [],
       (err, result) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         db.get('SELECT is_admin FROM users WHERE id = ?', [userId], (err, user) => {
           if (err) {
-            return res.status(500).json({ error: err.message });
+            return res.status(500).json({ error: 'Internal server error' });
           }
 
           if (!user) {
@@ -339,7 +339,7 @@ function createUsersRouter(deps = {}) {
             db.run('DELETE FROM api_keys WHERE user_id = ?', [userId]);
             db.run('DELETE FROM users WHERE id = ?', [userId], function (err) {
               if (err) {
-                return res.status(500).json({ error: err.message });
+                return res.status(500).json({ error: 'Internal server error' });
               }
               if (this.changes === 0) {
                 return res.status(404).json({ error: 'User not found' });
@@ -370,7 +370,7 @@ function createUsersRouter(deps = {}) {
 
     db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -408,8 +408,8 @@ function createUsersRouter(deps = {}) {
       });
 
       res.json({ message: 'Account disabled successfully' });
-    } catch (error) {
-      res.status(400).json({ error: error.message });
+    } catch (_error) {
+      res.status(400).json({ error: 'Internal server error' });
     }
   });
 
@@ -431,8 +431,8 @@ function createUsersRouter(deps = {}) {
       });
 
       res.json({ message: 'Account enabled successfully' });
-    } catch (error) {
-      res.status(400).json({ error: error.message });
+    } catch (_error) {
+      res.status(400).json({ error: 'Internal server error' });
     }
   });
 

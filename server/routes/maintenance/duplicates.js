@@ -128,7 +128,7 @@ function register(router, { db, authenticateToken }) {
       });
     } catch (error) {
       console.error('Error detecting duplicates:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -239,7 +239,7 @@ function register(router, { db, authenticateToken }) {
       });
     } catch (error) {
       console.error('Error merging duplicates:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 }

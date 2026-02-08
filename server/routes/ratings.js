@@ -62,7 +62,7 @@ function createRatingsRouter(deps = {}) {
       [req.user.id, audiobookId],
       (err, rating) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(rating || null);
       }
@@ -85,7 +85,7 @@ function createRatingsRouter(deps = {}) {
       [audiobookId],
       (err, ratings) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(ratings || []);
       }
@@ -108,7 +108,7 @@ function createRatingsRouter(deps = {}) {
       [audiobookId],
       (err, result) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json({
           average: result.average_rating ? Math.round(result.average_rating * 10) / 10 : null,
@@ -140,7 +140,7 @@ function createRatingsRouter(deps = {}) {
       [req.user.id, audiobookId],
       (err, existing) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         if (existing) {
@@ -152,7 +152,7 @@ function createRatingsRouter(deps = {}) {
             [rating || null, review || null, req.user.id, audiobookId],
             function(err) {
               if (err) {
-                return res.status(500).json({ error: err.message });
+                return res.status(500).json({ error: 'Internal server error' });
               }
 
               db.get(
@@ -160,7 +160,7 @@ function createRatingsRouter(deps = {}) {
                 [existing.id],
                 (err, updated) => {
                   if (err) {
-                    return res.status(500).json({ error: err.message });
+                    return res.status(500).json({ error: 'Internal server error' });
                   }
                   res.json(updated);
                 }
@@ -174,7 +174,7 @@ function createRatingsRouter(deps = {}) {
             [req.user.id, audiobookId, rating || null, review || null],
             function(err) {
               if (err) {
-                return res.status(500).json({ error: err.message });
+                return res.status(500).json({ error: 'Internal server error' });
               }
 
               db.get(
@@ -182,7 +182,7 @@ function createRatingsRouter(deps = {}) {
                 [this.lastID],
                 (err, created) => {
                   if (err) {
-                    return res.status(500).json({ error: err.message });
+                    return res.status(500).json({ error: 'Internal server error' });
                   }
                   // Record rating activity
                   if (rating) {
@@ -215,7 +215,7 @@ function createRatingsRouter(deps = {}) {
       [req.user.id, audiobookId],
       function(err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (this.changes === 0) {
           return res.status(404).json({ error: 'Rating not found' });
@@ -239,7 +239,7 @@ function createRatingsRouter(deps = {}) {
       [req.user.id],
       (err, ratings) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(ratings || []);
       }

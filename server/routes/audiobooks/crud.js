@@ -62,7 +62,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     db.all(query, params, (err, audiobooks) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
 
       // Transform progress and rating fields into nested/clean format
@@ -117,7 +117,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       db.get(countQuery, countParams, (err, count) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json({ audiobooks: transformedAudiobooks, total: count.total });
       });
@@ -168,7 +168,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   router.get('/:id', authenticateToken, (req, res) => {
     db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -194,7 +194,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   router.delete('/:id', authenticateToken, requireAdmin, (req, res) => {
     db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -213,7 +213,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       // Delete from database
       db.run('DELETE FROM audiobooks WHERE id = ?', [req.params.id], (err) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json({ message: 'Audiobook deleted successfully' });
       });

@@ -92,7 +92,7 @@ function createCollectionsRouter(deps = {}) {
       [req.user.id, req.user.id],
       (err, collections) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         // Parse book_ids string into array
         const result = (collections || []).map(c => ({
@@ -120,7 +120,7 @@ function createCollectionsRouter(deps = {}) {
       [req.user.id, name.trim(), description || null, is_public ? 1 : 0],
       function(err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
 
         db.get(
@@ -132,7 +132,7 @@ function createCollectionsRouter(deps = {}) {
           [req.user.id, this.lastID],
           (err, collection) => {
             if (err) {
-              return res.status(500).json({ error: err.message });
+              return res.status(500).json({ error: 'Internal server error' });
             }
             res.status(201).json(collection);
           }
@@ -161,7 +161,7 @@ function createCollectionsRouter(deps = {}) {
       [req.user.id, bookId, req.user.id],
       (err, collections) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         res.json(collections || []);
       }
@@ -185,7 +185,7 @@ function createCollectionsRouter(deps = {}) {
       [req.user.id, collectionId, req.user.id],
       (err, collection) => {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (!collection) {
           return res.status(404).json({ error: 'Collection not found' });
@@ -207,7 +207,7 @@ function createCollectionsRouter(deps = {}) {
           [req.user.id, req.user.id, collectionId],
           (err, books) => {
             if (err) {
-              return res.status(500).json({ error: err.message });
+              return res.status(500).json({ error: 'Internal server error' });
             }
             res.json({
               ...collection,
@@ -239,7 +239,7 @@ function createCollectionsRouter(deps = {}) {
       [name.trim(), description || null, is_public ? 1 : 0, collectionId, req.user.id],
       function(err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (this.changes === 0) {
           return res.status(404).json({ error: 'Collection not found or not owned by you' });
@@ -254,7 +254,7 @@ function createCollectionsRouter(deps = {}) {
           [req.user.id, collectionId],
           (err, collection) => {
             if (err) {
-              return res.status(500).json({ error: err.message });
+              return res.status(500).json({ error: 'Internal server error' });
             }
             res.json(collection);
           }
@@ -276,7 +276,7 @@ function createCollectionsRouter(deps = {}) {
       [collectionId, req.user.id],
       function(err) {
         if (err) {
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Internal server error' });
         }
         if (this.changes === 0) {
           return res.status(404).json({ error: 'Collection not found or not owned by you' });
@@ -300,7 +300,7 @@ function createCollectionsRouter(deps = {}) {
 
     canEditCollection(collectionId, req.user.id, (err, result) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!result.allowed) {
         return res.status(404).json({ error: result.reason || 'Collection not found' });
@@ -312,7 +312,7 @@ function createCollectionsRouter(deps = {}) {
         [collectionId],
         (err, posResult) => {
           if (err) {
-            return res.status(500).json({ error: err.message });
+            return res.status(500).json({ error: 'Internal server error' });
           }
 
           db.run(
@@ -323,7 +323,7 @@ function createCollectionsRouter(deps = {}) {
                 if (err.message.includes('UNIQUE constraint')) {
                   return res.status(409).json({ error: 'Book already in collection' });
                 }
-                return res.status(500).json({ error: err.message });
+                return res.status(500).json({ error: 'Internal server error' });
               }
 
               // Update collection's updated_at
@@ -349,7 +349,7 @@ function createCollectionsRouter(deps = {}) {
 
     canEditCollection(collectionId, req.user.id, (err, result) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!result.allowed) {
         return res.status(404).json({ error: result.reason || 'Collection not found' });
@@ -360,7 +360,7 @@ function createCollectionsRouter(deps = {}) {
         [collectionId, bookId],
         function(err) {
           if (err) {
-            return res.status(500).json({ error: err.message });
+            return res.status(500).json({ error: 'Internal server error' });
           }
           if (this.changes === 0) {
             return res.status(404).json({ error: 'Book not in collection' });
@@ -392,7 +392,7 @@ function createCollectionsRouter(deps = {}) {
 
     canEditCollection(collectionId, req.user.id, (err, result) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
       }
       if (!result.allowed) {
         return res.status(404).json({ error: result.reason || 'Collection not found' });
@@ -421,8 +421,8 @@ function createCollectionsRouter(deps = {}) {
           );
           res.json({ success: true });
         })
-        .catch(err => {
-          res.status(500).json({ error: err.message });
+        .catch(_err => {
+          res.status(500).json({ error: 'Internal server error' });
         });
     });
   });
