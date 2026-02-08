@@ -27,6 +27,10 @@ export default function Profile() {
   });
   const [stats, setStats] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+
+  // SECURITY: Validate avatar URL scheme to prevent XSS via javascript: URIs
+  const safeAvatarSrc = avatarPreview && (avatarPreview.startsWith('/') || avatarPreview.startsWith('blob:'))
+    ? avatarPreview : null;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -178,8 +182,8 @@ export default function Profile() {
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+    if (passwordData.newPassword.length < 8) {
+      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
       return;
     }
 
@@ -269,8 +273,8 @@ export default function Profile() {
       {/* Header with avatar */}
       <div className="profile-header">
         <div className="profile-avatar-wrapper" onClick={handleAvatarClick}>
-          {avatarPreview ? (
-            <img src={avatarPreview} alt="" className="profile-avatar" />
+          {safeAvatarSrc ? (
+            <img src={safeAvatarSrc} alt="Profile avatar" className="profile-avatar" />
           ) : (
             <div className="profile-avatar-placeholder">
               {(profile.displayName || profile.username || '?').charAt(0).toUpperCase()}
@@ -330,7 +334,7 @@ export default function Profile() {
                 onClick={() => navigate(`/audiobook/${book.id}`)}
               >
                 {book.cover_image ? (
-                  <img src={getCoverUrl(book.id)} alt="" className="recent-book-cover" />
+                  <img src={getCoverUrl(book.id)} alt={`${book.title || 'Audiobook'} by ${book.author || 'Unknown Author'}`} className="recent-book-cover" loading="lazy" />
                 ) : (
                   <div className="recent-book-placeholder">{book.title?.charAt(0)}</div>
                 )}

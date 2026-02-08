@@ -171,6 +171,7 @@ export default function AuthorDetail({ onPlay }) {
                     <img
                       src={getCoverUrl(book.id, book.updated_at)}
                       alt={book.title}
+                      loading="lazy"
                       onError={(e) => {
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';

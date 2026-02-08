@@ -1,12 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const pinoHttp = require('pino-http');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
+const logger = require('./utils/logger');
 const db = require('./database');
 const { createDefaultAdmin } = require('./auth');
-const { startPeriodicScan } = require('./services/libraryScanner');
+const { startPeriodicScan, stopPeriodicScan } = require('./services/libraryScanner');
 const { startScheduledBackups } = require('./services/backupService');
+const conversionService = require('./services/conversionService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,12 +41,26 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// SECURITY: Helmet for security headers (disabled CSP for SPA compatibility)
+// SECURITY: Helmet for security headers with Vite-compatible CSP
 app.use(helmet({
-  contentSecurityPolicy: false, // Disabled - Vite build uses dynamic imports
-  crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false,
-  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      mediaSrc: ["'self'", 'blob:'],
+      connectSrc: ["'self'", 'ws:', 'wss:', 'https://www.googleapis.com', 'https://openlibrary.org', 'https://api.audible.com', 'https://api.audnex.us'],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      scriptSrcAttr: null, // remove script-src-attr restriction (Helmet default breaks some SPA patterns)
+      upgradeInsecureRequests: null, // don't force HTTPS on localhost
+    }
+  },
+  crossOriginEmbedderPolicy: { policy: 'credentialless' },
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'unsafe-none' },
 }));
 
 // Middleware
@@ -49,11 +68,33 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
+// Compression for text-based responses (HTML, CSS, JS, JSON)
+// Skip audio streams - they're already compressed formats (MP3, M4B, etc.)
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress audio streams (already compressed formats)
+    if (req.path.includes('/stream')) return false;
+    return compression.filter(req, res);
+  }
+}));
+
+// Structured request logging (pino-http)
+app.use(pinoHttp({
+  logger,
+  autoLogging: {
+    ignore: (req) => req.url.includes('/health')
+  }
+}));
+
+// SECURITY: Global API rate limiter (baseline for all endpoints)
+const globalApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
+app.use('/api/', globalApiLimiter);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -163,6 +204,40 @@ async function initialize() {
     if (backupInterval > 0) {
       startScheduledBackups(backupInterval, backupRetention);
     }
+
+    // Graceful shutdown handler
+    let shuttingDown = false;
+    function gracefulShutdown(signal) {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`\n${signal} received, shutting down gracefully...`);
+
+      // Stop accepting new connections
+      server.close(() => {
+        console.log('HTTP server closed');
+      });
+
+      // Stop background services
+      stopPeriodicScan();
+      conversionService.shutdown();
+      websocketManager.close();
+
+      // Close database connection
+      db.close((err) => {
+        if (err) console.error('Error closing database:', err.message);
+        else console.log('Database connection closed');
+        process.exit(err ? 1 : 0);
+      });
+
+      // Force exit after 30 seconds if graceful shutdown stalls
+      setTimeout(() => {
+        console.error('Forced shutdown after 30s timeout');
+        process.exit(1);
+      }, 30000).unref();
+    }
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   } catch (error) {
     console.error('Failed to initialize server:', error);
     process.exit(1);

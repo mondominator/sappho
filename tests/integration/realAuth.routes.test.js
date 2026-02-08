@@ -206,7 +206,7 @@ beforeAll(async () => {
 
     // Password validation
     const errors = [];
-    if (password.length < 6) errors.push('at least 6 characters');
+    if (password.length < 8) errors.push('at least 8 characters');
     if (!/[A-Z]/.test(password)) errors.push('an uppercase letter');
     if (!/[a-z]/.test(password)) errors.push('a lowercase letter');
     if (!/[0-9]/.test(password)) errors.push('a number');
@@ -439,7 +439,7 @@ describe('Real Auth Routes Integration Tests', () => {
         .send({ username: 'newuser', password: 'Ab1!' })
         .expect(400);
 
-      expect(response.body.error).toContain('6 characters');
+      expect(response.body.error).toContain('8 characters');
     });
 
     test('returns 400 for weak password - no uppercase', async () => {

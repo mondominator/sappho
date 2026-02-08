@@ -1,175 +1,287 @@
 // Service Worker for Sappho PWA
-const CACHE_NAME = 'sappho-v1.7.0';
-const AUDIO_CACHE_NAME = 'sappho-audio-v1';
+// Vanilla service worker with tiered caching strategies
 
-const urlsToCache = [
+// ---------------------------------------------------------------------------
+// Cache names - bump version to invalidate
+// ---------------------------------------------------------------------------
+const APP_SHELL_CACHE = 'app-shell-v1';
+const API_CACHE = 'api-cache-v1';
+const COVER_CACHE = 'cover-cache-v1';
+
+const EXPECTED_CACHES = [APP_SHELL_CACHE, API_CACHE, COVER_CACHE];
+
+// Cache size limits (LRU eviction when exceeded)
+const API_CACHE_MAX = 50;
+const COVER_CACHE_MAX = 200;
+
+// Resources to pre-cache during install
+const PRECACHE_URLS = [
   '/',
-  '/index.html',
-  '/logo.svg',
-  '/icon-192.png',
-  '/icon-512.png',
   '/manifest.json'
 ];
 
-// Install event - cache assets
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-      .catch((err) => {
-        console.log('Cache failed:', err);
-      })
-  );
-  self.skipWaiting();
-});
-
-// Activate event - clean up old caches (but keep audio cache)
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          // Keep the current app cache and audio cache
-          if (cacheName !== CACHE_NAME && cacheName !== AUDIO_CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
-  self.clients.claim();
-});
-
-// Fetch event - network first, falling back to cache
-self.addEventListener('fetch', (event) => {
-  // Skip chrome extension requests
-  if (event.request.url.startsWith('chrome-extension://')) {
-    return;
-  }
-
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
-    return;
-  }
-
-  // Check for audiobook stream requests - serve from cache if available
-  const streamMatch = event.request.url.match(/\/api\/audiobooks\/(\d+)\/stream/);
-  if (streamMatch) {
-    event.respondWith(serveAudioFromCacheOrNetwork(streamMatch[1], event.request));
-    return;
-  }
-
-  // IMPORTANT: Never cache API requests - they contain auth tokens and dynamic data
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-
-        // Clone the response
-        const responseToCache = response.clone();
-
-        caches.open(CACHE_NAME)
-          .then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-
-        return response;
-      })
-      .catch(() => {
-        // Network failed, try cache
-        return caches.match(event.request)
-          .then((response) => {
-            if (response) {
-              return response;
-            }
-            // If not in cache and network failed, return offline page
-            return caches.match('/index.html');
-          });
-      })
-  );
-});
-
-// ============================================================================
-// Cache-based Audio Streaming for Offline Playback
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 /**
- * Serve audio from Cache API if available, otherwise fall back to network
- * Supports Range requests for seeking
- * @param {string} audiobookId - Audiobook ID
- * @param {Request} request - Original request
- * @returns {Promise<Response>}
+ * Strip authentication tokens from URLs so cached responses are keyed by
+ * resource identity rather than per-session credentials.
  */
-async function serveAudioFromCacheOrNetwork(audiobookId, request) {
-  try {
-    // Check the audio cache
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    const cacheUrl = `/api/audiobooks/${audiobookId}/stream`;
-    const cachedResponse = await cache.match(cacheUrl);
+function getCacheKey(request) {
+  const url = new URL(request.url);
+  url.searchParams.delete('token');
+  return url.toString();
+}
 
-    if (cachedResponse) {
-      console.log(`Serving audiobook ${audiobookId} from cache (offline)`);
-
-      // Check for Range header (seeking)
-      const rangeHeader = request.headers.get('Range');
-
-      if (rangeHeader) {
-        // We need to handle range requests manually for cached responses
-        const blob = await cachedResponse.clone().blob();
-        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-
-        if (match) {
-          const start = parseInt(match[1], 10);
-          const end = match[2] ? parseInt(match[2], 10) : blob.size - 1;
-          const chunkSize = end - start + 1;
-
-          // Create a slice of the blob
-          const chunk = blob.slice(start, end + 1);
-
-          return new Response(chunk, {
-            status: 206,
-            statusText: 'Partial Content',
-            headers: {
-              'Content-Type': blob.type || 'audio/mpeg',
-              'Content-Length': chunkSize,
-              'Content-Range': `bytes ${start}-${end}/${blob.size}`,
-              'Accept-Ranges': 'bytes'
-            }
-          });
-        }
-      }
-
-      // Return full cached response (clone it since responses can only be used once)
-      const blob = await cachedResponse.blob();
-      return new Response(blob, {
-        status: 200,
-        headers: {
-          'Content-Type': blob.type || 'audio/mpeg',
-          'Content-Length': blob.size,
-          'Accept-Ranges': 'bytes'
-        }
-      });
-    }
-
-    // Not in cache, fall back to network
-    console.log(`Audiobook ${audiobookId} not cached, fetching from network`);
-    return fetch(request);
-
-  } catch (error) {
-    console.error('Error serving audio:', error);
-    // Fall back to network on any error
-    return fetch(request);
+/**
+ * Evict the oldest entries when a cache exceeds maxItems (simple LRU).
+ * Cache API stores entries in insertion order, so keys()[0] is the oldest.
+ */
+async function trimCache(cacheName, maxItems) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxItems) {
+    await cache.delete(keys[0]);
+    await trimCache(cacheName, maxItems);
   }
 }
+
+/**
+ * Check whether a request URL matches an app-shell asset
+ * (HTML navigation, JS, CSS, fonts, or the root path).
+ */
+function isAppShellRequest(url) {
+  const path = url.pathname;
+  // Root navigation
+  if (path === '/' || path === '/index.html') return true;
+  // Vite-built assets and fonts
+  if (path.match(/\.(js|css|woff2?)$/)) return true;
+  // Static assets in public/
+  if (path === '/manifest.json') return true;
+  if (path.match(/\.(svg|png|ico)$/) && !path.startsWith('/api/')) return true;
+  return false;
+}
+
+/**
+ * Check whether a request is for an audiobook stream.
+ */
+function isAudioStreamRequest(url) {
+  return /\/api\/audiobooks\/[^/]+\/stream/.test(url.pathname);
+}
+
+/**
+ * Check whether a request is for a cover image.
+ */
+function isCoverRequest(url) {
+  return /\/api\/audiobooks\/[^/]+\/cover/.test(url.pathname);
+}
+
+/**
+ * Check whether a request is an API call.
+ */
+function isApiRequest(url) {
+  return url.pathname.startsWith('/api/');
+}
+
+// ---------------------------------------------------------------------------
+// Strategies
+// ---------------------------------------------------------------------------
+
+/**
+ * Cache-first: Serve from cache if available, otherwise fetch from network
+ * and store in cache. Used for app shell assets that rarely change.
+ */
+async function cacheFirst(request, cacheName) {
+  const cacheKey = getCacheKey(request);
+  const cache = await caches.open(cacheName);
+  const cachedResponse = await cache.match(cacheKey);
+
+  if (cachedResponse) {
+    // Update cache in background (stale-while-revalidate for freshness)
+    const fetchPromise = fetch(request).then(response => {
+      if (response && response.status === 200) {
+        cache.put(cacheKey, response.clone());
+      }
+      return response;
+    }).catch(() => {});
+    // Don't await - let it update in background
+    return cachedResponse;
+  }
+
+  // Not in cache - fetch and store
+  const response = await fetch(request);
+  if (response && response.status === 200) {
+    cache.put(cacheKey, response.clone());
+  }
+  return response;
+}
+
+/**
+ * Network-first: Try the network, fall back to cache if offline.
+ * Used for API responses where freshness matters but offline access is useful.
+ */
+async function networkFirst(request, cacheName, maxItems) {
+  const cacheKey = getCacheKey(request);
+
+  try {
+    const response = await fetch(request);
+    if (response && response.status === 200) {
+      const cache = await caches.open(cacheName);
+      cache.put(cacheKey, response.clone());
+      // Trim cache in background
+      trimCache(cacheName, maxItems).catch(() => {});
+    }
+    return response;
+  } catch (err) {
+    // Network failed - try cache
+    const cache = await caches.open(cacheName);
+    const cachedResponse = await cache.match(cacheKey);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    // Nothing in cache either - throw so caller gets an error
+    throw err;
+  }
+}
+
+/**
+ * Cache-first with stale-while-revalidate for cover images.
+ * Serves cached version immediately but updates cache from network.
+ */
+async function cacheFirstSWR(request, cacheName, maxItems) {
+  const cacheKey = getCacheKey(request);
+  const cache = await caches.open(cacheName);
+  const cachedResponse = await cache.match(cacheKey);
+
+  // Always kick off a network fetch to update the cache
+  const fetchPromise = fetch(request).then(response => {
+    if (response && response.status === 200) {
+      cache.put(cacheKey, response.clone());
+      trimCache(cacheName, maxItems).catch(() => {});
+    }
+    return response;
+  }).catch(() => {});
+
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  // Not cached yet - wait for network
+  return fetchPromise;
+}
+
+// ---------------------------------------------------------------------------
+// Install event - pre-cache app shell
+// ---------------------------------------------------------------------------
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(APP_SHELL_CACHE)
+      .then(cache => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Activate event - clean old caches, claim clients
+// ---------------------------------------------------------------------------
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then(cacheNames => {
+        return Promise.all(
+          cacheNames
+            .filter(name => !EXPECTED_CACHES.includes(name))
+            .map(name => {
+              console.log('[SW] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      })
+      .then(() => self.clients.claim())
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Fetch event - route to appropriate strategy
+// ---------------------------------------------------------------------------
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  // Only handle GET requests
+  if (request.method !== 'GET') return;
+
+  // Skip chrome-extension and other non-http(s) schemes
+  const url = new URL(request.url);
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
+
+  // Skip cross-origin requests
+  if (url.origin !== self.location.origin) return;
+
+  // --- Audio streams: network-only (too large to cache) ---
+  if (isAudioStreamRequest(url)) {
+    // Let the browser handle it directly (no respondWith = passthrough)
+    return;
+  }
+
+  // --- Cover images: cache-first with stale-while-revalidate ---
+  if (isCoverRequest(url)) {
+    event.respondWith(
+      cacheFirstSWR(request, COVER_CACHE, COVER_CACHE_MAX)
+        .catch(() => new Response('', { status: 404, statusText: 'Not Found' }))
+    );
+    return;
+  }
+
+  // --- API calls: network-first with cache fallback ---
+  if (isApiRequest(url)) {
+    event.respondWith(
+      networkFirst(request, API_CACHE, API_CACHE_MAX)
+        .catch(() => new Response(
+          JSON.stringify({ error: 'Offline and no cached data available' }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        ))
+    );
+    return;
+  }
+
+  // --- App shell (HTML, JS, CSS, fonts, static assets): cache-first ---
+  if (isAppShellRequest(url)) {
+    event.respondWith(
+      cacheFirst(request, APP_SHELL_CACHE)
+        .catch(() => {
+          // For navigation requests, try returning cached root page (SPA fallback)
+          if (request.mode === 'navigate') {
+            return caches.match('/');
+          }
+          return new Response('', { status: 503 });
+        })
+    );
+    return;
+  }
+
+  // --- Navigation requests (SPA routes like /library, /player/1): cache-first on root ---
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const cache = caches.open(APP_SHELL_CACHE);
+            cache.then(c => c.put(getCacheKey(request), response.clone()));
+          }
+          return response;
+        })
+        .catch(() => caches.match('/'))
+        .then(response => response || new Response('Offline', { status: 503 }))
+    );
+    return;
+  }
+
+  // --- Everything else: network-first ---
+  event.respondWith(
+    fetch(request)
+      .then(response => response)
+      .catch(() => caches.match(getCacheKey(request)))
+      .then(response => response || new Response('', { status: 503 }))
+  );
+});

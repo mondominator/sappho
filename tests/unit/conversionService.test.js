@@ -37,6 +37,8 @@ describe('Conversion Service', () => {
     // Clear internal state
     conversionService.jobs.clear();
     conversionService.activeConversions.clear();
+    conversionService.runningConversions = 0;
+    conversionService.conversionQueue = [];
     // Default mock behavior
     fs.existsSync.mockReturnValue(true);
     fs.statSync.mockReturnValue({ size: 1024 });
@@ -120,6 +122,131 @@ describe('Conversion Service', () => {
       expect(result.map(j => j.id)).toContain('job-1');
       expect(result.map(j => j.id)).toContain('job-3');
       expect(result.map(j => j.id)).not.toContain('job-2');
+    });
+
+    test('includes queued jobs', () => {
+      conversionService.jobs.set('job-1', {
+        id: 'job-1',
+        audiobookId: 1,
+        status: 'converting',
+        progress: 50,
+        message: 'Converting...'
+      });
+      conversionService.jobs.set('job-2', {
+        id: 'job-2',
+        audiobookId: 2,
+        status: 'queued',
+        progress: 0,
+        message: 'Waiting...'
+      });
+
+      const result = conversionService.getActiveJobs();
+
+      expect(result.length).toBe(2);
+      expect(result.map(j => j.id)).toContain('job-1');
+      expect(result.map(j => j.id)).toContain('job-2');
+    });
+  });
+
+  describe('concurrency limiter', () => {
+    test('acquireSlot resolves immediately when under limit', async () => {
+      expect(conversionService.runningConversions).toBe(0);
+
+      await conversionService.acquireSlot();
+
+      expect(conversionService.runningConversions).toBe(1);
+    });
+
+    test('acquireSlot queues when at limit', () => {
+      conversionService.runningConversions = 2;
+
+      let resolved = false;
+      conversionService.acquireSlot().then(() => { resolved = true; });
+
+      expect(resolved).toBe(false);
+      expect(conversionService.conversionQueue.length).toBe(1);
+    });
+
+    test('releaseSlot decrements running count', () => {
+      conversionService.runningConversions = 2;
+
+      conversionService.releaseSlot();
+
+      expect(conversionService.runningConversions).toBe(1);
+    });
+
+    test('releaseSlot starts next queued conversion', async () => {
+      conversionService.runningConversions = 2;
+
+      let resolved = false;
+      conversionService.acquireSlot().then(() => { resolved = true; });
+
+      expect(conversionService.conversionQueue.length).toBe(1);
+
+      conversionService.releaseSlot();
+
+      // Allow the microtask (promise resolution) to execute
+      await Promise.resolve();
+
+      expect(resolved).toBe(true);
+      expect(conversionService.runningConversions).toBe(2);
+      expect(conversionService.conversionQueue.length).toBe(0);
+    });
+
+    test('MAX_CONCURRENT defaults to 2', () => {
+      expect(conversionService.MAX_CONCURRENT).toBe(2);
+    });
+
+    test('getActiveJobForAudiobook includes queued jobs', () => {
+      conversionService.jobs.set('job-1', {
+        id: 'job-1',
+        audiobookId: 5,
+        status: 'queued',
+        progress: 0,
+        message: 'Waiting...'
+      });
+
+      const result = conversionService.getActiveJobForAudiobook(5);
+
+      expect(result).not.toBeNull();
+      expect(result.id).toBe('job-1');
+      expect(result.status).toBe('queued');
+    });
+
+    test('cancelJob works on queued jobs', () => {
+      conversionService.jobs.set('job-1', {
+        id: 'job-1',
+        audiobookId: 1,
+        status: 'queued',
+        process: null,
+        dir: '/test/dir'
+      });
+      conversionService.activeConversions.add('/test/dir');
+
+      const result = conversionService.cancelJob('job-1');
+
+      expect(result.success).toBe(true);
+      const job = conversionService.jobs.get('job-1');
+      expect(job.status).toBe('cancelled');
+    });
+
+    test('cleanupStaleJobs handles stuck queued jobs', () => {
+      const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+      conversionService.jobs.set('stuck-queued', {
+        id: 'stuck-queued',
+        audiobookId: 1,
+        status: 'queued',
+        process: null,
+        dir: '/test/dir',
+        startedAt: threeHoursAgo
+      });
+      conversionService.activeConversions.add('/test/dir');
+
+      conversionService.cleanupStaleJobs();
+
+      const job = conversionService.jobs.get('stuck-queued');
+      expect(job.status).toBe('failed');
+      expect(job.error).toBe('Conversion timed out');
     });
   });
 

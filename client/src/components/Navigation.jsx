@@ -56,9 +56,7 @@ export default function Navigation({ onLogout }) {
     try {
       const castContext = window.cast.framework.CastContext.getInstance();
       castContext.requestSession().then(
-        () => {
-          console.log('Cast session started');
-        },
+        () => {},
         (error) => {
           if (error !== 'cancel') {
             console.error('Error starting cast session:', error);
@@ -82,7 +80,6 @@ export default function Navigation({ onLogout }) {
       })
         .then(res => res.json())
         .then(profile => {
-          console.log('Profile data:', profile);
           setUser({
             id: profile.id,
             username: profile.username,
@@ -136,7 +133,7 @@ export default function Navigation({ onLogout }) {
 
   return (
     <>
-    <nav className="navigation">
+    <nav className="navigation" role="navigation" aria-label="Main navigation">
       <div className="container nav-container">
         <Link to="/" className="nav-brand">
           <img src="/sappho-logo-navbar.png" alt="Sappho" className="nav-logo desktop-only" />
@@ -144,15 +141,15 @@ export default function Navigation({ onLogout }) {
         </Link>
 
         <div className="nav-links desktop-only">
-          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home" aria-label="Home" aria-current={location.pathname === '/' ? 'page' : undefined}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
             <span className="nav-link-text">Home</span>
           </Link>
-          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library" aria-label="Library" aria-current={location.pathname === '/library' ? 'page' : undefined}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
@@ -167,6 +164,7 @@ export default function Navigation({ onLogout }) {
               type="text"
               className="nav-search-input"
               placeholder="Search audiobooks..."
+              aria-label="Search audiobooks"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setShowSearchModal(true)}
@@ -180,6 +178,7 @@ export default function Navigation({ onLogout }) {
                   setSearchQuery('');
                 }}
                 title="Clear search"
+                aria-label="Clear search"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -192,14 +191,14 @@ export default function Navigation({ onLogout }) {
 
         {/* Mobile primary nav - Home, Library, Search (centered) */}
         <div className="nav-links mobile-only mobile-nav-actions">
-          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`} title="Home" aria-label="Home" aria-current={location.pathname === '/' ? 'page' : undefined}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </Link>
-          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Link to="/library" className={`nav-link ${location.pathname === '/library' ? 'active' : ''}`} title="Library" aria-label="Library" aria-current={location.pathname === '/library' ? 'page' : undefined}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
             </svg>
@@ -212,9 +211,10 @@ export default function Navigation({ onLogout }) {
               setShowSearchModal(true);
             }}
             title="Search"
+            aria-label="Search"
             type="button"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8"/>
               <path d="m21 21-4.35-4.35"/>
             </svg>
@@ -232,6 +232,8 @@ export default function Navigation({ onLogout }) {
               setShowMobileMenu(!showMobileMenu);
             }}
             title="Menu"
+            aria-label="User menu"
+            aria-expanded={showMobileMenu}
             type="button"
           >
           {user?.avatar ? (
@@ -241,7 +243,10 @@ export default function Navigation({ onLogout }) {
               className="user-avatar-mobile"
               onError={(e) => {
                 e.target.style.display = 'none';
-                e.target.parentElement.innerHTML = `<div class="user-avatar-placeholder-mobile">${getUserInitials()}</div>`;
+                const placeholder = document.createElement('div');
+                placeholder.className = 'user-avatar-placeholder-mobile';
+                placeholder.textContent = getUserInitials();
+                e.target.parentElement.appendChild(placeholder);
               }}
             />
           ) : (
@@ -260,6 +265,9 @@ export default function Navigation({ onLogout }) {
               <button
                 className="user-button"
                 onClick={() => setShowUserMenu(!showUserMenu)}
+                aria-label="User menu"
+                aria-expanded={showUserMenu}
+                aria-haspopup="true"
               >
                 {user.avatar ? (
                   <img
@@ -319,8 +327,10 @@ export default function Navigation({ onLogout }) {
             className="icon-button hamburger-button mobile-only"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
             title="Menu"
+            aria-label="Menu"
+            aria-expanded={showMobileMenu}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="3" y1="12" x2="21" y2="12"></line>
               <line x1="3" y1="6" x2="21" y2="6"></line>
               <line x1="3" y1="18" x2="21" y2="18"></line>

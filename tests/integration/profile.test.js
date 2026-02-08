@@ -385,7 +385,7 @@ describe('Profile Routes', () => {
           .send({ currentPassword: 'OldPassword123!', newPassword: '12345' })
           .expect(400);
 
-        expect(res.body.error).toBe('Password must be at least 6 characters');
+        expect(res.body.error).toBe('Password must be at least 8 characters');
       });
 
       it('returns 401 with wrong current password', async () => {

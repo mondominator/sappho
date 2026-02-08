@@ -488,10 +488,22 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     }
   };
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, saving, embedding, converting]);
+
   if (!isOpen || !audiobook) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div className="modal-overlay" onClick={handleClose} role="dialog" aria-modal="true" aria-label="Edit metadata">
       <div className="modal edit-metadata-modal" onClick={(e) => e.stopPropagation()}>
         {/* Loading Overlay */}
         {(saving || embedding || converting) && (
@@ -505,7 +517,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
         <div className="modal-header">
           <h2>Edit Metadata</h2>
-          <button className="close-button" onClick={handleClose} disabled={saving}>
+          <button className="close-button" onClick={handleClose} disabled={saving} aria-label="Close">
             ×
           </button>
         </div>
@@ -536,6 +548,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                       src={result.image}
                       alt={result.title}
                       className="result-cover"
+                      loading="lazy"
                     />
                   )}
                   <div className="result-info">
@@ -567,7 +580,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
             <div className="preview-book-info">
               {pendingResult.image && (
-                <img src={pendingResult.image} alt={pendingResult.title} className="preview-cover" />
+                <img src={pendingResult.image} alt={pendingResult.title} className="preview-cover" loading="lazy" />
               )}
               <div className="preview-book-details">
                 <div className="preview-book-title">{pendingResult.title}</div>

@@ -567,13 +567,15 @@ describe('WebSocketManager', () => {
         close: jest.fn()
       };
 
-      // Mock db.get to return null (key not found)
-      db.get.mockReturnValue(null);
+      // Mock db.get with callback - key not found
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, null);
+      });
 
       wsManager.authenticateClient(mockWs, 'sapho_test_api_key');
 
-      // Should close because API key lookup fails
-      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+      // Should close because API key lookup returns null
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid or expired API key');
     });
 
     test('authenticates valid API key', () => {
@@ -583,10 +585,16 @@ describe('WebSocketManager', () => {
         close: jest.fn()
       };
 
-      // Mock db.get to return valid API key and user
-      db.get
-        .mockReturnValueOnce({ id: 1, user_id: 1, is_active: 1, expires_at: null })
-        .mockReturnValueOnce({ id: 1, username: 'apiuser' });
+      // Mock db.get with callbacks - first call returns key, second returns user
+      let callCount = 0;
+      db.get.mockImplementation((sql, params, callback) => {
+        callCount++;
+        if (callCount === 1) {
+          callback(null, { id: 1, user_id: 1, is_active: 1, expires_at: null });
+        } else {
+          callback(null, { id: 1, username: 'apiuser' });
+        }
+      });
 
       wsManager.authenticateClient(mockWs, 'sapho_valid_api_key');
 
@@ -604,17 +612,19 @@ describe('WebSocketManager', () => {
         close: jest.fn()
       };
 
-      // Mock db.get to return expired API key
-      db.get.mockReturnValueOnce({
-        id: 1,
-        user_id: 1,
-        is_active: 1,
-        expires_at: '2020-01-01T00:00:00Z' // Expired
+      // Mock db.get with callback - return expired API key
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, {
+          id: 1,
+          user_id: 1,
+          is_active: 1,
+          expires_at: '2020-01-01T00:00:00Z' // Expired
+        });
       });
 
       wsManager.authenticateClient(mockWs, 'sapho_expired_api_key');
 
-      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid or expired API key');
     });
 
     test('handles API key lookup errors gracefully', () => {
@@ -624,14 +634,14 @@ describe('WebSocketManager', () => {
         close: jest.fn()
       };
 
-      // Mock db.get to throw an error
-      db.get.mockImplementation(() => {
-        throw new Error('Database connection failed');
+      // Mock db.get with callback - return error
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(new Error('Database connection failed'), null);
       });
 
       wsManager.authenticateClient(mockWs, 'sapho_error_key');
 
-      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Authentication error');
     });
   });
 
