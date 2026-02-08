@@ -44,6 +44,16 @@ loadPersistedSettings();
 
 // Helper to update persisted settings file
 const updateEnvFile = (updates) => {
+  // SECURITY: Validate keys and values to prevent injection
+  for (const [key, value] of Object.entries(updates)) {
+    if (!/^[A-Z_]+$/.test(key)) {
+      throw new Error(`Invalid settings key: ${key}`);
+    }
+    if (typeof value === 'string' && value.includes('\n')) {
+      throw new Error(`Settings value for ${key} must not contain newlines`);
+    }
+  }
+
   const settingsPath = getSettingsPath();
   let envContent = '';
 
@@ -77,6 +87,14 @@ const updateEnvFile = (updates) => {
 // Helper to validate directory path
 const validateDirectory = (dir) => {
   try {
+    // SECURITY: Reject paths with null bytes or non-string input
+    if (typeof dir !== 'string' || dir.includes('\0')) {
+      return false;
+    }
+    // SECURITY: Only allow absolute paths (expected in Docker container)
+    if (!path.isAbsolute(dir)) {
+      return false;
+    }
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -146,7 +164,9 @@ STYLE: Be funny, irreverent, and use colorful language. Roast the characters and
 
 // Get the current recap prompt (exported for use in series.js)
 const getRecapPrompt = () => {
-  const customPrompt = process.env.RECAP_CUSTOM_PROMPT;
+  const rawPrompt = process.env.RECAP_CUSTOM_PROMPT;
+  // Decode escaped newlines from env file storage
+  const customPrompt = rawPrompt ? rawPrompt.replace(/\\n/g, '\n') : rawPrompt;
   const offensiveMode = process.env.RECAP_OFFENSIVE_MODE === 'true';
 
   let prompt = customPrompt || DEFAULT_RECAP_PROMPT;
@@ -435,7 +455,7 @@ router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     geminiApiKey: process.env.GEMINI_API_KEY ? '••••••••' : '',
     geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-    recapCustomPrompt: process.env.RECAP_CUSTOM_PROMPT || '',
+    recapCustomPrompt: (process.env.RECAP_CUSTOM_PROMPT || '').replace(/\\n/g, '\n'),
     recapOffensiveMode: process.env.RECAP_OFFENSIVE_MODE === 'true',
     recapDefaultPrompt: DEFAULT_RECAP_PROMPT
   };
@@ -495,7 +515,8 @@ router.put('/ai', authenticateToken, requireAdmin, (req, res) => {
   // Recap prompt customization
   if (recapCustomPrompt !== undefined) {
     // Empty string means use default, otherwise save custom prompt
-    updates.RECAP_CUSTOM_PROMPT = recapCustomPrompt;
+    // Encode newlines so the value is safe for single-line env file storage
+    updates.RECAP_CUSTOM_PROMPT = recapCustomPrompt.replace(/\n/g, '\\n');
   }
 
   // Offensive mode toggle

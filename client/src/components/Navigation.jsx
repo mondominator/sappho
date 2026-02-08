@@ -243,7 +243,10 @@ export default function Navigation({ onLogout }) {
               className="user-avatar-mobile"
               onError={(e) => {
                 e.target.style.display = 'none';
-                e.target.parentElement.innerHTML = `<div class="user-avatar-placeholder-mobile">${getUserInitials()}</div>`;
+                const placeholder = document.createElement('div');
+                placeholder.className = 'user-avatar-placeholder-mobile';
+                placeholder.textContent = getUserInitials();
+                e.target.parentElement.appendChild(placeholder);
               }}
             />
           ) : (

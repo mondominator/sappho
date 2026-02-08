@@ -10,6 +10,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// SECURITY: Sanitize uploaded filename to prevent path traversal
+function sanitizeFilename(name) {
+  // Strip directory components, then remove null bytes and control characters
+  const basename = path.basename(name);
+  // eslint-disable-next-line no-control-regex
+  return basename.replace(/[\x00-\x1f]/g, '');
+}
+
 /**
  * Default dependencies - used when route is required directly
  */
@@ -44,7 +52,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    cb(null, uniqueSuffix + '-' + sanitizeFilename(file.originalname));
   }
 });
 
@@ -62,7 +70,7 @@ const fileFilter = (req, file, cb) => {
   ];
 
   const allowedExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac'];
-  const ext = path.extname(file.originalname).toLowerCase();
+  const ext = path.extname(sanitizeFilename(file.originalname)).toLowerCase();
 
   if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
@@ -143,9 +151,9 @@ router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks
     for (const file of req.files) {
       try {
         const audiobook = await processAudiobook(file.path, userId);
-        results.push({ success: true, filename: file.originalname, audiobook });
+        results.push({ success: true, filename: sanitizeFilename(file.originalname), audiobook });
       } catch (error) {
-        results.push({ success: false, filename: file.originalname, error: error.message });
+        results.push({ success: false, filename: sanitizeFilename(file.originalname), error: error.message });
         // Clean up failed file
         if (fs.existsSync(file.path)) {
           fs.unlinkSync(file.path);
@@ -176,7 +184,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
 
     // Sort files by original name to maintain order
     const sortedFiles = req.files.sort((a, b) =>
-      a.originalname.localeCompare(b.originalname, undefined, { numeric: true, sensitivity: 'base' })
+      sanitizeFilename(a.originalname).localeCompare(sanitizeFilename(b.originalname), undefined, { numeric: true, sensitivity: 'base' })
     );
 
     console.log(`Processing multi-file upload: ${sortedFiles.length} files`);
@@ -190,7 +198,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
     // If title looks like a chapter/part name, try to get a better title
     if (title && /^(chapter|part|track|disc|cd)[\s_-]*\d+/i.test(title)) {
       // Try to extract from the first file's original path
-      const originalPath = sortedFiles[0].originalname;
+      const originalPath = sanitizeFilename(sortedFiles[0].originalname);
       const pathParts = originalPath.split('/');
       if (pathParts.length > 1) {
         title = pathParts[0]; // Use folder name
@@ -216,9 +224,10 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
 
     for (let i = 0; i < sortedFiles.length; i++) {
       const file = sortedFiles[i];
-      const ext = path.extname(file.originalname);
+      const safeName = sanitizeFilename(file.originalname);
+      const ext = path.extname(safeName);
       // Use original filename to preserve chapter naming
-      const originalBasename = path.basename(file.originalname, ext);
+      const originalBasename = path.basename(safeName, ext);
       const newFilename = `${String(i + 1).padStart(2, '0')} - ${originalBasename}${ext}`;
       const newPath = path.join(bookDir, newFilename);
 
@@ -228,7 +237,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
         fs.unlinkSync(file.path);
         movedFiles.push(newPath);
       } catch (moveError) {
-        console.error(`Failed to move file ${file.originalname}:`, moveError);
+        console.error(`Failed to move file ${safeName}:`, moveError);
         // Clean up already moved files
         for (const movedFile of movedFiles) {
           if (fs.existsSync(movedFile)) fs.unlinkSync(movedFile);
