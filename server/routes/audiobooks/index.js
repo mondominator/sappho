@@ -72,14 +72,16 @@ function createAudiobooksRouter(deps = {}) {
     DEFAULT_GENRE_METADATA,
   };
 
-  // Register route modules
-  crud.register(router, sharedDeps);
-  stream.register(router, sharedDeps);
-  conversion.register(router, sharedDeps);
-  progress.register(router, sharedDeps);
-  aggregates.register(router, sharedDeps);
-  metadata.register(router, sharedDeps);
-  batch.register(router, sharedDeps);
+  // Register route modules — order matters!
+  // Specific path prefixes (/meta/*, /batch/*, /jobs/*) must come before
+  // parameterized routes (/:id) to prevent Express from matching them as IDs.
+  aggregates.register(router, sharedDeps);  // /meta/*
+  batch.register(router, sharedDeps);       // /batch/*, /:id/favorite, /:id/recap
+  conversion.register(router, sharedDeps);  // /jobs/*, /:id/convert-to-m4b
+  crud.register(router, sharedDeps);        // /, /favorites, /:id (catch-all)
+  stream.register(router, sharedDeps);      // /:id/stream, /:id/cover
+  progress.register(router, sharedDeps);    // /:id/progress
+  metadata.register(router, sharedDeps);    // /:id/chapters, /:id/embed-metadata
 
   return router;
 }
