@@ -1,0 +1,101 @@
+/**
+ * Audiobook conversion route handlers
+ * Handles M4B conversion jobs: start, status, list, cancel
+ */
+const { jobStatusLimiter, jobCancelLimiter } = require('./helpers');
+
+function register(router, { db, authenticateToken, conversionService }) {
+  // Convert audiobook to M4B format (admin only) - async with progress tracking
+  router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
+    // Check if user is admin
+    if (!req.user.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    try {
+      const audiobook = await new Promise((resolve, reject) => {
+        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+
+      if (!audiobook) {
+        return res.status(404).json({ error: 'Audiobook not found' });
+      }
+
+      // Start async conversion - returns immediately with job ID
+      const result = await conversionService.startConversion(audiobook, db);
+
+      if (result.error) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({
+        message: 'Conversion started',
+        jobId: result.jobId,
+        status: result.status
+      });
+
+    } catch (error) {
+      console.error('Error starting conversion:', error);
+      res.status(500).json({ error: 'Failed to start conversion: ' + error.message });
+    }
+  });
+
+  // Get conversion job status (admin only)
+  router.get('/jobs/conversion/:jobId', jobStatusLimiter, authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const job = conversionService.getJobStatus(req.params.jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    res.json(job);
+  });
+
+  // Get all active conversion jobs (admin only)
+  router.get('/jobs/conversion', jobStatusLimiter, authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const jobs = conversionService.getActiveJobs();
+    res.json({ jobs });
+  });
+
+  // Cancel a conversion job (admin only)
+  router.delete('/jobs/conversion/:jobId', jobCancelLimiter, authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = conversionService.cancelJob(req.params.jobId);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json({ message: 'Job cancelled' });
+  });
+
+  // Get active conversion job for a specific audiobook (admin only)
+  router.get('/:id/conversion-status', jobStatusLimiter, authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const audiobookId = parseInt(req.params.id, 10);
+    const job = conversionService.getActiveJobForAudiobook(audiobookId);
+
+    if (!job) {
+      return res.json({ active: false });
+    }
+
+    res.json({ active: true, job });
+  });
+}
+
+module.exports = { register };
