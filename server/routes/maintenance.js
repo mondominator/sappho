@@ -8,6 +8,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const { generateContentHash } = require('../utils/contentHash');
 
 /**
  * Default dependencies - used when route is required directly
@@ -673,6 +674,9 @@ router.post('/scan-library', maintenanceWriteLimiter, authenticateToken, async (
                 console.log(`Using extracted cover for ${audiobook.title}: ${metadata.cover_image}`);
               }
 
+              // Recalculate content hash to keep dedup in sync
+              const contentHash = generateContentHash(metadata.title, metadata.author, metadata.duration);
+
               // Update database with all metadata fields including extended metadata
               await new Promise((resolve, reject) => {
                 db.run(
@@ -682,6 +686,7 @@ router.post('/scan-library', maintenanceWriteLimiter, authenticateToken, async (
                     series = ?, series_position = ?, cover_image = ?,
                     tags = ?, publisher = ?, copyright_year = ?, asin = ?,
                     language = ?, rating = ?, abridged = ?, subtitle = ?,
+                    content_hash = ?,
                     updated_at = CURRENT_TIMESTAMP
                   WHERE id = ?`,
                   [
@@ -690,6 +695,7 @@ router.post('/scan-library', maintenanceWriteLimiter, authenticateToken, async (
                     metadata.series, metadata.series_position, finalCoverImage,
                     metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
                     metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
+                    contentHash,
                     audiobook.id
                   ],
                   (err) => {
@@ -960,6 +966,9 @@ router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, 
             finalCoverImage = audiobook.cover_path;
           }
 
+          // Recalculate content hash to keep dedup in sync
+          const contentHash = generateContentHash(metadata.title, metadata.author, metadata.duration);
+
           // Update all metadata fields
           await new Promise((resolve, reject) => {
             db.run(
@@ -969,6 +978,7 @@ router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, 
                 series = ?, series_position = ?, cover_image = ?,
                 tags = ?, publisher = ?, copyright_year = ?, asin = ?,
                 language = ?, rating = ?, abridged = ?, subtitle = ?,
+                content_hash = ?,
                 updated_at = CURRENT_TIMESTAMP
               WHERE id = ?`,
               [
@@ -977,6 +987,7 @@ router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, 
                 metadata.series, metadata.series_position, finalCoverImage,
                 metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
                 metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
+                contentHash,
                 audiobook.id
               ],
               (err) => {
