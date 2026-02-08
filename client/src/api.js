@@ -40,9 +40,6 @@ api.interceptors.response.use(
 export const login = (username, password) =>
   api.post('/auth/login', { username, password });
 
-export const register = (username, password, email) =>
-  api.post('/auth/register', { username, password, email });
-
 export const getProfile = () =>
   api.get('/profile');
 
@@ -70,9 +67,6 @@ export const getConversionJobs = () =>
 
 export const cancelConversionJob = (jobId) =>
   api.delete(`/audiobooks/jobs/conversion/${jobId}`);
-
-export const searchMetadata = (id, params) =>
-  api.get(`/audiobooks/${id}/search-metadata`, { params });
 
 export const uploadAudiobook = (file, metadata, { onProgress, cancelToken } = {}) => {
   const formData = new FormData();
@@ -207,9 +201,6 @@ export const deleteApiKey = (id) =>
 export const getUsers = () =>
   api.get('/users');
 
-export const getUser = (id) =>
-  api.get(`/users/${id}`);
-
 export const createUser = (username, password, email, is_admin) =>
   api.post('/users', { username, password, email, is_admin });
 
@@ -231,9 +222,6 @@ export const disableUser = (id, reason = null) =>
 export const enableUser = (id) =>
   api.post(`/users/${id}/enable`);
 
-export const getLockedAccounts = () =>
-  api.get('/users/locked/list');
-
 // Account unlock (public)
 export const requestUnlock = (email) =>
   api.post('/auth/request-unlock', { email });
@@ -241,16 +229,7 @@ export const requestUnlock = (email) =>
 export const unlockAccount = (token) =>
   api.post('/auth/unlock', { token });
 
-export const checkLockout = (username) =>
-  api.post('/auth/check-lockout', { username });
-
 // Maintenance (admin only)
-export const consolidateMultiFile = () =>
-  api.post('/maintenance/consolidate-multifile');
-
-export const clearLibrary = () =>
-  api.post('/maintenance/clear-library');
-
 export const scanLibrary = (refreshMetadata = false) =>
   api.post('/maintenance/scan-library', { refreshMetadata });
 
@@ -303,21 +282,12 @@ export const uploadAndRestoreBackup = (file, options = {}) => {
   });
 };
 
-export const applyBackupRetention = (keepCount = 7) =>
-  api.post('/backup/retention', { keepCount });
-
 // Favorites
 export const getFavorites = () =>
   api.get('/audiobooks/favorites');
 
 export const toggleFavorite = (id) =>
   api.post(`/audiobooks/${id}/favorite/toggle`);
-
-export const addFavorite = (id) =>
-  api.post(`/audiobooks/${id}/favorite`);
-
-export const removeFavorite = (id) =>
-  api.delete(`/audiobooks/${id}/favorite`);
 
 // Duplicates
 export const getDuplicates = () =>
@@ -372,20 +342,11 @@ export const getCollectionsForBook = (bookId) =>
 export const getRating = (audiobookId) =>
   api.get(`/ratings/audiobook/${audiobookId}`);
 
-export const getAllRatings = (audiobookId) =>
-  api.get(`/ratings/audiobook/${audiobookId}/all`);
-
 export const getAverageRating = (audiobookId) =>
   api.get(`/ratings/audiobook/${audiobookId}/average`);
 
 export const setRating = (audiobookId, rating, review) =>
   api.post(`/ratings/audiobook/${audiobookId}`, { rating, review });
-
-export const deleteRating = (audiobookId) =>
-  api.delete(`/ratings/audiobook/${audiobookId}`);
-
-export const getMyRatings = () =>
-  api.get('/ratings/my-ratings');
 
 // Batch Actions
 export const batchMarkFinished = (audiobookIds) =>
@@ -397,30 +358,8 @@ export const batchClearProgress = (audiobookIds) =>
 export const batchAddToReadingList = (audiobookIds) =>
   api.post('/audiobooks/batch/add-to-reading-list', { audiobook_ids: audiobookIds });
 
-export const batchRemoveFromReadingList = (audiobookIds) =>
-  api.post('/audiobooks/batch/remove-from-reading-list', { audiobook_ids: audiobookIds });
-
 export const batchAddToCollection = (audiobookIds, collectionId) =>
   api.post('/audiobooks/batch/add-to-collection', { audiobook_ids: audiobookIds, collection_id: collectionId });
-
-export const batchDelete = (audiobookIds, deleteFiles = false) =>
-  api.post('/audiobooks/batch/delete', { audiobook_ids: audiobookIds, delete_files: deleteFiles });
-
-// Activity Feed
-export const getActivityFeed = (params) =>
-  api.get('/activity/feed', { params });
-
-export const getPersonalActivity = (params) =>
-  api.get('/activity/personal', { params });
-
-export const getServerActivity = (params) =>
-  api.get('/activity/server', { params });
-
-export const getActivityPrivacy = () =>
-  api.get('/activity/privacy');
-
-export const updateActivityPrivacy = (settings) =>
-  api.put('/activity/privacy', settings);
 
 // MFA (Multi-Factor Authentication)
 export const getMFAStatus = () =>
@@ -453,14 +392,5 @@ export const testEmailConnection = (settings) =>
 
 export const sendTestEmail = (to) =>
   api.post('/email/send-test', { to });
-
-export const getEmailStatus = () =>
-  api.get('/email/status');
-
-export const getNotificationPreferences = () =>
-  api.get('/email/preferences');
-
-export const updateNotificationPreferences = (prefs) =>
-  api.put('/email/preferences', prefs);
 
 export default api;

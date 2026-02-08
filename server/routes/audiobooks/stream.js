@@ -93,7 +93,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         res.json({ message: 'File deleted successfully' });
       } catch (error) {
         console.error('Error deleting file:', error);
-        res.status(500).json({ error: 'Failed to delete file: ' + error.message });
+        res.status(500).json({ error: 'Failed to delete files' });
       }
     });
   });
@@ -204,7 +204,10 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   // Get cover art (uses authenticateMediaToken to allow query string tokens for <img> tags)
   // Supports optional ?width=120|300|600 query parameter for resized thumbnails
   router.get('/:id/cover', authenticateMediaToken, (req, res) => {
-    const audiobookId = req.params.id;
+    const audiobookId = parseInt(req.params.id, 10);
+    if (isNaN(audiobookId)) {
+      return res.status(400).json({ error: 'Invalid audiobook ID' });
+    }
 
     db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [audiobookId], async (err, audiobook) => {
       if (err) {

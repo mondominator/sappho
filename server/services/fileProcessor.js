@@ -941,5 +941,4 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
 module.exports = {
   processAudiobook,
   extractFileMetadata,
-  organizeFile,
 };

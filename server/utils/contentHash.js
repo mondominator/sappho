@@ -53,7 +53,5 @@ function generateBestHash(metadata, filePath) {
 }
 
 module.exports = {
-  generateContentHash,
-  generateFilePathHash,
   generateBestHash
 };

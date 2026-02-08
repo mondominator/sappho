@@ -39,7 +39,7 @@ function register(router, { db, authenticateToken, conversionService }) {
 
     } catch (error) {
       console.error('Error starting conversion:', error);
-      res.status(500).json({ error: 'Failed to start conversion: ' + error.message });
+      res.status(500).json({ error: 'Failed to start conversion' });
     }
   });
 

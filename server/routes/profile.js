@@ -320,10 +320,10 @@ router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
   upload.single('avatar')(req, res, function (err) {
     if (err instanceof multer.MulterError) {
       console.error('[Profile Update] Multer error:', err.message);
-      return res.status(400).json({ error: `Upload error: ${err.message}` });
+      return res.status(400).json({ error: 'Upload failed' });
     } else if (err) {
       console.error('[Profile Update] Upload error:', err.message);
-      return res.status(400).json({ error: 'Internal server error' });
+      return res.status(400).json({ error: 'Upload failed' });
     }
 
     console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');

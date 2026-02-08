@@ -151,10 +151,10 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 
 ### Database
 - `server/database.js` — Schema, connection, migrations runner
-- `server/migrations/` — 23 migration files
+- `server/migrations/` — 24 numbered migrations (001-024)
 
 ### Frontend Player
 - `client/src/components/AudioPlayer.jsx` — Full player implementation
 - `client/src/api.js` — API client, auth interceptors
-- `client/public/sw.js` — Service worker (currently disabled)
-- `client/src/main.jsx` — Entry point (unregisters SW on line 15-23)
+- `client/public/sw.js` — Service worker (tiered caching strategies)
+- `client/src/main.jsx` — Entry point (registers service worker)

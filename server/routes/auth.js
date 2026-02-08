@@ -159,11 +159,13 @@ function createAuthRouter(deps = {}) {
             res.status(201).json({ message: 'User registered successfully', user });
           })
           .catch(error => {
-            res.status(400).json({ error: error.message });
+            console.error('Registration error:', error);
+            res.status(400).json({ error: 'Registration failed' });
           });
       });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      console.error('Registration error:', error);
+      res.status(400).json({ error: 'Registration failed' });
     }
   });
 
@@ -182,7 +184,8 @@ function createAuthRouter(deps = {}) {
       const result = await login(username, password);
       res.json(result);
     } catch (error) {
-      res.status(401).json({ error: error.message });
+      console.error('Login error:', error);
+      res.status(401).json({ error: 'Login failed' });
     }
   });
 
@@ -339,7 +342,7 @@ function createAuthRouter(deps = {}) {
    * POST /api/auth/unlock
    * Validate unlock token and unlock account
    */
-  router.post('/unlock', async (req, res) => {
+  router.post('/unlock', loginLimiter, async (req, res) => {
     try {
       const { token } = req.body;
 
@@ -356,7 +359,7 @@ function createAuthRouter(deps = {}) {
       });
     } catch (error) {
       console.error('Unlock error:', error);
-      res.status(400).json({ error: error.message || 'Invalid or expired unlock token' });
+      res.status(400).json({ error: 'Failed to process unlock request' });
     }
   });
 
@@ -364,7 +367,7 @@ function createAuthRouter(deps = {}) {
    * POST /api/auth/check-lockout
    * Check lockout status (for login page to show unlock option)
    */
-  router.post('/check-lockout', async (req, res) => {
+  router.post('/check-lockout', loginLimiter, async (req, res) => {
     try {
       const { username } = req.body;
 
