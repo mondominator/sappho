@@ -6,16 +6,6 @@
  */
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
-
-// SECURITY: General API rate limiter for authenticated audiobook endpoints
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 120, // 120 requests per minute per IP
-  message: { error: 'Too many requests. Please slow down.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 // Route modules
 const crud = require('./crud');
@@ -81,10 +71,6 @@ function createAudiobooksRouter(deps = {}) {
     GENRE_MAPPINGS,
     DEFAULT_GENRE_METADATA,
   };
-
-  // SECURITY: Apply general rate limiter to all audiobook routes.
-  // Individual modules may apply stricter per-route limiters on top of this.
-  router.use(apiLimiter);
 
   // Register route modules — order matters!
   // Specific path prefixes (/meta/*, /batch/*, /jobs/*) must come before
