@@ -330,7 +330,7 @@ export default function Profile() {
                 onClick={() => navigate(`/audiobook/${book.id}`)}
               >
                 {book.cover_image ? (
-                  <img src={getCoverUrl(book.id)} alt="" className="recent-book-cover" />
+                  <img src={getCoverUrl(book.id)} alt="" className="recent-book-cover" loading="lazy" />
                 ) : (
                   <div className="recent-book-placeholder">{book.title?.charAt(0)}</div>
                 )}

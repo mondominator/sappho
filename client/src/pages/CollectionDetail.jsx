@@ -216,6 +216,7 @@ export default function CollectionDetail() {
                 <img
                   src={getCoverUrl(book.id)}
                   alt={book.title}
+                  loading="lazy"
                   onError={(e) => e.target.src = '/placeholder-cover.png'}
                 />
                 {getProgress(book) > 0 && (

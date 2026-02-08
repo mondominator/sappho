@@ -168,6 +168,7 @@ export default function SearchModal({ isOpen, onClose }) {
                           src={getCoverUrl(book.id)}
                           alt={book.title}
                           className="search-result-cover"
+                          loading="lazy"
                         />
                       )}
                       <div className="search-result-info">

@@ -35,7 +35,14 @@ async function searchAudible(title, author, asin, normalizeGenres) {
       const searchUrl = `https://api.audible.com/1.0/catalog/products?${queryParams.toString()}`;
       console.log(`[Audible Search] ${searchUrl}`);
 
-      const searchResponse = await fetch(searchUrl);
+      const searchController = new AbortController();
+      const searchTimeout = setTimeout(() => searchController.abort(), 10000);
+      let searchResponse;
+      try {
+        searchResponse = await fetch(searchUrl, { signal: searchController.signal });
+      } finally {
+        clearTimeout(searchTimeout);
+      }
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
         if (searchData.products && searchData.products.length > 0) {
@@ -47,7 +54,14 @@ async function searchAudible(title, author, asin, normalizeGenres) {
     // Get full details from Audnexus for each ASIN
     for (const bookAsin of asins.slice(0, 10)) {
       try {
-        const response = await fetch(`https://api.audnex.us/books/${bookAsin}`);
+        const detailController = new AbortController();
+        const detailTimeout = setTimeout(() => detailController.abort(), 10000);
+        let response;
+        try {
+          response = await fetch(`https://api.audnex.us/books/${bookAsin}`, { signal: detailController.signal });
+        } finally {
+          clearTimeout(detailTimeout);
+        }
         if (response.ok) {
           const book = await response.json();
           const genres = book.genres?.filter(g => g.type === 'genre').map(g => g.name) || [];
@@ -101,7 +115,14 @@ async function searchGoogleBooks(title, author, normalizeGenres) {
     const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10`;
     console.log(`[Google Books] ${searchUrl}`);
 
-    const response = await fetch(searchUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(searchUrl, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (response.ok) {
       const data = await response.json();
       if (data.items) {
@@ -165,7 +186,14 @@ async function searchOpenLibrary(title, author, normalizeGenres) {
     const searchUrl = `https://openlibrary.org/search.json?${queryParts.join('&')}&limit=10`;
     console.log(`[Open Library] ${searchUrl}`);
 
-    const response = await fetch(searchUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(searchUrl, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (response.ok) {
       const data = await response.json();
       if (data.docs) {
@@ -370,7 +398,14 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Fetch chapters from Audnexus
-      const response = await fetch(`https://api.audnex.us/books/${asin}/chapters`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      let response;
+      try {
+        response = await fetch(`https://api.audnex.us/books/${asin}/chapters`, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -515,7 +550,14 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         params1.append('author', author);
         params1.append('limit', '10');
 
-        const response1 = await fetch(`https://openlibrary.org/search.json?${params1.toString()}`);
+        const controller1 = new AbortController();
+        const timeout1 = setTimeout(() => controller1.abort(), 10000);
+        let response1;
+        try {
+          response1 = await fetch(`https://openlibrary.org/search.json?${params1.toString()}`, { signal: controller1.signal });
+        } finally {
+          clearTimeout(timeout1);
+        }
         if (response1.ok) {
           const data1 = await response1.json();
           if (data1.docs) {
@@ -534,7 +576,14 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       params2.append('q', query);
       params2.append('limit', '15');
 
-      const response2 = await fetch(`https://openlibrary.org/search.json?${params2.toString()}`);
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 10000);
+      let response2;
+      try {
+        response2 = await fetch(`https://openlibrary.org/search.json?${params2.toString()}`, { signal: controller2.signal });
+      } finally {
+        clearTimeout(timeout2);
+      }
       if (response2.ok) {
         const data2 = await response2.json();
         if (data2.docs) {
@@ -560,7 +609,14 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           params3.append('title', cleanTitle);
           params3.append('limit', '10');
 
-          const response3 = await fetch(`https://openlibrary.org/search.json?${params3.toString()}`);
+          const controller3 = new AbortController();
+          const timeout3 = setTimeout(() => controller3.abort(), 10000);
+          let response3;
+          try {
+            response3 = await fetch(`https://openlibrary.org/search.json?${params3.toString()}`, { signal: controller3.signal });
+          } finally {
+            clearTimeout(timeout3);
+          }
           if (response3.ok) {
             const data3 = await response3.json();
             if (data3.docs) {

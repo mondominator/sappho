@@ -536,6 +536,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
                       src={result.image}
                       alt={result.title}
                       className="result-cover"
+                      loading="lazy"
                     />
                   )}
                   <div className="result-info">
@@ -567,7 +568,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
             <div className="preview-book-info">
               {pendingResult.image && (
-                <img src={pendingResult.image} alt={pendingResult.title} className="preview-cover" />
+                <img src={pendingResult.image} alt={pendingResult.title} className="preview-cover" loading="lazy" />
               )}
               <div className="preview-book-details">
                 <div className="preview-book-title">{pendingResult.title}</div>

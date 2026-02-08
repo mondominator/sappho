@@ -70,6 +70,7 @@ export default function SeriesList() {
                         <img
                           src={getCoverUrl(coverId)}
                           alt={`${series.series} cover ${index + 1}`}
+                          loading="lazy"
                           onError={(e) => e.target.src = '/placeholder-cover.png'}
                         />
                       </div>

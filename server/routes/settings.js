@@ -528,12 +528,15 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
 
     const model = geminiModel || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           contents: [{
             parts: [{
@@ -561,6 +564,8 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
     } catch (error) {
       console.error('Gemini test error:', error);
       res.status(500).json({ error: 'Failed to connect to Gemini API' });
+    } finally {
+      clearTimeout(timeout);
     }
   } else {
     // Test OpenAI
@@ -574,6 +579,8 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
 
     const model = openaiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -581,6 +588,7 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           model: model,
           messages: [{ role: 'user', content: 'Say "Connection successful!" in exactly those words.' }],
@@ -603,6 +611,8 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
     } catch (error) {
       console.error('OpenAI test error:', error);
       res.status(500).json({ error: 'Failed to connect to OpenAI API' });
+    } finally {
+      clearTimeout(timeout);
     }
   }
 });

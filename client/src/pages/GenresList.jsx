@@ -88,6 +88,7 @@ export default function GenresList() {
                           <img
                             src={getCoverUrl(coverId)}
                             alt={`${genreData.genre} cover ${index + 1}`}
+                            loading="lazy"
                             onError={(e) => e.target.style.display = 'none'}
                           />
                         </div>

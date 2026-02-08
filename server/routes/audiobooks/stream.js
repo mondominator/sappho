@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getAudioMimeType } = require('./helpers');
+const { isValidWidth, getOrGenerateThumbnail } = require('../../services/thumbnailService');
 
 function register(router, { db, authenticateToken, authenticateMediaToken, requireAdmin }) {
 
@@ -201,8 +202,11 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   });
 
   // Get cover art (uses authenticateMediaToken to allow query string tokens for <img> tags)
+  // Supports optional ?width=120|300|600 query parameter for resized thumbnails
   router.get('/:id/cover', authenticateMediaToken, (req, res) => {
-    db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
+    const audiobookId = req.params.id;
+
+    db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [audiobookId], async (err, audiobook) => {
       if (err) {
         return res.status(500).json({ error: 'Internal server error' });
       }
@@ -237,9 +241,33 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         return res.status(403).json({ error: 'Invalid cover path' });
       }
 
-      // Cache covers for 7 days -- they rarely change, and ETag handles invalidation
-      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      // Determine if a resized thumbnail was requested
+      const requestedWidth = parseInt(req.query.width, 10);
 
+      if (requestedWidth && isValidWidth(requestedWidth)) {
+        try {
+          const thumbPath = await getOrGenerateThumbnail(resolvedPath, audiobookId, requestedWidth);
+
+          // Build ETag from original cover mtime + requested width for cache validation
+          const originalStat = fs.statSync(resolvedPath);
+          const etag = `"thumb-${originalStat.size}-${originalStat.mtime.getTime()}-${requestedWidth}"`;
+
+          if (req.headers['if-none-match'] === etag) {
+            return res.status(304).end();
+          }
+
+          res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+          res.setHeader('ETag', etag);
+          res.setHeader('Content-Type', 'image/jpeg');
+          return res.sendFile(path.resolve(thumbPath));
+        } catch (thumbErr) {
+          console.error(`Thumbnail generation failed for audiobook ${audiobookId} at width ${requestedWidth}:`, thumbErr.message);
+          // Fall through to serve the original cover on thumbnail failure
+        }
+      }
+
+      // Serve original cover (no width requested, or invalid width, or thumbnail generation failed)
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
       res.sendFile(resolvedPath);
     });
   });

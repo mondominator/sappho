@@ -87,25 +87,25 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 
 ## Phase 4: Performance & Polish
 
-### 4A: API Hardening (2 days)
+### 4A: API Hardening ✅
 - [ ] #296 Add transaction to multi-file upload
-- [ ] #298 Stop leaking DB errors to clients (generic messages)
-- [ ] #299 Add timeouts to external API calls (AbortController)
-- [ ] #300 Fix progress update race condition (keep furthest position)
-- [ ] #272 Replace O(n²) duplicate detection with SQL GROUP BY
+- [x] #298 Stop leaking DB errors to clients (generic messages)
+- [x] #299 Add timeouts to external API calls (AbortController)
+- [x] #300 Fix progress update race condition (completed flag ratchet)
+- [x] #272 Replace O(n²) duplicate detection with SQL GROUP BY
 
-### 4B: Frontend Performance (2 days)
-- [ ] #278 Thumbnail generation with sharp (120px, 300px, 600px)
-- [ ] #292 Add `loading="lazy"` to cover images
-- [ ] #293 Route-based code splitting (React.lazy)
-- [ ] #312 Add compression middleware
+### 4B: Frontend Performance ✅
+- [x] #278 Thumbnail generation with sharp (120px, 300px, 600px)
+- [x] #292 Add `loading="lazy"` to cover images
+- [x] #293 Route-based code splitting (React.lazy)
+- [x] #312 Add compression middleware
 
-### 4C: Infrastructure (2 days)
-- [ ] #285 Re-enable Helmet security headers with Vite-compatible CSP
-- [ ] #286 WebSocket ping/pong heartbeat (30s interval, remove dead connections)
-- [ ] #287 Add ffmpeg conversion process limit (max 2 concurrent)
-- [ ] #302 Add structured logging (pino or winston)
-- [ ] #301 Resource limits in docker-compose
+### 4C: Infrastructure ✅
+- [x] #285 Re-enable Helmet security headers with Vite-compatible CSP
+- [x] #286 WebSocket ping/pong heartbeat (30s interval, remove dead connections)
+- [x] #287 Add ffmpeg conversion process limit (max 2 concurrent)
+- [x] #302 Add structured logging (pino or winston)
+- [x] #301 Resource limits in docker-compose
 
 ---
 
