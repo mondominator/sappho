@@ -30,11 +30,9 @@ COPY --from=frontend-builder /app/client/dist ./client/dist
 
 RUN mkdir -p /app/data/uploads /app/data/watch /app/data/audiobooks /app/data/covers
 
-# Run as non-root user for security
-RUN addgroup -g 1000 sappho && \
-    adduser -D -u 1000 -G sappho sappho && \
-    chown -R sappho:sappho /app /app/data
-USER sappho
+# Run as non-root user for security (node:18-alpine includes 'node' user at UID 1000)
+RUN chown -R node:node /app /app/data
+USER node
 
 EXPOSE 3002
 
