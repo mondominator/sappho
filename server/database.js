@@ -41,6 +41,22 @@ const db = new sqlite3.Database(dbPath, (err) => {
     console.error('Error opening database:', err);
   } else {
     console.log('Connected to SQLite database at:', dbPath);
+    // Enable foreign key constraint enforcement (off by default in SQLite)
+    db.run('PRAGMA foreign_keys = ON', (fkErr) => {
+      if (fkErr) {
+        console.error('Error enabling foreign keys:', fkErr);
+      } else {
+        console.log('Foreign key constraints enabled');
+      }
+    });
+    // Enable Write-Ahead Logging for better concurrent read performance
+    db.run('PRAGMA journal_mode = WAL', (walErr) => {
+      if (walErr) {
+        console.error('Error enabling WAL mode:', walErr);
+      } else {
+        console.log('WAL journal mode enabled');
+      }
+    });
     initializeDatabase();
   }
 });

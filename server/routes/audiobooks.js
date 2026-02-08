@@ -199,7 +199,9 @@ function createAudiobooksRouter(deps = {}) {
 
   // Get all audiobooks
   router.get('/', authenticateToken, (req, res) => {
-  const { genre, author, series, search, favorites, includeUnavailable, limit = 50, offset = 0 } = req.query;
+  const { genre, author, series, search, favorites, includeUnavailable, limit: rawLimit = 50, offset: rawOffset = 0 } = req.query;
+  const limit = Math.min(Math.max(1, parseInt(rawLimit) || 50), 200);
+  const offset = Math.max(0, parseInt(rawOffset) || 0);
   const userId = req.user.id;
 
   let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
@@ -875,6 +877,9 @@ function getAudioMimeType(filePath) {
     '.ogg': 'audio/ogg',
     '.flac': 'audio/flac',
     '.wav': 'audio/wav',
+    '.opus': 'audio/opus',
+    '.aac': 'audio/aac',
+    '.wma': 'audio/x-ms-wma',
   };
   return mimeTypes[ext] || 'audio/mpeg';
 }
@@ -923,8 +928,20 @@ router.get('/:id/stream', authenticateMediaToken, (req, res) => {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+      // Validate range values
+      if (isNaN(start) || start < 0 || start >= fileSize || end < start || end >= fileSize) {
+        res.writeHead(416, { 'Content-Range': `bytes */${fileSize}` });
+        return res.end();
+      }
+
       const chunksize = (end - start) + 1;
       const file = fs.createReadStream(filePath, { start, end });
+      file.on('error', (streamErr) => {
+        console.error('Stream read error:', streamErr.message);
+        if (!res.headersSent) res.status(500).end();
+        else res.end();
+      });
       const head = {
         ...cacheHeaders,
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
@@ -938,7 +955,13 @@ router.get('/:id/stream', authenticateMediaToken, (req, res) => {
         'Content-Length': fileSize,
       };
       res.writeHead(200, head);
-      fs.createReadStream(filePath).pipe(res);
+      const file = fs.createReadStream(filePath);
+      file.on('error', (streamErr) => {
+        console.error('Stream read error:', streamErr.message);
+        if (!res.headersSent) res.status(500).end();
+        else res.end();
+      });
+      file.pipe(res);
     }
   });
 });
