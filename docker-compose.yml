@@ -9,7 +9,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3003
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-to-something-longer-than-32}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required - generate with: openssl rand -base64 32}
       - DATABASE_PATH=/app/data/sappho.db
       - DATA_DIR=/app/data
       - AUDIOBOOKS_DIR=/app/data/audiobooks

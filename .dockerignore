@@ -1,0 +1,14 @@
+node_modules
+client/node_modules
+.git
+.env
+*.log
+coverage
+data
+tests
+.github
+ios
+.dockerignore
+docker-compose.yml
+CLAUDE.md
+README.md

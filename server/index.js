@@ -5,8 +5,9 @@ const helmet = require('helmet');
 const path = require('path');
 const db = require('./database');
 const { createDefaultAdmin } = require('./auth');
-const { startPeriodicScan } = require('./services/libraryScanner');
+const { startPeriodicScan, stopPeriodicScan } = require('./services/libraryScanner');
 const { startScheduledBackups } = require('./services/backupService');
+const conversionService = require('./services/conversionService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -163,6 +164,40 @@ async function initialize() {
     if (backupInterval > 0) {
       startScheduledBackups(backupInterval, backupRetention);
     }
+
+    // Graceful shutdown handler
+    let shuttingDown = false;
+    function gracefulShutdown(signal) {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`\n${signal} received, shutting down gracefully...`);
+
+      // Stop accepting new connections
+      server.close(() => {
+        console.log('HTTP server closed');
+      });
+
+      // Stop background services
+      stopPeriodicScan();
+      conversionService.shutdown();
+      websocketManager.close();
+
+      // Close database connection
+      db.close((err) => {
+        if (err) console.error('Error closing database:', err.message);
+        else console.log('Database connection closed');
+        process.exit(err ? 1 : 0);
+      });
+
+      // Force exit after 30 seconds if graceful shutdown stalls
+      setTimeout(() => {
+        console.error('Forced shutdown after 30s timeout');
+        process.exit(1);
+      }, 30000).unref();
+    }
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   } catch (error) {
     console.error('Failed to initialize server:', error);
     process.exit(1);
