@@ -111,7 +111,8 @@ console.error = (...args) => {
     logBuffer.shift();
     logRotationCount++;
   }
-  originalConsoleError.apply(console, args);
+  // SECURITY: Log redacted message instead of raw args to prevent sensitive data leaks
+  originalConsoleError.call(console, message);
 };
 
 /**

@@ -72,17 +72,13 @@ function extractTagContent(xml, tag) {
   const match = xml.match(regex);
   if (match && match[1]) {
     // Strip any nested HTML/XML tags and decode basic entities
-    const text = match[1]
-      .replace(/<[^>]*>/g, '')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(num))
-      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-      .replace(/<[^>]*>/g, '') // SECURITY: re-strip tags that may appear after entity decoding
-      .trim();
+    // Strip HTML/XML tags, decode entities, then re-strip for safety
+    let text = match[1].replace(/<[^>]*>/g, '');
+    const entityMap = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" };
+    text = text.replace(/&(amp|lt|gt|quot|apos);/gi, (m) => entityMap[m.toLowerCase()] || m);
+    text = text.replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number(num)));
+    text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    text = text.replace(/<[^>]*>/g, '').trim();
     return text || null;
   }
   return null;
