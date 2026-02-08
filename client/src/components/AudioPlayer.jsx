@@ -516,7 +516,9 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   };
 
   const handleTimeUpdate = () => {
-    setCurrentTime(audioRef.current.currentTime);
+    const newTime = audioRef.current.currentTime;
+    // Only trigger re-render when the second changes (~1x/sec instead of ~4x/sec)
+    setCurrentTime(prev => Math.floor(prev) === Math.floor(newTime) ? prev : newTime);
   };
 
   const handleLoadedMetadata = () => {

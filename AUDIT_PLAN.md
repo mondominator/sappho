@@ -80,8 +80,8 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
   - `player/SpeedMenu.jsx` — Playback speed selection
   - `player/SleepTimerMenu.jsx` — Sleep timer selection
   - `player/useProgressSync.js` — 5s progress sync hook
-- [ ] #308 Remove debug console.logs from client
-- [ ] #309 Fix timeupdate re-render (use rAF + refs instead of state)
+- [x] #308 Remove debug console.logs from client ✅
+- [x] #309 Fix timeupdate re-render (throttle to 1x/sec instead of 4x/sec) ✅
 
 ---
 
