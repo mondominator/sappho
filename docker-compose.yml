@@ -17,3 +17,11 @@ services:
       - LIBRARY_SCAN_INTERVAL=5
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://192.168.86.250:3003,http://192.168.86.55:3003
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'

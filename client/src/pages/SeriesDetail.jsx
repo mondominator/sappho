@@ -182,7 +182,7 @@ export default function SeriesDetail({ onPlay }) {
         )}
         <div className="audiobook-cover" onClick={handleCardClick}>
           {book.cover_image ? (
-            <img src={getCoverUrl(book.id)} alt={book.title} onError={(e) => e.target.style.display = 'none'} />
+            <img src={getCoverUrl(book.id)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
           ) : (
             <div className="audiobook-cover-placeholder">
               <h3>{book.title}</h3>

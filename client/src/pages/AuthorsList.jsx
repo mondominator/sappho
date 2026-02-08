@@ -98,6 +98,7 @@ export default function AuthorsList() {
                         <img
                           src={getCoverUrl(coverId)}
                           alt=""
+                          loading="lazy"
                           onError={(e) => e.target.style.display = 'none'}
                         />
                       </div>

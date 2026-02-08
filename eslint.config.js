@@ -23,6 +23,7 @@ module.exports = [
         setImmediate: 'readonly',
         // Node.js 18+ globals
         fetch: 'readonly',
+        AbortController: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
         // Jest globals

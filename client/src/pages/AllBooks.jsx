@@ -413,6 +413,7 @@ export default function AllBooks({ onPlay }) {
             <img
               src={getCoverUrl(book.id)}
               alt={book.title}
+              loading="lazy"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';

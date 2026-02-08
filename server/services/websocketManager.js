@@ -14,6 +14,7 @@ class WebSocketManager {
   constructor() {
     this.wss = null;
     this.clients = new Map(); // WebSocket -> { userId, authenticated }
+    this.heartbeatInterval = null;
   }
 
   /**
@@ -27,6 +28,10 @@ class WebSocketManager {
 
     this.wss.on('connection', (ws, req) => {
       console.log('🔌 New WebSocket connection');
+
+      // Initialize heartbeat tracking for this client
+      ws.isAlive = true;
+      ws.on('pong', () => { ws.isAlive = true; });
 
       // Parse token from query string
       const params = url.parse(req.url, true).query;
@@ -54,6 +59,23 @@ class WebSocketManager {
         type: 'connected',
         message: 'Successfully connected to Sappho notifications',
       });
+    });
+
+    // Ping/pong heartbeat: detect and terminate dead connections every 30s
+    this.heartbeatInterval = setInterval(() => {
+      this.wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+          this.clients.delete(ws);
+          return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, 30000);
+
+    // Clear heartbeat interval when the WebSocket server closes
+    this.wss.on('close', () => {
+      clearInterval(this.heartbeatInterval);
     });
 
     console.log('✅ WebSocket server initialized at /ws/notifications');
@@ -241,6 +263,10 @@ class WebSocketManager {
    * Shutdown
    */
   close() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     if (this.wss) {
       this.wss.close();
     }

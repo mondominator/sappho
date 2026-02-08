@@ -19,14 +19,7 @@ function register(router, { db, authenticateToken }) {
     try {
       console.log('Scanning for duplicate audiobooks...');
 
-      const audiobooks = await dbAll(
-        `SELECT id, title, author, narrator, duration, file_size, file_path,
-                isbn, asin, series, series_position, cover_image, cover_path,
-                created_at
-         FROM audiobooks
-         ORDER BY title, author`
-      );
-
+      // Build progress map
       const progressData = await dbAll(
         `SELECT audiobook_id, COUNT(*) as user_count, MAX(position) as max_position
          FROM playback_progress
@@ -38,86 +31,218 @@ function register(router, { db, authenticateToken }) {
         progressMap.set(p.audiobook_id, { userCount: p.user_count, maxPosition: p.max_position });
       }
 
-      const duplicateGroups = [];
-      const processed = new Set();
+      // Track which book IDs are already assigned to a duplicate group
+      const matched = new Set();
+      // Map from group key to array of book rows
+      const groupMap = new Map();
 
-      for (let i = 0; i < audiobooks.length; i++) {
-        if (processed.has(audiobooks[i].id)) continue;
+      // --- 1. Find duplicates by ISBN ---
+      const isbnDups = await dbAll(
+        `SELECT id, title, author, narrator, duration, file_size, file_path,
+                isbn, asin, series, series_position, cover_image, cover_path,
+                created_at
+         FROM audiobooks
+         WHERE isbn IS NOT NULL AND TRIM(isbn) != ''
+           AND isbn IN (
+             SELECT isbn FROM audiobooks
+             WHERE isbn IS NOT NULL AND TRIM(isbn) != ''
+             GROUP BY isbn
+             HAVING COUNT(*) > 1
+           )
+         ORDER BY isbn, title, author`
+      );
 
-        const book = audiobooks[i];
-        const matches = [book];
+      // Group ISBN duplicates
+      const isbnGroups = new Map();
+      for (const book of isbnDups) {
+        const key = book.isbn;
+        if (!isbnGroups.has(key)) isbnGroups.set(key, []);
+        isbnGroups.get(key).push(book);
+      }
+      for (const [key, books] of isbnGroups) {
+        if (books.length > 1) {
+          const groupKey = `isbn:${key}`;
+          groupMap.set(groupKey, { reason: 'Same ISBN', books });
+          for (const b of books) matched.add(b.id);
+        }
+      }
 
-        for (let j = i + 1; j < audiobooks.length; j++) {
-          if (processed.has(audiobooks[j].id)) continue;
+      // --- 2. Find duplicates by ASIN ---
+      const asinDups = await dbAll(
+        `SELECT id, title, author, narrator, duration, file_size, file_path,
+                isbn, asin, series, series_position, cover_image, cover_path,
+                created_at
+         FROM audiobooks
+         WHERE asin IS NOT NULL AND TRIM(asin) != ''
+           AND id NOT IN (${matched.size > 0 ? [...matched].map(() => '?').join(',') : '0'})
+           AND asin IN (
+             SELECT asin FROM audiobooks
+             WHERE asin IS NOT NULL AND TRIM(asin) != ''
+               AND id NOT IN (${matched.size > 0 ? [...matched].map(() => '?').join(',') : '0'})
+             GROUP BY asin
+             HAVING COUNT(*) > 1
+           )
+         ORDER BY asin, title, author`,
+        [...matched, ...matched]
+      );
 
-          const candidate = audiobooks[j];
-          let isDuplicate = false;
-          let matchReason = '';
+      const asinGroups = new Map();
+      for (const book of asinDups) {
+        const key = book.asin;
+        if (!asinGroups.has(key)) asinGroups.set(key, []);
+        asinGroups.get(key).push(book);
+      }
+      for (const [key, books] of asinGroups) {
+        if (books.length > 1) {
+          const groupKey = `asin:${key}`;
+          groupMap.set(groupKey, { reason: 'Same ASIN', books });
+          for (const b of books) matched.add(b.id);
+        }
+      }
 
-          // Match by ISBN/ASIN (exact match)
-          if (book.isbn && candidate.isbn && book.isbn === candidate.isbn) {
-            isDuplicate = true;
-            matchReason = 'Same ISBN';
-          } else if (book.asin && candidate.asin && book.asin === candidate.asin) {
-            isDuplicate = true;
-            matchReason = 'Same ASIN';
+      // --- 3. Find duplicates by title + author ---
+      const titleAuthorDups = await dbAll(
+        `SELECT id, title, author, narrator, duration, file_size, file_path,
+                isbn, asin, series, series_position, cover_image, cover_path,
+                created_at
+         FROM audiobooks
+         WHERE title IS NOT NULL AND TRIM(title) != ''
+           AND author IS NOT NULL AND TRIM(author) != ''
+           AND id NOT IN (${matched.size > 0 ? [...matched].map(() => '?').join(',') : '0'})
+           AND (LOWER(TRIM(title)) || '|||' || LOWER(TRIM(author))) IN (
+             SELECT LOWER(TRIM(title)) || '|||' || LOWER(TRIM(author))
+             FROM audiobooks
+             WHERE title IS NOT NULL AND TRIM(title) != ''
+               AND author IS NOT NULL AND TRIM(author) != ''
+               AND id NOT IN (${matched.size > 0 ? [...matched].map(() => '?').join(',') : '0'})
+             GROUP BY LOWER(TRIM(title)), LOWER(TRIM(author))
+             HAVING COUNT(*) > 1
+           )
+         ORDER BY LOWER(TRIM(title)), LOWER(TRIM(author))`,
+        [...matched, ...matched]
+      );
+
+      const titleAuthorGroups = new Map();
+      for (const book of titleAuthorDups) {
+        const key = `${book.title.toLowerCase().trim()}|||${book.author.toLowerCase().trim()}`;
+        if (!titleAuthorGroups.has(key)) titleAuthorGroups.set(key, []);
+        titleAuthorGroups.get(key).push(book);
+      }
+      for (const [key, books] of titleAuthorGroups) {
+        if (books.length > 1) {
+          const groupKey = `titleauthor:${key}`;
+          groupMap.set(groupKey, { reason: 'Same title and author', books });
+          for (const b of books) matched.add(b.id);
+        }
+      }
+
+      // --- 4. Fuzzy duration/size match on remaining unmatched books ---
+      // Only fetch books not already in a duplicate group
+      const remainingBooks = await dbAll(
+        `SELECT id, title, author, narrator, duration, file_size, file_path,
+                isbn, asin, series, series_position, cover_image, cover_path,
+                created_at
+         FROM audiobooks
+         WHERE duration IS NOT NULL AND duration > 0
+           AND file_size IS NOT NULL AND file_size > 0
+           AND title IS NOT NULL AND TRIM(title) != ''
+           AND id NOT IN (${matched.size > 0 ? [...matched].map(() => '?').join(',') : '0'})
+         ORDER BY title, author`,
+        [...matched]
+      );
+
+      // Group remaining books by normalized title to avoid full O(n^2)
+      const normalizedTitleGroups = new Map();
+      for (const book of remainingBooks) {
+        const normalizedTitle = book.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!normalizedTitle) continue;
+        if (!normalizedTitleGroups.has(normalizedTitle)) normalizedTitleGroups.set(normalizedTitle, []);
+        normalizedTitleGroups.get(normalizedTitle).push(book);
+      }
+
+      // Also check for substring matches between normalized title keys
+      // Build a list of title keys that have potential substring overlaps
+      const titleKeys = [...normalizedTitleGroups.keys()].sort();
+      const mergedTitleBuckets = new Map(); // bucket key -> array of books
+      const keyToBucket = new Map(); // title key -> bucket key
+
+      for (const key of titleKeys) {
+        if (keyToBucket.has(key)) continue;
+        // Check if this key is a substring of or contains any existing bucket key
+        let assignedBucket = null;
+        for (const [bucketKey] of mergedTitleBuckets) {
+          if (key.includes(bucketKey) || bucketKey.includes(key)) {
+            assignedBucket = bucketKey;
+            break;
           }
-          // Match by title + author (case-insensitive, trimmed)
-          else if (book.title && candidate.title && book.author && candidate.author) {
-            const titleMatch = book.title.toLowerCase().trim() === candidate.title.toLowerCase().trim();
-            const authorMatch = book.author.toLowerCase().trim() === candidate.author.toLowerCase().trim();
-            if (titleMatch && authorMatch) {
-              isDuplicate = true;
-              matchReason = 'Same title and author';
-            }
-          }
-          // Match by similar duration + file size (within tolerance)
-          else if (book.duration && candidate.duration && book.file_size && candidate.file_size) {
+        }
+        if (assignedBucket) {
+          keyToBucket.set(key, assignedBucket);
+          mergedTitleBuckets.get(assignedBucket).push(...normalizedTitleGroups.get(key));
+        } else {
+          keyToBucket.set(key, key);
+          mergedTitleBuckets.set(key, [...normalizedTitleGroups.get(key)]);
+        }
+      }
+
+      // Within each bucket, do pairwise duration/size comparison (bucket sizes are small)
+      for (const [, bucketBooks] of mergedTitleBuckets) {
+        if (bucketBooks.length < 2) continue;
+
+        const fuzzyProcessed = new Set();
+        for (let i = 0; i < bucketBooks.length; i++) {
+          if (fuzzyProcessed.has(bucketBooks[i].id)) continue;
+          const book = bucketBooks[i];
+          const fuzzyMatches = [book];
+
+          for (let j = i + 1; j < bucketBooks.length; j++) {
+            if (fuzzyProcessed.has(bucketBooks[j].id)) continue;
+            const candidate = bucketBooks[j];
+
             const durationDiff = Math.abs(book.duration - candidate.duration) / Math.max(book.duration, candidate.duration);
             const sizeDiff = Math.abs(book.file_size - candidate.file_size) / Math.max(book.file_size, candidate.file_size);
+
             if (durationDiff < 0.02 && sizeDiff < 0.15) {
-              if (book.title && candidate.title) {
-                const t1 = book.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const t2 = candidate.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (t1 === t2 || t1.includes(t2) || t2.includes(t1)) {
-                  isDuplicate = true;
-                  matchReason = 'Similar duration and file size';
-                }
-              }
+              // Title similarity already guaranteed by being in the same bucket
+              fuzzyMatches.push(candidate);
+              fuzzyProcessed.add(candidate.id);
             }
           }
 
-          if (isDuplicate) {
-            candidate.matchReason = matchReason;
-            matches.push(candidate);
-            processed.add(candidate.id);
+          if (fuzzyMatches.length > 1) {
+            const groupKey = `fuzzy:${book.id}`;
+            groupMap.set(groupKey, { reason: 'Similar duration and file size', books: fuzzyMatches });
+            for (const b of fuzzyMatches) matched.add(b.id);
+            fuzzyProcessed.add(book.id);
           }
         }
+      }
 
-        if (matches.length > 1) {
-          const matchesWithProgress = matches.map(m => ({
-            ...m,
-            progress: progressMap.get(m.id) || { userCount: 0, maxPosition: 0 },
-            hasCover: !!(m.cover_image || m.cover_path),
-            hasUserCover: !!m.cover_path,
-          }));
+      // --- Build response ---
+      const duplicateGroups = [];
+      let groupIndex = 1;
 
-          matchesWithProgress.sort((a, b) => {
-            if (a.hasUserCover !== b.hasUserCover) return b.hasUserCover - a.hasUserCover;
-            if (a.progress.userCount !== b.progress.userCount) return b.progress.userCount - a.progress.userCount;
-            if (a.file_size !== b.file_size) return (b.file_size || 0) - (a.file_size || 0);
-            return new Date(a.created_at) - new Date(b.created_at);
-          });
+      for (const [, group] of groupMap) {
+        const matchesWithProgress = group.books.map(m => ({
+          ...m,
+          progress: progressMap.get(m.id) || { userCount: 0, maxPosition: 0 },
+          hasCover: !!(m.cover_image || m.cover_path),
+          hasUserCover: !!m.cover_path,
+        }));
 
-          duplicateGroups.push({
-            id: `group-${duplicateGroups.length + 1}`,
-            matchReason: matches[1].matchReason,
-            books: matchesWithProgress,
-            suggestedKeep: matchesWithProgress[0].id,
-          });
+        matchesWithProgress.sort((a, b) => {
+          if (a.hasUserCover !== b.hasUserCover) return b.hasUserCover - a.hasUserCover;
+          if (a.progress.userCount !== b.progress.userCount) return b.progress.userCount - a.progress.userCount;
+          if (a.file_size !== b.file_size) return (b.file_size || 0) - (a.file_size || 0);
+          return new Date(a.created_at) - new Date(b.created_at);
+        });
 
-          processed.add(book.id);
-        }
+        duplicateGroups.push({
+          id: `group-${groupIndex++}`,
+          matchReason: group.reason,
+          books: matchesWithProgress,
+          suggestedKeep: matchesWithProgress[0].id,
+        });
       }
 
       console.log(`Found ${duplicateGroups.length} duplicate groups`);
