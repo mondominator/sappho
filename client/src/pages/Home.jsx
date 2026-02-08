@@ -65,25 +65,21 @@ export default function Home({ onPlay }) {
   useEffect(() => {
     // Refresh when a new book is added
     const unsubAdd = subscribe('library.add', () => {
-      console.log('📚 New book added, refreshing home page');
       loadSpecialSections();
     });
 
     // Refresh when a book is updated
     const unsubUpdate = subscribe('library.update', () => {
-      console.log('📚 Book updated, refreshing home page');
       loadSpecialSections();
     });
 
     // Refresh when a book is deleted
     const unsubDelete = subscribe('library.delete', () => {
-      console.log('📚 Book deleted, refreshing home page');
       loadSpecialSections();
     });
 
     // Refresh when progress changes (from another device)
     const unsubProgress = subscribe('progress.update', () => {
-      console.log('📚 Progress updated, refreshing home page');
       loadSpecialSections();
     });
 
