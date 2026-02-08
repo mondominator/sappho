@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
+const { generateContentHash } = require('../utils/contentHash');
 
 /**
  * Default dependencies - used when route is required directly
@@ -1183,6 +1184,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Recalculate content hash if title or author changed to keep dedup in sync
+    const newTitle = title !== undefined ? title : currentBook.title;
+    const newAuthor = author !== undefined ? author : currentBook.author;
+    const contentHash = generateContentHash(newTitle, newAuthor, currentBook.duration);
+
     // Update database with new metadata (keep current file_path for now)
     await new Promise((resolve, reject) => {
       db.run(
@@ -1190,14 +1196,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
          SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
              series = ?, series_position = ?, published_year = ?, copyright_year = ?,
              publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
-             cover_path = ?, cover_image = ?,
+             cover_path = ?, cover_image = ?, content_hash = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           title, subtitle, author, narrator, sanitizeHtml(description), genre, tags,
           series, series_position, published_year, copyright_year,
           publisher, isbn, asin, language, rating, abridged ? 1 : 0,
-          newCoverPath, newCoverImage,
+          newCoverPath, newCoverImage, contentHash,
           req.params.id
         ],
         function (err) {
@@ -1804,6 +1810,9 @@ router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req
 
     const hasChapters = chapters && chapters.length > 1;
 
+    // Recalculate content hash to keep dedup in sync with refreshed metadata
+    const contentHash = generateContentHash(metadata.title, metadata.author, metadata.duration);
+
     // Update database with new metadata (including extended fields)
     await new Promise((resolve, reject) => {
       db.run(
@@ -1813,6 +1822,7 @@ router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req
              duration = ?, is_multi_file = ?, isbn = ?,
              tags = ?, publisher = ?, copyright_year = ?, asin = ?,
              language = ?, rating = ?, abridged = ?, subtitle = ?,
+             content_hash = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
@@ -1836,6 +1846,7 @@ router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req
           metadata.rating,
           metadata.abridged ? 1 : 0,
           metadata.subtitle,
+          contentHash,
           req.params.id
         ],
         (err) => {
