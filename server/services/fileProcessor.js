@@ -808,10 +808,11 @@ async function saveCoverArt(picture, audioFilePath) {
       fs.mkdirSync(coversDir, { recursive: true });
     }
 
-    // Generate unique filename based on full audio file path to avoid collisions
-    const hash = crypto.createHash('sha256').update(audioFilePath).digest('hex').substring(0, 16);
+    // Generate unique filename using a hash of the full file path to avoid collisions
+    const crypto = require('crypto');
+    const pathHash = crypto.createHash('md5').update(audioFilePath).digest('hex').slice(0, 12);
     const ext = picture.format.split('/')[1] || 'jpg';
-    const coverPath = path.join(coversDir, `${hash}.${ext}`);
+    const coverPath = path.join(coversDir, `${pathHash}.${ext}`);
 
     // Write cover image to file
     fs.writeFileSync(coverPath, picture.data);

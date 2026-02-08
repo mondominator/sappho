@@ -44,11 +44,11 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 - [x] #263 Add backup before metadata embedding
 - [x] #264 Implement tag preservation (merge, don't overwrite)
 
-### 2C: Scanner & Covers (2 days)
-- [ ] #274 Fix M4B subdirectory merging (remove `!hasM4BFiles` condition)
-- [ ] #275 Batch DB queries during scan (load paths into memory Set)
-- [ ] #276 Fix cover filename collision (use audiobook ID or content hash)
-- [ ] #277 Add HTTP caching headers on cover endpoint
+### 2C: Scanner & Covers ✅ COMPLETE
+- [x] #274 Fix M4B subdirectory merging (remove `!hasM4BFiles` condition)
+- [x] #275 Batch DB queries during scan (load paths into memory Set)
+- [x] #276 Fix cover filename collision (use audiobook ID or content hash)
+- [x] #277 Add HTTP caching headers on cover endpoint
 
 ---
 
