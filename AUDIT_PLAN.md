@@ -73,15 +73,13 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
   - `routes/maintenance/cleanup.js` — Orphan directories, library organization
 
 ### 3B: Frontend Split (2-3 days)
-- [ ] #304 Extract `AudioPlayer.jsx` (1,845 lines) into smaller components:
-  - `player/AudioPlayer.jsx` — Orchestrator
-  - `player/PlaybackControls.jsx`
-  - `player/ProgressBar.jsx`
-  - `player/ChapterList.jsx`
-  - `player/SleepTimer.jsx`
-  - `player/FullscreenPlayer.jsx`
-  - `player/useAudioPlayback.js` — Custom hook
-  - `player/useProgressSync.js` — Custom hook
+- [x] #304 Extract `AudioPlayer.jsx` (1,845→1,373 lines) into sub-components:
+  - `player/PlaybackControls.jsx` — Reusable play/pause/skip (desktop + fullscreen)
+  - `player/FullscreenPlayer.jsx` — Fullscreen view with progress bar
+  - `player/ChapterModal.jsx` — Chapter list modal
+  - `player/SpeedMenu.jsx` — Playback speed selection
+  - `player/SleepTimerMenu.jsx` — Sleep timer selection
+  - `player/useProgressSync.js` — 5s progress sync hook
 - [ ] #308 Remove debug console.logs from client
 - [ ] #309 Fix timeupdate re-render (use rAF + refs instead of state)
 
@@ -148,7 +146,7 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 | File | Lines | Issue |
 |------|-------|-------|
 | `server/routes/audiobooks.js` | 3,259 | #303 ✅ Split into 7 modules |
-| `client/src/components/AudioPlayer.jsx` | 1,845 | #304 |
+| `client/src/components/AudioPlayer.jsx` | 1,373 | #304 ✅ |
 | `server/routes/maintenance.js` | 1,655 | #306 ✅ Split into 5 modules |
 | `server/services/libraryScanner.js` | 1,042 | OK for now |
 | `client/src/pages/AudiobookDetail.jsx` | 877 | Could split later |
