@@ -83,23 +83,30 @@ class WebSocketManager {
       const crypto = require('crypto');
       const keyHash = crypto.createHash('sha256').update(token).digest('hex');
 
-      try {
-        const key = db.get('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1', [keyHash]);
-        if (key && (!key.expires_at || new Date(key.expires_at) >= new Date())) {
-          const user = db.get('SELECT id, username FROM users WHERE id = ?', [key.user_id]);
-          if (user) {
-            this.clients.set(ws, {
-              userId: user.id,
-              username: user.username,
-              authenticated: true,
-            });
-            console.log(`✅ WebSocket client authenticated (API Key): ${user.username}`);
+      db.get('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1', [keyHash], (err, key) => {
+        if (err) {
+          console.error('API key auth error:', err.message);
+          ws.close(1008, 'Authentication error');
+          return;
+        }
+        if (!key || (key.expires_at && new Date(key.expires_at) < new Date())) {
+          ws.close(1008, 'Invalid or expired API key');
+          return;
+        }
+        db.get('SELECT id, username FROM users WHERE id = ?', [key.user_id], (userErr, user) => {
+          if (userErr || !user) {
+            ws.close(1008, 'API key user not found');
             return;
           }
-        }
-      } catch (error) {
-        console.error('API key auth error:', error.message);
-      }
+          this.clients.set(ws, {
+            userId: user.id,
+            username: user.username,
+            authenticated: true,
+          });
+          console.log(`✅ WebSocket client authenticated (API Key): ${user.username}`);
+        });
+      });
+      return;
     }
 
     // Authentication failed

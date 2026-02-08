@@ -889,31 +889,38 @@ router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, 
 
       console.log(`Found ${beforeCount} audiobooks to process`);
 
-      // Mark all audiobooks as unavailable (instead of deleting)
-      // This preserves: IDs, user progress, favorites, ratings, user-set covers
+      // Mark all audiobooks as unavailable and delete chapters atomically.
+      // Using a transaction so if anything fails, we can roll back cleanly
+      // instead of ending up with deleted chapters but no rescan.
       await new Promise((resolve, reject) => {
-        db.run(
-          'UPDATE audiobooks SET is_available = 0, original_path = file_path',
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+        db.run('BEGIN TRANSACTION', (beginErr) => {
+          if (beginErr) return reject(beginErr);
 
-      console.log('All audiobooks marked as unavailable');
+          db.run(
+            'UPDATE audiobooks SET is_available = 0, original_path = file_path',
+            (updateErr) => {
+              if (updateErr) {
+                return db.run('ROLLBACK', () => reject(updateErr));
+              }
 
-      // Delete chapters - they will be recreated during rescan
-      await new Promise((resolve, reject) => {
-        db.run('DELETE FROM audiobook_chapters', (err) => {
-          if (err) {
-            console.error('Error deleting chapters:', err);
-            reject(err);
-          } else {
-            resolve();
-          }
+              db.run('DELETE FROM audiobook_chapters', (deleteErr) => {
+                if (deleteErr) {
+                  return db.run('ROLLBACK', () => reject(deleteErr));
+                }
+
+                db.run('COMMIT', (commitErr) => {
+                  if (commitErr) {
+                    return db.run('ROLLBACK', () => reject(commitErr));
+                  }
+                  resolve();
+                });
+              });
+            }
+          );
         });
       });
+
+      console.log('All audiobooks marked as unavailable, chapters cleared (transaction committed)');
 
       console.log('Chapters cleared, rescanning library...');
 

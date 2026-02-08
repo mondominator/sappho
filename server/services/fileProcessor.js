@@ -583,7 +583,7 @@ async function extractFileMetadata(filePath) {
       narrator: narrator,
       description: meaningfulDescription,
       duration: format.duration ? Math.round(format.duration) : null,
-      genre: common.genre ? common.genre.join(', ') : null,
+      genre: common.genre ? (Array.isArray(common.genre) ? common.genre.join(', ') : String(common.genre)) : null,
       published_year: published_year,
       isbn: isbn,
       series: series,
