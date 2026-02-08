@@ -72,9 +72,9 @@ function extractTagContent(xml, tag) {
   const match = xml.match(regex);
   if (match && match[1]) {
     // Strip any nested HTML/XML tags and decode basic entities
-    // Strip HTML/XML tags, then decode safe entities
-    // SECURITY: Do NOT decode &lt;/&gt; to <> as this could recreate HTML tags
-    let text = match[1].replace(/<[^>]*>/g, '');
+    // SECURITY: Produce clean plain text from XML content
+    // Strip well-formed tags, then remove any remaining angle brackets
+    let text = String(match[1]).replace(/<[^>]*>/g, '').replace(/[<>]/g, '');
     const entityMap = { '&amp;': '&', '&quot;': '"', '&apos;': "'" };
     text = text.replace(/&(amp|quot|apos);/gi, (m) => entityMap[m.toLowerCase()] || m);
     text = text.replace(/&lt;/gi, '').replace(/&gt;/gi, '');
