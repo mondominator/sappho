@@ -51,13 +51,19 @@ function sanitizeHtml(text) {
   if (!text) return text;
   // Step 1: Strip all HTML tags
   let cleaned = text.replace(/<[^>]*>/g, '');
-  // Step 2: Decode HTML entities to plain text
-  const entityMap = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'" };
-  cleaned = cleaned.replace(/&(nbsp|amp|lt|gt|quot|#39|apos);/gi, (match) => entityMap[match.toLowerCase()] || match);
-  cleaned = cleaned.replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number(num)));
-  cleaned = cleaned.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-  // Step 3: Final safety pass - strip any tags that emerged from entity decoding
-  cleaned = cleaned.replace(/<[^>]*>/g, '');
+  // Step 2: Decode safe HTML entities to plain text
+  // SECURITY: Do NOT decode &lt;/&gt; to <> as this could recreate HTML tags (e.g. &lt;script&gt;)
+  const entityMap = { '&nbsp;': ' ', '&amp;': '&', '&quot;': '"', '&#39;': "'", '&apos;': "'" };
+  cleaned = cleaned.replace(/&(nbsp|amp|quot|#39|apos);/gi, (match) => entityMap[match.toLowerCase()] || match);
+  cleaned = cleaned.replace(/&lt;/gi, '').replace(/&gt;/gi, '');
+  cleaned = cleaned.replace(/&#(\d+);/g, (_, num) => {
+    const ch = Number(num);
+    return (ch === 60 || ch === 62) ? '' : String.fromCharCode(ch); // skip < and >
+  });
+  cleaned = cleaned.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+    const ch = parseInt(hex, 16);
+    return (ch === 0x3C || ch === 0x3E) ? '' : String.fromCharCode(ch); // skip < and >
+  });
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 

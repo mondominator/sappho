@@ -72,13 +72,21 @@ function extractTagContent(xml, tag) {
   const match = xml.match(regex);
   if (match && match[1]) {
     // Strip any nested HTML/XML tags and decode basic entities
-    // Strip HTML/XML tags, decode entities, then re-strip for safety
+    // Strip HTML/XML tags, then decode safe entities
+    // SECURITY: Do NOT decode &lt;/&gt; to <> as this could recreate HTML tags
     let text = match[1].replace(/<[^>]*>/g, '');
-    const entityMap = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" };
-    text = text.replace(/&(amp|lt|gt|quot|apos);/gi, (m) => entityMap[m.toLowerCase()] || m);
-    text = text.replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number(num)));
-    text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-    text = text.replace(/<[^>]*>/g, '').trim();
+    const entityMap = { '&amp;': '&', '&quot;': '"', '&apos;': "'" };
+    text = text.replace(/&(amp|quot|apos);/gi, (m) => entityMap[m.toLowerCase()] || m);
+    text = text.replace(/&lt;/gi, '').replace(/&gt;/gi, '');
+    text = text.replace(/&#(\d+);/g, (_, num) => {
+      const ch = Number(num);
+      return (ch === 60 || ch === 62) ? '' : String.fromCharCode(ch);
+    });
+    text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      const ch = parseInt(hex, 16);
+      return (ch === 0x3C || ch === 0x3E) ? '' : String.fromCharCode(ch);
+    });
+    text = text.trim();
     return text || null;
   }
   return null;
