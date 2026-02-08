@@ -5,8 +5,11 @@
 const fs = require('fs');
 const path = require('path');
 const { maintenanceLimiter, maintenanceWriteLimiter } = require('./helpers');
+const { createDbHelpers } = require('../../utils/db');
 
 function register(router, { db, authenticateToken, organizeLibrary, getOrganizationPreview, organizeAudiobook, isScanningLocked, lockScanning, unlockScanning }) {
+  const { dbGet, dbAll } = createDbHelpers(db);
+
   // GET /orphan-directories - Scan for orphan directories
   router.get('/orphan-directories', maintenanceLimiter, authenticateToken, async (req, res) => {
     if (!req.user.is_admin) {
@@ -19,17 +22,12 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
       const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../../data/audiobooks');
 
       // Get all tracked file paths from database (normalized)
-      const trackedFilesRaw = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT file_path FROM audiobooks WHERE is_available = 1 OR is_available IS NULL
-           UNION
-           SELECT file_path FROM audiobook_chapters`,
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve((rows || []).map(r => r.file_path));
-          }
-        );
-      });
+      const trackedRows = await dbAll(
+        `SELECT file_path FROM audiobooks WHERE is_available = 1 OR is_available IS NULL
+         UNION
+         SELECT file_path FROM audiobook_chapters`
+      );
+      const trackedFilesRaw = trackedRows.map(r => r.file_path);
 
       // Normalize paths and create a set of tracked directories
       const trackedFiles = new Set(trackedFilesRaw.map(f => path.normalize(f)));
@@ -278,13 +276,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
     const { id } = req.params;
 
     try {
-      // Get the audiobook
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
