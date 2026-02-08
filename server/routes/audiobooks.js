@@ -2249,6 +2249,9 @@ router.get('/:id/cover', authenticateMediaToken, (req, res) => {
       return res.status(403).json({ error: 'Invalid cover path' });
     }
 
+    // Cache covers for 7 days — they rarely change, and ETag handles invalidation
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+
     res.sendFile(resolvedPath);
   });
 });
