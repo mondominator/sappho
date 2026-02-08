@@ -17,7 +17,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
    */
   function executeListQuery(req, res, { useFts = true } = {}) {
     const { genre, author, series, search, favorites, includeUnavailable, limit: rawLimit = 50, offset: rawOffset = 0 } = req.query;
-    const limit = Math.min(Math.max(1, parseInt(rawLimit) || 50), 200);
+    const limit = Math.min(Math.max(1, parseInt(rawLimit) || 50), 2000);
     const offset = Math.max(0, parseInt(rawOffset) || 0);
     const userId = req.user.id;
 
