@@ -49,20 +49,20 @@ function clearSessionId(userId, audiobookId) {
  */
 function sanitizeHtml(text) {
   if (!text) return text;
-  // Step 1: Strip all HTML tags
-  let cleaned = text.replace(/<[^>]*>/g, '');
-  // Step 2: Decode safe HTML entities to plain text
-  // SECURITY: Do NOT decode &lt;/&gt; to <> as this could recreate HTML tags (e.g. &lt;script&gt;)
+  // SECURITY: Produce clean plain text from HTML input
+  // Step 1: Strip well-formed HTML tags, then remove any remaining angle brackets
+  let cleaned = String(text).replace(/<[^>]*>/g, '').replace(/[<>]/g, '');
+  // Step 2: Decode safe HTML entities to plain text (skip lt/gt to prevent re-creating tags)
   const entityMap = { '&nbsp;': ' ', '&amp;': '&', '&quot;': '"', '&#39;': "'", '&apos;': "'" };
   cleaned = cleaned.replace(/&(nbsp|amp|quot|#39|apos);/gi, (match) => entityMap[match.toLowerCase()] || match);
   cleaned = cleaned.replace(/&lt;/gi, '').replace(/&gt;/gi, '');
   cleaned = cleaned.replace(/&#(\d+);/g, (_, num) => {
     const ch = Number(num);
-    return (ch === 60 || ch === 62) ? '' : String.fromCharCode(ch); // skip < and >
+    return (ch === 60 || ch === 62) ? '' : String.fromCharCode(ch);
   });
   cleaned = cleaned.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
     const ch = parseInt(hex, 16);
-    return (ch === 0x3C || ch === 0x3E) ? '' : String.fromCharCode(ch); // skip < and >
+    return (ch === 0x3C || ch === 0x3E) ? '' : String.fromCharCode(ch);
   });
   return cleaned.replace(/\s+/g, ' ').trim();
 }
