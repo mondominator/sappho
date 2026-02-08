@@ -55,7 +55,7 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 ## Phase 3: Code Architecture
 
 ### 3A: Backend Split (3-4 days)
-- [ ] #303 Split `audiobooks.js` (3,259 lines) into 7 route modules:
+- [x] #303 Split `audiobooks.js` (3,259 lines) into 7 route modules:
   - `routes/audiobooks/index.js` — Core CRUD
   - `routes/audiobooks/metadata.js` — External API searches, refresh, embed
   - `routes/audiobooks/stream.js` — Stream and download
@@ -65,7 +65,12 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
   - `routes/audiobooks/batch.js` — Batch operations, favorites, recaps
 - [ ] #305 Create `utils/db.js` abstraction layer (promisified queries, async/await everywhere)
 - [ ] #307 Extract duplicated query helpers
-- [ ] #306 Split `maintenance.js` (1,655 lines)
+- [x] #306 Split `maintenance.js` (1,655 lines) into 5 route modules:
+  - `routes/maintenance/logs.js` — Log viewing, clearing, job status
+  - `routes/maintenance/statistics.js` — Library statistics, format breakdowns
+  - `routes/maintenance/library.js` — Consolidate, clear, scan, migrate, force rescan
+  - `routes/maintenance/duplicates.js` — Duplicate detection and merging
+  - `routes/maintenance/cleanup.js` — Orphan directories, library organization
 
 ### 3B: Frontend Split (2-3 days)
 - [ ] #304 Extract `AudioPlayer.jsx` (1,845 lines) into smaller components:
@@ -142,9 +147,9 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 ### Largest Files (refactoring targets)
 | File | Lines | Issue |
 |------|-------|-------|
-| `server/routes/audiobooks.js` | 3,259 | #303 |
+| `server/routes/audiobooks.js` | 3,259 | #303 ✅ Split into 7 modules |
 | `client/src/components/AudioPlayer.jsx` | 1,845 | #304 |
-| `server/routes/maintenance.js` | 1,655 | #306 |
+| `server/routes/maintenance.js` | 1,655 | #306 ✅ Split into 5 modules |
 | `server/services/libraryScanner.js` | 1,042 | OK for now |
 | `client/src/pages/AudiobookDetail.jsx` | 877 | Could split later |
 
@@ -152,7 +157,7 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 - `server/services/fileProcessor.js` — Tag reading (music-metadata)
 - `server/services/libraryScanner.js` — File discovery, chapter extraction (ffprobe)
 - `server/services/metadataScraper.js` — Google Books API enrichment
-- `server/routes/audiobooks.js:1252-1533` — Tag writing (tone for M4B, ffmpeg for MP3)
+- `server/routes/audiobooks/metadata.js` — Tag writing (tone for M4B, ffmpeg for MP3)
 
 ### Database
 - `server/database.js` — Schema, connection, migrations runner
