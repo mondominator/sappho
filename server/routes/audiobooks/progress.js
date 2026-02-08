@@ -88,8 +88,12 @@ function register(router, { db, authenticateToken, activityService }) {
       `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
-         position = excluded.position,
-         completed = excluded.completed,
+         position = CASE
+           WHEN excluded.completed = 1 THEN excluded.position
+           WHEN excluded.position >= position THEN excluded.position
+           ELSE position
+         END,
+         completed = CASE WHEN excluded.completed = 1 THEN 1 ELSE completed END,
          updated_at = excluded.updated_at,
          queued_at = CASE WHEN excluded.position > 0 THEN NULL ELSE queued_at END`,
       [userId, audiobookId, position, completed],
