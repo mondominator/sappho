@@ -27,6 +27,10 @@ export default function Profile() {
   });
   const [stats, setStats] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+
+  // SECURITY: Validate avatar URL scheme to prevent XSS via javascript: URIs
+  const safeAvatarSrc = avatarPreview && (avatarPreview.startsWith('/') || avatarPreview.startsWith('blob:'))
+    ? avatarPreview : null;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -269,8 +273,8 @@ export default function Profile() {
       {/* Header with avatar */}
       <div className="profile-header">
         <div className="profile-avatar-wrapper" onClick={handleAvatarClick}>
-          {avatarPreview ? (
-            <img src={avatarPreview} alt="Profile avatar" className="profile-avatar" />
+          {safeAvatarSrc ? (
+            <img src={safeAvatarSrc} alt="Profile avatar" className="profile-avatar" />
           ) : (
             <div className="profile-avatar-placeholder">
               {(profile.displayName || profile.username || '?').charAt(0).toUpperCase()}

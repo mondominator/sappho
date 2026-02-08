@@ -237,7 +237,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
         fs.unlinkSync(file.path);
         movedFiles.push(newPath);
       } catch (moveError) {
-        console.error(`Failed to move file ${safeName}:`, moveError);
+        console.error('Failed to move uploaded file:', moveError.message);
         // Clean up already moved files
         for (const movedFile of movedFiles) {
           if (fs.existsSync(movedFile)) fs.unlinkSync(movedFile);

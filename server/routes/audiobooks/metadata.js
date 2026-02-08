@@ -384,6 +384,11 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       return res.status(400).json({ error: 'ASIN is required' });
     }
 
+    // SECURITY: Validate ASIN format to prevent SSRF (alphanumeric, 10 chars)
+    if (!/^[A-Z0-9]{10}$/.test(asin)) {
+      return res.status(400).json({ error: 'Invalid ASIN format' });
+    }
+
     try {
       // Get the audiobook's file path (needed for chapter records)
       const audiobook = await new Promise((resolve, reject) => {
@@ -402,7 +407,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       const timeout = setTimeout(() => controller.abort(), 10000);
       let response;
       try {
-        response = await fetch(`https://api.audnex.us/books/${asin}/chapters`, { signal: controller.signal });
+        response = await fetch(`https://api.audnex.us/books/${encodeURIComponent(asin)}/chapters`, { signal: controller.signal });
       } finally {
         clearTimeout(timeout);
       }
