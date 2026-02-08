@@ -8,6 +8,7 @@ const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
+const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -390,6 +391,12 @@ async function importAudiobook(filePath, userId = 1) {
     // Extract metadata from the file
     const metadata = await extractFileMetadata(filePath);
 
+    // Supplement with external metadata files (desc.txt, narrator.txt, *.opf)
+    // External data fills gaps but never overwrites audio tag data
+    const bookDir = path.dirname(filePath);
+    const externalMeta = await readExternalMetadata(bookDir);
+    mergeExternalMetadata(metadata, externalMeta);
+
     // Generate content hash for stable identification
     const contentHash = generateBestHash(metadata, filePath);
 
@@ -573,6 +580,11 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
     if (metadata.title && /chapter|part|\d+/i.test(metadata.title)) {
       metadata.title = dirName;
     }
+
+    // Supplement with external metadata files (desc.txt, narrator.txt, *.opf)
+    // External data fills gaps but never overwrites audio tag data
+    const externalMeta = await readExternalMetadata(directory);
+    mergeExternalMetadata(metadata, externalMeta);
 
     // Store first file path as reference (will use chapters for playback)
     const firstFilePath = sortedFiles[0];

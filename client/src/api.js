@@ -136,8 +136,8 @@ export const getCoverUrl = (id, cacheBust = null) => {
   return url;
 };
 
-export const updateProgress = (id, position, completed = 0, state = 'playing', clientInfo = {}) =>
-  api.post(`/audiobooks/${id}/progress`, { position, completed, state, clientInfo });
+export const updateProgress = (id, position, completed = 0, state = 'playing', clientInfo = {}, { signal } = {}) =>
+  api.post(`/audiobooks/${id}/progress`, { position, completed, state, clientInfo }, { signal });
 
 export const getProgress = (id) =>
   api.get(`/audiobooks/${id}/progress`);

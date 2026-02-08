@@ -79,25 +79,25 @@ export default function PlaybackControls({
 }) {
   if (variant === 'fullscreen') {
     return (
-      <div className="fullscreen-controls">
+      <div className="fullscreen-controls" role="group" aria-label="Playback controls">
         {chapters.length > 0 && (
-          <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={onSkipToPreviousChapter} disabled={currentChapter === 0}>
+          <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={onSkipToPreviousChapter} disabled={currentChapter === 0} aria-label="Previous chapter">
             <PrevChapterIcon size={32} />
           </button>
         )}
-        <button className="fullscreen-control-btn" onClick={onSkipBackward}>
+        <button className="fullscreen-control-btn" onClick={onSkipBackward} aria-label="Rewind 15 seconds">
           <RewindIcon size={40} />
-          <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
+          <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }} aria-hidden="true">15</span>
         </button>
-        <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={onTogglePlay}>
+        <button className={`fullscreen-control-btn fullscreen-play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={onTogglePlay} aria-label={playing ? 'Pause' : 'Play'}>
           {isBuffering ? <BufferingSpinner size={48} /> : playing ? <PauseIcon size={48} /> : <PlayIcon size={48} />}
         </button>
-        <button className="fullscreen-control-btn" onClick={onSkipForward}>
+        <button className="fullscreen-control-btn" onClick={onSkipForward} aria-label="Forward 15 seconds">
           <ForwardIcon size={40} />
-          <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }}>15</span>
+          <span style={{ position: 'absolute', fontSize: '11px', fontWeight: 'bold', pointerEvents: 'none', color: '#e5e7eb' }} aria-hidden="true">15</span>
         </button>
         {chapters.length > 0 && (
-          <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={onSkipToNextChapter} disabled={currentChapter === chapters.length - 1}>
+          <button className="fullscreen-control-btn fullscreen-chapter-skip" onClick={onSkipToNextChapter} disabled={currentChapter === chapters.length - 1} aria-label="Next chapter">
             <NextChapterIcon size={32} />
           </button>
         )}
@@ -107,25 +107,25 @@ export default function PlaybackControls({
 
   // Desktop variant (used in mini player's player-controls section)
   return (
-    <div className="player-controls">
+    <div className="player-controls" role="group" aria-label="Playback controls">
       {chapters.length > 0 && (
-        <button className="control-btn chapter-skip-desktop" onClick={onSkipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter">
+        <button className="control-btn chapter-skip-desktop" onClick={onSkipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter" aria-label="Previous chapter">
           <PrevChapterIcon size={20} />
         </button>
       )}
-      <button className="control-btn" onClick={onSkipBackward} title="Skip back 15 seconds">
+      <button className="control-btn" onClick={onSkipBackward} title="Skip back 15 seconds" aria-label="Rewind 15 seconds">
         <RewindIcon size={24} />
-        <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
+        <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }} aria-hidden="true">15</text>
       </button>
-      <button className={`control-btn play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={onTogglePlay} title={playing ? 'Pause' : 'Play'}>
+      <button className={`control-btn play-btn ${playing ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`} onClick={onTogglePlay} title={playing ? 'Pause' : 'Play'} aria-label={playing ? 'Pause' : 'Play'}>
         {isBuffering ? <BufferingSpinner size={24} /> : playing ? <PauseIcon size={24} /> : <PlayIcon size={24} />}
       </button>
-      <button className="control-btn" onClick={onSkipForward} title="Skip forward 15 seconds">
+      <button className="control-btn" onClick={onSkipForward} title="Skip forward 15 seconds" aria-label="Forward 15 seconds">
         <ForwardIcon size={24} />
-        <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }}>15</text>
+        <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }} aria-hidden="true">15</text>
       </button>
       {chapters.length > 0 && (
-        <button className="control-btn chapter-skip-desktop" onClick={onSkipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter">
+        <button className="control-btn chapter-skip-desktop" onClick={onSkipToNextChapter} disabled={currentChapter === chapters.length - 1} title="Next Chapter" aria-label="Next chapter">
           <NextChapterIcon size={20} />
         </button>
       )}

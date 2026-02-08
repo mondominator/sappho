@@ -221,7 +221,7 @@ describe('User Management Routes Integration Tests', () => {
         })
         .expect(400);
 
-      expect(response.body.error).toContain('6 characters');
+      expect(response.body.error).toContain('8 characters');
     });
   });
 

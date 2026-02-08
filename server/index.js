@@ -13,6 +13,7 @@ const { startScheduledBackups } = require('./services/backupService');
 const conversionService = require('./services/conversionService');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // Trust proxy headers (X-Forwarded-For) so rate limiting uses real client IPs

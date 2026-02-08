@@ -6,15 +6,23 @@
  * - DELETE /:id (admin delete)
  */
 const fs = require('fs');
+const { sanitizeFtsQuery } = require('../../utils/ftsSearch');
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres }) {
 
-  // Get all audiobooks
-  router.get('/', authenticateToken, (req, res) => {
+  /**
+   * Execute the audiobooks list query. When a search term is provided,
+   * attempts FTS5 first for speed, then falls back to LIKE if FTS5 fails
+   * (e.g. missing table on first run before migration completes).
+   */
+  function executeListQuery(req, res, { useFts = true } = {}) {
     const { genre, author, series, search, favorites, includeUnavailable, limit: rawLimit = 50, offset: rawOffset = 0 } = req.query;
     const limit = Math.min(Math.max(1, parseInt(rawLimit) || 50), 200);
     const offset = Math.max(0, parseInt(rawOffset) || 0);
     const userId = req.user.id;
+
+    const ftsQuery = search ? sanitizeFtsQuery(search) : '';
+    const useFtsSearch = useFts && search && ftsQuery;
 
     let query = `SELECT a.*, p.position as progress_position, p.completed as progress_completed,
                         p.updated_at as progress_updated_at,
@@ -24,9 +32,15 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
                  FROM audiobooks a
                  LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
                  LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
-                 LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?
-                 WHERE 1=1`;
+                 LEFT JOIN user_ratings ur ON a.id = ur.audiobook_id AND ur.user_id = ?`;
     const params = [userId, userId, userId];
+
+    // Join FTS table when using full-text search
+    if (useFtsSearch) {
+      query += ' INNER JOIN audiobooks_fts fts ON a.id = fts.rowid';
+    }
+
+    query += ' WHERE 1=1';
 
     // Filter out unavailable books by default (unless includeUnavailable=true)
     if (includeUnavailable !== 'true') {
@@ -49,19 +63,33 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     }
 
     if (search) {
-      query += ' AND (a.title LIKE ? OR a.author LIKE ? OR a.narrator LIKE ? OR a.series LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      if (useFtsSearch) {
+        query += ' AND audiobooks_fts MATCH ?';
+        params.push(ftsQuery);
+      } else {
+        query += ' AND (a.title LIKE ? OR a.author LIKE ? OR a.narrator LIKE ? OR a.series LIKE ?)';
+        params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      }
     }
 
     if (favorites === 'true') {
       query += ' AND f.id IS NOT NULL';
     }
 
-    query += ' ORDER BY a.title ASC LIMIT ? OFFSET ?';
+    // Use FTS5 rank for relevance ordering when searching, title otherwise
+    if (useFtsSearch) {
+      query += ' ORDER BY rank, a.title ASC LIMIT ? OFFSET ?';
+    } else {
+      query += ' ORDER BY a.title ASC LIMIT ? OFFSET ?';
+    }
     params.push(parseInt(limit), parseInt(offset));
 
     db.all(query, params, (err, audiobooks) => {
       if (err) {
+        // Fall back to LIKE if FTS5 query failed (malformed input, missing table, etc.)
+        if (useFtsSearch) {
+          return executeListQuery(req, res, { useFts: false });
+        }
         return res.status(500).json({ error: 'Internal server error' });
       }
 
@@ -83,12 +111,32 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       });
 
       // Get total count
-      let countQuery = favorites === 'true'
-        ? `SELECT COUNT(*) as total FROM audiobooks a
+      let countQuery;
+      const countParams = [];
+
+      if (favorites === 'true') {
+        countQuery = `SELECT COUNT(*) as total FROM audiobooks a
            INNER JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
-           WHERE 1=1`
-        : 'SELECT COUNT(*) as total FROM audiobooks a WHERE 1=1';
-      const countParams = favorites === 'true' ? [userId] : [];
+           WHERE 1=1`;
+        countParams.push(userId);
+      } else {
+        countQuery = 'SELECT COUNT(*) as total FROM audiobooks a WHERE 1=1';
+      }
+
+      // Join FTS for count query too when using full-text search
+      if (useFtsSearch) {
+        // Rewrite count query with FTS join
+        if (favorites === 'true') {
+          countQuery = `SELECT COUNT(*) as total FROM audiobooks a
+             INNER JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
+             INNER JOIN audiobooks_fts fts ON a.id = fts.rowid
+             WHERE 1=1`;
+        } else {
+          countQuery = `SELECT COUNT(*) as total FROM audiobooks a
+             INNER JOIN audiobooks_fts fts ON a.id = fts.rowid
+             WHERE 1=1`;
+        }
+      }
 
       // Filter out unavailable books by default (unless includeUnavailable=true)
       if (includeUnavailable !== 'true') {
@@ -111,8 +159,13 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       if (search) {
-        countQuery += ' AND (a.title LIKE ? OR a.author LIKE ? OR a.narrator LIKE ? OR a.series LIKE ?)';
-        countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+        if (useFtsSearch) {
+          countQuery += ' AND audiobooks_fts MATCH ?';
+          countParams.push(ftsQuery);
+        } else {
+          countQuery += ' AND (a.title LIKE ? OR a.author LIKE ? OR a.narrator LIKE ? OR a.series LIKE ?)';
+          countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+        }
       }
 
       db.get(countQuery, countParams, (err, count) => {
@@ -122,6 +175,11 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         res.json({ audiobooks: transformedAudiobooks, total: count.total });
       });
     });
+  }
+
+  // Get all audiobooks
+  router.get('/', authenticateToken, (req, res) => {
+    executeListQuery(req, res);
   });
 
   // Get all favorites for the current user

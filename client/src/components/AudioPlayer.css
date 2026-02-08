@@ -2369,3 +2369,45 @@
     background: rgba(59, 130, 246, 0.6);
   }
 }
+
+/* ========================================
+   MEDIA ERROR TOAST
+   ======================================== */
+
+.media-error-toast {
+  position: fixed;
+  top: calc(1rem + env(safe-area-inset-top, 0));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 10002;
+  cursor: pointer;
+  animation: mediaErrorSlideDown 0.3s ease;
+  max-width: calc(100% - 2rem);
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes mediaErrorSlideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.media-error-toast.error {
+  background: rgba(239, 68, 68, 0.9);
+  color: #fff;
+}
+
+.media-error-toast.warning {
+  background: rgba(245, 158, 11, 0.9);
+  color: #fff;
+}

@@ -109,34 +109,26 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 
 ---
 
-## Phase 5: Enhancements
+## Phase 5: Enhancements ✅
 
-### 5A: PWA & Offline (high priority — iOS users depend on this)
-- [ ] #288 Fix service worker (remove unregister code, proper caching strategy)
-  - Re-enable sw.js registration in main.jsx
-  - Fix API bypass so audio streams are cacheable
-  - Strip tokens from cache keys
-  - Add cache eviction (LRU, configurable size limit)
-  - Add "Download for offline" UI per audiobook
-  - Background download with progress indication
-  - Show cached/offline status in library
-  - Queue progress updates offline, replay on reconnect (#290)
-- [ ] #290 Offline progress queue (IndexedDB + sendBeacon)
-- [ ] #289 Media error recovery (retry on network, notify on decode errors)
+### 5A: PWA & Offline ✅
+- [x] #288 Fix service worker (proper caching strategy, token stripping, LRU eviction)
+- [x] #290 Offline progress queue (IndexedDB, replay on reconnect)
+- [x] #289 Media error recovery (retry on network, notify on decode errors)
 
-### 5B: Metadata Enhancements
-- [ ] #267 External metadata file support (desc.txt, reader.txt, .opf)
+### 5B: Metadata Enhancements ✅
+- [x] #267 External metadata file support (desc.txt, reader.txt, .opf)
 
-### 5C: Frontend Enhancements
-- [ ] #291 Progress sync debouncing (AbortController)
-- [ ] #310 Virtual scrolling for large libraries (react-window)
-- [ ] #311 Accessibility (ARIA labels, keyboard shortcuts, screen reader)
-- [ ] #313 SQLite FTS5 full-text search
-- [ ] #314 Vite build optimization (manual chunks)
+### 5C: Frontend Enhancements ✅
+- [x] #291 Progress sync debouncing (AbortController)
+- [x] #310 Virtual scrolling for large libraries (react-window)
+- [x] #311 Accessibility (ARIA labels, keyboard shortcuts, screen reader)
+- [x] #313 SQLite FTS5 full-text search
+- [x] #314 Vite build optimization (manual chunks)
 
-### 5D: Security Polish
-- [ ] #315 Trust proxy configuration
-- [ ] #316 Password minimum increase (6 → 8 chars)
+### 5D: Security Polish ✅
+- [x] #315 Trust proxy configuration
+- [x] #316 Password minimum increase (6 → 8 chars)
 
 ---
 
