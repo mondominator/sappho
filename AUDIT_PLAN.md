@@ -38,11 +38,11 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 - [x] #266 Loosen series detection genre filter
 - [x] #260 Extract chapters from all formats (not just M4B/M4A)
 
-### 2B: Tag Writing (2-3 days)
-- [ ] #261 Fix MP3 series tag round-trip (write TXXX:SERIES, not album/grouping)
-- [ ] #262 Extend ffmpeg embedding to parity with tone (chapters, subtitle, ASIN, ISBN, etc.)
-- [ ] #263 Add backup before metadata embedding
-- [ ] #264 Implement tag preservation (merge, don't overwrite)
+### 2B: Tag Writing ✅ COMPLETE
+- [x] #261 Fix MP3 series tag round-trip (write TXXX:SERIES, not album/grouping)
+- [x] #262 Extend ffmpeg embedding to parity with tone (chapters, subtitle, ASIN, ISBN, etc.)
+- [x] #263 Add backup before metadata embedding
+- [x] #264 Implement tag preservation (merge, don't overwrite)
 
 ### 2C: Scanner & Covers (2 days)
 - [ ] #274 Fix M4B subdirectory merging (remove `!hasM4BFiles` condition)

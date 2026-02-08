@@ -326,6 +326,30 @@ async function extractFileMetadata(filePath) {
         series = seriesTag.value;
       }
 
+      // Fallback: check TIT1 (grouping) for series — ffmpeg writes series here
+      if (!series) {
+        const tit1 = id3Tags.find(tag => tag.id === 'TIT1');
+        if (tit1 && tit1.value) {
+          const val = Buffer.isBuffer(tit1.value) ? tit1.value.toString('utf8') : String(tit1.value);
+          // Grouping may contain "Series Name #N" format — extract if so
+          const groupMatch = val.match(/^(.+?)\s*#(\d+(?:\.\d+)?)$/);
+          if (groupMatch) {
+            series = groupMatch[1].trim();
+            if (!seriesPosition) {
+              const pos = parseFloat(groupMatch[2]);
+              if (!isNaN(pos)) seriesPosition = pos;
+            }
+          } else {
+            series = val;
+          }
+        }
+      }
+
+      // Fallback: check TALB (album) for series — many tools write series to album
+      if (!series && common.album && common.album !== common.title) {
+        series = common.album;
+      }
+
       // Look for series position in TXXX:PART or TXXX:SERIESPART
       const posTag = id3Tags.find(tag =>
         tag.id === 'TXXX:PART' ||
@@ -337,6 +361,11 @@ async function extractFileMetadata(filePath) {
         if (!isNaN(parsed)) {
           seriesPosition = parsed;
         }
+      }
+
+      // Fallback: check disc number for series position
+      if (!seriesPosition && common.disk && common.disk.no) {
+        seriesPosition = common.disk.no;
       }
     }
 
