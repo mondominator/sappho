@@ -70,7 +70,8 @@ function scanDirectory(dir, groupByDirectory = false) {
 }
 
 /**
- * Extract chapters from an m4b file using ffprobe
+ * Extract chapters from an audio file using ffprobe.
+ * Works on any format with embedded chapters (M4B, M4A, MP3, OGG, FLAC, etc.)
  */
 async function extractM4BChapters(filePath) {
   try {
@@ -376,14 +377,9 @@ async function importAudiobook(filePath, userId = 1) {
     // Get file stats
     const stats = fs.statSync(filePath);
 
-    // Check if this is an m4b or m4a file with chapters (both can have embedded chapters)
-    const ext = path.extname(filePath).toLowerCase();
-    const canHaveChapters = ext === '.m4b' || ext === '.m4a';
+    // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
     let chapters = null;
-
-    if (canHaveChapters) {
-      chapters = await extractM4BChapters(filePath);
-    }
+    chapters = await extractM4BChapters(filePath);
 
     // Determine if this should be marked as multi-file (has embedded chapters)
     const hasChapters = chapters && chapters.length > 1;

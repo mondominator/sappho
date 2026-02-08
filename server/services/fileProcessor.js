@@ -117,6 +117,37 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
   }
 }
 
+/**
+ * Detect whether text looks like a chapter listing rather than a prose description.
+ * Chapter listings typically contain timestamps, numbered lines, or repetitive patterns.
+ */
+function looksLikeChapterListing(text) {
+  if (!text || text.length < 10) return true;
+
+  const lines = text.split(/\n|\r\n?/).filter(l => l.trim());
+
+  // If it starts with common chapter/track patterns
+  if (/^(Chapter|Part|Track|Section|\d+[.:\-)]|Dedication|Opening|Prologue|Epilogue)\s/i.test(lines[0]?.trim())) {
+    // Only flag if there are multiple such lines (single "Chapter 1" followed by prose is OK)
+    const chapterLineCount = lines.filter(l =>
+      /^(Chapter|Part|Track|Section|\d+[.:\-)])\s/i.test(l.trim())
+    ).length;
+    if (chapterLineCount >= 3) return true;
+  }
+
+  // Contains timestamps (e.g., "00:01:23", "1:23:45")
+  const timestampCount = (text.match(/\d{1,2}:\d{2}(:\d{2})?/g) || []).length;
+  if (timestampCount >= 3) return true;
+
+  // Many short lines that look like a track listing (numbered entries)
+  if (lines.length >= 5) {
+    const numberedLines = lines.filter(l => /^\s*\d+[.)\-:\s]/.test(l));
+    if (numberedLines.length >= lines.length * 0.6) return true;
+  }
+
+  return false;
+}
+
 async function extractFileMetadata(filePath) {
   try {
     // Ensure parseFile is loaded
@@ -163,6 +194,7 @@ async function extractFileMetadata(filePath) {
     // Extract series and series position from various possible tag locations
     // Check native tags first, then fall back to custom/additional tags
     const nativeTags = metadata.native || {};
+    const iTunesTags = nativeTags.iTunes || nativeTags.MP4 || [];
     let series = null;  // Don't default to album tag - only use explicit series tags
     let seriesPosition = null;
 
@@ -188,23 +220,35 @@ async function extractFileMetadata(filePath) {
       };
 
       // Look for series in various iTunes/MP4 tag fields (AudiobookShelf compatible)
-      // Priority: movement name (proper audiobook tag) > explicit SERIES tag > grouping > show
+      // Split into explicit series tags (trusted) and ambiguous tags (need genre filtering)
+      const explicitSeriesTags = [
+        '©mvn',  // Movement Name - standard audiobook series tag (what tone writes)
+        'movementName',  // Alternative movement name key
+        '----:com.apple.iTunes:SERIES',
+        '----:com.apple.iTunes:series',
+        '----:com.pilabor.tone:SERIES',
+        '----:com.pilabor.tone:series',
+      ];
+
+      // Ambiguous tags that could contain genres instead of series names
+      const ambiguousSeriesTags = [
+        '©grp',  // Grouping - commonly used for series BUT also for genres
+        'tvsh',  // TV Show (sometimes used for series)
+        'sosn',  // Sort show name
+      ];
 
       // Helper to check if a value looks like genre/category tags rather than a series name
+      // Only applied to ambiguous tags, not explicit series tags
       const looksLikeGenres = (val) => {
         if (!val) return true;
         // If it contains multiple commas or semicolons, likely genre list
         if ((val.match(/,/g) || []).length >= 2) return true;
         if ((val.match(/;/g) || []).length >= 1) return true;
-        // Common genre keywords that wouldn't be in a series name
-        const genreKeywords = /\b(fiction|non-fiction|nonfiction|thriller|mystery|romance|fantasy|horror|biography|history|science|self-help|audiobook|novel|literature)\b/i;
-        if (genreKeywords.test(val)) return true;
         return false;
       };
 
-      // Movement name tags are explicit series tags - no genre filtering needed
-      const movementTagIds = ['©mvn', 'movementName'];
-      for (const tagId of movementTagIds) {
+      // First try explicit series tags (no genre filtering needed)
+      for (const tagId of explicitSeriesTags) {
         const tag = mp4Tags.find(t => t.id === tagId);
         const val = getTagValue(tag);
         if (val) {
@@ -213,19 +257,9 @@ async function extractFileMetadata(filePath) {
         }
       }
 
-      // Other series tags need genre filtering to avoid false positives
+      // If no explicit series found, try ambiguous tags with genre filtering
       if (!series) {
-        const otherSeriesTagIds = [
-          '----:com.apple.iTunes:SERIES',
-          '----:com.apple.iTunes:series',
-          '----:com.pilabor.tone:SERIES',
-          '----:com.pilabor.tone:series',
-          '©grp',  // Grouping - commonly used for series (filtered by looksLikeGenres)
-          'tvsh',  // TV Show (sometimes used for series)
-          'sosn',  // Sort show name
-        ];
-
-        for (const tagId of otherSeriesTagIds) {
+        for (const tagId of ambiguousSeriesTags) {
           const tag = mp4Tags.find(t => t.id === tagId);
           const val = getTagValue(tag);
           if (val && !looksLikeGenres(val)) {
@@ -396,8 +430,63 @@ async function extractFileMetadata(filePath) {
       }
     }
 
+    // Build title with smart fallback chain
+    let title = common.title || null;
+
+    // If common.title is missing, check native tags directly
+    // music-metadata may fail to populate common.title for some encodings
+    if (!title) {
+      // Try ID3v2 TIT2 (title) tag
+      const id3Tags = nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2'] || [];
+      const tit2 = id3Tags.find(t => t.id === 'TIT2');
+      if (tit2 && tit2.value) {
+        title = Buffer.isBuffer(tit2.value) ? tit2.value.toString('utf8') : String(tit2.value);
+      }
+
+      // Try iTunes/MP4 ©nam (name) tag
+      if (!title) {
+        const nameTag = iTunesTags.find(t => t.id === '©nam');
+        if (nameTag && nameTag.value) {
+          const val = Array.isArray(nameTag.value) ? nameTag.value[0] : nameTag.value;
+          if (Buffer.isBuffer(val)) title = val.toString('utf8');
+          else if (typeof val === 'object' && val.text) title = val.text;
+          else if (typeof val === 'string') title = val;
+        }
+      }
+
+      // Try Vorbis TITLE tag
+      if (!title && nativeTags.vorbis) {
+        const vorbisTitle = nativeTags.vorbis.find(t => t.id === 'TITLE');
+        if (vorbisTitle && vorbisTitle.value) {
+          title = String(vorbisTitle.value);
+        }
+      }
+    }
+
+    // Smart filename/directory fallback if no tag-based title found
+    if (!title) {
+      let baseName = path.basename(filePath, path.extname(filePath));
+
+      // Clean up filename: remove leading track numbers (e.g., "01 - Chapter Title", "01_title", "Track 01")
+      baseName = baseName
+        .replace(/^\d{1,3}\s*[-._)\]]\s*/, '')  // "01 - Title", "01_Title", "01.Title"
+        .replace(/^track\s*\d+\s*[-._)]\s*/i, '')  // "Track 01 - Title"
+        .replace(/[-_]+/g, ' ')  // Replace dashes/underscores with spaces
+        .trim();
+
+      // If the cleaned filename is too short, empty, or just a number, use parent directory name
+      if (!baseName || baseName.length < 3 || /^\d+$/.test(baseName)) {
+        const parentDir = path.basename(path.dirname(filePath));
+        // Don't use the root audiobooks directory name
+        if (parentDir && parentDir !== path.basename(audiobooksDir)) {
+          baseName = parentDir.replace(/[-_]+/g, ' ').trim();
+        }
+      }
+
+      title = baseName || path.basename(filePath, path.extname(filePath));
+    }
+
     // Fallback: Try to extract series from title if not found in tags
-    const title = common.title || path.basename(filePath, path.extname(filePath));
     if (!series && title) {
       // Pattern: "Title: Series Name, Book N" or "Title (Series Name #N)"
       const seriesMatch = title.match(/:\s*([^,]+),\s*Book\s+(\d+)/i) ||
@@ -412,8 +501,6 @@ async function extractFileMetadata(filePath) {
         }
       }
     }
-
-    const iTunesTags = nativeTags.iTunes || nativeTags.MP4 || [];
 
     // Extract description from multiple possible sources
     // Priority: iTunes long description (ldes) > common.description > iTunes description (desc)
@@ -445,19 +532,55 @@ async function extractFileMetadata(filePath) {
       rawDescription = Array.isArray(common.description) ? common.description.join(' ') : common.description;
       _descriptionSource = 'common.description';
     }
-    // DO NOT fall back to comment tags - they often contain chapter listings
+    // Fall back to comment tags, but only if they look like prose descriptions
+    if (!rawDescription) {
+      let commentText = null;
+
+      // Check iTunes/MP4 comment tag (©cmt)
+      if (iTunesTags.length > 0) {
+        const cmtTag = iTunesTags.find(tag => tag.id === '©cmt');
+        if (cmtTag && cmtTag.value) {
+          const val = Array.isArray(cmtTag.value) ? cmtTag.value[0] : cmtTag.value;
+          if (typeof val === 'string') commentText = val;
+          else if (typeof val === 'object' && val.text) commentText = val.text;
+          else if (Buffer.isBuffer(val)) commentText = val.toString('utf8');
+        }
+      }
+
+      // Check ID3 COMM (comment) tag
+      if (!commentText) {
+        const id3Tags = nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2'] || [];
+        const commTag = id3Tags.find(t => t.id === 'COMM');
+        if (commTag && commTag.value) {
+          const val = commTag.value;
+          if (typeof val === 'string') commentText = val;
+          else if (typeof val === 'object' && val.text) commentText = val.text;
+        }
+      }
+
+      // Check Vorbis COMMENT/DESCRIPTION tag
+      if (!commentText && nativeTags.vorbis) {
+        const vorbisComment = nativeTags.vorbis.find(t =>
+          t.id === 'COMMENT' || t.id === 'DESCRIPTION'
+        );
+        if (vorbisComment && vorbisComment.value) {
+          commentText = String(vorbisComment.value);
+        }
+      }
+
+      // Use the comment only if it looks like prose, not chapter listings
+      if (commentText && !looksLikeChapterListing(commentText)) {
+        rawDescription = commentText;
+        _descriptionSource = 'comment';
+      }
+    }
 
     // Clean the description if we have one
-    // Check if it looks like chapter listings rather than a real description
     let meaningfulDescription = null;
     if (rawDescription) {
       const cleaned = cleanDescription(rawDescription);
-      // Check if this looks like a real description:
-      // - At least 50 characters after cleaning
-      // - Doesn't start with common chapter patterns
-      const looksLikeChapters = /^(Chapter|Part|Track|\d+[.:\-)]|Dedication|Opening|Prologue)/i.test(cleaned.trim());
-
-      if (cleaned && cleaned.length >= 50 && !looksLikeChapters) {
+      // Require at least 50 characters for a meaningful description
+      if (cleaned && cleaned.length >= 50) {
         meaningfulDescription = cleaned;
       }
     }
@@ -577,9 +700,39 @@ async function extractFileMetadata(filePath) {
       published_year = common.year;
     }
 
+    // Build author with native tag fallbacks
+    let author = common.artist || common.albumartist || null;
+    if (!author) {
+      // Try ID3v2 TPE1 (lead performer) or TPE2 (band/album artist)
+      const id3Tags = nativeTags['ID3v2.4'] || nativeTags['ID3v2.3'] || nativeTags['ID3v2.2'] || [];
+      const authorTag = id3Tags.find(t => t.id === 'TPE1' || t.id === 'TPE2');
+      if (authorTag && authorTag.value) {
+        author = Buffer.isBuffer(authorTag.value) ? authorTag.value.toString('utf8') : String(authorTag.value);
+      }
+
+      // Try iTunes ©ART (artist) or aART (album artist)
+      if (!author) {
+        const artTag = iTunesTags.find(t => t.id === '©ART' || t.id === 'aART');
+        if (artTag && artTag.value) {
+          const val = Array.isArray(artTag.value) ? artTag.value[0] : artTag.value;
+          if (Buffer.isBuffer(val)) author = val.toString('utf8');
+          else if (typeof val === 'object' && val.text) author = val.text;
+          else if (typeof val === 'string') author = val;
+        }
+      }
+
+      // Try Vorbis ARTIST tag
+      if (!author && nativeTags.vorbis) {
+        const vorbisArtist = nativeTags.vorbis.find(t => t.id === 'ARTIST' || t.id === 'ALBUMARTIST');
+        if (vorbisArtist && vorbisArtist.value) {
+          author = String(vorbisArtist.value);
+        }
+      }
+    }
+
     return {
       title: title,
-      author: common.artist || common.albumartist || null,
+      author: author,
       narrator: narrator,
       description: meaningfulDescription,
       duration: format.duration ? Math.round(format.duration) : null,
