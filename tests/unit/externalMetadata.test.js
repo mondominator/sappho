@@ -91,6 +91,16 @@ describe('extractTagContent', () => {
     expect(extractTagContent(xml, 'dc:description')).toBe('A long description\n  that spans multiple lines.');
   });
 
+  test('strips numeric entity angle brackets (&#60; and &#62;)', () => {
+    const xml = '<dc:title>Hello&#60;script&#62;alert&#60;/script&#62;World</dc:title>';
+    expect(extractTagContent(xml, 'dc:title')).toBe('Helloscriptalert/scriptWorld');
+  });
+
+  test('strips hex entity angle brackets (&#x3C; and &#x3E;)', () => {
+    const xml = '<dc:title>Hello&#x3C;script&#x3E;alert&#x3C;/script&#x3E;World</dc:title>';
+    expect(extractTagContent(xml, 'dc:title')).toBe('Helloscriptalert/scriptWorld');
+  });
+
   test('is case-insensitive for tag matching', () => {
     const xml = '<DC:Title>My Title</DC:Title>';
     expect(extractTagContent(xml, 'dc:title')).toBe('My Title');
