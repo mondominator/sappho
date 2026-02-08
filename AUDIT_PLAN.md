@@ -31,12 +31,12 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
 
 ## Phase 2: Metadata & Scanner Fixes
 
-### 2A: Tag Reading (2-3 days)
-- [ ] #259 Fix title fallback / encoding issues for non-UTF-8 tags
-- [ ] #258 Remove ISRC-as-ISBN fallback
-- [ ] #265 Smart comment tag handling for descriptions (detect chapters vs prose)
-- [ ] #266 Loosen series detection genre filter
-- [ ] #260 Extract chapters from all formats (not just M4B/M4A)
+### 2A: Tag Reading ✅ COMPLETE
+- [x] #259 Fix title fallback / encoding issues for non-UTF-8 tags
+- [x] #258 Remove ISRC-as-ISBN fallback
+- [x] #265 Smart comment tag handling for descriptions (detect chapters vs prose)
+- [x] #266 Loosen series detection genre filter
+- [x] #260 Extract chapters from all formats (not just M4B/M4A)
 
 ### 2B: Tag Writing (2-3 days)
 - [ ] #261 Fix MP3 series tag round-trip (write TXXX:SERIES, not album/grouping)
