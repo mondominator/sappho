@@ -1,367 +1,63 @@
-# Sappho Audiobook Server
+# Sappho
 
-![Sappho Logo](logo.png)
+![Sappho Logo](logo-banner.svg)
 
-A modern, self-hosted audiobook server with a beautiful web interface and native mobile app experience.
-
-> ⚠️ **Early Development**: Sappho is currently in early development. While fully functional, you may encounter bugs or incomplete features. Please report any issues you find!
-
-> 🤖 **Built with AI**: Developed with [Claude Code](https://claude.com/claude-code), an AI-powered coding assistant.
-
-## 📖 Table of Contents
-
-- [Features](#-features)
-- [Quick Start](#quick-start)
-- [Mobile Installation](#mobile-installation-progressive-web-app)
-- [Building from Source](#building-from-source)
-- [Importing Existing Libraries](#importing-existing-libraries)
-- [Supported Formats](#supported-audio-formats)
-- [Technology Stack](#technology-stack)
-- [Roadmap](#-roadmap)
-- [Contributing](#-contributing)
-- [Known Issues](#-known-issues)
-- [License](#-license)
-
-## ✨ Features
-
-### 📚 Library Management
-- **Automatic Metadata Extraction** - Reads title, author, narrator, series, cover art, and more from ID3 and Vorbis tags
-- **Metadata Editing** - Edit audiobook details directly in the UI with full metadata support
-- **Audible/Google Books Search** - Search for metadata and cover art from Audible and Google Books
-- **Metadata Embedding** - Write metadata back to audio files (M4B/M4A with tone, MP3 with ffmpeg)
-- **Existing Library Import** - Mount your current audiobook collection and Sappho automatically detects and catalogs everything
-- **Watch Directory** - Drop audiobooks into a folder for automatic processing and import
-- **Periodic Scanning** - Automatically rescans library every 5 minutes (configurable) to detect new additions
-- **Force Rescan** - Re-extract all metadata while preserving user progress and custom covers
-- **Series & Author Organization** - Browse by series with proper ordering, or explore by author
-- **Multi-format Support** - Handles M4B, MP3, M4A, FLAC, OGG, and more
-- **Cover Art Extraction** - Automatically extracts and displays embedded cover images
-- **Cover Art Download** - Download and apply cover art from search results
-
-### 🎧 Playback & Progress
-- **Modern Audio Player** - Beautiful, responsive player with chapter support
-- **Chapter Navigation** - Skip between chapters, view chapter list, see current chapter title
-- **Multi-file Audiobook Support** - Automatically detects and combines chapter files (e.g., "Chapter 01.m4b", "Chapter 02.m4b")
-- **Progress Tracking** - Automatically saves your position, resume exactly where you left off
-- **Cross-device Sync** - Continue listening on any device (same account)
-- **Playback Speed Control** - Adjust speed to your preference
-- **Sleep Timer** - Fall asleep without losing your place (coming soon)
-- **Streaming Playback** - Direct audio streaming from server, no downloads required
-- **Smart Autoplay** - Desktop auto-plays on book selection, mobile requires manual play (browser policy compliance)
-
-### 📱 Mobile Experience
-- **Progressive Web App (PWA)** - Install on iOS/Android for native app experience
-- **Mobile-optimized UI** - Touch-friendly interface designed for phones and tablets
-- **Fullscreen Player** - Immersive fullscreen mode with large controls and cover art
-- **Offline Support** - App shell cached for instant loading (requires HTTPS)
-- **Background Playback** - Continue listening while using other apps
-- **Lock Screen Controls** - Control playback from your lock screen
-
-### 👥 Multi-user & Security
-- **Multi-user Accounts** - Create separate accounts for family members with individual progress tracking
-- **JWT Authentication** - Secure token-based authentication
-- **API Key Support** - Generate API keys for external integrations and automation
-- **User Avatars** - Personalize accounts with custom profile pictures
-- **Session Management** - Track active listening sessions across devices
-
-### 🔍 Discovery & Organization
-- **Powerful Search** - Instantly search by title, author, narrator, or series
-- **Filter by Status** - View in-progress, completed, or unstarted audiobooks
-- **Smart Sorting** - Sort by title, author, date added, duration, or progress
-- **Detailed Metadata** - View comprehensive information including ISBN, publication year, genre, duration
-- **Author & Series Pages** - Dedicated pages showing all works by an author or books in a series
-- **Genre Browsing** - Browse audiobooks by genre with color-coded categories
-
-### 🤖 AI Features
-- **Catch Me Up (Series Recap)** - AI-powered series recaps summarizing what happened in previous books
-- **Multiple AI Providers** - Choose between OpenAI (GPT-4) or Google Gemini (free tier available)
-- **Smart Caching** - Recaps are cached and only regenerated when your progress changes
-
-### 🎨 User Interface
-- **Modern Design** - Sleek, translucent glass-morphism UI with smooth animations
-- **Dark Theme** - Easy on the eyes with a beautiful blue-tinted dark interface
-- **Responsive Layout** - Optimized for desktop, tablet, and mobile
-- **Real-time Updates** - WebSocket integration for live library updates
-- **Accessibility** - Keyboard navigation and proper semantic HTML
-
-### 🔧 Administration & Integration
-- **Web Upload** - Upload audiobooks directly through the web interface
-- **Bulk Operations** - Mark finished, clear progress, delete audiobooks
-- **Library Statistics** - View total audiobooks, listening time, completion stats
-- **Background Library Scanning** - Large library scans run in background without timeout issues
-- **WebSocket API** - Real-time integration with external services (e.g., OpsDec for Now Playing displays)
-- **RESTful API** - Full-featured API for automation and third-party integrations
-- **Docker-first** - Easy deployment with Docker Compose or standalone container
-- **Unraid Support** - Community Applications template for one-click install
+Self-hosted audiobook server with a PWA interface. Mount your existing library, and Sappho handles metadata extraction, progress tracking, and multi-device sync.
 
 ## Quick Start
 
-### Docker Compose
-
 ```yaml
-version: '3.8'
-
 services:
   sappho:
     image: ghcr.io/mondominator/sappho:latest
-    container_name: sappho
     ports:
       - "3002:3002"
     environment:
-      - JWT_SECRET=your-secure-random-string-here
-      - NODE_ENV=production
+      - JWT_SECRET=your-secure-random-string-here  # openssl rand -base64 32
     volumes:
-      - /path/to/appdata/sappho:/app/data
-      - /path/to/audiobooks:/app/data/audiobooks
-      - /path/to/audiobooks/watch:/app/data/watch
+      - /path/to/appdata:/app/data
+      - /path/to/audiobooks:/app/data/audiobooks:ro
     restart: unless-stopped
 ```
 
-### Environment Variables
+Default login: `admin` / `admin` (forced password change on first login).
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `JWT_SECRET` | Yes | - | Secret key for authentication (generate with `openssl rand -base64 32`) |
-| `NODE_ENV` | No | `production` | Node environment |
-| `PORT` | No | `3002` | Server port |
-| `AUDIOBOOKS_DIR` | No | `/app/data/audiobooks` | Audiobook library path |
-| `WATCH_DIR` | No | `/app/data/watch` | Watch directory for auto-import |
-| `LIBRARY_SCAN_INTERVAL` | No | `5` | Minutes between library rescans for new audiobooks |
-| `DATABASE_PATH` | No | `/app/data/sappho.db` | SQLite database location |
-| `AI_PROVIDER` | No | `openai` | AI provider for series recaps (`openai` or `gemini`) |
-| `OPENAI_API_KEY` | No | - | OpenAI API key for Catch Me Up feature |
-| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
-| `GEMINI_API_KEY` | No | - | Google Gemini API key (free tier available) |
-| `GEMINI_MODEL` | No | `gemini-1.5-flash` | Gemini model to use |
+Also available as an [Unraid Community App](unraid-template.xml).
 
-## Mobile Installation (Progressive Web App)
+## Key Features
 
-Sappho is a full-featured Progressive Web App (PWA) that can be installed on your mobile device for a native app experience.
+- **Library scanning** — background scan auto-imports books, extracts metadata from ID3/Vorbis/iTunes tags, pulls covers
+- **External metadata** — searches Audible, Google Books, and Open Library; reads sidecar files (desc.txt, reader.txt, .opf)
+- **Series recaps** — AI-powered "Catch Me Up" summaries via OpenAI or Gemini
+- **Multi-user** — separate accounts with individual progress, JWT auth, API keys for integrations
+- **PWA** — installable on iOS/Android, offline-capable with service worker caching and IndexedDB progress queue
+- **M4B conversion** — convert loose MP3/chapter files into single M4B with embedded metadata via tone + ffmpeg
 
-### Requirements for Full PWA Installation
-- **HTTPS**: Full PWA functionality requires HTTPS (service workers won't register on HTTP)
-- **For local/HTTP access**: You can still "Add to Home Screen" which creates a bookmark with the app icon
+## Environment Variables
 
-### iOS Installation
-1. Open **Safari** and navigate to Sappho (must use Safari, not Chrome)
-2. Tap the **Share button** (square with arrow pointing up)
-3. Scroll down and select **"Add to Home Screen"**
-4. Tap **"Add"** in the top right
-5. The Sappho icon will appear on your home screen
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | *required* | Auth signing key |
+| `PORT` | `3002` | Server port |
+| `AUDIOBOOKS_DIR` | `/app/data/audiobooks` | Library path |
+| `LIBRARY_SCAN_INTERVAL` | `5` | Minutes between scans |
+| `AI_PROVIDER` | `openai` | `openai` or `gemini` for series recaps |
+| `OPENAI_API_KEY` | — | OpenAI key (for recaps) |
+| `GEMINI_API_KEY` | — | Gemini key (free tier available) |
 
-**Note**: On HTTP (non-HTTPS), iOS will create a web clip (bookmark) rather than a full PWA. The app will still work but won't have offline capabilities.
+## Tech Stack
 
-### Android Installation
-1. Open **Chrome** and navigate to Sappho
-2. Tap the **menu** (3 vertical dots) in the top right
-3. Select **"Install app"** or **"Add to Home Screen"**
-4. Tap **"Install"** in the popup
-5. Launch Sappho from your home screen or app drawer
-
-**Note**: Chrome on Android may show a banner prompting you to install the app automatically.
-
-### PWA Features
-- **Standalone mode**: Opens in its own window without browser UI
-- **Home screen icon**: Launches like a native app
-- **Offline support**: Service worker caches app shell for offline use (requires HTTPS)
-- **Fast loading**: Cached resources load instantly
-- **Native feel**: Optimized mobile interface with proper touch targets
-
-## Building from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/mondominator/sappho.git
-cd sappho
-
-# Build with Docker
-docker-compose build
-
-# Run
-docker-compose up -d
-```
+Node.js + Express, SQLite, React + Vite, WebSocket for real-time updates. Runs in Docker with ffmpeg and [tone](https://github.com/sandreas/tone) for media processing.
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-cd client && npm install
+npm install && cd client && npm install && cd ..
 
-# Start development server
-npm run dev
-
-# Start client dev server
-cd client && npm run dev
+# Rebuild container after changes:
+docker-compose build --no-cache && docker-compose up -d
 ```
 
-## Directory Structure
+## License
 
-```
-/app/data/
-├── sappho.db             # SQLite database
-├── audiobooks/           # Audiobook library (can mount existing library here)
-│   ├── Author Name/
-│   │   └── Book Title/
-│   │       ├── book.m4b
-│   │       └── cover.jpg
-├── covers/               # Downloaded cover images
-├── watch/                # Drop audiobooks here for auto-import
-└── uploads/              # Temporary upload storage
-```
-
-## Importing Existing Libraries
-
-Sappho can automatically detect and import audiobooks from an existing library:
-
-1. **Mount your existing library** to `/app/data/audiobooks`
-2. **Server starts immediately** - library scanning happens in the background
-3. **Periodic rescanning** - automatically detects new audiobooks every 5 minutes (configurable)
-4. **Files are NOT moved or reorganized** - they stay in their original location
-5. **Already imported files are skipped** - safe to restart the container
-
-Example Docker Compose for existing library:
-
-```yaml
-services:
-  sappho:
-    image: ghcr.io/mondominator/sappho:latest
-    environment:
-      - LIBRARY_SCAN_INTERVAL=5  # Scan every 5 minutes (optional)
-    volumes:
-      - /path/to/your/existing/audiobooks:/app/data/audiobooks:ro  # Read-only mount
-      - /path/to/appdata/sappho:/app/data
-```
-
-The library scanner will:
-- Run in the background on startup (server starts immediately)
-- Recursively scan all subdirectories
-- Rescan periodically to detect new audiobooks
-- Detect supported audio files (M4B, MP3, M4A, FLAC, OGG)
-- Extract metadata from each file
-- Skip files already in the database
-- Log import statistics after each scan
-
-## Supported Audio Formats
-
-- M4B (Apple Audiobook)
-- M4A (AAC Audio)
-- MP3
-- FLAC
-- OGG
-- And more...
-
-## Metadata Support
-
-Sappho extracts metadata from:
-- **ID3v2 tags** (MP3, M4B, M4A)
-- **Vorbis comments** (FLAC, OGG)
-- **iTunes/MP4 tags** - Including movement tags for series info
-- **Custom fields**: Series, Narrator, Position, ASIN
-
-Supported metadata fields:
-- Title, Subtitle, Author, Narrator
-- Series, Series Position
-- Duration, Genre, Year, Copyright Year
-- ISBN, ASIN, Publisher
-- Description (HTML automatically sanitized)
-- Language, Rating, Abridged status
-- Cover Art (embedded or external files)
-- Chapter information
-
-### Metadata Embedding
-
-Sappho can write metadata back to audio files:
-- **M4B/M4A files**: Uses [tone](https://github.com/sandreas/tone) for proper audiobook tags (movement name, narrator, etc.)
-- **MP3 files**: Uses ffmpeg for ID3v2 tags
-- **Cover art**: Embedded into the audio file for portability
-
-## Technology Stack
-
-- **Backend**: Node.js, Express, SQLite
-- **Frontend**: React, Vite
-- **Audio**: music-metadata
-- **Containerization**: Docker
-
-## 🗺️ Roadmap
-
-Sappho is actively being developed! Here are some features planned for future releases:
-
-### Near-term (v0.2.x)
-- [ ] Sleep timer with auto-shutdown
-- [ ] Playback queue/playlist support
-- [ ] Bookmarks and notes
-- [ ] Advanced filtering (by genre, narrator, duration)
-- [ ] Batch metadata editing
-- [ ] Import from Audible library
-- [ ] User listening statistics and charts
-
-### Mid-term (v0.3.x - v0.4.x)
-- [ ] Smart recommendations based on listening history
-- [ ] Collections and custom playlists
-- [ ] Library sharing between users
-- [ ] Podcast support
-- [x] Mobile apps (native iOS/Android) - **Android app available!**
-- [x] Chromecast/AirPlay support - **Chromecast supported in Android app**
-- [ ] Audiobook ratings and reviews
-- [ ] Multi-language support
-
-### Long-term (v1.0+)
-- [ ] AI-powered chapter detection for files without chapters
-- [ ] Automatic audiobook organization and renaming
-- [ ] Integration with Goodreads/Audible
-- [ ] Social features (share recommendations with friends)
-- [ ] Advanced audio processing (noise reduction, volume normalization)
-- [ ] Plugin system for extensibility
-
-**Want a feature?** Open an issue and let me know!
-
-## 🤝 Contributing
-
-Contributions are welcome! This project is in early development, so there's plenty of room for improvement.
-
-### Ways to Contribute
-- 🐛 **Report bugs** - Found an issue? Let me know!
-- 💡 **Suggest features** - Have an idea? Open a feature request
-- 📝 **Improve documentation** - Help make the docs better
-- 🔧 **Submit pull requests** - Fix bugs or add features
-- ⭐ **Star the repo** - Show your support!
-
-### Development Setup
-See the [Development](#development) section above for setup instructions.
-
-## 📋 Known Issues
-
-- Sleep timer not yet implemented
-- Some metadata tags may not be recognized (working on expanding support)
-- HTTPS required for full PWA functionality (service workers limitation)
-
-## ✅ Recently Fixed
-
-- ~~Large library scan timeouts~~ - Now runs in background (v0.1.5+)
-- ~~Multi-file M4B detection~~ - Automatically detects chapter-based files (v0.1.4+)
-- ~~Mobile autoplay issues~~ - Smart autoplay respects browser policies (v0.1.5+)
-- ~~Race conditions in chapter imports~~ - Promise-based imports prevent corruption (v0.1.5+)
-
-See the [Issues](https://github.com/mondominator/sappho/issues) page for a complete list.
-
-## 🙏 Acknowledgments
-
-- Built with ❤️ using [Claude Code](https://claude.com/claude-code)
-- Metadata extraction powered by [music-metadata](https://github.com/borewit/music-metadata)
-- Icons from Feather Icons and Heroicons
-- Inspired by projects like Audiobookshelf, Plex, and Jellyfin
-
-## 📞 Support
-
-- **Issues**: https://github.com/mondominator/sappho/issues
-- **Discussions**: https://github.com/mondominator/sappho/discussions
-- **Documentation**: https://github.com/mondominator/sappho
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) file for details.
-
----
-
-**Note**: Sappho is a personal project and is not affiliated with or endorsed by any audiobook providers or services.
+MIT
