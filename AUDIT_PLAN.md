@@ -63,8 +63,8 @@ This plan was created from a full-app audit covering metadata, scanning, covers,
   - `routes/audiobooks/progress.js` — Progress tracking
   - `routes/audiobooks/aggregates.js` — Meta endpoints (series, authors, genres)
   - `routes/audiobooks/batch.js` — Batch operations, favorites, recaps
-- [ ] #305 Create `utils/db.js` abstraction layer (promisified queries, async/await everywhere)
-- [ ] #307 Extract duplicated query helpers
+- [x] #305 Create `utils/db.js` abstraction layer (promisified queries, async/await everywhere)
+- [x] #307 Extract duplicated query helpers
 - [x] #306 Split `maintenance.js` (1,655 lines) into 5 route modules:
   - `routes/maintenance/logs.js` — Log viewing, clearing, job status
   - `routes/maintenance/statistics.js` — Library statistics, format breakdowns

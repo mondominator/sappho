@@ -5,8 +5,11 @@
 const fs = require('fs');
 const path = require('path');
 const { maintenanceWriteLimiter, getForceRescanInProgress, setForceRescanInProgress } = require('./helpers');
+const { createDbHelpers } = require('../../utils/db');
 
 function register(router, { db, authenticateToken, extractFileMetadata, scanLibrary, lockScanning, unlockScanning, isScanningLocked }) {
+  const { dbGet, dbAll, dbRun } = createDbHelpers(db);
+
   // Consolidate multi-file audiobooks
   router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
     if (!req.user.is_admin) {
@@ -16,19 +19,13 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
     try {
       console.log('Starting multi-file audiobook consolidation...');
 
-      const audiobooks = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT id, title, author, file_path, duration, file_size, cover_image,
-                  narrator, description, genre, published_year, isbn, series, series_position, added_by
-           FROM audiobooks
-           WHERE is_multi_file IS NULL OR is_multi_file = 0
-           ORDER BY file_path`,
-          (err, books) => {
-            if (err) reject(err);
-            else resolve(books);
-          }
-        );
-      });
+      const audiobooks = await dbAll(
+        `SELECT id, title, author, file_path, duration, file_size, cover_image,
+                narrator, description, genre, published_year, isbn, series, series_position, added_by
+         FROM audiobooks
+         WHERE is_multi_file IS NULL OR is_multi_file = 0
+         ORDER BY file_path`
+      );
 
       // Group by directory
       const groups = new Map();
@@ -74,7 +71,6 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
             totalSize += book.file_size || 0;
           }
 
-          // Use directory name as title if primary book title looks like a chapter
           let title = primaryBook.title;
           if (title && /chapter|part|\d+/i.test(title)) {
             title = dirName;
@@ -82,46 +78,26 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
 
           console.log(`Consolidating ${sortedBooks.length} files into: ${title}`);
 
-          await new Promise((resolve, reject) => {
-            db.run(
-              `UPDATE audiobooks
-               SET title = ?, duration = ?, file_size = ?, is_multi_file = 1
-               WHERE id = ?`,
-              [title, totalDuration, totalSize, primaryBook.id],
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
+          await dbRun(
+            `UPDATE audiobooks
+             SET title = ?, duration = ?, file_size = ?, is_multi_file = 1
+             WHERE id = ?`,
+            [title, totalDuration, totalSize, primaryBook.id]
+          );
 
           for (let i = 0; i < sortedBooks.length; i++) {
             const book = sortedBooks[i];
-            await new Promise((resolve, reject) => {
-              db.run(
-                `INSERT OR IGNORE INTO audiobook_chapters
-                 (audiobook_id, chapter_number, file_path, duration, file_size, title)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [primaryBook.id, i + 1, book.file_path, book.duration, book.file_size, book.title],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
+            await dbRun(
+              `INSERT OR IGNORE INTO audiobook_chapters
+               (audiobook_id, chapter_number, file_path, duration, file_size, title)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [primaryBook.id, i + 1, book.file_path, book.duration, book.file_size, book.title]
+            );
           }
 
           if (sortedBooks.length > 1) {
             const idsToDelete = sortedBooks.slice(1).map(b => b.id);
-            await new Promise((resolve, reject) => {
-              db.run(
-                `DELETE FROM audiobooks WHERE id IN (${idsToDelete.join(',')})`,
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
+            await dbRun(`DELETE FROM audiobooks WHERE id IN (${idsToDelete.join(',')})`);
           }
 
           results.consolidated++;
@@ -152,26 +128,9 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
     try {
       console.log('Clearing library database...');
 
-      await new Promise((resolve, reject) => {
-        db.run('DELETE FROM audiobook_chapters', (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      await new Promise((resolve, reject) => {
-        db.run('DELETE FROM playback_progress', (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      await new Promise((resolve, reject) => {
-        db.run('DELETE FROM audiobooks', (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+      await dbRun('DELETE FROM audiobook_chapters');
+      await dbRun('DELETE FROM playback_progress');
+      await dbRun('DELETE FROM audiobooks');
 
       console.log('Library database cleared successfully');
       res.json({
@@ -211,12 +170,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
 
         setImmediate(async () => {
           try {
-            const audiobooks = await new Promise((resolve, reject) => {
-              db.all('SELECT id, file_path, title, cover_path, cover_image FROM audiobooks', (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows);
-              });
-            });
+            const audiobooks = await dbAll('SELECT id, file_path, title, cover_path, cover_image FROM audiobooks');
 
             let updated = 0;
             let errors = 0;
@@ -233,7 +187,6 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
 
                 const metadata = await extractFileMetadata(audiobook.file_path);
 
-                // Preserve user-downloaded covers
                 let finalCoverImage = metadata.cover_image;
                 if (audiobook.cover_path && fs.existsSync(audiobook.cover_path)) {
                   finalCoverImage = audiobook.cover_path;
@@ -242,30 +195,24 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
                   console.log(`Using extracted cover for ${audiobook.title}: ${metadata.cover_image}`);
                 }
 
-                await new Promise((resolve, reject) => {
-                  db.run(
-                    `UPDATE audiobooks SET
-                      title = ?, author = ?, narrator = ?, description = ?,
-                      duration = ?, genre = ?, published_year = ?, isbn = ?,
-                      series = ?, series_position = ?, cover_image = ?,
-                      tags = ?, publisher = ?, copyright_year = ?, asin = ?,
-                      language = ?, rating = ?, abridged = ?, subtitle = ?,
-                      updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?`,
-                    [
-                      metadata.title, metadata.author, metadata.narrator, metadata.description,
-                      metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
-                      metadata.series, metadata.series_position, finalCoverImage,
-                      metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
-                      metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
-                      audiobook.id
-                    ],
-                    (err) => {
-                      if (err) reject(err);
-                      else resolve();
-                    }
-                  );
-                });
+                await dbRun(
+                  `UPDATE audiobooks SET
+                    title = ?, author = ?, narrator = ?, description = ?,
+                    duration = ?, genre = ?, published_year = ?, isbn = ?,
+                    series = ?, series_position = ?, cover_image = ?,
+                    tags = ?, publisher = ?, copyright_year = ?, asin = ?,
+                    language = ?, rating = ?, abridged = ?, subtitle = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?`,
+                  [
+                    metadata.title, metadata.author, metadata.narrator, metadata.description,
+                    metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
+                    metadata.series, metadata.series_position, finalCoverImage,
+                    metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
+                    metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
+                    audiobook.id
+                  ]
+                );
 
                 updated++;
                 if (updated % 10 === 0) {
@@ -312,26 +259,16 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
       // __dirname is server/routes/maintenance, so migrations is ../../migrations
       const migrationsDir = path.join(__dirname, '../../migrations');
 
-      await new Promise((resolve, reject) => {
-        db.run(
-          `CREATE TABLE IF NOT EXISTS migrations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL UNIQUE,
-            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )`,
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      await dbRun(
+        `CREATE TABLE IF NOT EXISTS migrations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          filename TEXT NOT NULL UNIQUE,
+          applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`
+      );
 
-      const appliedMigrations = await new Promise((resolve, reject) => {
-        db.all('SELECT filename FROM migrations', (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows.map(r => r.filename));
-        });
-      });
+      const appliedRows = await dbAll('SELECT filename FROM migrations');
+      const appliedMigrations = appliedRows.map(r => r.filename);
 
       const files = fs.readdirSync(migrationsDir)
         .filter(f => f.endsWith('.js'))
@@ -355,16 +292,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
 
           await migration.up(db);
 
-          await new Promise((resolve, reject) => {
-            db.run(
-              'INSERT INTO migrations (filename) VALUES (?)',
-              [file],
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
+          await dbRun('INSERT INTO migrations (filename) VALUES (?)', [file]);
 
           results.applied.push(file);
           console.log(`Migration ${file} applied successfully`);
@@ -418,16 +346,11 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
       try {
         console.log('Force rescan: marking all audiobooks as unavailable (preserving IDs)...');
 
-        const beforeCount = await new Promise((resolve, reject) => {
-          db.get('SELECT COUNT(*) as count FROM audiobooks', (err, row) => {
-            if (err) reject(err);
-            else resolve(row.count);
-          });
-        });
+        const countRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks');
+        console.log(`Found ${countRow.count} audiobooks to process`);
 
-        console.log(`Found ${beforeCount} audiobooks to process`);
-
-        // Mark all audiobooks as unavailable and delete chapters atomically
+        // Mark all audiobooks as unavailable and delete chapters atomically.
+        // Using raw db for transaction since dbRun doesn't support transaction chaining.
         await new Promise((resolve, reject) => {
           db.run('BEGIN TRANSACTION', (beginErr) => {
             if (beginErr) return reject(beginErr);
@@ -461,28 +384,12 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
 
         const stats = await scanLibrary();
 
-        const restoredCount = await new Promise((resolve, reject) => {
-          db.get('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 1', (err, row) => {
-            if (err) reject(err);
-            else resolve(row.count);
-          });
-        });
-
-        const stillUnavailable = await new Promise((resolve, reject) => {
-          db.get('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 0', (err, row) => {
-            if (err) reject(err);
-            else resolve(row.count);
-          });
-        });
+        const restoredRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 1');
+        const unavailableRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 0');
 
         // Refresh metadata for all restored books
         console.log('Refreshing metadata for all restored audiobooks...');
-        const audiobooks = await new Promise((resolve, reject) => {
-          db.all('SELECT id, file_path, title, cover_path FROM audiobooks WHERE is_available = 1', (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          });
-        });
+        const audiobooks = await dbAll('SELECT id, file_path, title, cover_path FROM audiobooks WHERE is_available = 1');
 
         let metadataUpdated = 0;
         let metadataErrors = 0;
@@ -500,30 +407,24 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
               finalCoverImage = audiobook.cover_path;
             }
 
-            await new Promise((resolve, reject) => {
-              db.run(
-                `UPDATE audiobooks SET
-                  title = ?, author = ?, narrator = ?, description = ?,
-                  duration = ?, genre = ?, published_year = ?, isbn = ?,
-                  series = ?, series_position = ?, cover_image = ?,
-                  tags = ?, publisher = ?, copyright_year = ?, asin = ?,
-                  language = ?, rating = ?, abridged = ?, subtitle = ?,
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?`,
-                [
-                  metadata.title, metadata.author, metadata.narrator, metadata.description,
-                  metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
-                  metadata.series, metadata.series_position, finalCoverImage,
-                  metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
-                  metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
-                  audiobook.id
-                ],
-                (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                }
-              );
-            });
+            await dbRun(
+              `UPDATE audiobooks SET
+                title = ?, author = ?, narrator = ?, description = ?,
+                duration = ?, genre = ?, published_year = ?, isbn = ?,
+                series = ?, series_position = ?, cover_image = ?,
+                tags = ?, publisher = ?, copyright_year = ?, asin = ?,
+                language = ?, rating = ?, abridged = ?, subtitle = ?,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`,
+              [
+                metadata.title, metadata.author, metadata.narrator, metadata.description,
+                metadata.duration, metadata.genre, metadata.published_year, metadata.isbn,
+                metadata.series, metadata.series_position, finalCoverImage,
+                metadata.tags, metadata.publisher, metadata.copyright_year, metadata.asin,
+                metadata.language, metadata.rating, metadata.abridged ? 1 : 0, metadata.subtitle,
+                audiobook.id
+              ]
+            );
 
             metadataUpdated++;
             if (metadataUpdated % 25 === 0) {
@@ -536,8 +437,8 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
         }
 
         console.log('Force rescan complete (ID-preserving mode):');
-        console.log(`   - ${restoredCount} audiobooks restored/added (IDs preserved)`);
-        console.log(`   - ${stillUnavailable} audiobooks still unavailable (files missing)`);
+        console.log(`   - ${restoredRow.count} audiobooks restored/added (IDs preserved)`);
+        console.log(`   - ${unavailableRow.count} audiobooks still unavailable (files missing)`);
         console.log(`   - ${stats.imported} newly imported, ${stats.skipped} skipped, ${stats.errors} errors`);
         console.log(`   - ${metadataUpdated} metadata refreshed, ${metadataErrors} errors`);
         console.log('   - User progress, favorites, ratings, and covers preserved automatically');
