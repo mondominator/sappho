@@ -4,7 +4,7 @@
  */
 const { getOrCreateSessionId, clearSessionId, getClientIP, activeSessionIds } = require('./helpers');
 
-function register(router, { db, authenticateToken, activityService }) {
+function register(router, { db, authenticateToken }) {
   /**
    * Queue the next book in a series when the current book is finished.
    * This makes the next book appear at the top of "Continue Listening".
@@ -101,12 +101,6 @@ function register(router, { db, authenticateToken, activityService }) {
         // If book was marked as completed, queue the next book in the series
         if (completed) {
           queueNextInSeries(userId, audiobookId);
-          // Record activity for finished book
-          activityService.recordActivity(
-            userId,
-            activityService.EVENT_TYPES.FINISHED_BOOK,
-            parseInt(audiobookId)
-          ).catch(err => console.error('Failed to record finish activity:', err));
         }
 
         // Update session tracking

@@ -13,7 +13,6 @@ const rateLimit = require('express-rate-limit');
 const defaultDependencies = {
   auth: () => require('../auth'),
   db: () => require('../database'),
-  activityService: () => require('../services/activityService'),
 };
 
 /**
@@ -21,7 +20,6 @@ const defaultDependencies = {
  * @param {Object} deps - Dependencies (for testing)
  * @param {Object} deps.auth - Authentication module (authenticateToken)
  * @param {Object} deps.db - Database module
- * @param {Object} deps.activityService - Activity service module
  * @returns {express.Router}
  */
 function createRatingsRouter(deps = {}) {
@@ -30,7 +28,6 @@ function createRatingsRouter(deps = {}) {
   // Resolve dependencies (use provided or defaults)
   const auth = deps.auth || defaultDependencies.auth();
   const db = deps.db || defaultDependencies.db();
-  const activityService = deps.activityService || defaultDependencies.activityService();
   const { authenticateToken } = auth;
 
   // SECURITY: Rate limiting for rating endpoints
@@ -183,15 +180,6 @@ function createRatingsRouter(deps = {}) {
                 (err, created) => {
                   if (err) {
                     return res.status(500).json({ error: 'Internal server error' });
-                  }
-                  // Record rating activity
-                  if (rating) {
-                    activityService.recordActivity(
-                      req.user.id,
-                      activityService.EVENT_TYPES.RATED_BOOK,
-                      parseInt(audiobookId),
-                      { rating: parseInt(rating) }
-                    ).catch(err => console.error('Failed to record rating activity:', err));
                   }
                   res.status(201).json(created);
                 }
