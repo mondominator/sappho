@@ -261,7 +261,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
         artist: audiobook.author || 'Unknown Author',
         album: audiobook.series || 'Audiobook',
         artwork: audiobook.cover_image ? [
-          { src: getCoverUrl(audiobook.id), sizes: '512x512', type: 'image/jpeg' }
+          { src: getCoverUrl(audiobook.id, null, 600), sizes: '512x512', type: 'image/jpeg' }
         ] : []
       });
 
@@ -1156,7 +1156,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       <div className="player-info">
         {audiobook.cover_image && (
           <img
-            src={getCoverUrl(audiobook.id)}
+            src={getCoverUrl(audiobook.id, null, 120)}
             alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`}
             className="player-cover"
             onClick={(e) => {

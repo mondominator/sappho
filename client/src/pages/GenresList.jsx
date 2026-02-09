@@ -86,7 +86,7 @@ export default function GenresList() {
                       {genreData.cover_ids.slice(0, 4).map((coverId, index) => (
                         <div key={index} className="cover-thumbnail">
                           <img
-                            src={getCoverUrl(coverId)}
+                            src={getCoverUrl(coverId, null, 120)}
                             alt={`${genreData.genre} cover ${index + 1}`}
                             loading="lazy"
                             onError={(e) => e.target.style.display = 'none'}

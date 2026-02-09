@@ -96,7 +96,7 @@ export default function AuthorsList() {
                     {author.cover_ids.slice(0, 4).map((coverId, index) => (
                       <div key={index} className="cover-item">
                         <img
-                          src={getCoverUrl(coverId)}
+                          src={getCoverUrl(coverId, null, 120)}
                           alt={`Book by ${author.author}`}
                           loading="lazy"
                           onError={(e) => e.target.style.display = 'none'}

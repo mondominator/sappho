@@ -111,7 +111,7 @@ export default function Home({ onPlay }) {
       )}
       <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
         {book.cover_image ? (
-          <img src={getCoverUrl(book.id)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
+          <img src={getCoverUrl(book.id, null, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
         ) : (
           <div className="audiobook-cover-placeholder">
             <h3>{book.title}</h3>
