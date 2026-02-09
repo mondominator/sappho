@@ -421,20 +421,17 @@ export default function AllBooks({ onPlay }) {
           )
         )}
         <div className="audiobook-cover">
-          {book.cover_image ? (
+          <div className="audiobook-cover-placeholder">
+            <h3>{book.title}</h3>
+          </div>
+          {book.cover_image && (
             <img
               src={getCoverUrl(book.id, null, 300)}
               alt={book.title}
               loading="lazy"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
+              onError={(e) => { e.target.style.display = 'none'; }}
             />
-          ) : null}
-          <div className="audiobook-cover-placeholder" style={{ display: book.cover_image ? 'none' : 'flex' }}>
-            <h3>{book.title}</h3>
-          </div>
+          )}
           {progressPercent > 0 && (
             <div className="progress-bar-overlay">
               <div
@@ -557,7 +554,7 @@ export default function AllBooks({ onPlay }) {
               minColumnWidth={windowWidth < 769 ? 100 : windowWidth >= 1200 ? 180 : 150}
               gap={windowWidth < 769 ? 6 : windowWidth >= 1200 ? 16 : 12}
               className={`audiobook-grid-virtual ${selectionMode ? 'has-action-bar' : ''}`}
-              overscanRowCount={4}
+              overscanRowCount={6}
             />
           ) : (
             <div className={`audiobook-grid ${selectionMode ? 'has-action-bar' : ''}`}>
