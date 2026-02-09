@@ -36,7 +36,7 @@ function RotatingCover({ bookIds, collectionName }) {
   return (
     <div className="cover-single">
       <img
-        src={getCoverUrl(bookIds[currentIndex])}
+        src={getCoverUrl(bookIds[currentIndex], null, 300)}
         alt={collectionName}
         loading="lazy"
         onError={() => setImageError(true)}

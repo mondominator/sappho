@@ -68,7 +68,7 @@ export default function SeriesList() {
                     {series.cover_ids.slice(0, 4).map((coverId, index) => (
                       <div key={index} className="cover-thumbnail">
                         <img
-                          src={getCoverUrl(coverId)}
+                          src={getCoverUrl(coverId, null, 120)}
                           alt={`${series.series} cover ${index + 1}`}
                           loading="lazy"
                           onError={(e) => e.target.src = '/placeholder-cover.png'}

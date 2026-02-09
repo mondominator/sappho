@@ -423,7 +423,7 @@ export default function AllBooks({ onPlay }) {
         <div className="audiobook-cover">
           {book.cover_image ? (
             <img
-              src={getCoverUrl(book.id)}
+              src={getCoverUrl(book.id, null, 300)}
               alt={book.title}
               loading="lazy"
               onError={(e) => {
