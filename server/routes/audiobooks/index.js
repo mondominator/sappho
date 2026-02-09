@@ -23,7 +23,6 @@ const defaultDependencies = {
   db: () => require('../../database'),
   auth: () => require('../../auth'),
   fileOrganizer: () => require('../../services/fileOrganizer'),
-  activityService: () => require('../../services/activityService'),
   conversionService: () => require('../../services/conversionService'),
   genres: () => require('../../utils/genres'),
 };
@@ -37,7 +36,6 @@ const isDirectoryBeingConverted = (dir) => defaultDependencies.conversionService
  * @param {Object} deps.db - Database module
  * @param {Object} deps.auth - Auth module
  * @param {Object} deps.fileOrganizer - File organizer service
- * @param {Object} deps.activityService - Activity service
  * @param {Object} deps.conversionService - Conversion service
  * @param {Object} deps.genres - Genres utility module
  * @returns {express.Router}
@@ -49,7 +47,6 @@ function createAudiobooksRouter(deps = {}) {
   const db = deps.db || defaultDependencies.db();
   const auth = deps.auth || defaultDependencies.auth();
   const fileOrganizer = deps.fileOrganizer || defaultDependencies.fileOrganizer();
-  const activityService = deps.activityService || defaultDependencies.activityService();
   const conversionService = deps.conversionService || defaultDependencies.conversionService();
   const genres = deps.genres || defaultDependencies.genres();
 
@@ -63,7 +60,6 @@ function createAudiobooksRouter(deps = {}) {
     authenticateToken,
     authenticateMediaToken,
     requireAdmin,
-    activityService,
     conversionService,
     normalizeGenres,
     organizeAudiobook,

@@ -110,7 +110,6 @@ app.use('/api/series', require('./routes/series'));
 app.use('/api/backup', require('./routes/backup'));
 app.use('/api/collections', require('./routes/collections'));
 app.use('/api/ratings', require('./routes/ratings'));
-app.use('/api/activity', require('./routes/activity'));
 app.use('/api/mfa', require('./routes/mfa'));
 app.use('/api/email', require('./routes/email'));
 
