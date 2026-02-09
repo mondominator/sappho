@@ -48,7 +48,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.media-amazon.com', 'https://*.ssl-images-amazon.com', 'https://covers.openlibrary.org', 'https://books.google.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.media-amazon.com', 'https://*.ssl-images-amazon.com', 'https://covers.openlibrary.org', 'https://*.archive.org', 'https://books.google.com', 'https://books.googleusercontent.com'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'", 'ws:', 'wss:', 'https://www.googleapis.com', 'https://openlibrary.org', 'https://api.audible.com', 'https://api.audnex.us'],
       fontSrc: ["'self'"],
