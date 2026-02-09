@@ -190,7 +190,7 @@ export default function FullscreenPlayer({
 
           <div className="fullscreen-cover">
             {audiobook.cover_image ? (
-              <img src={getCoverUrl(audiobook.id)} alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`} />
+              <img src={getCoverUrl(audiobook.id, null, 600)} alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`} />
             ) : (
               <div className="fullscreen-cover-placeholder">{audiobook.title}</div>
             )}

@@ -169,7 +169,7 @@ export default function AuthorDetail({ onPlay }) {
                 <div className="book-card-cover">
                   {book.cover_image ? (
                     <img
-                      src={getCoverUrl(book.id, book.updated_at)}
+                      src={getCoverUrl(book.id, book.updated_at, 300)}
                       alt={book.title}
                       loading="lazy"
                       onError={(e) => {

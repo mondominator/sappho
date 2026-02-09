@@ -181,7 +181,7 @@ export default function SearchModal({ isOpen, onClose }) {
                     >
                       {book.cover_image && (
                         <img
-                          src={getCoverUrl(book.id)}
+                          src={getCoverUrl(book.id, null, 120)}
                           alt={book.title}
                           className="search-result-cover"
                           loading="lazy"
