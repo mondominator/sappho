@@ -110,21 +110,6 @@
   padding-bottom: 100px;
 }
 
-/* Virtual scrolling grid container */
-.audiobook-grid-virtual {
-  padding-bottom: 20px;
-}
-
-.audiobook-grid-virtual.has-action-bar {
-  padding-bottom: 100px;
-}
-
-/* Ensure cards inside virtual grid fill their cell */
-.audiobook-grid-virtual .audiobook-card {
-  width: 100%;
-  height: 100%;
-}
-
 /* Book Card */
 .audiobook-card {
   position: relative;
