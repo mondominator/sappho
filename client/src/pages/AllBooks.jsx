@@ -2,14 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings, getProfile } from '../api';
 import BatchActionBar from '../components/BatchActionBar';
-import VirtualGrid from '../components/VirtualGrid';
 import './AllBooks.css';
 
 // Long press duration in ms
 const LONG_PRESS_DURATION = 500;
-
-// Threshold: use virtual scrolling when the library has more than this many items
-const VIRTUAL_SCROLL_THRESHOLD = 50;
 
 /**
  * Normalize a genre string to major bookstore categories using mappings from server
@@ -66,15 +62,6 @@ export default function AllBooks({ onPlay }) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
-
-  // Track window width for responsive virtual grid column calculations
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   // Long press detection
   const longPressTimer = useRef(null);
   const longPressTriggered = useRef(false);
@@ -547,20 +534,9 @@ export default function AllBooks({ onPlay }) {
             </div>
           )}
 
-          {sortedAudiobooks.length > VIRTUAL_SCROLL_THRESHOLD ? (
-            <VirtualGrid
-              items={sortedAudiobooks}
-              renderItem={renderBookCard}
-              minColumnWidth={windowWidth < 769 ? 100 : windowWidth >= 1200 ? 180 : 150}
-              gap={windowWidth < 769 ? 6 : windowWidth >= 1200 ? 16 : 12}
-              className={`audiobook-grid-virtual ${selectionMode ? 'has-action-bar' : ''}`}
-              overscanRowCount={6}
-            />
-          ) : (
-            <div className={`audiobook-grid ${selectionMode ? 'has-action-bar' : ''}`}>
-              {sortedAudiobooks.map(renderBookCard)}
-            </div>
-          )}
+          <div className={`audiobook-grid ${selectionMode ? 'has-action-bar' : ''}`}>
+            {sortedAudiobooks.map(renderBookCard)}
+          </div>
           {selectionMode && (
             <BatchActionBar
               selectedIds={Array.from(selectedIds)}
