@@ -1040,12 +1040,13 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         tempPath = audiobook.file_path + '.tmp' + ext;
 
         const isMP3 = ext === '.mp3';
+        const isFlac = ext === '.flac';
         const isVorbis = ext === '.flac' || ext === '.ogg' || ext === '.opus';
 
         const args = ['-i', audiobook.file_path];
 
-        // Add cover image as second input if available
-        const hasCover = coverFile && isMP3;  // Cover embedding works best for MP3
+        // Add cover image as second input if available (MP3 and FLAC supported)
+        const hasCover = coverFile && (isMP3 || isFlac);
         if (hasCover) {
           args.push('-i', coverFile);
         }
@@ -1091,12 +1092,8 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         // Additional metadata fields
         if (audiobook.publisher) args.push('-metadata', `publisher=${audiobook.publisher}`);
         if (audiobook.copyright_year) args.push('-metadata', `copyright=${audiobook.copyright_year}`);
-        if (audiobook.isbn) {
-          if (isVorbis) args.push('-metadata', `ISBN=${audiobook.isbn}`);
-        }
-        if (audiobook.asin) {
-          if (isVorbis) args.push('-metadata', `ASIN=${audiobook.asin}`);
-        }
+        if (audiobook.isbn) args.push('-metadata', `ISBN=${audiobook.isbn}`);
+        if (audiobook.asin) args.push('-metadata', `ASIN=${audiobook.asin}`);
         if (audiobook.language) args.push('-metadata', `language=${audiobook.language}`);
 
         // Map streams and set codecs
@@ -1106,11 +1103,16 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           args.push('-map', '1:v');
           args.push('-c:a', 'copy');
           args.push('-c:v', 'copy');
-          // ID3v2 tag version (required for embedded pictures in MP3)
-          args.push('-id3v2_version', '3');
-          // Mark the image as front cover
-          args.push('-metadata:s:v', 'title=Album cover');
-          args.push('-metadata:s:v', 'comment=Cover (front)');
+          if (isMP3) {
+            // ID3v2 tag version (required for embedded pictures in MP3)
+            args.push('-id3v2_version', '3');
+            // Mark the image as front cover
+            args.push('-metadata:s:v', 'title=Album cover');
+            args.push('-metadata:s:v', 'comment=Cover (front)');
+          } else if (isFlac) {
+            // FLAC uses METADATA_BLOCK_PICTURE for embedded cover art
+            args.push('-disposition:v', 'attached_pic');
+          }
           console.log(`Including cover art from ${coverFile}`);
         } else {
           // No cover - just copy all streams
