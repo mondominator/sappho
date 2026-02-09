@@ -15,6 +15,12 @@ const ALLOWED_WIDTHS = [120, 300, 600];
 // concurrent requests for the same thumbnail
 const inFlight = new Map();
 
+// Concurrency control: limit simultaneous sharp operations to avoid
+// overwhelming the CPU/memory when many thumbnails are requested at once
+const MAX_CONCURRENT = 4;
+let activeCount = 0;
+const waitQueue = [];
+
 // Central thumbnails cache directory
 const THUMBNAILS_DIR = path.join(process.env.DATA_DIR || '/app/data', 'thumbnails');
 
@@ -64,18 +70,31 @@ async function getOrGenerateThumbnail(originalCoverPath, audiobookId, width) {
   }
 
   const promise = (async () => {
-    // Ensure the thumbnails directory exists
-    await fs.promises.mkdir(THUMBNAILS_DIR, { recursive: true });
+    // Wait for a concurrency slot before starting sharp processing
+    if (activeCount >= MAX_CONCURRENT) {
+      await new Promise(resolve => waitQueue.push(resolve));
+    }
+    activeCount++;
 
-    // Lazy-load sharp so the module can be required even when sharp is absent
-    const sharp = require('sharp');
+    try {
+      // Ensure the thumbnails directory exists
+      await fs.promises.mkdir(THUMBNAILS_DIR, { recursive: true });
 
-    await sharp(originalCoverPath)
-      .resize(width, width, { fit: 'cover' })
-      .jpeg({ quality: 80 })
-      .toFile(thumbPath);
+      // Lazy-load sharp so the module can be required even when sharp is absent
+      const sharp = require('sharp');
 
-    return thumbPath;
+      await sharp(originalCoverPath)
+        .resize(width, width, { fit: 'cover' })
+        .jpeg({ quality: 80 })
+        .toFile(thumbPath);
+
+      return thumbPath;
+    } finally {
+      activeCount--;
+      if (waitQueue.length > 0) {
+        waitQueue.shift()();
+      }
+    }
   })();
 
   inFlight.set(key, promise);
