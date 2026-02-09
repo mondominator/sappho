@@ -121,9 +121,12 @@ export const getDownloadUrl = (id) => {
   return `${API_BASE}/audiobooks/${id}/download?token=${encodeURIComponent(token)}`;
 };
 
-export const getCoverUrl = (id, cacheBust = null) => {
+export const getCoverUrl = (id, cacheBust = null, width = null) => {
   const token = localStorage.getItem('token');
   let url = `${API_BASE}/audiobooks/${id}/cover?token=${encodeURIComponent(token)}`;
+  if (width) {
+    url += `&width=${width}`;
+  }
   if (cacheBust) {
     url += `&t=${encodeURIComponent(cacheBust)}`;
   }

@@ -38,7 +38,7 @@ function RotatingCover({ bookIds, collectionName }) {
   return (
     <div className="cover-single">
       <img
-        src={getCoverUrl(bookIds[currentIndex])}
+        src={getCoverUrl(bookIds[currentIndex], null, 300)}
         alt={collectionName}
         loading="lazy"
         onError={() => setImageError(true)}
@@ -538,7 +538,7 @@ export default function Library({ onPlay }) {
                   >
                     <div className="book-cover">
                       <img
-                        src={getCoverUrl(book.id)}
+                        src={getCoverUrl(book.id, null, 300)}
                         alt={book.title}
                         loading="lazy"
                         onError={(e) => {
