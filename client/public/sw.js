@@ -6,13 +6,13 @@
 // ---------------------------------------------------------------------------
 const APP_SHELL_CACHE = 'app-shell-v1';
 const API_CACHE = 'api-cache-v1';
-const COVER_CACHE = 'cover-cache-v1';
+const COVER_CACHE = 'cover-cache-v2';
 
 const EXPECTED_CACHES = [APP_SHELL_CACHE, API_CACHE, COVER_CACHE];
 
 // Cache size limits (LRU eviction when exceeded)
 const API_CACHE_MAX = 50;
-const COVER_CACHE_MAX = 200;
+const COVER_CACHE_MAX = 1000;
 
 // Resources to pre-cache during install
 const PRECACHE_URLS = [
@@ -41,9 +41,9 @@ function getCacheKey(request) {
 async function trimCache(cacheName, maxItems) {
   const cache = await caches.open(cacheName);
   const keys = await cache.keys();
-  if (keys.length > maxItems) {
-    await cache.delete(keys[0]);
-    await trimCache(cacheName, maxItems);
+  const excess = keys.length - maxItems;
+  if (excess > 0) {
+    await Promise.all(keys.slice(0, excess).map(key => cache.delete(key)));
   }
 }
 
@@ -146,29 +146,27 @@ async function networkFirst(request, cacheName, maxItems) {
 }
 
 /**
- * Cache-first with stale-while-revalidate for cover images.
- * Serves cached version immediately but updates cache from network.
+ * Pure cache-first for cover images.
+ * Serves from cache if available; fetches from network only on miss.
+ * No background revalidation — covers are immutable (cache-busted via URL
+ * parameter when they change), so re-fetching cached covers is wasteful.
  */
-async function cacheFirstSWR(request, cacheName, maxItems) {
+async function coverCacheFirst(request, cacheName, maxItems) {
   const cacheKey = getCacheKey(request);
   const cache = await caches.open(cacheName);
   const cachedResponse = await cache.match(cacheKey);
-
-  // Always kick off a network fetch to update the cache
-  const fetchPromise = fetch(request).then(response => {
-    if (response && response.status === 200) {
-      cache.put(cacheKey, response.clone());
-      trimCache(cacheName, maxItems).catch(() => {});
-    }
-    return response;
-  }).catch(() => {});
 
   if (cachedResponse) {
     return cachedResponse;
   }
 
-  // Not cached yet - wait for network
-  return fetchPromise;
+  // Not cached — fetch, cache, and return
+  const response = await fetch(request);
+  if (response && response.status === 200) {
+    cache.put(cacheKey, response.clone());
+    trimCache(cacheName, maxItems).catch(() => {});
+  }
+  return response;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,10 +222,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // --- Cover images: cache-first with stale-while-revalidate ---
+  // --- Cover images: pure cache-first (no background revalidation) ---
   if (isCoverRequest(url)) {
     event.respondWith(
-      cacheFirstSWR(request, COVER_CACHE, COVER_CACHE_MAX)
+      coverCacheFirst(request, COVER_CACHE, COVER_CACHE_MAX)
         .catch(() => new Response('', { status: 404, statusText: 'Not Found' }))
     );
     return;
