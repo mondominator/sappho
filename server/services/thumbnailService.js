@@ -11,6 +11,10 @@ const path = require('path');
 // Allowed thumbnail widths -- only these sizes can be requested
 const ALLOWED_WIDTHS = [120, 300, 600];
 
+// In-flight generation promises keyed by "{audiobookId}_{width}" to deduplicate
+// concurrent requests for the same thumbnail
+const inFlight = new Map();
+
 // Central thumbnails cache directory
 const THUMBNAILS_DIR = path.join(process.env.DATA_DIR || '/app/data', 'thumbnails');
 
@@ -48,24 +52,38 @@ function getThumbnailPath(audiobookId, width) {
 async function getOrGenerateThumbnail(originalCoverPath, audiobookId, width) {
   const thumbPath = getThumbnailPath(audiobookId, width);
 
-  // Fast path: thumbnail already cached
+  // Fast path: thumbnail already cached on disk
   if (fs.existsSync(thumbPath)) {
     return thumbPath;
   }
 
-  // Ensure the thumbnails directory exists
-  await fs.promises.mkdir(THUMBNAILS_DIR, { recursive: true });
+  // Deduplicate concurrent requests for the same thumbnail
+  const key = `${audiobookId}_${width}`;
+  if (inFlight.has(key)) {
+    return inFlight.get(key);
+  }
 
-  // Lazy-load sharp so the module can be required even when sharp is absent
-  // (useful for tests that mock the dependency)
-  const sharp = require('sharp');
+  const promise = (async () => {
+    // Ensure the thumbnails directory exists
+    await fs.promises.mkdir(THUMBNAILS_DIR, { recursive: true });
 
-  await sharp(originalCoverPath)
-    .resize(width, width, { fit: 'cover' })
-    .jpeg({ quality: 80 })
-    .toFile(thumbPath);
+    // Lazy-load sharp so the module can be required even when sharp is absent
+    const sharp = require('sharp');
 
-  return thumbPath;
+    await sharp(originalCoverPath)
+      .resize(width, width, { fit: 'cover' })
+      .jpeg({ quality: 80 })
+      .toFile(thumbPath);
+
+    return thumbPath;
+  })();
+
+  inFlight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 /**

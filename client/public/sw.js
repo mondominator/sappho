@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 // Cache names - bump version to invalidate
 // ---------------------------------------------------------------------------
-const APP_SHELL_CACHE = 'app-shell-v1';
+const APP_SHELL_CACHE = 'app-shell-v2';
 const API_CACHE = 'api-cache-v1';
 const COVER_CACHE = 'cover-cache-v2';
 

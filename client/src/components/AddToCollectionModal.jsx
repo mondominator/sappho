@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getCollections, createCollection, addToCollection, removeFromCollection, getCollectionsForBook } from '../api';
 import './AddToCollectionModal.css';
 
@@ -96,7 +97,7 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Add to collection">
       <div className="add-to-collection-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
@@ -167,6 +168,7 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
           <button className="btn btn-primary" onClick={onClose}>Done</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
