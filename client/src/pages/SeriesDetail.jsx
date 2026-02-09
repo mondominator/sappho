@@ -181,12 +181,11 @@ export default function SeriesDetail({ onPlay }) {
           </div>
         )}
         <div className="audiobook-cover" onClick={handleCardClick}>
-          {book.cover_image ? (
+          <div className="audiobook-cover-placeholder">
+            <h3>{book.title}</h3>
+          </div>
+          {book.cover_image && (
             <img src={getCoverUrl(book.id, null, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
-          ) : (
-            <div className="audiobook-cover-placeholder">
-              <h3>{book.title}</h3>
-            </div>
           )}
           {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
             <div className="progress-bar-overlay">
