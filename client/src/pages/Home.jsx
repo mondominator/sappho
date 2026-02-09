@@ -110,12 +110,11 @@ export default function Home({ onPlay }) {
         <div className="reading-list-ribbon" />
       )}
       <div className="audiobook-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
-        {book.cover_image ? (
+        <div className="audiobook-cover-placeholder">
+          <h3>{book.title}</h3>
+        </div>
+        {book.cover_image && (
           <img src={getCoverUrl(book.id, null, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
-        ) : (
-          <div className="audiobook-cover-placeholder">
-            <h3>{book.title}</h3>
-          </div>
         )}
         {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
           <div className="progress-bar-overlay">
