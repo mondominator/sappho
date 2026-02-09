@@ -845,6 +845,13 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         return res.status(404).json({ error: 'Audio file not found on disk' });
       }
 
+      // Check write access before attempting embed
+      try {
+        fs.accessSync(path.dirname(audiobook.file_path), fs.constants.W_OK);
+      } catch (_e) {
+        return res.status(400).json({ error: 'Cannot embed metadata — the audiobook directory is read-only' });
+      }
+
       // Get chapters from database
       const chapters = await new Promise((resolve, reject) => {
         db.all(
@@ -1131,7 +1138,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         });
       }
     } catch (error) {
-      console.error('Error embedding metadata:', error);
+      console.error('Error embedding metadata:', error.message || error);
       // Clean up temp files
       try {
         if (metadataJsonFile && fs.existsSync(metadataJsonFile)) {
@@ -1141,7 +1148,10 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           fs.unlinkSync(tempPath);
         }
       } catch (_e) { /* ignore cleanup errors */ }
-      res.status(500).json({ error: 'Failed to embed metadata' });
+      const message = error.message && error.message.includes('Permission denied')
+        ? 'Permission denied — the audiobook directory is read-only'
+        : 'Failed to embed metadata';
+      res.status(500).json({ error: message });
     }
   });
 
