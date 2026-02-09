@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { updateAudiobook, embedMetadata, convertToM4B, getChapters, updateChapters, refreshMetadata, fetchChaptersFromAudnexus, searchAudnexus } from '../api';
 import './EditMetadataModal.css';
 
@@ -502,7 +503,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
 
   if (!isOpen || !audiobook) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={handleClose} role="dialog" aria-modal="true" aria-label="Edit metadata">
       <div className="modal edit-metadata-modal" onClick={(e) => e.stopPropagation()}>
         {/* Loading Overlay */}
@@ -1001,6 +1002,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
