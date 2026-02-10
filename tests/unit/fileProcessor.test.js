@@ -563,3 +563,290 @@ describe('File Processor - Utility Functions', () => {
     });
   });
 });
+
+/**
+ * Tests for actual fileProcessor.js module exports
+ * These test extractFileMetadata with mocked music-metadata
+ *
+ * Strategy: music-metadata is ESM and loaded via dynamic import(). jest.doMock() doesn't
+ * intercept import() calls, so we use jest.mock() at top level with a factory that returns
+ * a controllable mock. Each test reconfigures the mockParseFile behavior before calling
+ * extractFileMetadata.
+ */
+
+// music-metadata is ESM-only and import() doesn't work in Jest VM.
+// Instead, we inject the mock via _setParseFile() after loading the module.
+const mockParseFile = jest.fn();
+
+// Top-level mocks for fileProcessor dependencies
+jest.mock('../../server/database', () => ({
+  run: jest.fn(),
+  get: jest.fn(),
+  all: jest.fn(),
+}));
+jest.mock('../../server/utils/db', () => ({
+  createDbHelpers: jest.fn().mockReturnValue({ dbTransaction: jest.fn() }),
+}));
+jest.mock('../../server/services/metadataScraper', () => ({
+  scrapeMetadata: jest.fn().mockResolvedValue({}),
+}));
+jest.mock('../../server/services/websocketManager', () => ({
+  broadcastLibraryUpdate: jest.fn(),
+}));
+jest.mock('../../server/utils/contentHash', () => ({
+  generateBestHash: jest.fn().mockReturnValue('hash123'),
+}));
+jest.mock('../../server/utils/cleanDescription', () => ({
+  cleanDescription: jest.fn().mockImplementation(s => s),
+}));
+jest.mock('../../server/services/fileOrganizer', () => ({
+  sanitizeName: jest.fn().mockImplementation(s => s || 'Unknown'),
+}));
+
+// Require after mocks are set up
+const fileProcessor = require('../../server/services/fileProcessor');
+
+/** Create a minimal metadata result from music-metadata parseFile */
+function createMockMetadata(overrides = {}) {
+  return {
+    common: {
+      title: 'Test Title',
+      artist: 'Test Author',
+      composer: null,
+      album: null,
+      genre: null,
+      year: null,
+      picture: null,
+      description: null,
+      movementName: null,
+      movementIndex: null,
+      disk: null,
+      track: null,
+      language: null,
+      ...overrides.common,
+    },
+    format: {
+      duration: 3600,
+      ...overrides.format,
+    },
+    native: overrides.native || {},
+  };
+}
+
+describe('File Processor - Module Exports', () => {
+  beforeEach(() => {
+    mockParseFile.mockReset();
+    // Inject mock parseFile into the module (bypasses ESM import() issue)
+    fileProcessor._setParseFile(mockParseFile);
+
+    // Suppress console
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('extractFileMetadata', () => {
+    it('extracts basic metadata (title, author, duration)', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata());
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+
+      expect(result.title).toBe('Test Title');
+      expect(result.author).toBe('Test Author');
+      expect(result.duration).toBe(3600);
+    });
+
+    it('extracts cover art from embedded picture', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: {
+          picture: [{
+            format: 'image/jpeg',
+            data: Buffer.from('fake-image-data'),
+          }],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      // Cover art is saved to a file and the path is returned
+      expect(result.cover_image).not.toBeNull();
+    });
+
+    it('extracts series from movementName', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: {
+          movementName: 'The Dark Tower',
+          movementIndex: { no: 3 },
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.series).toBe('The Dark Tower');
+      expect(result.series_position).toBe(3);
+    });
+
+    it('extracts series from iTunes SERIES tag', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        native: {
+          iTunes: [
+            { id: '----:com.apple.iTunes:SERIES', value: 'Discworld' },
+            { id: '----:com.apple.iTunes:PART', value: '5' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.series).toBe('Discworld');
+      expect(result.series_position).toBe(5);
+    });
+
+    it('extracts series with hash pattern from tag', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        native: {
+          iTunes: [
+            { id: '©mvn', value: 'The Expanse #3' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.series).toBe('The Expanse');
+      expect(result.series_position).toBe(3);
+    });
+
+    it('filters genre-like values from ambiguous series tags', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        native: {
+          iTunes: [
+            { id: '©grp', value: 'Fiction, Mystery, Thriller, Drama' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.series).toBeNull();
+    });
+
+    it('extracts narrator from composer tag', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { composer: 'Ray Porter' },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.narrator).toBe('Ray Porter');
+    });
+
+    it('extracts narrator from array composer', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { composer: ['Steven Pacey', 'Joe Smith'] },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.narrator).toBe('Steven Pacey');
+    });
+
+    it('extracts narrator from explicit iTunes narrator tag over composer', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { composer: 'Wrong Narrator' },
+        native: {
+          iTunes: [
+            { id: '©nrt', value: 'Correct Narrator' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.narrator).toBe('Correct Narrator');
+    });
+
+    it('falls back to filename for title when tags are empty', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { title: null, artist: null },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/My Audiobook.m4b');
+      expect(result.title).toBe('My Audiobook');
+    });
+
+    it('handles parseFile failure gracefully', async () => {
+      mockParseFile.mockRejectedValue(new Error('Corrupt file'));
+
+      const result = await fileProcessor.extractFileMetadata('/test/broken.m4b');
+      expect(result.title).toBe('broken');
+      expect(result.author).toBeNull();
+      expect(result.duration).toBeNull();
+    });
+
+    it('extracts series from ID3v2 TXXX:SERIES tag', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        native: {
+          'ID3v2.4': [
+            { id: 'TXXX:SERIES', value: 'Wheel of Time' },
+            { id: 'TXXX:PART', value: '7' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.mp3');
+      expect(result.series).toBe('Wheel of Time');
+      expect(result.series_position).toBe(7);
+    });
+
+    it('extracts series from vorbis SERIES tag', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        native: {
+          vorbis: [
+            { id: 'SERIES', value: 'Gentleman Bastard' },
+            { id: 'PART', value: '2' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.flac');
+      expect(result.series).toBe('Gentleman Bastard');
+      expect(result.series_position).toBe(2);
+    });
+
+    it('extracts genre as comma-separated string', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { genre: ['Fiction', 'Mystery'] },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.genre).toBe('Fiction, Mystery');
+    });
+
+    it('rejects short descriptions (under 50 chars)', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { description: 'Too short' },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.description).toBeNull();
+    });
+
+    it('extracts published year from rldt tag', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        native: {
+          iTunes: [
+            { id: 'rldt', value: '2009-01-01' },
+          ],
+        },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.published_year).toBe(2009);
+    });
+
+    it('falls back to common.year for published year', async () => {
+      mockParseFile.mockResolvedValue(createMockMetadata({
+        common: { year: 2015 },
+      }));
+
+      const result = await fileProcessor.extractFileMetadata('/test/book.m4b');
+      expect(result.published_year).toBe(2015);
+    });
+  });
+});

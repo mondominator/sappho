@@ -16,6 +16,9 @@ const execFileAsync = promisify(execFile);
 // music-metadata is ESM only, use dynamic import
 let parseFile;
 
+// Allow tests to inject parseFile mock (ESM import() not available in Jest VM)
+function _setParseFile(fn) { parseFile = fn; }
+
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
 // Ensure audiobooks directory exists
@@ -947,4 +950,5 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
 module.exports = {
   processAudiobook,
   extractFileMetadata,
+  _setParseFile,
 };
