@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const db = require('../database');
+const { createDbHelpers } = require('../utils/db');
 const { scrapeMetadata } = require('./metadataScraper');
 const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
@@ -76,10 +77,11 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
 
         const data = JSON.parse(stdout);
         if (data.chapters && data.chapters.length > 1) {
-          for (let i = 0; i < data.chapters.length; i++) {
-            const ch = data.chapters[i];
-            await new Promise((resolve, reject) => {
-              db.run(
+          const { dbTransaction } = createDbHelpers(db);
+          await dbTransaction(async ({ dbRun: txRun }) => {
+            for (let i = 0; i < data.chapters.length; i++) {
+              const ch = data.chapters[i];
+              await txRun(
                 `INSERT INTO audiobook_chapters
                  (audiobook_id, chapter_number, file_path, duration, start_time, title)
                  VALUES (?, ?, ?, ?, ?, ?)`,
@@ -90,17 +92,12 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
                   (parseFloat(ch.end_time) || 0) - (parseFloat(ch.start_time) || 0),
                   parseFloat(ch.start_time) || 0,
                   ch.tags?.title || `Chapter ${i + 1}`,
-                ],
-                (err) => { if (err) reject(err); else resolve(); }
+                ]
               );
-            });
-          }
+            }
 
-          // Update is_multi_file flag
-          await new Promise((resolve, reject) => {
-            db.run('UPDATE audiobooks SET is_multi_file = 1 WHERE id = ?', [audiobook.id], (err) => {
-              if (err) reject(err); else resolve();
-            });
+            // Update is_multi_file flag
+            await txRun('UPDATE audiobooks SET is_multi_file = 1 WHERE id = ?', [audiobook.id]);
           });
 
           console.log(`Extracted ${data.chapters.length} chapters from uploaded ${path.basename(finalPath)}`);

@@ -11,11 +11,12 @@ describe('createDbHelpers', () => {
     };
   });
 
-  it('returns dbGet, dbAll, dbRun functions', () => {
+  it('returns dbGet, dbAll, dbRun, dbTransaction functions', () => {
     const helpers = createDbHelpers(mockDb);
     expect(typeof helpers.dbGet).toBe('function');
     expect(typeof helpers.dbAll).toBe('function');
     expect(typeof helpers.dbRun).toBe('function');
+    expect(typeof helpers.dbTransaction).toBe('function');
   });
 
   describe('dbGet', () => {
@@ -107,6 +108,63 @@ describe('createDbHelpers', () => {
       const { dbRun } = createDbHelpers(mockDb);
       await dbRun('DELETE FROM t');
       expect(mockDb.run).toHaveBeenCalledWith('DELETE FROM t', [], expect.any(Function));
+    });
+  });
+
+  describe('dbTransaction', () => {
+    it('commits on success and returns result', async () => {
+      mockDb.run.mockImplementation(function(sql, params, cb) {
+        cb.call({ lastID: 1, changes: 1 }, null);
+      });
+      const { dbTransaction } = createDbHelpers(mockDb);
+
+      const result = await dbTransaction(async ({ dbRun }) => {
+        await dbRun('INSERT INTO t VALUES (?)', ['val']);
+        return 'done';
+      });
+
+      expect(result).toBe('done');
+      // BEGIN, INSERT, COMMIT
+      expect(mockDb.run).toHaveBeenCalledTimes(3);
+      expect(mockDb.run.mock.calls[0][0]).toBe('BEGIN TRANSACTION');
+      expect(mockDb.run.mock.calls[1][0]).toBe('INSERT INTO t VALUES (?)');
+      expect(mockDb.run.mock.calls[2][0]).toBe('COMMIT');
+    });
+
+    it('rolls back on error and rethrows', async () => {
+      let callCount = 0;
+      mockDb.run.mockImplementation(function(sql, params, cb) {
+        callCount++;
+        if (callCount === 2) {
+          // Second call (the INSERT) fails
+          cb.call({ lastID: 0, changes: 0 }, new Error('insert failed'));
+        } else {
+          cb.call({ lastID: 0, changes: 0 }, null);
+        }
+      });
+      const { dbTransaction } = createDbHelpers(mockDb);
+
+      await expect(dbTransaction(async ({ dbRun }) => {
+        await dbRun('INSERT INTO t VALUES (?)', ['val']);
+      })).rejects.toThrow('insert failed');
+
+      // BEGIN, INSERT (fails), ROLLBACK
+      expect(mockDb.run).toHaveBeenCalledTimes(3);
+      expect(mockDb.run.mock.calls[0][0]).toBe('BEGIN TRANSACTION');
+      expect(mockDb.run.mock.calls[2][0]).toBe('ROLLBACK');
+    });
+
+    it('provides dbGet, dbAll, dbRun to callback', async () => {
+      mockDb.run.mockImplementation(function(sql, params, cb) {
+        cb.call({ lastID: 0, changes: 0 }, null);
+      });
+      const { dbTransaction } = createDbHelpers(mockDb);
+
+      await dbTransaction(async (helpers) => {
+        expect(typeof helpers.dbGet).toBe('function');
+        expect(typeof helpers.dbAll).toBe('function');
+        expect(typeof helpers.dbRun).toBe('function');
+      });
     });
   });
 });
