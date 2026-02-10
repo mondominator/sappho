@@ -241,9 +241,19 @@ async function extractFileMetadata(filePath) {
       // Only applied to ambiguous tags, not explicit series tags
       const looksLikeGenres = (val) => {
         if (!val) return true;
-        // If it contains multiple commas or semicolons, likely genre list
-        if ((val.match(/,/g) || []).length >= 2) return true;
-        if ((val.match(/;/g) || []).length >= 1) return true;
+        const commaCount = (val.match(/,/g) || []).length;
+        const semicolonCount = (val.match(/;/g) || []).length;
+
+        // Strong signal: many separators suggest a list, not a series name
+        if (commaCount >= 3) return true;
+        if (semicolonCount >= 2) return true;
+
+        // Moderate signal: separators + genre keywords suggest genre list
+        if (commaCount >= 1 || semicolonCount >= 1) {
+          const genreKeywords = /\b(fiction|nonfiction|non-fiction|mystery|thriller|romance|fantasy|horror|sci-fi|science fiction|biography|history|drama|comedy|adventure|literary|suspense|crime|detective|young adult|children|self-help|memoir|poetry|western|dystopian|paranormal)\b/i;
+          if (genreKeywords.test(val)) return true;
+        }
+
         return false;
       };
 
