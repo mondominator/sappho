@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
+const { createDbHelpers } = require('../utils/db');
 
 /**
  * Default dependencies - used when route is required directly
@@ -95,19 +96,18 @@ function createProfileRouter(deps = {}) {
   const db = deps.db || defaultDependencies.db();
   const auth = deps.auth || defaultDependencies.auth();
   const genres = deps.genres || defaultDependencies.genres();
+  const { dbGet, dbAll, dbRun } = createDbHelpers(db);
 
   const { authenticateToken, authenticateMediaToken, validatePassword, invalidateUserTokens } = auth;
   const { normalizeGenres } = genres;
 
   // Get profile
-  router.get('/', profileLimiter, authenticateToken, (req, res) => {
-  db.get(
-    'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
-    [req.user.id],
-    (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
+  router.get('/', profileLimiter, authenticateToken, async (req, res) => {
+    try {
+      const user = await dbGet(
+        'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
+        [req.user.id]
+      );
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
@@ -115,289 +115,249 @@ function createProfileRouter(deps = {}) {
         ...user,
         must_change_password: !!user.must_change_password
       });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
     }
-  );
-});
+  });
 
-// Get user listening stats
-router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    // Get all stats in parallel using Promise.all
-    const stats = await new Promise((resolve, reject) => {
-      const result = {};
+  // Get user listening stats
+  router.get('/stats', profileLimiter, authenticateToken, async (req, res) => {
+    try {
+      const userId = req.user.id;
 
       // Total listen time (sum of durations for COMPLETED books only)
-      db.get(
+      const listenTimeRow = await dbGet(
         `SELECT COALESCE(SUM(a.duration), 0) as totalListenTime
          FROM playback_progress p
          JOIN audiobooks a ON p.audiobook_id = a.id
          WHERE p.user_id = ? AND p.completed = 1`,
-        [userId],
-        (err, row) => {
-          if (err) return reject(err);
-          result.totalListenTime = row.totalListenTime;
+        [userId]
+      );
 
-          // Books started (any progress)
-          db.get(
-            `SELECT COUNT(DISTINCT audiobook_id) as booksStarted
-             FROM playback_progress WHERE user_id = ? AND position > 0`,
-            [userId],
-            (err, row) => {
-              if (err) return reject(err);
-              result.booksStarted = row.booksStarted;
+      // Books started (any progress)
+      const startedRow = await dbGet(
+        `SELECT COUNT(DISTINCT audiobook_id) as booksStarted
+         FROM playback_progress WHERE user_id = ? AND position > 0`,
+        [userId]
+      );
 
-              // Books completed
-              db.get(
-                `SELECT COUNT(*) as booksCompleted
-                 FROM playback_progress WHERE user_id = ? AND completed = 1`,
-                [userId],
-                (err, row) => {
-                  if (err) return reject(err);
-                  result.booksCompleted = row.booksCompleted;
+      // Books completed
+      const completedRow = await dbGet(
+        `SELECT COUNT(*) as booksCompleted
+         FROM playback_progress WHERE user_id = ? AND completed = 1`,
+        [userId]
+      );
 
-                  // Currently listening (in progress, not completed)
-                  // Matches criteria used by /api/audiobooks/meta/in-progress endpoint
-                  // Deduplicates by series (only counts most recent book per series)
-                  db.get(
-                    `WITH RankedBooks AS (
-                       SELECT a.id,
-                              ROW_NUMBER() OVER (
-                                PARTITION BY CASE
-                                  WHEN a.series IS NOT NULL AND a.series != '' THEN a.series
-                                  ELSE 'standalone_' || a.id
-                                END
-                                ORDER BY p.updated_at DESC
-                              ) as rn
-                       FROM playback_progress p
-                       JOIN audiobooks a ON p.audiobook_id = a.id
-                       WHERE p.user_id = ? AND p.completed = 0
-                         AND (p.position >= 5 OR p.queued_at IS NOT NULL)
-                         AND (a.is_available = 1 OR a.is_available IS NULL)
-                     )
-                     SELECT COUNT(*) as currentlyListening FROM RankedBooks WHERE rn = 1`,
-                    [userId],
-                    (err, row) => {
-                      if (err) return reject(err);
-                      result.currentlyListening = row.currentlyListening;
+      // Currently listening (in progress, not completed)
+      // Matches criteria used by /api/audiobooks/meta/in-progress endpoint
+      // Deduplicates by series (only counts most recent book per series)
+      const listeningRow = await dbGet(
+        `WITH RankedBooks AS (
+           SELECT a.id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY CASE
+                      WHEN a.series IS NOT NULL AND a.series != '' THEN a.series
+                      ELSE 'standalone_' || a.id
+                    END
+                    ORDER BY p.updated_at DESC
+                  ) as rn
+           FROM playback_progress p
+           JOIN audiobooks a ON p.audiobook_id = a.id
+           WHERE p.user_id = ? AND p.completed = 0
+             AND (p.position >= 5 OR p.queued_at IS NOT NULL)
+             AND (a.is_available = 1 OR a.is_available IS NULL)
+         )
+         SELECT COUNT(*) as currentlyListening FROM RankedBooks WHERE rn = 1`,
+        [userId]
+      );
 
-                      // Top authors by listen time (sum of durations for COMPLETED books)
-                      db.all(
-                        `SELECT a.author, SUM(a.duration) as listenTime, COUNT(DISTINCT a.id) as bookCount
-                         FROM playback_progress p
-                         JOIN audiobooks a ON p.audiobook_id = a.id
-                         WHERE p.user_id = ? AND p.completed = 1 AND a.author IS NOT NULL AND a.author != ''
-                         GROUP BY a.author
-                         ORDER BY listenTime DESC
-                         LIMIT 5`,
-                        [userId],
-                        (err, rows) => {
-                          if (err) return reject(err);
-                          result.topAuthors = rows || [];
+      // Top authors by listen time (sum of durations for COMPLETED books)
+      const topAuthors = await dbAll(
+        `SELECT a.author, SUM(a.duration) as listenTime, COUNT(DISTINCT a.id) as bookCount
+         FROM playback_progress p
+         JOIN audiobooks a ON p.audiobook_id = a.id
+         WHERE p.user_id = ? AND p.completed = 1 AND a.author IS NOT NULL AND a.author != ''
+         GROUP BY a.author
+         ORDER BY listenTime DESC
+         LIMIT 5`,
+        [userId]
+      );
 
-                          // Top genres by listen time (sum of durations for COMPLETED books, normalize genres in JavaScript)
-                          db.all(
-                            `SELECT a.genre, a.duration, a.id
-                             FROM playback_progress p
-                             JOIN audiobooks a ON p.audiobook_id = a.id
-                             WHERE p.user_id = ? AND p.completed = 1 AND a.genre IS NOT NULL AND a.genre != ''`,
-                            [userId],
-                            (err, rows) => {
-                              if (err) return reject(err);
+      // Top genres by listen time (sum of durations for COMPLETED books, normalize genres in JavaScript)
+      const genreRows = await dbAll(
+        `SELECT a.genre, a.duration, a.id
+         FROM playback_progress p
+         JOIN audiobooks a ON p.audiobook_id = a.id
+         WHERE p.user_id = ? AND p.completed = 1 AND a.genre IS NOT NULL AND a.genre != ''`,
+        [userId]
+      );
 
-                              // Normalize genres and aggregate by normalized genre
-                              const genreStats = {};
-                              for (const row of (rows || [])) {
-                                const normalized = normalizeGenres(row.genre);
-                                if (normalized) {
-                                  // Each normalized genre string may contain multiple categories
-                                  const categories = normalized.split(',').map(g => g.trim());
-                                  for (const category of categories) {
-                                    if (!genreStats[category]) {
-                                      genreStats[category] = { genre: category, listenTime: 0, bookIds: new Set() };
-                                    }
-                                    genreStats[category].listenTime += row.duration || 0;
-                                    genreStats[category].bookIds.add(row.id);
-                                  }
-                                }
-                              }
-
-                              // Convert to array and sort by listen time
-                              result.topGenres = Object.values(genreStats)
-                                .map(g => ({ genre: g.genre, listenTime: g.listenTime, bookCount: g.bookIds.size }))
-                                .sort((a, b) => b.listenTime - a.listenTime)
-                                .slice(0, 5);
-
-                              // Recent activity (last 5 books listened to)
-                              db.all(
-                                `SELECT a.id, a.title, a.author, a.cover_image, p.position, a.duration, p.completed, p.updated_at
-                                 FROM playback_progress p
-                                 JOIN audiobooks a ON p.audiobook_id = a.id
-                                 WHERE p.user_id = ? AND p.position > 0
-                                 ORDER BY p.updated_at DESC
-                                 LIMIT 5`,
-                                [userId],
-                                (err, rows) => {
-                                  if (err) return reject(err);
-                                  result.recentActivity = rows || [];
-
-                                  // Listening streak (days with activity in last 30 days)
-                                  db.all(
-                                    `SELECT DATE(updated_at) as day
-                                     FROM playback_progress
-                                     WHERE user_id = ? AND updated_at >= datetime('now', '-30 days')
-                                     GROUP BY DATE(updated_at)
-                                     ORDER BY day DESC`,
-                                    [userId],
-                                    (err, rows) => {
-                                      if (err) return reject(err);
-                                      result.activeDaysLast30 = rows ? rows.length : 0;
-
-                                      // Calculate current streak
-                                      let streak = 0;
-                                      if (rows && rows.length > 0) {
-                                        const today = new Date().toISOString().split('T')[0];
-                                        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-                                        // Check if first day is today or yesterday
-                                        if (rows[0].day === today || rows[0].day === yesterday) {
-                                          streak = 1;
-                                          for (let i = 1; i < rows.length; i++) {
-                                            const prevDate = new Date(rows[i - 1].day);
-                                            const currDate = new Date(rows[i].day);
-                                            const diff = (prevDate - currDate) / 86400000;
-                                            if (diff === 1) {
-                                              streak++;
-                                            } else {
-                                              break;
-                                            }
-                                          }
-                                        }
-                                      }
-                                      result.currentStreak = streak;
-
-                                      // Average session length
-                                      db.get(
-                                        `SELECT AVG(position) as avgPosition
-                                         FROM playback_progress
-                                         WHERE user_id = ? AND position > 60`,
-                                        [userId],
-                                        (err, row) => {
-                                          if (err) return reject(err);
-                                          result.avgSessionLength = row?.avgPosition || 0;
-
-                                          resolve(result);
-                                        }
-                                      );
-                                    }
-                                  );
-                                }
-                              );
-                            }
-                          );
-                        }
-                      );
-                    }
-                  );
-                }
-              );
+      // Normalize genres and aggregate by normalized genre
+      const genreStats = {};
+      for (const row of genreRows) {
+        const normalized = normalizeGenres(row.genre);
+        if (normalized) {
+          const categories = normalized.split(',').map(g => g.trim());
+          for (const category of categories) {
+            if (!genreStats[category]) {
+              genreStats[category] = { genre: category, listenTime: 0, bookIds: new Set() };
             }
-          );
-        }
-      );
-    });
-
-    res.json(stats);
-  } catch (error) {
-    console.error('Error fetching user stats:', error);
-    res.status(500).json({ error: 'Failed to fetch stats' });
-  }
-});
-
-// Update profile with multer error handling
-router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
-  upload.single('avatar')(req, res, function (err) {
-    if (err instanceof multer.MulterError) {
-      console.error('[Profile Update] Multer error:', err.message);
-      return res.status(400).json({ error: 'Upload failed' });
-    } else if (err) {
-      console.error('[Profile Update] Upload error:', err.message);
-      return res.status(400).json({ error: 'Upload failed' });
-    }
-
-    console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
-    console.log('[Profile Update] req.body:', req.body);
-
-  const { displayName, email } = req.body;
-  const updates = [];
-  const params = [];
-
-  if (displayName !== undefined) {
-    // VALIDATION: Display name must not be empty or whitespace-only
-    const trimmedDisplayName = displayName ? displayName.trim() : '';
-    if (trimmedDisplayName.length === 0) {
-      return res.status(400).json({ error: 'Display name cannot be empty or whitespace-only' });
-    }
-    if (trimmedDisplayName.length > 100) {
-      return res.status(400).json({ error: 'Display name must be 100 characters or less' });
-    }
-    updates.push('display_name = ?');
-    params.push(trimmedDisplayName);
-  }
-
-  if (email !== undefined) {
-    updates.push('email = ?');
-    params.push(email || null);
-  }
-
-  if (req.file) {
-    updates.push('avatar = ?');
-    params.push(req.file.filename);
-  }
-
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
-
-  params.push(req.user.id);
-
-  db.run(
-    `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-    params,
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      // Return the updated user object
-      db.get(
-        'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
-        [req.user.id],
-        (err, user) => {
-          if (err) {
-            return res.status(500).json({ error: 'Internal server error' });
+            genreStats[category].listenTime += row.duration || 0;
+            genreStats[category].bookIds.add(row.id);
           }
-          res.json({
-            ...user,
-            must_change_password: !!user.must_change_password
-          });
         }
-      );
-    }
-  );
-  }); // End of upload callback
-});
+      }
 
-// Get avatar (uses media token for img src compatibility)
-router.get('/avatar', profileLimiter, authenticateMediaToken, (req, res) => {
-  db.get(
-    'SELECT avatar FROM users WHERE id = ?',
-    [req.user.id],
-    (err, user) => {
-      if (err || !user || !user.avatar) {
+      const topGenres = Object.values(genreStats)
+        .map(g => ({ genre: g.genre, listenTime: g.listenTime, bookCount: g.bookIds.size }))
+        .sort((a, b) => b.listenTime - a.listenTime)
+        .slice(0, 5);
+
+      // Recent activity (last 5 books listened to)
+      const recentActivity = await dbAll(
+        `SELECT a.id, a.title, a.author, a.cover_image, p.position, a.duration, p.completed, p.updated_at
+         FROM playback_progress p
+         JOIN audiobooks a ON p.audiobook_id = a.id
+         WHERE p.user_id = ? AND p.position > 0
+         ORDER BY p.updated_at DESC
+         LIMIT 5`,
+        [userId]
+      );
+
+      // Listening streak (days with activity in last 30 days)
+      const activityDays = await dbAll(
+        `SELECT DATE(updated_at) as day
+         FROM playback_progress
+         WHERE user_id = ? AND updated_at >= datetime('now', '-30 days')
+         GROUP BY DATE(updated_at)
+         ORDER BY day DESC`,
+        [userId]
+      );
+
+      // Calculate current streak
+      let streak = 0;
+      if (activityDays.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+        if (activityDays[0].day === today || activityDays[0].day === yesterday) {
+          streak = 1;
+          for (let i = 1; i < activityDays.length; i++) {
+            const prevDate = new Date(activityDays[i - 1].day);
+            const currDate = new Date(activityDays[i].day);
+            const diff = (prevDate - currDate) / 86400000;
+            if (diff === 1) {
+              streak++;
+            } else {
+              break;
+            }
+          }
+        }
+      }
+
+      // Average session length
+      const avgRow = await dbGet(
+        `SELECT AVG(position) as avgPosition
+         FROM playback_progress
+         WHERE user_id = ? AND position > 60`,
+        [userId]
+      );
+
+      res.json({
+        totalListenTime: listenTimeRow.totalListenTime,
+        booksStarted: startedRow.booksStarted,
+        booksCompleted: completedRow.booksCompleted,
+        currentlyListening: listeningRow.currentlyListening,
+        topAuthors,
+        topGenres,
+        recentActivity,
+        activeDaysLast30: activityDays.length,
+        currentStreak: streak,
+        avgSessionLength: avgRow?.avgPosition || 0
+      });
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  // Update profile with multer error handling
+  router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
+    upload.single('avatar')(req, res, async function (err) {
+      if (err instanceof multer.MulterError) {
+        console.error('[Profile Update] Multer error:', err.message);
+        return res.status(400).json({ error: 'Upload failed' });
+      } else if (err) {
+        console.error('[Profile Update] Upload error:', err.message);
+        return res.status(400).json({ error: 'Upload failed' });
+      }
+
+      console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
+      console.log('[Profile Update] req.body:', req.body);
+
+      const { displayName, email } = req.body;
+      const updates = [];
+      const params = [];
+
+      if (displayName !== undefined) {
+        // VALIDATION: Display name must not be empty or whitespace-only
+        const trimmedDisplayName = displayName ? displayName.trim() : '';
+        if (trimmedDisplayName.length === 0) {
+          return res.status(400).json({ error: 'Display name cannot be empty or whitespace-only' });
+        }
+        if (trimmedDisplayName.length > 100) {
+          return res.status(400).json({ error: 'Display name must be 100 characters or less' });
+        }
+        updates.push('display_name = ?');
+        params.push(trimmedDisplayName);
+      }
+
+      if (email !== undefined) {
+        updates.push('email = ?');
+        params.push(email || null);
+      }
+
+      if (req.file) {
+        updates.push('avatar = ?');
+        params.push(req.file.filename);
+      }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+
+      params.push(req.user.id);
+
+      try {
+        const { changes } = await dbRun(
+          `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+          params
+        );
+        if (changes === 0) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        const user = await dbGet(
+          'SELECT id, username, email, display_name, avatar, is_admin, must_change_password, created_at FROM users WHERE id = ?',
+          [req.user.id]
+        );
+        res.json({
+          ...user,
+          must_change_password: !!user.must_change_password
+        });
+      } catch (_err) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }); // End of upload callback
+  });
+
+  // Get avatar (uses media token for img src compatibility)
+  router.get('/avatar', profileLimiter, authenticateMediaToken, async (req, res) => {
+    try {
+      const user = await dbGet(
+        'SELECT avatar FROM users WHERE id = ?',
+        [req.user.id]
+      );
+      if (!user || !user.avatar) {
         return res.status(404).json({ error: 'Avatar not found' });
       }
 
@@ -422,59 +382,52 @@ router.get('/avatar', profileLimiter, authenticateMediaToken, (req, res) => {
       }
 
       res.sendFile(resolvedPath);
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
     }
-  );
-});
-
-// Delete avatar
-router.delete('/avatar', profileWriteLimiter, authenticateToken, (req, res) => {
-  db.get('SELECT avatar FROM users WHERE id = ?', [req.user.id], (err, user) => {
-    if (err) {
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-
-    if (user && user.avatar) {
-      const avatarPath = path.join(__dirname, '../../data/avatars', user.avatar);
-      if (fs.existsSync(avatarPath)) {
-        fs.unlinkSync(avatarPath);
-      }
-    }
-
-    db.run(
-      'UPDATE users SET avatar = NULL WHERE id = ?',
-      [req.user.id],
-      function (err) {
-        if (err) {
-          return res.status(500).json({ error: 'Internal server error' });
-        }
-        res.json({ message: 'Avatar removed successfully' });
-      }
-    );
   });
-});
 
-// Change password
-router.put('/password', passwordChangeLimiter, authenticateToken, (req, res) => {
-  const { currentPassword, newPassword } = req.body;
+  // Delete avatar
+  router.delete('/avatar', profileWriteLimiter, authenticateToken, async (req, res) => {
+    try {
+      const user = await dbGet('SELECT avatar FROM users WHERE id = ?', [req.user.id]);
 
-  if (!currentPassword || !newPassword) {
-    return res.status(400).json({ error: 'Current password and new password are required' });
-  }
-
-  // SECURITY: Validate password complexity
-  const passwordErrors = validatePassword(newPassword);
-  if (passwordErrors.length > 0) {
-    return res.status(400).json({ error: passwordErrors.join('. ') });
-  }
-
-  // Get user's current password hash
-  db.get(
-    'SELECT password_hash FROM users WHERE id = ?',
-    [req.user.id],
-    (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
+      if (user && user.avatar) {
+        const avatarPath = path.join(__dirname, '../../data/avatars', user.avatar);
+        if (fs.existsSync(avatarPath)) {
+          fs.unlinkSync(avatarPath);
+        }
       }
+
+      await dbRun(
+        'UPDATE users SET avatar = NULL WHERE id = ?',
+        [req.user.id]
+      );
+      res.json({ message: 'Avatar removed successfully' });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Change password
+  router.put('/password', passwordChangeLimiter, authenticateToken, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    // SECURITY: Validate password complexity
+    const passwordErrors = validatePassword(newPassword);
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({ error: passwordErrors.join('. ') });
+    }
+
+    try {
+      const user = await dbGet(
+        'SELECT password_hash FROM users WHERE id = ?',
+        [req.user.id]
+      );
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
@@ -487,25 +440,21 @@ router.put('/password', passwordChangeLimiter, authenticateToken, (req, res) => 
 
       // Hash new password and update, also clear must_change_password flag
       const newPasswordHash = bcrypt.hashSync(newPassword, 10);
-      db.run(
+      await dbRun(
         'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?',
-        [newPasswordHash, req.user.id],
-        function (err) {
-          if (err) {
-            return res.status(500).json({ error: 'Internal server error' });
-          }
-
-          // SECURITY: Invalidate all existing tokens after password change
-          invalidateUserTokens(req.user.id);
-
-          res.json({
-            message: 'Password updated successfully. Please log in again on all devices.'
-          });
-        }
+        [newPasswordHash, req.user.id]
       );
+
+      // SECURITY: Invalidate all existing tokens after password change
+      invalidateUserTokens(req.user.id);
+
+      res.json({
+        message: 'Password updated successfully. Please log in again on all devices.'
+      });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
     }
-  );
-});
+  });
 
   return router;
 }
