@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { batchDeleteLimiter } = require('./helpers');
+const { createDbHelpers } = require('../../utils/db');
 
 // Helper to call OpenAI API
 const callOpenAI = async (prompt, systemPrompt) => {
@@ -122,132 +123,102 @@ const generateRecapHash = (bookId, priorBooks) => {
 };
 
 function register(router, { db, authenticateToken }) {
+  const { dbGet, dbAll, dbRun } = createDbHelpers(db);
 
   // ============================================
   // FAVORITES ENDPOINTS (/:id routes only - /favorites GET is defined earlier)
   // ============================================
 
   // Check if a specific audiobook is a favorite
-  router.get('/:id/favorite', authenticateToken, (req, res) => {
+  router.get('/:id/favorite', authenticateToken, async (req, res) => {
     const audiobookId = parseInt(req.params.id);
 
-    db.get(
-      'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
-      [req.user.id, audiobookId],
-      (err, row) => {
-        if (err) {
-          console.error('Error checking favorite status:', err);
-          return res.status(500).json({ error: 'Failed to check favorite status' });
-        }
-
-        res.json({ is_favorite: !!row });
-      }
-    );
+    try {
+      const row = await dbGet(
+        'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+        [req.user.id, audiobookId]
+      );
+      res.json({ is_favorite: !!row });
+    } catch (err) {
+      console.error('Error checking favorite status:', err);
+      res.status(500).json({ error: 'Failed to check favorite status' });
+    }
   });
 
   // Add audiobook to favorites
-  router.post('/:id/favorite', authenticateToken, (req, res) => {
+  router.post('/:id/favorite', authenticateToken, async (req, res) => {
     const audiobookId = parseInt(req.params.id);
 
-    // First check if audiobook exists
-    db.get('SELECT id FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-      if (err) {
-        console.error('Error checking audiobook:', err);
-        return res.status(500).json({ error: 'Failed to add favorite' });
-      }
-
+    try {
+      // First check if audiobook exists
+      const audiobook = await dbGet('SELECT id FROM audiobooks WHERE id = ?', [audiobookId]);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
       // Add to favorites (IGNORE if already exists)
-      db.run(
+      await dbRun(
         'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-        [req.user.id, audiobookId],
-        function(err) {
-          if (err) {
-            console.error('Error adding favorite:', err);
-            return res.status(500).json({ error: 'Failed to add favorite' });
-          }
-
-          res.json({ success: true, is_favorite: true });
-        }
+        [req.user.id, audiobookId]
       );
-    });
+      res.json({ success: true, is_favorite: true });
+    } catch (err) {
+      console.error('Error adding favorite:', err);
+      res.status(500).json({ error: 'Failed to add favorite' });
+    }
   });
 
   // Remove audiobook from favorites
-  router.delete('/:id/favorite', authenticateToken, (req, res) => {
+  router.delete('/:id/favorite', authenticateToken, async (req, res) => {
     const audiobookId = parseInt(req.params.id);
 
-    db.run(
-      'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
-      [req.user.id, audiobookId],
-      function(err) {
-        if (err) {
-          console.error('Error removing favorite:', err);
-          return res.status(500).json({ error: 'Failed to remove favorite' });
-        }
-
-        res.json({ success: true, is_favorite: false });
-      }
-    );
+    try {
+      await dbRun(
+        'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+        [req.user.id, audiobookId]
+      );
+      res.json({ success: true, is_favorite: false });
+    } catch (err) {
+      console.error('Error removing favorite:', err);
+      res.status(500).json({ error: 'Failed to remove favorite' });
+    }
   });
 
   // Toggle favorite status (convenience endpoint)
-  router.post('/:id/favorite/toggle', authenticateToken, (req, res) => {
+  router.post('/:id/favorite/toggle', authenticateToken, async (req, res) => {
     const audiobookId = parseInt(req.params.id);
 
-    // Check current status
-    db.get(
-      'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
-      [req.user.id, audiobookId],
-      (err, row) => {
-        if (err) {
-          console.error('Error checking favorite status:', err);
-          return res.status(500).json({ error: 'Failed to toggle favorite' });
+    try {
+      // Check current status
+      const row = await dbGet(
+        'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+        [req.user.id, audiobookId]
+      );
+
+      if (row) {
+        // Currently a favorite - remove it
+        await dbRun(
+          'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+          [req.user.id, audiobookId]
+        );
+        res.json({ success: true, is_favorite: false });
+      } else {
+        // Not a favorite - add it (but first check audiobook exists)
+        const audiobook = await dbGet('SELECT id FROM audiobooks WHERE id = ?', [audiobookId]);
+        if (!audiobook) {
+          return res.status(404).json({ error: 'Audiobook not found' });
         }
 
-        if (row) {
-          // Currently a favorite - remove it
-          db.run(
-            'DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
-            [req.user.id, audiobookId],
-            function(err) {
-              if (err) {
-                console.error('Error removing favorite:', err);
-                return res.status(500).json({ error: 'Failed to remove favorite' });
-              }
-              res.json({ success: true, is_favorite: false });
-            }
-          );
-        } else {
-          // Not a favorite - add it (but first check audiobook exists)
-          db.get('SELECT id FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-            if (err) {
-              console.error('Error checking audiobook:', err);
-              return res.status(500).json({ error: 'Failed to add favorite' });
-            }
-
-            if (!audiobook) {
-              return res.status(404).json({ error: 'Audiobook not found' });
-            }
-
-            db.run(
-              'INSERT INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-              [req.user.id, audiobookId],
-              function(err) {
-                if (err) {
-                  console.error('Error adding favorite:', err);
-                  return res.status(500).json({ error: 'Failed to add favorite' });
-                }
-                res.json({ success: true, is_favorite: true });
-              }
-            );
-          });
-        }
+        await dbRun(
+          'INSERT INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+          [req.user.id, audiobookId]
+        );
+        res.json({ success: true, is_favorite: true });
       }
-    );
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+      res.status(500).json({ error: 'Failed to toggle favorite' });
+    }
   });
 
   // ============================================
@@ -262,19 +233,13 @@ function register(router, { db, authenticateToken }) {
 
     try {
       // Get the audiobook
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get(
-          `SELECT a.*, COALESCE(p.position, 0) as position, COALESCE(p.completed, 0) as completed
-           FROM audiobooks a
-           LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-           WHERE a.id = ?`,
-          [userId, audiobookId],
-          (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          }
-        );
-      });
+      const audiobook = await dbGet(
+        `SELECT a.*, COALESCE(p.position, 0) as position, COALESCE(p.completed, 0) as completed
+         FROM audiobooks a
+         LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+         WHERE a.id = ?`,
+        [userId, audiobookId]
+      );
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -291,41 +256,29 @@ function register(router, { db, authenticateToken }) {
       // Get prior books in series if this is part of a series
       let priorBooks = [];
       if (audiobook.series) {
-        priorBooks = await new Promise((resolve, reject) => {
-          db.all(
-            `SELECT a.id, a.title, a.author, a.description, a.series_position,
-                    COALESCE(p.position, 0) as position,
-                    COALESCE(p.completed, 0) as completed
-             FROM audiobooks a
-             LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-             WHERE a.series = ? AND a.id != ?
-               AND (COALESCE(p.position, 0) > 0 OR COALESCE(p.completed, 0) = 1)
-               AND (a.series_position IS NULL OR a.series_position < ?)
-             ORDER BY a.series_position ASC, a.title ASC`,
-            [userId, audiobook.series, audiobookId, audiobook.series_position || 999],
-            (err, rows) => {
-              if (err) reject(err);
-              else resolve(rows || []);
-            }
-          );
-        });
+        priorBooks = await dbAll(
+          `SELECT a.id, a.title, a.author, a.description, a.series_position,
+                  COALESCE(p.position, 0) as position,
+                  COALESCE(p.completed, 0) as completed
+           FROM audiobooks a
+           LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+           WHERE a.series = ? AND a.id != ?
+             AND (COALESCE(p.position, 0) > 0 OR COALESCE(p.completed, 0) = 1)
+             AND (a.series_position IS NULL OR a.series_position < ?)
+           ORDER BY a.series_position ASC, a.title ASC`,
+          [userId, audiobook.series, audiobookId, audiobook.series_position || 999]
+        );
       }
 
       // Generate cache hash
       const recapHash = generateRecapHash(audiobookId, priorBooks);
 
       // Check cache first
-      const cached = await new Promise((resolve, reject) => {
-        db.get(
-          `SELECT recap_text, created_at FROM book_recaps
-           WHERE user_id = ? AND audiobook_id = ? AND books_hash = ?`,
-          [userId, audiobookId, recapHash],
-          (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          }
-        );
-      });
+      const cached = await dbGet(
+        `SELECT recap_text, created_at FROM book_recaps
+         WHERE user_id = ? AND audiobook_id = ? AND books_hash = ?`,
+        [userId, audiobookId, recapHash]
+      );
 
       if (cached) {
         return res.json({
@@ -385,17 +338,11 @@ The reader has started this book and wants to remember what it's about and any k
       const recap = await callAI(prompt, systemPrompt);
 
       // Cache the result
-      await new Promise((resolve, reject) => {
-        db.run(
-          `INSERT OR REPLACE INTO book_recaps (user_id, audiobook_id, books_hash, recap_text, model_used)
-           VALUES (?, ?, ?, ?, ?)`,
-          [userId, audiobookId, recapHash, recap, getModelUsed()],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      await dbRun(
+        `INSERT OR REPLACE INTO book_recaps (user_id, audiobook_id, books_hash, recap_text, model_used)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, audiobookId, recapHash, recap, getModelUsed()]
+      );
 
       res.json({
         recap,
@@ -419,17 +366,10 @@ The reader has started this book and wants to remember what it's about and any k
     const audiobookId = parseInt(req.params.id);
 
     try {
-      await new Promise((resolve, reject) => {
-        db.run(
-          'DELETE FROM book_recaps WHERE user_id = ? AND audiobook_id = ?',
-          [userId, audiobookId],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
-
+      await dbRun(
+        'DELETE FROM book_recaps WHERE user_id = ? AND audiobook_id = ?',
+        [userId, audiobookId]
+      );
       res.json({ message: 'Recap cache cleared' });
     } catch (error) {
       console.error('Error clearing recap cache:', error);
@@ -458,23 +398,15 @@ The reader has started this book and wants to remember what it's about and any k
       let successCount = 0;
 
       for (const audiobookId of audiobook_ids) {
-        await new Promise((resolve, reject) => {
-          db.run(
-            `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
-             VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
-             ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
-               completed = 1,
-               updated_at = CURRENT_TIMESTAMP`,
-            [userId, audiobookId],
-            function(err) {
-              if (err) reject(err);
-              else {
-                successCount++;
-                resolve();
-              }
-            }
-          );
-        });
+        await dbRun(
+          `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
+           VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
+           ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+             completed = 1,
+             updated_at = CURRENT_TIMESTAMP`,
+          [userId, audiobookId]
+        );
+        successCount++;
       }
 
       res.json({ success: true, count: successCount });
@@ -499,18 +431,10 @@ The reader has started this book and wants to remember what it's about and any k
 
     try {
       const placeholders = audiobook_ids.map(() => '?').join(',');
-
-      await new Promise((resolve, reject) => {
-        db.run(
-          `DELETE FROM playback_progress WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
-          [userId, ...audiobook_ids],
-          function(err) {
-            if (err) reject(err);
-            else resolve(this.changes);
-          }
-        );
-      });
-
+      await dbRun(
+        `DELETE FROM playback_progress WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+        [userId, ...audiobook_ids]
+      );
       res.json({ success: true, count: audiobook_ids.length });
     } catch (error) {
       console.error('Error in batch clear progress:', error);
@@ -535,19 +459,11 @@ The reader has started this book and wants to remember what it's about and any k
       let successCount = 0;
 
       for (const audiobookId of audiobook_ids) {
-        await new Promise((resolve, reject) => {
-          db.run(
-            'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-            [userId, audiobookId],
-            function(err) {
-              if (err) reject(err);
-              else {
-                if (this.changes > 0) successCount++;
-                resolve();
-              }
-            }
-          );
-        });
+        const { changes } = await dbRun(
+          'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
+          [userId, audiobookId]
+        );
+        if (changes > 0) successCount++;
       }
 
       res.json({ success: true, count: successCount });
@@ -572,19 +488,11 @@ The reader has started this book and wants to remember what it's about and any k
 
     try {
       const placeholders = audiobook_ids.map(() => '?').join(',');
-
-      const result = await new Promise((resolve, reject) => {
-        db.run(
-          `DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
-          [userId, ...audiobook_ids],
-          function(err) {
-            if (err) reject(err);
-            else resolve(this.changes);
-          }
-        );
-      });
-
-      res.json({ success: true, count: result });
+      const { changes } = await dbRun(
+        `DELETE FROM user_favorites WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+        [userId, ...audiobook_ids]
+      );
+      res.json({ success: true, count: changes });
     } catch (error) {
       console.error('Error in batch remove from reading list:', error);
       res.status(500).json({ error: 'Failed to remove from reading list' });
@@ -610,51 +518,31 @@ The reader has started this book and wants to remember what it's about and any k
 
     try {
       // Verify collection belongs to user OR is public
-      const collection = await new Promise((resolve, reject) => {
-        db.get(
-          'SELECT id FROM user_collections WHERE id = ? AND (user_id = ? OR is_public = 1)',
-          [collection_id, userId],
-          (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          }
-        );
-      });
+      const collection = await dbGet(
+        'SELECT id FROM user_collections WHERE id = ? AND (user_id = ? OR is_public = 1)',
+        [collection_id, userId]
+      );
 
       if (!collection) {
         return res.status(404).json({ error: 'Collection not found' });
       }
 
       // Get current max position
-      const maxPos = await new Promise((resolve, reject) => {
-        db.get(
-          'SELECT MAX(position) as max_pos FROM collection_items WHERE collection_id = ?',
-          [collection_id],
-          (err, row) => {
-            if (err) reject(err);
-            else resolve(row?.max_pos || 0);
-          }
-        );
-      });
+      const maxPosRow = await dbGet(
+        'SELECT MAX(position) as max_pos FROM collection_items WHERE collection_id = ?',
+        [collection_id]
+      );
 
       let successCount = 0;
-      let position = maxPos;
+      let position = maxPosRow?.max_pos || 0;
 
       for (const audiobookId of audiobook_ids) {
         position++;
-        await new Promise((resolve, reject) => {
-          db.run(
-            'INSERT OR IGNORE INTO collection_items (collection_id, audiobook_id, position) VALUES (?, ?, ?)',
-            [collection_id, audiobookId, position],
-            function(err) {
-              if (err) reject(err);
-              else {
-                if (this.changes > 0) successCount++;
-                resolve();
-              }
-            }
-          );
-        });
+        const { changes } = await dbRun(
+          'INSERT OR IGNORE INTO collection_items (collection_id, audiobook_id, position) VALUES (?, ?, ?)',
+          [collection_id, audiobookId, position]
+        );
+        if (changes > 0) successCount++;
       }
 
       res.json({ success: true, count: successCount });
@@ -687,12 +575,7 @@ The reader has started this book and wants to remember what it's about and any k
       for (const audiobookId of audiobook_ids) {
         try {
           // Get audiobook info first
-          const audiobook = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, row) => {
-              if (err) reject(err);
-              else resolve(row);
-            });
-          });
+          const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
 
           if (!audiobook) {
             errors.push({ id: audiobookId, error: 'Not found' });
@@ -700,12 +583,7 @@ The reader has started this book and wants to remember what it's about and any k
           }
 
           // Delete from database
-          await new Promise((resolve, reject) => {
-            db.run('DELETE FROM audiobooks WHERE id = ?', [audiobookId], function(err) {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
+          await dbRun('DELETE FROM audiobooks WHERE id = ?', [audiobookId]);
 
           // Optionally delete files and directory
           if (delete_files && audiobook.file_path) {
