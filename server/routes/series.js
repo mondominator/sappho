@@ -6,6 +6,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const { createDbHelpers } = require('../utils/db');
 
 /**
  * Default dependencies - used when route is required directly
@@ -154,6 +155,7 @@ function createSeriesRouter(deps = {}) {
   const settings = deps.settings || defaultDependencies.settings();
   const { authenticateToken } = auth;
   const { getRecapPrompt } = settings;
+  const { dbGet, dbAll, dbRun } = createDbHelpers(db);
 
   /**
    * GET /api/series/:seriesName/recap
@@ -165,23 +167,17 @@ function createSeriesRouter(deps = {}) {
 
     try {
       // Get all books in this series with user's progress
-      const books = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT a.id, a.title, a.author, a.description, a.series_position,
-                  COALESCE(p.position, 0) as position,
-                  COALESCE(p.completed, 0) as completed,
-                  a.duration
-           FROM audiobooks a
-           LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-           WHERE a.series = ?
-           ORDER BY a.series_position ASC, a.title ASC`,
-          [userId, seriesName],
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
+      const books = await dbAll(
+        `SELECT a.id, a.title, a.author, a.description, a.series_position,
+                COALESCE(p.position, 0) as position,
+                COALESCE(p.completed, 0) as completed,
+                a.duration
+         FROM audiobooks a
+         LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
+         WHERE a.series = ?
+         ORDER BY a.series_position ASC, a.title ASC`,
+        [userId, seriesName]
+      );
 
       if (books.length === 0) {
         return res.status(404).json({ error: 'Series not found' });
@@ -201,17 +197,11 @@ function createSeriesRouter(deps = {}) {
       const booksHash = generateBooksHash(booksRead);
 
       // Check cache first
-      const cached = await new Promise((resolve, reject) => {
-        db.get(
-          `SELECT recap_text, created_at FROM series_recaps
-           WHERE user_id = ? AND series_name = ? AND books_hash = ?`,
-          [userId, seriesName, booksHash],
-          (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          }
-        );
-      });
+      const cached = await dbGet(
+        `SELECT recap_text, created_at FROM series_recaps
+         WHERE user_id = ? AND series_name = ? AND books_hash = ?`,
+        [userId, seriesName, booksHash]
+      );
 
       if (cached) {
         return res.json({
@@ -263,17 +253,11 @@ Provide a thorough recap including major plot points, twists, and revelations fr
       const recap = await callAI(prompt, systemPrompt);
 
       // Cache the result
-      await new Promise((resolve, reject) => {
-        db.run(
-          `INSERT OR REPLACE INTO series_recaps (user_id, series_name, books_hash, recap_text, model_used)
-           VALUES (?, ?, ?, ?, ?)`,
-          [userId, seriesName, booksHash, recap, getModelUsed()],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      await dbRun(
+        `INSERT OR REPLACE INTO series_recaps (user_id, series_name, books_hash, recap_text, model_used)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, seriesName, booksHash, recap, getModelUsed()]
+      );
 
       res.json({
         recap,
@@ -299,16 +283,10 @@ Provide a thorough recap including major plot points, twists, and revelations fr
     const seriesName = decodeURIComponent(req.params.seriesName);
 
     try {
-      await new Promise((resolve, reject) => {
-        db.run(
-          'DELETE FROM series_recaps WHERE user_id = ? AND series_name = ?',
-          [userId, seriesName],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      await dbRun(
+        'DELETE FROM series_recaps WHERE user_id = ? AND series_name = ?',
+        [userId, seriesName]
+      );
 
       res.json({ message: 'Recap cache cleared' });
     } catch (error) {

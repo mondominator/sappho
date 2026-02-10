@@ -39,6 +39,9 @@ function createAuthRouter(deps = {}) {
   const emailService = deps.emailService || defaultDependencies.emailService();
   const unlockService = deps.unlockService || defaultDependencies.unlockService();
 
+  const { createDbHelpers } = require('../utils/db');
+  const { dbGet } = createDbHelpers(db);
+
   // Extract auth functions
   const {
     register,
@@ -81,36 +84,32 @@ function createAuthRouter(deps = {}) {
   });
 
   // SECURITY: Check if registration is allowed
-  function isRegistrationAllowed(callback) {
+  async function isRegistrationAllowed() {
     // Check for REGISTRATION_DISABLED env var
     if (process.env.REGISTRATION_DISABLED === 'true') {
-      return callback(false, 'Registration is disabled');
+      return { allowed: false, reason: 'Registration is disabled' };
     }
 
     // Check for invite code requirement
     if (process.env.REQUIRE_INVITE_CODE === 'true') {
-      return callback(true, null); // Will be validated with invite code
+      return { allowed: true, reason: null }; // Will be validated with invite code
     }
 
     // Check if open registration is allowed (default: allow if no users exist yet)
-    db.get('SELECT COUNT(*) as count FROM users', [], (err, row) => {
-      if (err) {
-        return callback(false, 'Database error');
-      }
+    const row = await dbGet('SELECT COUNT(*) as count FROM users', []);
 
-      // If no users, always allow (first user setup)
-      if (row.count === 0) {
-        return callback(true, null);
-      }
+    // If no users, always allow (first user setup)
+    if (row.count === 0) {
+      return { allowed: true, reason: null };
+    }
 
-      // Check ALLOW_OPEN_REGISTRATION setting (default: false for security)
-      const allowOpen = process.env.ALLOW_OPEN_REGISTRATION === 'true';
-      if (!allowOpen) {
-        return callback(false, 'Registration is not open. Contact an administrator.');
-      }
+    // Check ALLOW_OPEN_REGISTRATION setting (default: false for security)
+    const allowOpen = process.env.ALLOW_OPEN_REGISTRATION === 'true';
+    if (!allowOpen) {
+      return { allowed: false, reason: 'Registration is not open. Contact an administrator.' };
+    }
 
-      callback(true, null);
-    });
+    return { allowed: true, reason: null };
   }
 
   /**
@@ -132,36 +131,30 @@ function createAuthRouter(deps = {}) {
       }
 
       // SECURITY: Check if registration is allowed
-      isRegistrationAllowed((allowed, reason) => {
-        if (!allowed) {
-          return res.status(403).json({ error: reason });
-        }
+      const { allowed, reason } = await isRegistrationAllowed();
+      if (!allowed) {
+        return res.status(403).json({ error: reason });
+      }
 
-        // If invite code is required, validate it
-        if (process.env.REQUIRE_INVITE_CODE === 'true') {
-          if (!inviteCode) {
-            return res.status(400).json({ error: 'Invite code is required' });
-          }
-          // For now, just check against env var. In production, use a database table
-          const validCodes = (process.env.INVITE_CODES || '').split(',').map(c => c.trim());
-          if (!validCodes.includes(inviteCode)) {
-            return res.status(403).json({ error: 'Invalid invite code' });
-          }
+      // If invite code is required, validate it
+      if (process.env.REQUIRE_INVITE_CODE === 'true') {
+        if (!inviteCode) {
+          return res.status(400).json({ error: 'Invite code is required' });
         }
+        // For now, just check against env var. In production, use a database table
+        const validCodes = (process.env.INVITE_CODES || '').split(',').map(c => c.trim());
+        if (!validCodes.includes(inviteCode)) {
+          return res.status(403).json({ error: 'Invalid invite code' });
+        }
+      }
 
-        // Proceed with registration
-        register(username, password, email)
-          .then(user => {
-            // Notify admins of new user registration
-            emailService.notifyAdminNewUser(user).catch(e =>
-              console.error('Error sending admin notification:', e.message)
-            );
-            res.status(201).json({ message: 'User registered successfully', user });
-          })
-          .catch(() => {
-            res.status(400).json({ error: 'Registration failed' });
-          });
-      });
+      // Proceed with registration
+      const user = await register(username, password, email);
+      // Notify admins of new user registration
+      emailService.notifyAdminNewUser(user).catch(e =>
+        console.error('Error sending admin notification:', e.message)
+      );
+      res.status(201).json({ message: 'User registered successfully', user });
     } catch (_error) {
       res.status(400).json({ error: 'Registration failed' });
     }
@@ -259,16 +252,10 @@ function createAuthRouter(deps = {}) {
       }
 
       // Get user info for response
-      const user = await new Promise((resolve, reject) => {
-        db.get(
-          'SELECT id, username, is_admin, must_change_password FROM users WHERE id = ?',
-          [decoded.id],
-          (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          }
-        );
-      });
+      const user = await dbGet(
+        'SELECT id, username, is_admin, must_change_password FROM users WHERE id = ?',
+        [decoded.id]
+      );
 
       if (!user) {
         return res.status(400).json({ error: 'User not found' });
