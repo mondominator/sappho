@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { sanitizeHtml, isPrivateHostname } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
 // Helper: Search Audible and get details from Audnexus
 async function searchAudible(title, author, asin, normalizeGenres) {
@@ -321,6 +322,7 @@ async function downloadCover(url, audiobookId) {
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, organizeAudiobook, needsOrganization }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
+  const { getAudiobookById } = createQueryHelpers(db);
 
   // Get chapters for a multi-file audiobook
   router.get('/:id/chapters', authenticateToken, async (req, res) => {
@@ -336,12 +338,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Update chapter titles (admin only)
-  router.put('/:id/chapters', authenticateToken, async (req, res) => {
-    // Check if user is admin
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.put('/:id/chapters', authenticateToken, requireAdmin, async (req, res) => {
     const { chapters } = req.body;
 
     if (!chapters || !Array.isArray(chapters)) {
@@ -367,12 +364,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Fetch chapters from Audnexus by ASIN (admin only)
-  router.post('/:id/fetch-chapters', authenticateToken, async (req, res) => {
-    // Check if user is admin
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/:id/fetch-chapters', authenticateToken, requireAdmin, async (req, res) => {
     const { asin } = req.body;
 
     if (!asin) {
@@ -452,12 +444,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Search multiple sources for metadata (admin only)
-  router.get('/:id/search-audnexus', authenticateToken, async (req, res) => {
-    // Check if user is admin
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/:id/search-audnexus', authenticateToken, requireAdmin, async (req, res) => {
     const { title, author, asin } = req.query;
 
     if (!title && !author && !asin) {
@@ -503,12 +490,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Search Open Library for metadata (admin only)
-  router.get('/:id/search-metadata', authenticateToken, async (req, res) => {
-    // Check if user is admin
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/:id/search-metadata', authenticateToken, requireAdmin, async (req, res) => {
     // Ensure query params are strings (prevent type confusion from arrays)
     const title = Array.isArray(req.query.title) ? req.query.title[0] : req.query.title;
     const author = Array.isArray(req.query.author) ? req.query.author[0] : req.query.author;
@@ -625,7 +607,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   // Refresh metadata from file (admin only)
   router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      const audiobook = await getAudiobookById(req.params.id);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -723,7 +705,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Get updated audiobook
-      let updatedAudiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      let updatedAudiobook = await getAudiobookById(req.params.id);
 
       // Check if file needs to be reorganized based on new metadata
       let fileReorganized = false;
@@ -732,7 +714,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         if (result.moved) {
           fileReorganized = true;
           // Re-fetch audiobook with updated path
-          updatedAudiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+          updatedAudiobook = await getAudiobookById(req.params.id);
         }
       }
 
@@ -751,12 +733,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
   // Embed metadata into audio file tags using tone (admin only)
   // Uses tone for M4B/M4A files (proper audiobook tag support) and ffmpeg for other formats
-  router.post('/:id/embed-metadata', authenticateToken, async (req, res) => {
-    // Check if user is admin
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/:id/embed-metadata', authenticateToken, requireAdmin, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid audiobook ID' });
@@ -771,7 +748,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     try {
       // Get audiobook from database
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
+      const audiobook = await getAudiobookById(id);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -1088,12 +1065,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Update audiobook metadata (admin only)
-  router.put('/:id', authenticateToken, async (req, res) => {
-    // Check if user is admin
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid audiobook ID' });
@@ -1107,7 +1079,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     try {
       // Get current audiobook to check if author/title changed
-      const currentBook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
+      const currentBook = await getAudiobookById(id);
 
       if (!currentBook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -1161,7 +1133,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       if ((authorChanged || titleChanged || seriesChanged || seriesPositionChanged) &&
           fs.existsSync(currentBook.file_path)) {
         // Re-fetch the audiobook with updated metadata
-        const updatedBook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
+        const updatedBook = await getAudiobookById(id);
 
         // Use the centralized file organizer to move files
         if (updatedBook && needsOrganization(updatedBook)) {

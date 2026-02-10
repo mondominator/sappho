@@ -10,9 +10,11 @@ const path = require('path');
 const { getAudioMimeType } = require('./helpers');
 const { isValidWidth, getOrGenerateThumbnail } = require('../../services/thumbnailService');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
 function register(router, { db, authenticateToken, authenticateMediaToken, requireAdmin }) {
   const { dbGet } = createDbHelpers(db);
+  const { getAudiobookById } = createQueryHelpers(db);
 
   // Get all files in the audiobook's directory
   router.get('/:id/directory-files', authenticateToken, async (req, res) => {
@@ -62,7 +64,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
     }
 
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      const audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -94,7 +96,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   // Stream audiobook (uses authenticateMediaToken to allow query string tokens for <audio> tags)
   router.get('/:id/stream', authenticateMediaToken, async (req, res) => {
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      const audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -176,7 +178,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
   // Download audiobook
   router.get('/:id/download', authenticateToken, async (req, res) => {
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      const audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
