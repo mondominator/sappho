@@ -821,6 +821,339 @@ describe('Audiobooks Routes', () => {
   });
 
   // ============================================
+  // READING LIST ORDERING (Priority & Reorder)
+  // ============================================
+  describe('Reading List Ordering', () => {
+    describe('PUT /api/audiobooks/:id/favorite/priority', () => {
+      it('returns 401 without authentication', async () => {
+        const res = await request(app)
+          .put('/api/audiobooks/1/favorite/priority')
+          .send({ priority: 1 });
+        expect(res.status).toBe(401);
+      });
+
+      it('returns 404 if audiobook is not in favorites', async () => {
+        const book = await createTestAudiobook(db, { title: 'Not Favorited' });
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 1 });
+
+        expect(res.status).toBe(404);
+        expect(res.body.error).toBe('Audiobook is not in your reading list');
+      });
+
+      it('returns 400 for invalid priority value', async () => {
+        const book = await createTestAudiobook(db, { title: 'Test Book' });
+
+        // Add to favorites first
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 5 });
+
+        expect(res.status).toBe(400);
+      });
+
+      it('returns 400 when priority is missing', async () => {
+        const book = await createTestAudiobook(db, { title: 'Test Book' });
+
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({});
+
+        expect(res.status).toBe(400);
+      });
+
+      it('sets priority to high (1)', async () => {
+        const book = await createTestAudiobook(db, { title: 'Test Book' });
+
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 1 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.priority).toBe(1);
+      });
+
+      it('sets priority to medium (2)', async () => {
+        const book = await createTestAudiobook(db, { title: 'Test Book' });
+
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 2 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.priority).toBe(2);
+      });
+
+      it('sets priority to low (3)', async () => {
+        const book = await createTestAudiobook(db, { title: 'Test Book' });
+
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 3 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.priority).toBe(3);
+      });
+
+      it('clears priority back to none (0)', async () => {
+        const book = await createTestAudiobook(db, { title: 'Test Book' });
+
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        // Set then clear
+        await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 1 });
+
+        const res = await request(app)
+          .put(`/api/audiobooks/${book.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 0 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.priority).toBe(0);
+      });
+    });
+
+    describe('PUT /api/audiobooks/favorites/reorder', () => {
+      it('returns 401 without authentication', async () => {
+        const res = await request(app)
+          .put('/api/audiobooks/favorites/reorder')
+          .send({ order: [1, 2] });
+        expect(res.status).toBe(401);
+      });
+
+      it('returns 400 when order is not an array', async () => {
+        const res = await request(app)
+          .put('/api/audiobooks/favorites/reorder')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ order: 'not-an-array' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('order must be an array of audiobook IDs');
+      });
+
+      it('returns 400 when order contains non-favorite IDs', async () => {
+        const book = await createTestAudiobook(db, { title: 'Not Favorited' });
+
+        const res = await request(app)
+          .put('/api/audiobooks/favorites/reorder')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ order: [book.id] });
+
+        expect(res.status).toBe(400);
+        expect(res.body.invalid_ids).toContain(book.id);
+      });
+
+      it('reorders favorites successfully', async () => {
+        const book1 = await createTestAudiobook(db, { title: 'Alpha Book' });
+        const book2 = await createTestAudiobook(db, { title: 'Beta Book' });
+        const book3 = await createTestAudiobook(db, { title: 'Gamma Book' });
+
+        // Add all to favorites
+        await request(app).post(`/api/audiobooks/${book1.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+        await request(app).post(`/api/audiobooks/${book2.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+        await request(app).post(`/api/audiobooks/${book3.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+
+        // Reorder: book3, book1, book2
+        const res = await request(app)
+          .put('/api/audiobooks/favorites/reorder')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ order: [book3.id, book1.id, book2.id] });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+
+        // Verify order via GET with sort=custom
+        const favRes = await request(app)
+          .get('/api/audiobooks/favorites?sort=custom')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(favRes.body[0].title).toBe('Gamma Book');
+        expect(favRes.body[1].title).toBe('Alpha Book');
+        expect(favRes.body[2].title).toBe('Beta Book');
+      });
+
+      it('handles empty order array', async () => {
+        const res = await request(app)
+          .put('/api/audiobooks/favorites/reorder')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ order: [] });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+      });
+    });
+
+    describe('GET /api/audiobooks/favorites with sort', () => {
+      let book1, book2, book3;
+
+      beforeEach(async () => {
+        book1 = await createTestAudiobook(db, { title: 'Charlie Book' });
+        book2 = await createTestAudiobook(db, { title: 'Alpha Book' });
+        book3 = await createTestAudiobook(db, { title: 'Beta Book' });
+
+        // Add to favorites with specific list_order
+        await request(app).post(`/api/audiobooks/${book1.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+        await request(app).post(`/api/audiobooks/${book2.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+        await request(app).post(`/api/audiobooks/${book3.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+      });
+
+      it('sorts by title alphabetically', async () => {
+        const res = await request(app)
+          .get('/api/audiobooks/favorites?sort=title')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body[0].title).toBe('Alpha Book');
+        expect(res.body[1].title).toBe('Beta Book');
+        expect(res.body[2].title).toBe('Charlie Book');
+      });
+
+      it('sorts by custom order (list_order)', async () => {
+        // Reorder to: book3, book1, book2
+        await request(app)
+          .put('/api/audiobooks/favorites/reorder')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ order: [book3.id, book1.id, book2.id] });
+
+        const res = await request(app)
+          .get('/api/audiobooks/favorites?sort=custom')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body[0].title).toBe('Beta Book');
+        expect(res.body[1].title).toBe('Charlie Book');
+        expect(res.body[2].title).toBe('Alpha Book');
+      });
+
+      it('sorts by priority (high first, none last)', async () => {
+        // Set priorities: book2=High(1), book3=Low(3), book1=None(0)
+        await request(app)
+          .put(`/api/audiobooks/${book2.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 1 });
+
+        await request(app)
+          .put(`/api/audiobooks/${book3.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 3 });
+
+        const res = await request(app)
+          .get('/api/audiobooks/favorites?sort=priority')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        // High priority first, then Low, then None
+        expect(res.body[0].title).toBe('Alpha Book'); // priority 1 (High)
+        expect(res.body[1].title).toBe('Beta Book');  // priority 3 (Low)
+        expect(res.body[2].title).toBe('Charlie Book'); // priority 0 (None)
+      });
+
+      it('default sort uses priority ordering', async () => {
+        // Set book3 as high priority
+        await request(app)
+          .put(`/api/audiobooks/${book3.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 1 });
+
+        const res = await request(app)
+          .get('/api/audiobooks/favorites')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        // book3 should be first (high priority)
+        expect(res.body[0].title).toBe('Beta Book');
+      });
+
+      it('includes priority and list_order in response', async () => {
+        await request(app)
+          .put(`/api/audiobooks/${book1.id}/favorite/priority`)
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ priority: 2 });
+
+        const res = await request(app)
+          .get('/api/audiobooks/favorites')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        const favBook = res.body.find(b => b.id === book1.id);
+        expect(favBook.priority).toBe(2);
+        expect(favBook.list_order).toBeDefined();
+        expect(typeof favBook.list_order).toBe('number');
+      });
+    });
+
+    describe('Auto-assigned list_order', () => {
+      it('assigns incremental list_order when adding favorites', async () => {
+        const book1 = await createTestAudiobook(db, { title: 'First' });
+        const book2 = await createTestAudiobook(db, { title: 'Second' });
+        const book3 = await createTestAudiobook(db, { title: 'Third' });
+
+        await request(app).post(`/api/audiobooks/${book1.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+        await request(app).post(`/api/audiobooks/${book2.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+        await request(app).post(`/api/audiobooks/${book3.id}/favorite`).set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .get('/api/audiobooks/favorites?sort=custom')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body[0].list_order).toBe(0);
+        expect(res.body[1].list_order).toBe(1);
+        expect(res.body[2].list_order).toBe(2);
+      });
+
+      it('assigns list_order via toggle endpoint', async () => {
+        const book = await createTestAudiobook(db, { title: 'Toggle Book' });
+
+        await request(app)
+          .post(`/api/audiobooks/${book.id}/favorite/toggle`)
+          .set('Authorization', `Bearer ${userToken}`);
+
+        const res = await request(app)
+          .get('/api/audiobooks/favorites?sort=custom')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body[0].list_order).toBe(0);
+      });
+    });
+  });
+
+  // ============================================
   // META ENDPOINTS
   // ============================================
   describe('Meta Endpoints', () => {

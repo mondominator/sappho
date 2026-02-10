@@ -9,19 +9,13 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3003
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required - generate with: openssl rand -base64 32}
+      - JWT_SECRET=${JWT_SECRET}
       - DATABASE_PATH=/app/data/sappho.db
       - DATA_DIR=/app/data
       - AUDIOBOOKS_DIR=/app/data/audiobooks
       - UPLOAD_DIR=/app/data/uploads
       - LIBRARY_SCAN_INTERVAL=5
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://192.168.86.250:3003,http://192.168.86.55:3003
+    mem_limit: 2g
+    cpus: 2.0
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '2.0'
-        reservations:
-          memory: 256M
-          cpus: '0.5'

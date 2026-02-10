@@ -158,10 +158,16 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
+      // Get next list_order for this user
+      const maxOrder = await dbGet(
+        'SELECT COALESCE(MAX(list_order), -1) + 1 as next_order FROM user_favorites WHERE user_id = ?',
+        [req.user.id]
+      );
+
       // Add to favorites (IGNORE if already exists)
       await dbRun(
-        'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-        [req.user.id, audiobookId]
+        'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id, list_order) VALUES (?, ?, ?)',
+        [req.user.id, audiobookId, maxOrder.next_order]
       );
       res.json({ success: true, is_favorite: true });
     } catch (err) {
@@ -211,15 +217,93 @@ function register(router, { db, authenticateToken, requireAdmin }) {
           return res.status(404).json({ error: 'Audiobook not found' });
         }
 
+        // Get next list_order for this user
+        const maxOrder = await dbGet(
+          'SELECT COALESCE(MAX(list_order), -1) + 1 as next_order FROM user_favorites WHERE user_id = ?',
+          [req.user.id]
+        );
+
         await dbRun(
-          'INSERT INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-          [req.user.id, audiobookId]
+          'INSERT INTO user_favorites (user_id, audiobook_id, list_order) VALUES (?, ?, ?)',
+          [req.user.id, audiobookId, maxOrder.next_order]
         );
         res.json({ success: true, is_favorite: true });
       }
     } catch (err) {
       console.error('Error toggling favorite:', err);
       res.status(500).json({ error: 'Failed to toggle favorite' });
+    }
+  });
+
+  // ============================================
+  // READING LIST ORDERING ENDPOINTS
+  // ============================================
+
+  // Update priority for a favorite
+  router.put('/:id/favorite/priority', authenticateToken, async (req, res) => {
+    const audiobookId = parseInt(req.params.id);
+    const { priority } = req.body;
+
+    // Validate priority is 0-3
+    if (priority === undefined || priority === null || ![0, 1, 2, 3].includes(priority)) {
+      return res.status(400).json({ error: 'Priority must be 0 (none), 1 (high), 2 (medium), or 3 (low)' });
+    }
+
+    try {
+      // Check that this book is in the user's favorites
+      const favorite = await dbGet(
+        'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+        [req.user.id, audiobookId]
+      );
+      if (!favorite) {
+        return res.status(404).json({ error: 'Audiobook is not in your reading list' });
+      }
+
+      await dbRun(
+        'UPDATE user_favorites SET priority = ? WHERE user_id = ? AND audiobook_id = ?',
+        [priority, req.user.id, audiobookId]
+      );
+      res.json({ success: true, priority });
+    } catch (err) {
+      console.error('Error updating favorite priority:', err);
+      res.status(500).json({ error: 'Failed to update priority' });
+    }
+  });
+
+  // Bulk reorder reading list items
+  router.put('/favorites/reorder', authenticateToken, async (req, res) => {
+    const { order } = req.body; // Array of audiobook_ids in new order
+
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: 'order must be an array of audiobook IDs' });
+    }
+
+    try {
+      // Validate all IDs belong to user's favorites
+      const placeholders = order.map(() => '?').join(',');
+      const favorites = await dbAll(
+        `SELECT audiobook_id FROM user_favorites WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+        [req.user.id, ...order]
+      );
+
+      const favoriteIds = new Set(favorites.map(f => f.audiobook_id));
+      const invalidIds = order.filter(id => !favoriteIds.has(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ error: 'Some audiobook IDs are not in your reading list', invalid_ids: invalidIds });
+      }
+
+      // Update list_order = index for each item
+      for (let i = 0; i < order.length; i++) {
+        await dbRun(
+          'UPDATE user_favorites SET list_order = ? WHERE user_id = ? AND audiobook_id = ?',
+          [i, req.user.id, order[i]]
+        );
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error reordering favorites:', err);
+      res.status(500).json({ error: 'Failed to reorder reading list' });
     }
   });
 
@@ -460,12 +544,22 @@ The reader has started this book and wants to remember what it's about and any k
     try {
       let successCount = 0;
 
+      // Get current max list_order for this user
+      const maxOrderRow = await dbGet(
+        'SELECT COALESCE(MAX(list_order), -1) as max_order FROM user_favorites WHERE user_id = ?',
+        [userId]
+      );
+      let nextOrder = maxOrderRow.max_order + 1;
+
       for (const audiobookId of audiobook_ids) {
         const { changes } = await dbRun(
-          'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-          [userId, audiobookId]
+          'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id, list_order) VALUES (?, ?, ?)',
+          [userId, audiobookId, nextOrder]
         );
-        if (changes > 0) successCount++;
+        if (changes > 0) {
+          successCount++;
+          nextOrder++;
+        }
       }
 
       res.json({ success: true, count: successCount });
