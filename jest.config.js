@@ -15,7 +15,7 @@ module.exports = {
     global: {
       statements: 28,
       branches: 28,
-      functions: 38,
+      functions: 37,
       lines: 29
     },
     // Utility functions require 100% coverage

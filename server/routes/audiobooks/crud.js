@@ -176,17 +176,41 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   // Get all favorites for the current user
   // NOTE: This route MUST be defined before /:id to avoid being matched as an ID
   router.get('/favorites', authenticateToken, async (req, res) => {
+    const { sort } = req.query;
+
+    // Determine ORDER BY clause based on sort parameter
+    let orderClause;
+    switch (sort) {
+      case 'date':
+        orderClause = 'ORDER BY f.created_at DESC';
+        break;
+      case 'title':
+        orderClause = 'ORDER BY a.title ASC';
+        break;
+      case 'custom':
+        orderClause = 'ORDER BY f.list_order ASC';
+        break;
+      case 'priority':
+      default:
+        // Priority-first is the new default: high priority (1) first, then by position
+        // priority=0 (none/unset) sorts last
+        orderClause = 'ORDER BY CASE WHEN f.priority = 0 THEN 4 ELSE f.priority END ASC, f.list_order ASC';
+        break;
+    }
+
     try {
       const audiobooks = await dbAll(
         `SELECT a.*,
                 p.position as progress_position,
                 p.completed as progress_completed,
-                f.created_at as favorited_at
+                f.created_at as favorited_at,
+                f.priority,
+                f.list_order
          FROM user_favorites f
          INNER JOIN audiobooks a ON f.audiobook_id = a.id
          LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
          WHERE f.user_id = ?
-         ORDER BY f.created_at DESC`,
+         ${orderClause}`,
         [req.user.id, req.user.id]
       );
 
