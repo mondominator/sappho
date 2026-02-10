@@ -8,7 +8,7 @@ const { maintenanceWriteLimiter, getForceRescanInProgress, setForceRescanInProgr
 const { createDbHelpers } = require('../../utils/db');
 
 function register(router, { db, authenticateToken, extractFileMetadata, scanLibrary, lockScanning, unlockScanning, isScanningLocked }) {
-  const { dbGet, dbAll, dbRun } = createDbHelpers(db);
+  const { dbGet, dbAll, dbRun, dbTransaction } = createDbHelpers(db);
 
   // Consolidate multi-file audiobooks
   router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
@@ -349,34 +349,10 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
         const countRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks');
         console.log(`Found ${countRow.count} audiobooks to process`);
 
-        // Mark all audiobooks as unavailable and delete chapters atomically.
-        // Using raw db for transaction since dbRun doesn't support transaction chaining.
-        await new Promise((resolve, reject) => {
-          db.run('BEGIN TRANSACTION', (beginErr) => {
-            if (beginErr) return reject(beginErr);
-
-            db.run(
-              'UPDATE audiobooks SET is_available = 0, original_path = file_path',
-              (updateErr) => {
-                if (updateErr) {
-                  return db.run('ROLLBACK', () => reject(updateErr));
-                }
-
-                db.run('DELETE FROM audiobook_chapters', (deleteErr) => {
-                  if (deleteErr) {
-                    return db.run('ROLLBACK', () => reject(deleteErr));
-                  }
-
-                  db.run('COMMIT', (commitErr) => {
-                    if (commitErr) {
-                      return db.run('ROLLBACK', () => reject(commitErr));
-                    }
-                    resolve();
-                  });
-                });
-              }
-            );
-          });
+        // Mark all audiobooks as unavailable and delete chapters atomically
+        await dbTransaction(async ({ dbRun: txRun }) => {
+          await txRun('UPDATE audiobooks SET is_available = 0, original_path = file_path');
+          await txRun('DELETE FROM audiobook_chapters');
         });
 
         console.log('All audiobooks marked as unavailable, chapters cleared (transaction committed)');

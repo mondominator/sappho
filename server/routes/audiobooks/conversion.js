@@ -3,8 +3,11 @@
  * Handles M4B conversion jobs: start, status, list, cancel
  */
 const { jobStatusLimiter, jobCancelLimiter } = require('./helpers');
+const { createDbHelpers } = require('../../utils/db');
 
 function register(router, { db, authenticateToken, conversionService }) {
+  const { dbGet } = createDbHelpers(db);
+
   // Convert audiobook to M4B format (admin only) - async with progress tracking
   router.post('/:id/convert-to-m4b', authenticateToken, async (req, res) => {
     // Check if user is admin
@@ -13,12 +16,7 @@ function register(router, { db, authenticateToken, conversionService }) {
     }
 
     try {
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });

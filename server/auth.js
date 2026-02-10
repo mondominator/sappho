@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const db = require('./database');
+const { createDbHelpers } = require('./utils/db');
+const { dbGet, dbRun } = createDbHelpers(db);
 
 // SECURITY: JWT_SECRET must be explicitly configured - no default fallback
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -188,93 +190,89 @@ function authenticateMediaToken(req, res, next) {
 }
 
 // Shared token verification logic
-function verifyToken(token, req, res, next) {
+async function verifyToken(token, req, res, next) {
 
   // SECURITY: Check if token is blacklisted (logged out)
   if (isTokenBlacklisted(token)) {
     return res.status(403).json({ error: 'Token has been revoked' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (_err) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
 
-    // SECURITY: Check if user's tokens were invalidated after this token was issued
-    const invalidationKey = `user_invalidation_${decoded.id}`;
-    const invalidationTime = tokenBlacklist.get(invalidationKey);
-    if (invalidationTime && decoded.iat * 1000 < invalidationTime) {
-      return res.status(403).json({ error: 'Token has been invalidated. Please log in again.' });
-    }
+  // SECURITY: Check if user's tokens were invalidated after this token was issued
+  const invalidationKey = `user_invalidation_${decoded.id}`;
+  const invalidationTime = tokenBlacklist.get(invalidationKey);
+  if (invalidationTime && decoded.iat * 1000 < invalidationTime) {
+    return res.status(403).json({ error: 'Token has been invalidated. Please log in again.' });
+  }
 
+  try {
     // SECURITY: Fetch current user state from database instead of trusting JWT claims
-    db.get('SELECT id, username, is_admin FROM users WHERE id = ?', [decoded.id], (dbErr, user) => {
-      if (dbErr) {
-        return res.status(500).json({ error: 'Database error' });
-      }
-      if (!user) {
-        return res.status(403).json({ error: 'User not found' });
-      }
+    const user = await dbGet('SELECT id, username, is_admin FROM users WHERE id = ?', [decoded.id]);
+    if (!user) {
+      return res.status(403).json({ error: 'User not found' });
+    }
 
-      // Use fresh data from DB, not stale JWT claims
-      req.user = {
-        id: user.id,
-        username: user.username,
-        is_admin: user.is_admin
-      };
-      req.token = token;
-      next();
-    });
-  });
+    // Use fresh data from DB, not stale JWT claims
+    req.user = {
+      id: user.id,
+      username: user.username,
+      is_admin: user.is_admin
+    };
+    req.token = token;
+    next();
+  } catch (_err) {
+    return res.status(500).json({ error: 'Database error' });
+  }
 }
 
 // Helper function to authenticate API keys
-function authenticateApiKey(apiKey, req, res, next) {
+async function authenticateApiKey(apiKey, req, res, next) {
   // Hash the provided API key
   const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
 
-  // Look up the API key in the database
-  db.get(
-    'SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1',
-    [keyHash],
-    (err, key) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
+  try {
+    // Look up the API key in the database
+    const key = await dbGet(
+      'SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1',
+      [keyHash]
+    );
 
-      if (!key) {
-        return res.status(403).json({ error: 'Invalid API key' });
-      }
-
-      // Check if key is expired
-      if (key.expires_at && new Date(key.expires_at) < new Date()) {
-        return res.status(403).json({ error: 'API key has expired' });
-      }
-
-      // Update last_used_at timestamp
-      db.run(
-        'UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [key.id],
-        (updateErr) => {
-          if (updateErr) {
-            console.error('Failed to update API key last_used_at:', updateErr);
-          }
-        }
-      );
-
-      // Get user information
-      db.get('SELECT id, username, is_admin FROM users WHERE id = ?', [key.user_id], (userErr, user) => {
-        if (userErr || !user) {
-          return res.status(403).json({ error: 'Invalid API key user' });
-        }
-
-        // Set user on request object
-        req.user = { id: user.id, username: user.username, is_admin: user.is_admin };
-        req.apiKey = key;
-        next();
-      });
+    if (!key) {
+      return res.status(403).json({ error: 'Invalid API key' });
     }
-  );
+
+    // Check if key is expired
+    if (key.expires_at && new Date(key.expires_at) < new Date()) {
+      return res.status(403).json({ error: 'API key has expired' });
+    }
+
+    // Update last_used_at timestamp (fire-and-forget)
+    dbRun(
+      'UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [key.id]
+    ).catch(updateErr => {
+      console.error('Failed to update API key last_used_at:', updateErr);
+    });
+
+    // Get user information
+    const user = await dbGet('SELECT id, username, is_admin FROM users WHERE id = ?', [key.user_id]);
+    if (!user) {
+      return res.status(403).json({ error: 'Invalid API key user' });
+    }
+
+    // Set user on request object
+    req.user = { id: user.id, username: user.username, is_admin: user.is_admin };
+    req.apiKey = key;
+    next();
+  } catch (_err) {
+    return res.status(500).json({ error: 'Database error' });
+  }
 }
 
 // Middleware to check admin privileges
@@ -308,105 +306,93 @@ function validatePassword(password) {
 
 // Register new user
 async function register(username, password, email = null) {
-  return new Promise((resolve, reject) => {
-    // SECURITY: Validate password complexity
-    const passwordErrors = validatePassword(password);
-    if (passwordErrors.length > 0) {
-      return reject(new Error(passwordErrors.join('. ')));
-    }
+  // SECURITY: Validate password complexity
+  const passwordErrors = validatePassword(password);
+  if (passwordErrors.length > 0) {
+    throw new Error(passwordErrors.join('. '));
+  }
 
-    // Hash password
-    const passwordHash = bcrypt.hashSync(password, 10);
+  // Hash password
+  const passwordHash = bcrypt.hashSync(password, 10);
 
-    db.run(
+  try {
+    const { lastID } = await dbRun(
       'INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)',
-      [username, passwordHash, email],
-      function (err) {
-        if (err) {
-          if (err.message.includes('UNIQUE')) {
-            reject(new Error('Username already exists'));
-          } else {
-            reject(err);
-          }
-        } else {
-          resolve({ id: this.lastID, username, email });
-        }
-      }
+      [username, passwordHash, email]
     );
-  });
+    return { id: lastID, username, email };
+  } catch (err) {
+    if (err.message.includes('UNIQUE')) {
+      throw new Error('Username already exists');
+    }
+    throw err;
+  }
 }
 
 // Login user
 async function login(username, password) {
-  return new Promise((resolve, reject) => {
-    // SECURITY: Check for account lockout
-    if (isAccountLocked(username)) {
-      const remaining = getLockoutRemaining(username);
-      return reject(new Error(`Account is locked. Try again in ${remaining} seconds.`));
-    }
+  // SECURITY: Check for account lockout
+  if (isAccountLocked(username)) {
+    const remaining = getLockoutRemaining(username);
+    throw new Error(`Account is locked. Try again in ${remaining} seconds.`);
+  }
 
-    db.get(
-      'SELECT id, username, password_hash, is_admin, must_change_password, mfa_enabled, account_disabled FROM users WHERE username = ?',
-      [username],
-      (err, user) => {
-        if (err) {
-          return reject(err);
-        }
+  const user = await dbGet(
+    'SELECT id, username, password_hash, is_admin, must_change_password, mfa_enabled, account_disabled FROM users WHERE username = ?',
+    [username]
+  );
 
-        // SECURITY: Always perform bcrypt comparison to prevent timing attacks
-        const hashToCompare = user ? user.password_hash : DUMMY_HASH;
-        const isValid = bcrypt.compareSync(password, hashToCompare);
+  // SECURITY: Always perform bcrypt comparison to prevent timing attacks
+  const hashToCompare = user ? user.password_hash : DUMMY_HASH;
+  const isValid = bcrypt.compareSync(password, hashToCompare);
 
-        if (!user || !isValid) {
-          // Record failed attempt
-          recordFailedAttempt(username);
-          return reject(new Error('Invalid username or password'));
-        }
+  if (!user || !isValid) {
+    // Record failed attempt
+    recordFailedAttempt(username);
+    throw new Error('Invalid username or password');
+  }
 
-        // SECURITY: Check if account is disabled by admin
-        if (user.account_disabled) {
-          return reject(new Error('Your account has been disabled. Please contact an administrator.'));
-        }
+  // SECURITY: Check if account is disabled by admin
+  if (user.account_disabled) {
+    throw new Error('Your account has been disabled. Please contact an administrator.');
+  }
 
-        // Clear failed attempts on successful login
-        clearFailedAttempts(username);
+  // Clear failed attempts on successful login
+  clearFailedAttempts(username);
 
-        // SECURITY: Check if MFA is enabled
-        if (user.mfa_enabled) {
-          // Return a temporary token that requires MFA verification
-          const mfaToken = jwt.sign(
-            { id: user.id, username: user.username, mfa_pending: true },
-            JWT_SECRET,
-            { expiresIn: '5m' } // Short expiry for MFA challenge
-          );
-
-          return resolve({
-            mfa_required: true,
-            mfa_token: mfaToken,
-            message: 'MFA verification required'
-          });
-        }
-
-        // SECURITY: Don't include is_admin in JWT - fetch from DB on each request
-        const token = jwt.sign(
-          { id: user.id, username: user.username },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-
-        // SECURITY: Include must_change_password flag in response
-        resolve({
-          token,
-          user: {
-            id: user.id,
-            username: user.username,
-            is_admin: user.is_admin
-          },
-          must_change_password: !!user.must_change_password
-        });
-      }
+  // SECURITY: Check if MFA is enabled
+  if (user.mfa_enabled) {
+    // Return a temporary token that requires MFA verification
+    const mfaToken = jwt.sign(
+      { id: user.id, username: user.username, mfa_pending: true },
+      JWT_SECRET,
+      { expiresIn: '5m' } // Short expiry for MFA challenge
     );
-  });
+
+    return {
+      mfa_required: true,
+      mfa_token: mfaToken,
+      message: 'MFA verification required'
+    };
+  }
+
+  // SECURITY: Don't include is_admin in JWT - fetch from DB on each request
+  const token = jwt.sign(
+    { id: user.id, username: user.username },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  // SECURITY: Include must_change_password flag in response
+  return {
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      is_admin: user.is_admin
+    },
+    must_change_password: !!user.must_change_password
+  };
 }
 
 // Logout - invalidate the current token
@@ -437,41 +423,27 @@ function _generateSecurePassword(length = 16) {
 
 // Create default admin user if no users exist
 async function createDefaultAdmin() {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT COUNT(*) as count FROM users', [], async (err, row) => {
-      if (err) {
-        reject(err);
-      } else if (row.count === 0) {
-        // Default admin credentials - user must change password on first login
-        const defaultPassword = 'admin';
-        const passwordHash = bcrypt.hashSync(defaultPassword, 10);
-        // SECURITY: Set must_change_password=1 to force password change on first login
-        db.run(
-          'INSERT INTO users (username, password_hash, is_admin, must_change_password) VALUES (?, ?, 1, 1)',
-          ['admin', passwordHash],
-          function (err) {
-            if (err) {
-              reject(err);
-            } else {
-              console.log('');
-              console.log('╔════════════════════════════════════════════════════════════╗');
-              console.log('║           DEFAULT ADMIN ACCOUNT CREATED                    ║');
-              console.log('╠════════════════════════════════════════════════════════════╣');
-              console.log('║  Username: admin                                           ║');
-              console.log('║  Password: admin                                           ║');
-              console.log('╠════════════════════════════════════════════════════════════╣');
-              console.log('║  ⚠️  You will be required to change this on first login!  ║');
-              console.log('╚════════════════════════════════════════════════════════════╝');
-              console.log('');
-              resolve();
-            }
-          }
-        );
-      } else {
-        resolve();
-      }
-    });
-  });
+  const row = await dbGet('SELECT COUNT(*) as count FROM users', []);
+  if (row.count === 0) {
+    // Default admin credentials - user must change password on first login
+    const defaultPassword = 'admin';
+    const passwordHash = bcrypt.hashSync(defaultPassword, 10);
+    // SECURITY: Set must_change_password=1 to force password change on first login
+    await dbRun(
+      'INSERT INTO users (username, password_hash, is_admin, must_change_password) VALUES (?, ?, 1, 1)',
+      ['admin', passwordHash]
+    );
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║           DEFAULT ADMIN ACCOUNT CREATED                    ║');
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log('║  Username: admin                                           ║');
+    console.log('║  Password: admin                                           ║');
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log('║  ⚠️  You will be required to change this on first login!  ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    console.log('');
+  }
 }
 
 module.exports = {
