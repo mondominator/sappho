@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AudioPlayer from './components/AudioPlayer'
 import Navigation from './components/Navigation'
+import { OfflineBanner } from './components/Skeleton'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
@@ -38,6 +39,7 @@ function ScrollToTop() {
 function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, currentProgress, setCurrentProgress, playAudiobook }) {
   const location = useLocation();
   const playerRef = useRef();
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   // Close fullscreen when location changes
   useEffect(() => {
@@ -46,8 +48,21 @@ function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, cu
     }
   }, [location.pathname]);
 
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   return (
-    <div className={`app ${currentAudiobook ? 'player-active' : ''}`}>
+    <div className={`app ${currentAudiobook ? 'player-active' : ''} ${isOffline ? 'offline' : ''}`}>
+      {isOffline && <OfflineBanner />}
       <a href="#main-content" className="skip-to-content">Skip to main content</a>
       <Navigation onLogout={onLogout} />
       <main id="main-content" className="main-content">
