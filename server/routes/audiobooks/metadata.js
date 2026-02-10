@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sanitizeHtml, isPrivateHostname } = require('./helpers');
+const { createDbHelpers } = require('../../utils/db');
 
 // Helper: Search Audible and get details from Audnexus
 async function searchAudible(title, author, asin, normalizeGenres) {
@@ -319,19 +320,19 @@ async function downloadCover(url, audiobookId) {
 }
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, organizeAudiobook, needsOrganization }) {
+  const { dbGet, dbAll, dbRun } = createDbHelpers(db);
 
   // Get chapters for a multi-file audiobook
-  router.get('/:id/chapters', authenticateToken, (req, res) => {
-    db.all(
-      'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
-      [req.params.id],
-      (err, chapters) => {
-        if (err) {
-          return res.status(500).json({ error: 'Internal server error' });
-        }
-        res.json(chapters || []);
-      }
-    );
+  router.get('/:id/chapters', authenticateToken, async (req, res) => {
+    try {
+      const chapters = await dbAll(
+        'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
+        [req.params.id]
+      );
+      res.json(chapters || []);
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // Update chapter titles (admin only)
@@ -351,16 +352,10 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       // Update each chapter title
       for (const chapter of chapters) {
         if (chapter.id && chapter.title !== undefined) {
-          await new Promise((resolve, reject) => {
-            db.run(
-              'UPDATE audiobook_chapters SET title = ? WHERE id = ? AND audiobook_id = ?',
-              [chapter.title, chapter.id, req.params.id],
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
+          await dbRun(
+            'UPDATE audiobook_chapters SET title = ? WHERE id = ? AND audiobook_id = ?',
+            [chapter.title, chapter.id, req.params.id]
+          );
         }
       }
 
@@ -391,12 +386,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     try {
       // Get the audiobook's file path (needed for chapter records)
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      const audiobook = await dbGet('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id]);
 
       if (!audiobook || !audiobook.file_path) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -426,47 +416,30 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Delete existing chapters for this audiobook
-      await new Promise((resolve, reject) => {
-        db.run('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id], (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+      await dbRun('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id]);
 
       // Insert new chapters (use audiobook's file_path for all chapters)
       for (let i = 0; i < data.chapters.length; i++) {
         const chapter = data.chapters[i];
-        await new Promise((resolve, reject) => {
-          db.run(
-            `INSERT INTO audiobook_chapters (audiobook_id, chapter_number, file_path, title, start_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              req.params.id,
-              i + 1,
-              audiobook.file_path,
-              chapter.title || `Chapter ${i + 1}`,
-              Math.floor(chapter.startOffsetMs / 1000), // Convert ms to seconds
-              Math.floor(chapter.lengthMs / 1000) // Convert ms to seconds
-            ],
-            (err) => {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        });
+        await dbRun(
+          `INSERT INTO audiobook_chapters (audiobook_id, chapter_number, file_path, title, start_time, duration)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            req.params.id,
+            i + 1,
+            audiobook.file_path,
+            chapter.title || `Chapter ${i + 1}`,
+            Math.floor(chapter.startOffsetMs / 1000), // Convert ms to seconds
+            Math.floor(chapter.lengthMs / 1000) // Convert ms to seconds
+          ]
+        );
       }
 
       // Update the ASIN in the audiobook record if not already set
-      await new Promise((resolve, reject) => {
-        db.run(
-          'UPDATE audiobooks SET asin = ? WHERE id = ? AND (asin IS NULL OR asin = "")',
-          [asin, req.params.id],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      await dbRun(
+        'UPDATE audiobooks SET asin = ? WHERE id = ? AND (asin IS NULL OR asin = "")',
+        [asin, req.params.id]
+      );
 
       res.json({
         message: `Successfully imported ${data.chapters.length} chapters`,
@@ -652,12 +625,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   // Refresh metadata from file (admin only)
   router.post('/:id/refresh-metadata', authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -708,76 +676,54 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       const hasChapters = chapters && chapters.length > 1;
 
       // Update database with new metadata
-      await new Promise((resolve, reject) => {
-        db.run(
-          `UPDATE audiobooks
-           SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
-               series = ?, series_position = ?, published_year = ?, cover_image = ?,
-               duration = ?, is_multi_file = ?, updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?`,
-          [
-            metadata.title,
-            metadata.author,
-            metadata.narrator,
-            metadata.description,
-            metadata.genre,
-            metadata.series,
-            metadata.series_position,
-            metadata.published_year,
-            metadata.cover_image,
-            metadata.duration,
-            hasChapters ? 1 : 0,
-            req.params.id
-          ],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
+      await dbRun(
+        `UPDATE audiobooks
+         SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
+             series = ?, series_position = ?, published_year = ?, cover_image = ?,
+             duration = ?, is_multi_file = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          metadata.title,
+          metadata.author,
+          metadata.narrator,
+          metadata.description,
+          metadata.genre,
+          metadata.series,
+          metadata.series_position,
+          metadata.published_year,
+          metadata.cover_image,
+          metadata.duration,
+          hasChapters ? 1 : 0,
+          req.params.id
+        ]
+      );
 
       // Delete existing chapters and insert new ones if we have chapters
       if (hasChapters) {
         // Delete old chapters
-        await new Promise((resolve, reject) => {
-          db.run('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id], (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
+        await dbRun('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id]);
 
         // Insert new chapters
         for (const chapter of chapters) {
-          await new Promise((resolve, reject) => {
-            db.run(
-              `INSERT INTO audiobook_chapters
-               (audiobook_id, chapter_number, file_path, duration, start_time, title)
-               VALUES (?, ?, ?, ?, ?, ?)`,
-              [
-                req.params.id,
-                chapter.chapter_number,
-                audiobook.file_path, // Same file for all chapters in m4b
-                chapter.duration,
-                chapter.start_time,
-                chapter.title,
-              ],
-              (err) => {
-                if (err) reject(err);
-                else resolve();
-              }
-            );
-          });
+          await dbRun(
+            `INSERT INTO audiobook_chapters
+             (audiobook_id, chapter_number, file_path, duration, start_time, title)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              req.params.id,
+              chapter.chapter_number,
+              audiobook.file_path, // Same file for all chapters in m4b
+              chapter.duration,
+              chapter.start_time,
+              chapter.title,
+            ]
+          );
         }
         console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
       }
 
       // Get updated audiobook
-      let updatedAudiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      let updatedAudiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
 
       // Check if file needs to be reorganized based on new metadata
       let fileReorganized = false;
@@ -786,12 +732,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         if (result.moved) {
           fileReorganized = true;
           // Re-fetch audiobook with updated path
-          updatedAudiobook = await new Promise((resolve, reject) => {
-            db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, row) => {
-              if (err) reject(err);
-              else resolve(row);
-            });
-          });
+          updatedAudiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
         }
       }
 
@@ -830,12 +771,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     try {
       // Get audiobook from database
-      const audiobook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -853,16 +789,10 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Get chapters from database
-      const chapters = await new Promise((resolve, reject) => {
-        db.all(
-          'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
-          [id],
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
+      const chapters = await dbAll(
+        'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
+        [id]
+      ) || [];
 
       const ext = path.extname(audiobook.file_path).toLowerCase();
       const dir = path.dirname(audiobook.file_path);
@@ -1177,12 +1107,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     try {
       // Get current audiobook to check if author/title changed
-      const currentBook = await new Promise((resolve, reject) => {
-        db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
+      const currentBook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
 
       if (!currentBook) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -1212,28 +1137,22 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Update database with new metadata (keep current file_path for now)
-      await new Promise((resolve, reject) => {
-        db.run(
-          `UPDATE audiobooks
-           SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
-               series = ?, series_position = ?, published_year = ?, copyright_year = ?,
-               publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
-               cover_path = ?, cover_image = ?,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?`,
-          [
-            title, subtitle, author, narrator, sanitizeHtml(description), genre, tags,
-            series, series_position, published_year, copyright_year,
-            publisher, isbn, asin, language, rating, abridged ? 1 : 0,
-            newCoverPath, newCoverImage,
-            id
-          ],
-          function (err) {
-            if (err) reject(err);
-            else resolve(this.changes);
-          }
-        );
-      });
+      await dbRun(
+        `UPDATE audiobooks
+         SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
+             series = ?, series_position = ?, published_year = ?, copyright_year = ?,
+             publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
+             cover_path = ?, cover_image = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          title, subtitle, author, narrator, sanitizeHtml(description), genre, tags,
+          series, series_position, published_year, copyright_year,
+          publisher, isbn, asin, language, rating, abridged ? 1 : 0,
+          newCoverPath, newCoverImage,
+          id
+        ]
+      );
 
       // Check if file reorganization is needed (author, title, series, or position changed)
       let fileReorganized = false;
@@ -1242,12 +1161,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       if ((authorChanged || titleChanged || seriesChanged || seriesPositionChanged) &&
           fs.existsSync(currentBook.file_path)) {
         // Re-fetch the audiobook with updated metadata
-        const updatedBook = await new Promise((resolve, reject) => {
-          db.get('SELECT * FROM audiobooks WHERE id = ?', [id], (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          });
-        });
+        const updatedBook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
 
         // Use the centralized file organizer to move files
         if (updatedBook && needsOrganization(updatedBook)) {
