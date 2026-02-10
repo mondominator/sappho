@@ -137,6 +137,8 @@ function createTestDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             audiobook_id INTEGER NOT NULL,
+            priority INTEGER DEFAULT 0,
+            list_order INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, audiobook_id)
           )
@@ -418,11 +420,31 @@ function createTestApp(db) {
   app.get('/api/audiobooks/favorites', (req, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
+    const { sort } = req.query;
+
+    let orderClause;
+    switch (sort) {
+      case 'date':
+        orderClause = 'ORDER BY f.created_at DESC';
+        break;
+      case 'title':
+        orderClause = 'ORDER BY a.title ASC';
+        break;
+      case 'custom':
+        orderClause = 'ORDER BY f.list_order ASC';
+        break;
+      case 'priority':
+      default:
+        orderClause = 'ORDER BY CASE WHEN f.priority = 0 THEN 4 ELSE f.priority END ASC, f.list_order ASC';
+        break;
+    }
+
     db.all(
-      `SELECT a.* FROM audiobooks a
-       INNER JOIN user_favorites f ON a.id = f.audiobook_id
+      `SELECT a.*, f.created_at as favorited_at, f.priority, f.list_order
+       FROM user_favorites f
+       INNER JOIN audiobooks a ON f.audiobook_id = a.id
        WHERE f.user_id = ?
-       ORDER BY f.created_at DESC`,
+       ${orderClause}`,
       [req.user.id],
       (err, audiobooks) => {
         if (err) return res.status(500).json({ error: 'Database error' });
@@ -597,12 +619,21 @@ function createTestApp(db) {
       if (err) return res.status(500).json({ error: 'Database error' });
       if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
 
-      db.run(
-        'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-        [req.user.id, audiobookId],
-        function(err) {
+      // Get next list_order
+      db.get(
+        'SELECT COALESCE(MAX(list_order), -1) + 1 as next_order FROM user_favorites WHERE user_id = ?',
+        [req.user.id],
+        (err, row) => {
           if (err) return res.status(500).json({ error: 'Database error' });
-          res.json({ success: true, is_favorite: true });
+
+          db.run(
+            'INSERT OR IGNORE INTO user_favorites (user_id, audiobook_id, list_order) VALUES (?, ?, ?)',
+            [req.user.id, audiobookId, row.next_order],
+            function(err) {
+              if (err) return res.status(500).json({ error: 'Database error' });
+              res.json({ success: true, is_favorite: true });
+            }
+          );
         }
       );
     });
@@ -651,16 +682,108 @@ function createTestApp(db) {
             if (err) return res.status(500).json({ error: 'Database error' });
             if (!audiobook) return res.status(404).json({ error: 'Audiobook not found' });
 
-            db.run(
-              'INSERT INTO user_favorites (user_id, audiobook_id) VALUES (?, ?)',
-              [req.user.id, audiobookId],
-              function(err) {
+            // Get next list_order
+            db.get(
+              'SELECT COALESCE(MAX(list_order), -1) + 1 as next_order FROM user_favorites WHERE user_id = ?',
+              [req.user.id],
+              (err, orderRow) => {
                 if (err) return res.status(500).json({ error: 'Database error' });
-                res.json({ success: true, is_favorite: true });
+
+                db.run(
+                  'INSERT INTO user_favorites (user_id, audiobook_id, list_order) VALUES (?, ?, ?)',
+                  [req.user.id, audiobookId, orderRow.next_order],
+                  function(err) {
+                    if (err) return res.status(500).json({ error: 'Database error' });
+                    res.json({ success: true, is_favorite: true });
+                  }
+                );
               }
             );
           });
         }
+      }
+    );
+  });
+
+  // Update priority for a favorite
+  app.put('/api/audiobooks/:id/favorite/priority', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const audiobookId = parseInt(req.params.id);
+    const { priority } = req.body;
+
+    if (priority === undefined || priority === null || ![0, 1, 2, 3].includes(priority)) {
+      return res.status(400).json({ error: 'Priority must be 0 (none), 1 (high), 2 (medium), or 3 (low)' });
+    }
+
+    db.get(
+      'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+      [req.user.id, audiobookId],
+      (err, row) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (!row) return res.status(404).json({ error: 'Audiobook is not in your reading list' });
+
+        db.run(
+          'UPDATE user_favorites SET priority = ? WHERE user_id = ? AND audiobook_id = ?',
+          [priority, req.user.id, audiobookId],
+          function(err) {
+            if (err) return res.status(500).json({ error: 'Database error' });
+            res.json({ success: true, priority });
+          }
+        );
+      }
+    );
+  });
+
+  // Bulk reorder reading list items
+  app.put('/api/audiobooks/favorites/reorder', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { order } = req.body;
+
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: 'order must be an array of audiobook IDs' });
+    }
+
+    const placeholders = order.map(() => '?').join(',');
+    db.all(
+      `SELECT audiobook_id FROM user_favorites WHERE user_id = ? AND audiobook_id IN (${placeholders})`,
+      [req.user.id, ...order],
+      (err, favorites) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+
+        const favoriteIds = new Set(favorites.map(f => f.audiobook_id));
+        const invalidIds = order.filter(id => !favoriteIds.has(id));
+        if (invalidIds.length > 0) {
+          return res.status(400).json({ error: 'Some audiobook IDs are not in your reading list', invalid_ids: invalidIds });
+        }
+
+        db.serialize(() => {
+          let completed = 0;
+          let hasError = false;
+
+          for (let i = 0; i < order.length; i++) {
+            db.run(
+              'UPDATE user_favorites SET list_order = ? WHERE user_id = ? AND audiobook_id = ?',
+              [i, req.user.id, order[i]],
+              function(err) {
+                if (err && !hasError) {
+                  hasError = true;
+                  return res.status(500).json({ error: 'Database error' });
+                }
+                completed++;
+                if (completed === order.length && !hasError) {
+                  res.json({ success: true });
+                }
+              }
+            );
+          }
+
+          // Handle empty order array
+          if (order.length === 0) {
+            res.json({ success: true });
+          }
+        });
       }
     );
   });
