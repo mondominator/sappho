@@ -9,64 +9,60 @@ const fs = require('fs');
 const path = require('path');
 const { getAudioMimeType } = require('./helpers');
 const { isValidWidth, getOrGenerateThumbnail } = require('../../services/thumbnailService');
+const { createDbHelpers } = require('../../utils/db');
 
 function register(router, { db, authenticateToken, authenticateMediaToken, requireAdmin }) {
+  const { dbGet } = createDbHelpers(db);
 
   // Get all files in the audiobook's directory
-  router.get('/:id/directory-files', authenticateToken, (req, res) => {
-    db.get('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
+  router.get('/:id/directory-files', authenticateToken, async (req, res) => {
+    try {
+      const audiobook = await dbGet('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id]);
       if (!audiobook || !audiobook.file_path) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
-      try {
-        // Get the directory containing the audiobook file
-        const directory = path.dirname(audiobook.file_path);
+      // Get the directory containing the audiobook file
+      const directory = path.dirname(audiobook.file_path);
 
-        // List all files in the directory
-        const files = fs.readdirSync(directory);
+      // List all files in the directory
+      const files = fs.readdirSync(directory);
 
-        // Filter to only audio files and sort them
-        const audioExtensions = ['.mp3', '.m4a', '.m4b', '.flac', '.ogg', '.wav'];
-        const audioFiles = files
-          .filter(file => {
-            const ext = path.extname(file).toLowerCase();
-            return audioExtensions.includes(ext);
-          })
-          .map(file => {
-            const fullPath = path.join(directory, file);
-            const stats = fs.statSync(fullPath);
-            return {
-              name: file,
-              path: fullPath,
-              size: stats.size,
-              extension: path.extname(file).toLowerCase()
-            };
-          })
-          .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      // Filter to only audio files and sort them
+      const audioExtensions = ['.mp3', '.m4a', '.m4b', '.flac', '.ogg', '.wav'];
+      const audioFiles = files
+        .filter(file => {
+          const ext = path.extname(file).toLowerCase();
+          return audioExtensions.includes(ext);
+        })
+        .map(file => {
+          const fullPath = path.join(directory, file);
+          const stats = fs.statSync(fullPath);
+          return {
+            name: file,
+            path: fullPath,
+            size: stats.size,
+            extension: path.extname(file).toLowerCase()
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-        res.json(audioFiles);
-      } catch (error) {
-        console.error('Error reading directory:', error);
-        res.status(500).json({ error: 'Failed to read directory' });
-      }
-    });
+      res.json(audioFiles);
+    } catch (error) {
+      console.error('Error reading directory:', error);
+      res.status(500).json({ error: 'Failed to read directory' });
+    }
   });
 
   // Delete a specific file from an audiobook directory (admin only)
-  router.delete('/:id/files', authenticateToken, requireAdmin, (req, res) => {
+  router.delete('/:id/files', authenticateToken, requireAdmin, async (req, res) => {
     const { file_path } = req.body;
     if (!file_path) {
       return res.status(400).json({ error: 'file_path is required' });
     }
 
-    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
+    try {
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -82,27 +78,23 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         return res.status(400).json({ error: 'Cannot delete the main audiobook file. Use delete audiobook instead.' });
       }
 
-      try {
-        if (!fs.existsSync(targetPath)) {
-          return res.status(404).json({ error: 'File not found' });
-        }
-
-        fs.unlinkSync(targetPath);
-        console.log('Deleted audiobook file in directory:', audiobookDir);
-        res.json({ message: 'File deleted successfully' });
-      } catch (error) {
-        console.error('Error deleting file:', error);
-        res.status(500).json({ error: 'Failed to delete files' });
+      if (!fs.existsSync(targetPath)) {
+        return res.status(404).json({ error: 'File not found' });
       }
-    });
+
+      fs.unlinkSync(targetPath);
+      console.log('Deleted audiobook file in directory:', audiobookDir);
+      res.json({ message: 'File deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      res.status(500).json({ error: 'Failed to delete files' });
+    }
   });
 
   // Stream audiobook (uses authenticateMediaToken to allow query string tokens for <audio> tags)
-  router.get('/:id/stream', authenticateMediaToken, (req, res) => {
-    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
+  router.get('/:id/stream', authenticateMediaToken, async (req, res) => {
+    try {
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -176,15 +168,15 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         });
         file.pipe(res);
       }
-    });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // Download audiobook
-  router.get('/:id/download', authenticateToken, (req, res) => {
-    db.get('SELECT * FROM audiobooks WHERE id = ?', [req.params.id], (err, audiobook) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
+  router.get('/:id/download', authenticateToken, async (req, res) => {
+    try {
+      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -197,21 +189,21 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
 
       const filename = path.basename(filePath);
       res.download(filePath, `${audiobook.title}.${filename.split('.').pop()}`);
-    });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // Get cover art (uses authenticateMediaToken to allow query string tokens for <img> tags)
   // Supports optional ?width=120|300|600 query parameter for resized thumbnails
-  router.get('/:id/cover', authenticateMediaToken, (req, res) => {
+  router.get('/:id/cover', authenticateMediaToken, async (req, res) => {
     const audiobookId = parseInt(req.params.id, 10);
     if (isNaN(audiobookId)) {
       return res.status(400).json({ error: 'Invalid audiobook ID' });
     }
 
-    db.get('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [audiobookId], async (err, audiobook) => {
-      if (err) {
-        return res.status(500).json({ error: 'Internal server error' });
-      }
+    try {
+      const audiobook = await dbGet('SELECT cover_image, cover_path FROM audiobooks WHERE id = ?', [audiobookId]);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -271,7 +263,9 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
       // Serve original cover (no width requested, or invalid width, or thumbnail generation failed)
       res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
       res.sendFile(resolvedPath);
-    });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
 }
