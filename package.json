@@ -17,6 +17,7 @@
     "test:integration": "jest tests/integration",
     "test:docker": "jest tests/docker",
     "test:all": "jest --coverage",
+    "test:client": "cd client && npx vitest run",
     "lint": "eslint server/"
   },
   "keywords": [
