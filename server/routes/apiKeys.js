@@ -7,6 +7,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
+const { createDbHelpers } = require('../utils/db');
 
 /**
  * Default dependencies - used when route is required directly
@@ -46,6 +47,7 @@ function createApiKeysRouter(deps = {}) {
   const auth = deps.auth || defaultDependencies.auth();
   const db = deps.db || defaultDependencies.db();
   const { authenticateToken } = auth;
+  const { dbGet: _dbGet, dbAll, dbRun } = createDbHelpers(db);
 
   // SECURITY: Rate limiting for API key management endpoints
   const apiKeyLimiter = rateLimit({
@@ -68,27 +70,26 @@ function createApiKeysRouter(deps = {}) {
    * GET /api/api-keys
    * Get all API keys for the current user
    */
-  router.get('/', apiKeyLimiter, authenticateToken, (req, res) => {
-    db.all(
-      `SELECT id, name, key_prefix, permissions, last_used_at, expires_at, is_active, created_at
-       FROM api_keys
-       WHERE user_id = ?
-       ORDER BY created_at DESC`,
-      [req.user.id],
-      (err, keys) => {
-        if (err) {
-          return res.status(500).json({ error: 'Internal server error' });
-        }
-        res.json(keys);
-      }
-    );
+  router.get('/', apiKeyLimiter, authenticateToken, async (req, res) => {
+    try {
+      const keys = await dbAll(
+        `SELECT id, name, key_prefix, permissions, last_used_at, expires_at, is_active, created_at
+         FROM api_keys
+         WHERE user_id = ?
+         ORDER BY created_at DESC`,
+        [req.user.id]
+      );
+      res.json(keys);
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   /**
    * POST /api/api-keys
    * Create a new API key
    */
-  router.post('/', apiKeyWriteLimiter, authenticateToken, (req, res) => {
+  router.post('/', apiKeyWriteLimiter, authenticateToken, async (req, res) => {
     const { name, permissions, expires_in_days } = req.body;
 
     if (!name || name.trim().length === 0) {
@@ -109,38 +110,37 @@ function createApiKeysRouter(deps = {}) {
     expiry.setDate(expiry.getDate() + expiryDays);
     const expiresAt = expiry.toISOString();
 
-    db.run(
-      `INSERT INTO api_keys (name, key_hash, key_prefix, user_id, permissions, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, hash, prefix, req.user.id, permissionsStr, expiresAt],
-      function (err) {
-        if (err) {
-          if (err.message.includes('UNIQUE')) {
-            return res.status(409).json({ error: 'An API key with this hash already exists' });
-          }
-          return res.status(500).json({ error: 'Internal server error' });
-        }
+    try {
+      const { lastID } = await dbRun(
+        `INSERT INTO api_keys (name, key_hash, key_prefix, user_id, permissions, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [name, hash, prefix, req.user.id, permissionsStr, expiresAt]
+      );
 
-        // Return the key ONLY this one time
-        res.json({
-          id: this.lastID,
-          name,
-          key,  // Full key - only shown once!
-          key_prefix: prefix,
-          permissions: permissionsStr,
-          expires_at: expiresAt,
-          created_at: new Date().toISOString(),
-          message: 'Save this key securely - it will not be shown again!'
-        });
+      // Return the key ONLY this one time
+      res.json({
+        id: lastID,
+        name,
+        key,  // Full key - only shown once!
+        key_prefix: prefix,
+        permissions: permissionsStr,
+        expires_at: expiresAt,
+        created_at: new Date().toISOString(),
+        message: 'Save this key securely - it will not be shown again!'
+      });
+    } catch (err) {
+      if (err.message.includes('UNIQUE')) {
+        return res.status(409).json({ error: 'An API key with this hash already exists' });
       }
-    );
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   /**
    * PUT /api/api-keys/:id
    * Update an API key (name, permissions, active status)
    */
-  router.put('/:id', apiKeyWriteLimiter, authenticateToken, (req, res) => {
+  router.put('/:id', apiKeyWriteLimiter, authenticateToken, async (req, res) => {
     const { name, permissions, is_active } = req.body;
 
     const updates = [];
@@ -168,41 +168,39 @@ function createApiKeysRouter(deps = {}) {
     params.push(req.params.id);
     params.push(req.user.id);
 
-    db.run(
-      `UPDATE api_keys
-       SET ${updates.join(', ')}
-       WHERE id = ? AND user_id = ?`,
-      params,
-      function (err) {
-        if (err) {
-          return res.status(500).json({ error: 'Internal server error' });
-        }
-        if (this.changes === 0) {
-          return res.status(404).json({ error: 'API key not found' });
-        }
-        res.json({ message: 'API key updated successfully' });
+    try {
+      const { changes } = await dbRun(
+        `UPDATE api_keys
+         SET ${updates.join(', ')}
+         WHERE id = ? AND user_id = ?`,
+        params
+      );
+      if (changes === 0) {
+        return res.status(404).json({ error: 'API key not found' });
       }
-    );
+      res.json({ message: 'API key updated successfully' });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   /**
    * DELETE /api/api-keys/:id
    * Delete an API key
    */
-  router.delete('/:id', apiKeyWriteLimiter, authenticateToken, (req, res) => {
-    db.run(
-      'DELETE FROM api_keys WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id],
-      function (err) {
-        if (err) {
-          return res.status(500).json({ error: 'Internal server error' });
-        }
-        if (this.changes === 0) {
-          return res.status(404).json({ error: 'API key not found' });
-        }
-        res.json({ message: 'API key deleted successfully' });
+  router.delete('/:id', apiKeyWriteLimiter, authenticateToken, async (req, res) => {
+    try {
+      const { changes } = await dbRun(
+        'DELETE FROM api_keys WHERE id = ? AND user_id = ?',
+        [req.params.id, req.user.id]
+      );
+      if (changes === 0) {
+        return res.status(404).json({ error: 'API key not found' });
       }
-    );
+      res.json({ message: 'API key deleted successfully' });
+    } catch (_err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   return router;

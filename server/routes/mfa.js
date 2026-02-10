@@ -6,6 +6,7 @@
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { createDbHelpers } = require('../utils/db');
 
 /**
  * Default dependencies - used when route is required directly
@@ -35,6 +36,7 @@ function createMfaRouter(deps = {}) {
   const mfaService = deps.mfaService || defaultDependencies.mfaService();
   const bcrypt = deps.bcrypt || defaultDependencies.bcrypt();
   const { authenticateToken } = auth;
+  const { dbGet } = createDbHelpers(db);
 
   // SECURITY: Strict rate limiting for MFA endpoints
   const mfaLimiter = rateLimit({
@@ -160,12 +162,7 @@ function createMfaRouter(deps = {}) {
         }
       } else if (password) {
         // Verify with password (for account recovery)
-        const user = await new Promise((resolve, reject) => {
-          db.get('SELECT password_hash FROM users WHERE id = ?', [req.user.id], (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-          });
-        });
+        const user = await dbGet('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
 
         if (!user || !bcrypt.compareSync(password, user.password_hash)) {
           return res.status(400).json({ error: 'Invalid password' });
