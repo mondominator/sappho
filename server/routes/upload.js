@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { createDbHelpers } = require('../utils/db');
 
 // SECURITY: Sanitize uploaded filename to prevent path traversal
 function sanitizeFilename(name) {
@@ -280,9 +281,10 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
       duration: totalDuration
     }, movedFiles[0]);
 
-    // Save audiobook to database
-    const audiobook = await new Promise((resolve, reject) => {
-      db.run(
+    // Save audiobook and chapters in a single transaction
+    const { dbTransaction } = createDbHelpers(db);
+    const audiobook = await dbTransaction(async ({ dbRun: txRun, dbGet: txGet }) => {
+      const { lastID: audiobookId } = await txRun(
         `INSERT INTO audiobooks
          (title, author, narrator, description, duration, file_path, file_size,
           genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
@@ -313,52 +315,25 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
           firstFileMetadata.abridged ? 1 : 0,
           firstFileMetadata.subtitle,
           contentHash,
-        ],
-        function (err) {
-          if (err) {
-            reject(err);
-          } else {
-            const audiobookId = this.lastID;
-
-            // Calculate cumulative start times and insert chapters
-            let cumulativeTime = 0;
-            const chapterInsertPromises = chapterMetadata.map((chapter, index) => {
-              const startTime = cumulativeTime;
-              cumulativeTime += chapter.duration;
-
-              return new Promise((resolveChapter, rejectChapter) => {
-                db.run(
-                  `INSERT INTO audiobook_chapters
-                   (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                  [
-                    audiobookId,
-                    index + 1,
-                    chapter.file_path,
-                    chapter.duration,
-                    chapter.file_size,
-                    chapter.title,
-                    startTime,
-                  ],
-                  (err) => {
-                    if (err) rejectChapter(err);
-                    else resolveChapter();
-                  }
-                );
-              });
-            });
-
-            Promise.all(chapterInsertPromises)
-              .then(() => {
-                db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, book) => {
-                  if (err) reject(err);
-                  else resolve(book);
-                });
-              })
-              .catch(reject);
-          }
-        }
+        ]
       );
+
+      // Insert chapters sequentially (sqlite3 serializes writes anyway)
+      let cumulativeTime = 0;
+      for (let i = 0; i < chapterMetadata.length; i++) {
+        const chapter = chapterMetadata[i];
+        const startTime = cumulativeTime;
+        cumulativeTime += chapter.duration;
+
+        await txRun(
+          `INSERT INTO audiobook_chapters
+           (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [audiobookId, i + 1, chapter.file_path, chapter.duration, chapter.file_size, chapter.title, startTime]
+        );
+      }
+
+      return await txGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
     });
 
     console.log(`Created multi-file audiobook: ${title} (${chapterMetadata.length} chapters)`);

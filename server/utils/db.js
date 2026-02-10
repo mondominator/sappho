@@ -39,7 +39,25 @@ function createDbHelpers(database) {
     });
   }
 
-  return { dbGet, dbAll, dbRun };
+  /**
+   * Run a function inside a database transaction.
+   * Automatically rolls back on error and commits on success.
+   * @param {Function} fn - async function receiving { dbGet, dbAll, dbRun }
+   * @returns {Promise<*>} - return value of fn
+   */
+  async function dbTransaction(fn) {
+    await dbRun('BEGIN TRANSACTION');
+    try {
+      const result = await fn({ dbGet, dbAll, dbRun });
+      await dbRun('COMMIT');
+      return result;
+    } catch (err) {
+      await dbRun('ROLLBACK');
+      throw err;
+    }
+  }
+
+  return { dbGet, dbAll, dbRun, dbTransaction };
 }
 
 module.exports = { createDbHelpers };
