@@ -322,3 +322,352 @@ describe('Library Scanner - Utility Functions', () => {
     });
   });
 });
+
+/**
+ * Tests for actual libraryScanner.js module exports
+ * These test the real functions with mocked dependencies
+ */
+describe('Library Scanner - Module Exports', () => {
+  let libraryScanner;
+  let mockDb;
+  let mockWebsocketManager;
+
+  beforeEach(() => {
+    jest.resetModules();
+
+    // Mock database
+    mockDb = {
+      run: jest.fn((sql, params, cb) => {
+        if (typeof params === 'function') { params(null); return; }
+        if (cb) cb.call({ changes: 1 }, null);
+      }),
+      get: jest.fn((sql, params, cb) => {
+        if (cb) cb(null, null);
+      }),
+      all: jest.fn((sql, params, cb) => {
+        if (typeof params === 'function') { params(null, []); return; }
+        if (cb) cb(null, []);
+      }),
+      serialize: jest.fn((fn) => { if (fn) fn(); }),
+    };
+
+    mockWebsocketManager = {
+      broadcastLibraryUpdate: jest.fn(),
+    };
+
+    // Mock all dependencies
+    jest.doMock('../../server/database', () => mockDb);
+    jest.doMock('../../server/services/websocketManager', () => mockWebsocketManager);
+    jest.doMock('../../server/services/fileProcessor', () => ({
+      extractFileMetadata: jest.fn().mockResolvedValue({
+        title: 'Test Book', author: 'Author', duration: 3600,
+      }),
+    }));
+    jest.doMock('../../server/utils/contentHash', () => ({
+      generateBestHash: jest.fn().mockReturnValue('testhash123'),
+    }));
+    jest.doMock('../../server/services/fileOrganizer', () => ({
+      organizeAudiobook: jest.fn().mockResolvedValue(null),
+    }));
+    jest.doMock('../../server/services/emailService', () => ({
+      notifyNewAudiobook: jest.fn().mockResolvedValue(null),
+    }));
+    jest.doMock('../../server/utils/externalMetadata', () => ({
+      readExternalMetadata: jest.fn().mockResolvedValue({}),
+      mergeExternalMetadata: jest.fn(),
+    }));
+    jest.doMock('../../server/services/backupService', () => ({
+      getStatus: jest.fn().mockReturnValue({
+        scheduledBackups: false,
+        lastBackup: null,
+        lastResult: null,
+      }),
+    }));
+    jest.doMock('../../server/routes/audiobooks', () => ({
+      isDirectoryBeingConverted: jest.fn().mockReturnValue(false),
+    }));
+
+    // Suppress console output
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    // Stop any periodic scans that might be running
+    if (libraryScanner) {
+      libraryScanner.stopPeriodicScan();
+    }
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  function loadScanner() {
+    // Mock fs for the module-level existsSync + mkdirSync call
+    jest.doMock('fs', () => ({
+      existsSync: jest.fn().mockReturnValue(true),
+      mkdirSync: jest.fn(),
+      readdirSync: jest.fn().mockReturnValue([]),
+      statSync: jest.fn().mockReturnValue({ size: 1000000 }),
+      rmdirSync: jest.fn(),
+    }));
+
+    libraryScanner = require('../../server/services/libraryScanner');
+    return libraryScanner;
+  }
+
+  describe('lockScanning / unlockScanning / isScanningLocked', () => {
+    it('starts unlocked', () => {
+      loadScanner();
+      expect(libraryScanner.isScanningLocked()).toBe(false);
+    });
+
+    it('locks scanning', () => {
+      loadScanner();
+      libraryScanner.lockScanning();
+      expect(libraryScanner.isScanningLocked()).toBe(true);
+    });
+
+    it('unlocks scanning', () => {
+      loadScanner();
+      libraryScanner.lockScanning();
+      libraryScanner.unlockScanning();
+      expect(libraryScanner.isScanningLocked()).toBe(false);
+    });
+  });
+
+  describe('getJobStatus', () => {
+    it('returns job status object with expected keys', () => {
+      loadScanner();
+      const status = libraryScanner.getJobStatus();
+
+      expect(status.libraryScanner).toBeDefined();
+      expect(status.libraryScanner.name).toBe('Library Scanner');
+      expect(status.libraryScanner.status).toBe('idle');
+      expect(status.libraryScanner.canTrigger).toBe(true);
+
+      expect(status.autoBackup).toBeDefined();
+      expect(status.sessionCleanup).toBeDefined();
+      expect(status.logRotator).toBeDefined();
+    });
+
+    it('reports locked status when scanning is locked', () => {
+      loadScanner();
+      libraryScanner.lockScanning();
+      const status = libraryScanner.getJobStatus();
+      expect(status.libraryScanner.status).toBe('locked');
+      libraryScanner.unlockScanning();
+    });
+  });
+
+  describe('startPeriodicScan / stopPeriodicScan', () => {
+    it('starts and stops periodic scanning', () => {
+      jest.useFakeTimers();
+      loadScanner();
+
+      libraryScanner.startPeriodicScan(10);
+      // Calling again should not create a second interval
+      libraryScanner.startPeriodicScan(10);
+      libraryScanner.stopPeriodicScan();
+    });
+
+    it('stopPeriodicScan is idempotent', () => {
+      loadScanner();
+      // Calling stop when not started should not throw
+      libraryScanner.stopPeriodicScan();
+      libraryScanner.stopPeriodicScan();
+    });
+  });
+
+  describe('markAvailable', () => {
+    it('marks audiobook as available without new path', async () => {
+      loadScanner();
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(null);
+      });
+
+      await libraryScanner.markAvailable(1);
+      expect(mockDb.run).toHaveBeenCalledWith(
+        expect.stringContaining('is_available = 1'),
+        [1],
+        expect.any(Function)
+      );
+    });
+
+    it('marks audiobook as available with new file path', async () => {
+      loadScanner();
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(null);
+      });
+
+      await libraryScanner.markAvailable(1, '/new/path.m4b');
+      expect(mockDb.run).toHaveBeenCalledWith(
+        expect.stringContaining('file_path = ?'),
+        ['/new/path.m4b', 1],
+        expect.any(Function)
+      );
+    });
+
+    it('rejects on database error', async () => {
+      loadScanner();
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(new Error('DB error'));
+      });
+
+      await expect(libraryScanner.markAvailable(1)).rejects.toThrow('DB error');
+    });
+  });
+
+  describe('markUnavailable', () => {
+    it('marks audiobook as unavailable and broadcasts', async () => {
+      loadScanner();
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(null);
+      });
+
+      await libraryScanner.markUnavailable(42);
+      expect(mockDb.run).toHaveBeenCalledWith(
+        expect.stringContaining('is_available = 0'),
+        [42],
+        expect.any(Function)
+      );
+      expect(mockWebsocketManager.broadcastLibraryUpdate).toHaveBeenCalledWith(
+        'library.unavailable',
+        { id: 42 }
+      );
+    });
+
+    it('rejects on database error', async () => {
+      loadScanner();
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(new Error('DB error'));
+      });
+
+      await expect(libraryScanner.markUnavailable(1)).rejects.toThrow('DB error');
+    });
+  });
+
+  describe('checkAvailability', () => {
+    it('marks missing files as unavailable', async () => {
+      const mockFs = {
+        existsSync: jest.fn().mockImplementation((p) => {
+          if (p === '/books/missing.m4b') return false;
+          return true;
+        }),
+        mkdirSync: jest.fn(),
+        readdirSync: jest.fn().mockReturnValue([]),
+        statSync: jest.fn().mockReturnValue({ size: 1000000 }),
+        rmdirSync: jest.fn(),
+      };
+      jest.doMock('fs', () => mockFs);
+
+      libraryScanner = require('../../server/services/libraryScanner');
+
+      mockDb.all = jest.fn((sql, params, cb) => {
+        if (typeof params === 'function') { params(null, []); return; }
+        if (sql.includes('SELECT * FROM audiobooks')) {
+          cb(null, [
+            { id: 1, file_path: '/books/missing.m4b', is_available: 1, is_multi_file: 0 },
+          ]);
+        } else {
+          cb(null, []);
+        }
+      });
+
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(null);
+      });
+
+      const result = await libraryScanner.checkAvailability();
+      expect(result.missing).toBe(1);
+      expect(result.restored).toBe(0);
+    });
+
+    it('restores returned files', async () => {
+      const mockFs = {
+        existsSync: jest.fn().mockReturnValue(true),
+        mkdirSync: jest.fn(),
+        readdirSync: jest.fn().mockReturnValue([]),
+        statSync: jest.fn().mockReturnValue({ size: 1000000 }),
+        rmdirSync: jest.fn(),
+      };
+      jest.doMock('fs', () => mockFs);
+
+      libraryScanner = require('../../server/services/libraryScanner');
+
+      mockDb.all = jest.fn((sql, params, cb) => {
+        if (typeof params === 'function') { params(null, []); return; }
+        if (sql.includes('SELECT * FROM audiobooks')) {
+          cb(null, [
+            { id: 1, file_path: '/books/returned.m4b', is_available: 0, is_multi_file: 0 },
+          ]);
+        } else {
+          cb(null, []);
+        }
+      });
+
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(null);
+      });
+
+      const result = await libraryScanner.checkAvailability();
+      expect(result.restored).toBe(1);
+      expect(result.missing).toBe(0);
+    });
+  });
+
+  describe('scanLibrary', () => {
+    it('creates audiobooks directory if missing', async () => {
+      let mkdirCalled = false;
+      const mockFs = {
+        existsSync: jest.fn().mockImplementation((p) => {
+          // Audiobooks dir does not exist initially
+          if (p.includes('audiobooks') && !mkdirCalled) return false;
+          return true;
+        }),
+        mkdirSync: jest.fn().mockImplementation(() => { mkdirCalled = true; }),
+        readdirSync: jest.fn().mockReturnValue([]),
+        statSync: jest.fn().mockReturnValue({ size: 1000000 }),
+        rmdirSync: jest.fn(),
+      };
+      jest.doMock('fs', () => mockFs);
+
+      libraryScanner = require('../../server/services/libraryScanner');
+
+      const result = await libraryScanner.scanLibrary();
+      expect(result.imported).toBe(0);
+      expect(result.skipped).toBe(0);
+      expect(result.errors).toBe(0);
+    });
+
+    it('returns stats for empty library', async () => {
+      const mockFs = {
+        existsSync: jest.fn().mockReturnValue(true),
+        mkdirSync: jest.fn(),
+        readdirSync: jest.fn().mockImplementation((dir, opts) => {
+          if (opts && opts.withFileTypes) return [];
+          return [];
+        }),
+        statSync: jest.fn().mockReturnValue({ size: 1000000 }),
+        rmdirSync: jest.fn(),
+      };
+      jest.doMock('fs', () => mockFs);
+
+      libraryScanner = require('../../server/services/libraryScanner');
+
+      // Mock loadPathCache db.all
+      mockDb.all = jest.fn((sql, params, cb) => {
+        if (typeof params === 'function') { params(null, []); return; }
+        cb(null, []);
+      });
+      mockDb.run = jest.fn((sql, params, cb) => {
+        if (cb) cb(null);
+      });
+
+      const result = await libraryScanner.scanLibrary();
+      expect(result).toHaveProperty('imported');
+      expect(result).toHaveProperty('skipped');
+      expect(result).toHaveProperty('errors');
+      expect(result).toHaveProperty('totalFiles');
+    });
+  });
+});
