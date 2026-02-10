@@ -6,14 +6,22 @@
 describe('File Processor - Utility Functions', () => {
   describe('Genre filtering (looksLikeGenres)', () => {
     // Extracted from fileProcessor.js - used to filter out genre/category values from series detection
+    // Only applied to ambiguous tags, not explicit series tags
     function looksLikeGenres(val) {
       if (!val) return true;
-      // If it contains multiple commas or semicolons, likely genre list
-      if ((val.match(/,/g) || []).length >= 2) return true;
-      if ((val.match(/;/g) || []).length >= 1) return true;
-      // Common genre keywords that wouldn't be in a series name
-      const genreKeywords = /\b(fiction|non-fiction|nonfiction|thriller|mystery|romance|fantasy|horror|biography|history|science|self-help|audiobook|novel|literature)\b/i;
-      if (genreKeywords.test(val)) return true;
+      const commaCount = (val.match(/,/g) || []).length;
+      const semicolonCount = (val.match(/;/g) || []).length;
+
+      // Strong signal: many separators suggest a list, not a series name
+      if (commaCount >= 3) return true;
+      if (semicolonCount >= 2) return true;
+
+      // Moderate signal: separators + genre keywords suggest genre list
+      if (commaCount >= 1 || semicolonCount >= 1) {
+        const genreKeywords = /\b(fiction|nonfiction|non-fiction|mystery|thriller|romance|fantasy|horror|sci-fi|science fiction|biography|history|drama|comedy|adventure|literary|suspense|crime|detective|young adult|children|self-help|memoir|poetry|western|dystopian|paranormal)\b/i;
+        if (genreKeywords.test(val)) return true;
+      }
+
       return false;
     }
 
@@ -25,28 +33,32 @@ describe('File Processor - Utility Functions', () => {
       expect(looksLikeGenres('')).toBe(true);
     });
 
-    it('detects multiple commas as genre list', () => {
-      expect(looksLikeGenres('Fiction, Mystery, Thriller')).toBe(true);
+    it('detects many commas as genre list', () => {
+      expect(looksLikeGenres('Fiction, Mystery, Thriller, Drama')).toBe(true);
     });
 
-    it('detects semicolon-separated genres', () => {
-      expect(looksLikeGenres('Fiction; Audiobook')).toBe(true);
+    it('detects commas with genre keywords as genre list', () => {
+      expect(looksLikeGenres('Fiction, Mystery')).toBe(true);
     });
 
-    it('detects fiction keyword', () => {
-      expect(looksLikeGenres('General Fiction')).toBe(true);
+    it('detects semicolons with genre keywords as genre list', () => {
+      expect(looksLikeGenres('Fiction; Thriller')).toBe(true);
     });
 
-    it('detects thriller keyword', () => {
-      expect(looksLikeGenres('Political Thriller')).toBe(true);
+    it('detects many semicolons as genre list', () => {
+      expect(looksLikeGenres('Fiction;Thriller;Drama')).toBe(true);
     });
 
-    it('detects mystery keyword', () => {
-      expect(looksLikeGenres('Cozy Mystery')).toBe(true);
+    it('allows series with one comma and no genre keywords', () => {
+      expect(looksLikeGenres('Rivers of London, Book 1')).toBe(false);
     });
 
-    it('detects audiobook keyword', () => {
-      expect(looksLikeGenres('Audiobook Collection')).toBe(true);
+    it('allows series with one semicolon and no genre keywords', () => {
+      expect(looksLikeGenres('The Expanse; Book 1')).toBe(false);
+    });
+
+    it('allows genre keyword without separators (not a list)', () => {
+      expect(looksLikeGenres('General Fiction')).toBe(false);
     });
 
     it('returns false for valid series name', () => {
