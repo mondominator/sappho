@@ -1,0 +1,223 @@
+/* Skeleton loading placeholders */
+.skeleton {
+  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+  height: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-text:last-child {
+  width: 60%;
+}
+
+.skeleton-title {
+  height: 1.5rem;
+  width: 70%;
+  margin-bottom: 0.75rem;
+}
+
+.skeleton-cover {
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 8px;
+}
+
+/* Home page skeleton */
+.skeleton-section {
+  margin-bottom: 2rem;
+}
+
+.skeleton-section-title {
+  height: 1.5rem;
+  width: 180px;
+  margin-bottom: 1.25rem;
+}
+
+.skeleton-scroll {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1.5rem 0.5rem 1rem 0.5rem;
+}
+
+.skeleton-card {
+  flex-shrink: 0;
+  width: 135px;
+  height: 135px;
+  border-radius: 8px;
+}
+
+/* Library page skeleton */
+.skeleton-stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.25rem 2rem;
+  background: rgba(31, 41, 55, 0.4);
+  border: 1px solid #374151;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+}
+
+.skeleton-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.skeleton-stat-value {
+  height: 1.5rem;
+  width: 40px;
+}
+
+.skeleton-stat-label {
+  height: 0.75rem;
+  width: 50px;
+}
+
+.skeleton-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.skeleton-category-card {
+  height: 80px;
+  border-radius: 16px;
+}
+
+/* AudiobookDetail skeleton */
+.skeleton-detail {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 3rem;
+  padding: 2rem 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.skeleton-detail-cover {
+  aspect-ratio: 1;
+  border-radius: 12px;
+}
+
+.skeleton-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.skeleton-detail-title {
+  height: 2.5rem;
+  width: 80%;
+}
+
+.skeleton-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.skeleton-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-meta-label {
+  height: 0.75rem;
+  width: 60px;
+}
+
+.skeleton-meta-value {
+  height: 1rem;
+  width: 120px;
+}
+
+.skeleton-description {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Offline banner */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: center;
+  animation: slideInDown 0.3s ease-out;
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.offline-banner svg {
+  flex-shrink: 0;
+}
+
+/* Adjust app layout when offline banner is shown */
+.app.offline .main-content {
+  padding-top: calc(70px + 32px);
+}
+
+@media (max-width: 768px) {
+  .skeleton-scroll {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
+    padding: 0 !important;
+  }
+
+  .skeleton-card {
+    width: 100% !important;
+    height: 0 !important;
+    padding-bottom: 100% !important;
+  }
+
+  .skeleton-detail {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .skeleton-detail-cover {
+    max-width: 320px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .skeleton-categories {
+    grid-template-columns: 1fr;
+  }
+
+  .app.offline .main-content {
+    padding-top: calc(48px + 32px);
+  }
+}

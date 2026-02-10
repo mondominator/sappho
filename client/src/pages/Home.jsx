@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl, getRecentlyAdded, getInProgress, getUpNext, getFinished, getProgress } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
+import { HomeSkeleton } from '../components/Skeleton';
 import './Home.css';
 
 export default function Home({ onPlay }) {
@@ -136,7 +137,7 @@ export default function Home({ onPlay }) {
   );
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <HomeSkeleton />;
   }
 
   return (

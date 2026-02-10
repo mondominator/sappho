@@ -6,16 +6,14 @@ const fs = require('fs');
 const path = require('path');
 const { maintenanceLimiter, maintenanceWriteLimiter } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
-function register(router, { db, authenticateToken, organizeLibrary, getOrganizationPreview, organizeAudiobook, isScanningLocked, lockScanning, unlockScanning }) {
-  const { dbGet, dbAll } = createDbHelpers(db);
+function register(router, { db, authenticateToken, requireAdmin, organizeLibrary, getOrganizationPreview, organizeAudiobook, isScanningLocked, lockScanning, unlockScanning }) {
+  const { dbAll } = createDbHelpers(db);
+  const { getAudiobookById } = createQueryHelpers(db);
 
   // GET /orphan-directories - Scan for orphan directories
-  router.get('/orphan-directories', maintenanceLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/orphan-directories', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       console.log('Scanning for orphan directories...');
 
@@ -138,11 +136,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
   });
 
   // DELETE /orphan-directories - Delete orphan directories
-  router.delete('/orphan-directories', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.delete('/orphan-directories', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { paths } = req.body;
 
     if (!Array.isArray(paths) || paths.length === 0) {
@@ -218,11 +212,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
   });
 
   // GET /organize/preview - Preview what would be organized (dry run)
-  router.get('/organize/preview', maintenanceLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/organize/preview', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       console.log('Getting organization preview...');
       const preview = await getOrganizationPreview();
@@ -238,11 +228,7 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
   });
 
   // POST /organize - Organize all audiobooks into correct directory structure
-  router.post('/organize', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/organize', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     // Check if any scan is in progress
     if (isScanningLocked()) {
       return res.status(409).json({ error: 'Library scan in progress. Please wait and try again.' });
@@ -268,15 +254,11 @@ function register(router, { db, authenticateToken, organizeLibrary, getOrganizat
   });
 
   // POST /organize/:id - Organize a single audiobook
-  router.post('/organize/:id', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/organize/:id', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
 
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [id]);
+      const audiobook = await getAudiobookById(id);
 
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });

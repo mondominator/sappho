@@ -407,6 +407,33 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     };
   }, [audiobook.id]);
 
+  // Global keyboard shortcuts for playback control
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't capture if user is typing in an input/textarea/contenteditable
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          skipBackward();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          skipForward();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [playing]);
+
   const togglePlay = () => {
     if (!audioRef.current) return;
 
