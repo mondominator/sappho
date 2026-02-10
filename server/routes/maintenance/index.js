@@ -45,7 +45,7 @@ function createMaintenanceRouter(deps = {}) {
   const libraryScanner = deps.libraryScanner || defaultDependencies.libraryScanner();
   const fileOrganizer = deps.fileOrganizer || defaultDependencies.fileOrganizer();
 
-  const { authenticateToken } = auth;
+  const { authenticateToken, requireAdmin } = auth;
   const { extractFileMetadata } = fileProcessor;
   const { scanLibrary, lockScanning, unlockScanning, isScanningLocked, getJobStatus } = libraryScanner;
   const { organizeLibrary, getOrganizationPreview, organizeAudiobook } = fileOrganizer;
@@ -54,6 +54,7 @@ function createMaintenanceRouter(deps = {}) {
   const sharedDeps = {
     db,
     authenticateToken,
+    requireAdmin,
     extractFileMetadata,
     scanLibrary,
     lockScanning,

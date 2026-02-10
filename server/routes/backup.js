@@ -60,16 +60,12 @@ function createBackupRouter(deps = {}) {
   // Resolve dependencies (use provided or defaults)
   const auth = deps.auth || defaultDependencies.auth();
   const backupService = deps.backupService || defaultDependencies.backupService();
-  const { authenticateToken } = auth;
+  const { authenticateToken, requireAdmin } = auth;
 
   /**
    * GET /api/backup - List all backups
    */
-  router.get('/', backupLimiter, authenticateToken, (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+  router.get('/', backupLimiter, authenticateToken, requireAdmin, (req, res) => {
   try {
     const backups = backupService.listBackups();
     const status = backupService.getStatus();
@@ -87,11 +83,7 @@ function createBackupRouter(deps = {}) {
 /**
  * POST /api/backup - Create a new backup
  */
-router.post('/', backupWriteLimiter, authenticateToken, async (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.post('/', backupWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
   const { includeCovers = true } = req.body;
 
   try {
@@ -107,11 +99,7 @@ router.post('/', backupWriteLimiter, authenticateToken, async (req, res) => {
 /**
  * GET /api/backup/:filename - Download a backup
  */
-router.get('/:filename', backupLimiter, authenticateToken, (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.get('/:filename', backupLimiter, authenticateToken, requireAdmin, (req, res) => {
   try {
     const backupPath = backupService.getBackupPath(req.params.filename);
     res.download(backupPath, req.params.filename);
@@ -124,11 +112,7 @@ router.get('/:filename', backupLimiter, authenticateToken, (req, res) => {
 /**
  * DELETE /api/backup/:filename - Delete a backup
  */
-router.delete('/:filename', backupWriteLimiter, authenticateToken, (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.delete('/:filename', backupWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
   try {
     const result = backupService.deleteBackup(req.params.filename);
     res.json(result);
@@ -141,11 +125,7 @@ router.delete('/:filename', backupWriteLimiter, authenticateToken, (req, res) =>
 /**
  * POST /api/backup/restore/:filename - Restore from an existing backup
  */
-router.post('/restore/:filename', backupWriteLimiter, authenticateToken, async (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.post('/restore/:filename', backupWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
   const { restoreDatabase = true, restoreCovers = true } = req.body;
 
   try {
@@ -171,11 +151,7 @@ router.post('/restore/:filename', backupWriteLimiter, authenticateToken, async (
 /**
  * POST /api/backup/upload - Upload and restore from a backup file
  */
-router.post('/upload', backupWriteLimiter, authenticateToken, upload.single('backup'), async (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.post('/upload', backupWriteLimiter, authenticateToken, requireAdmin, upload.single('backup'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No backup file uploaded' });
   }
@@ -212,11 +188,7 @@ router.post('/upload', backupWriteLimiter, authenticateToken, upload.single('bac
 /**
  * POST /api/backup/retention - Apply retention policy
  */
-router.post('/retention', backupWriteLimiter, authenticateToken, (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
+router.post('/retention', backupWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
   const { keepCount = 7 } = req.body;
 
   try {

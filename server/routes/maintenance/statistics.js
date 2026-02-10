@@ -5,15 +5,11 @@
 const { maintenanceLimiter } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 
-function register(router, { db, authenticateToken }) {
+function register(router, { db, authenticateToken, requireAdmin }) {
   const { dbGet, dbAll } = createDbHelpers(db);
 
   // Get library statistics
-  router.get('/statistics', maintenanceLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/statistics', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       const totals = await dbGet(
         `SELECT
@@ -117,11 +113,7 @@ function register(router, { db, authenticateToken }) {
   });
 
   // Get audiobooks by file format
-  router.get('/books-by-format/:format', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/books-by-format/:format', authenticateToken, requireAdmin, async (req, res) => {
     try {
       const format = req.params.format.toLowerCase();
       const books = await dbAll(

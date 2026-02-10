@@ -8,9 +8,11 @@
 const fs = require('fs');
 const { sanitizeFtsQuery } = require('../../utils/ftsSearch');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
+  const { getAudiobookById, transformAudiobookRow } = createQueryHelpers(db);
 
   /**
    * Execute the audiobooks list query. When a search term is provided,
@@ -98,21 +100,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     }
 
     // Transform progress and rating fields into nested/clean format
-    const transformedAudiobooks = audiobooks.map(book => {
-      const { progress_position, progress_completed, progress_updated_at, is_favorite, user_rating, average_rating, ...rest } = book;
-      return {
-        ...rest,
-        normalized_genre: normalizeGenres(book.genre),
-        is_favorite: !!is_favorite,
-        user_rating: user_rating || null,
-        average_rating: average_rating ? Math.round(average_rating * 10) / 10 : null,
-        progress: progress_position !== null ? {
-          position: progress_position,
-          completed: progress_completed,
-          updated_at: progress_updated_at
-        } : null
-      };
-    });
+    const transformedAudiobooks = audiobooks.map(book => transformAudiobookRow(book, normalizeGenres));
 
     // Get total count
     let countQuery;
@@ -227,7 +215,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   // Get single audiobook
   router.get('/:id', authenticateToken, async (req, res) => {
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      const audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
@@ -246,7 +234,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   // Delete audiobook (admin only)
   router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [req.params.id]);
+      const audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }

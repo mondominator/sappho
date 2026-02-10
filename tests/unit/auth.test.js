@@ -143,7 +143,7 @@ describe('requireAdmin', () => {
     requireAdmin(mockReq, mockRes, mockNext);
     expect(mockNext).not.toHaveBeenCalled();
     expect(mockRes.status).toHaveBeenCalledWith(403);
-    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Admin privileges required' });
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Admin access required' });
   });
 
   test('returns 403 when user is not set', () => {

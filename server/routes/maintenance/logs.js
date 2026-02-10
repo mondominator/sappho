@@ -4,13 +4,9 @@
  */
 const { maintenanceLimiter, maintenanceWriteLimiter, logBuffer, LOG_BUFFER_SIZE, getLogStats, clearLogBuffer, getForceRescanInProgress } = require('./helpers');
 
-function register(router, { authenticateToken, isScanningLocked, getJobStatus }) {
+function register(router, { authenticateToken, requireAdmin, isScanningLocked, getJobStatus }) {
   // Get server logs
-  router.get('/logs', maintenanceLimiter, authenticateToken, (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/logs', maintenanceLimiter, authenticateToken, requireAdmin, (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, LOG_BUFFER_SIZE);
     const logs = logBuffer.slice(-limit);
 
@@ -24,11 +20,7 @@ function register(router, { authenticateToken, isScanningLocked, getJobStatus })
   });
 
   // Clear server logs
-  router.delete('/logs', maintenanceWriteLimiter, authenticateToken, (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.delete('/logs', maintenanceWriteLimiter, authenticateToken, requireAdmin, (req, res) => {
     const cleared = clearLogBuffer();
     res.json({
       success: true,
@@ -38,11 +30,7 @@ function register(router, { authenticateToken, isScanningLocked, getJobStatus })
   });
 
   // Get background jobs status
-  router.get('/jobs', maintenanceLimiter, authenticateToken, (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/jobs', maintenanceLimiter, authenticateToken, requireAdmin, (req, res) => {
     const jobs = getJobStatus();
 
     res.json({

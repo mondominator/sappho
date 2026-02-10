@@ -6,16 +6,14 @@ const fs = require('fs');
 const path = require('path');
 const { maintenanceLimiter, maintenanceWriteLimiter } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
-function register(router, { db, authenticateToken }) {
+function register(router, { db, authenticateToken, requireAdmin }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
+  const { getAudiobookById } = createQueryHelpers(db);
 
   // Detect duplicate audiobooks
-  router.get('/duplicates', maintenanceLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.get('/duplicates', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       console.log('Scanning for duplicate audiobooks...');
 
@@ -258,11 +256,7 @@ function register(router, { db, authenticateToken }) {
   });
 
   // Merge duplicate audiobooks
-  router.post('/duplicates/merge', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/duplicates/merge', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { keepId, deleteIds, deleteFiles } = req.body;
 
     if (!keepId || !Array.isArray(deleteIds) || deleteIds.length === 0) {
@@ -276,7 +270,7 @@ function register(router, { db, authenticateToken }) {
     try {
       console.log(`Merging duplicates: keeping ${keepId}, deleting ${deleteIds.join(', ')}`);
 
-      const keepBook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [keepId]);
+      const keepBook = await getAudiobookById(keepId);
       if (!keepBook) {
         return res.status(404).json({ error: 'Audiobook to keep not found' });
       }
