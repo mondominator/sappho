@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAudiobooks, getSeries, getAuthors, getFavorites, getCollections, createCollection, deleteCollection, getCoverUrl, getProfile } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import UploadModal from '../components/UploadModal';
+import { LibrarySkeleton } from '../components/Skeleton';
 import './Library.css';
 
 // Component for rotating collection covers
@@ -220,14 +221,7 @@ export default function Library({ onPlay }) {
   };
 
   if (loading) {
-    return (
-      <div className="library-page">
-        <div className="library-loading">
-          <div className="loading-spinner"></div>
-          <p>Loading your library...</p>
-        </div>
-      </div>
-    );
+    return <LibrarySkeleton />;
   }
 
   const tabs = [

@@ -10,6 +10,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { batchDeleteLimiter } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
 // Helper to call OpenAI API
 const callOpenAI = async (prompt, systemPrompt) => {
@@ -122,8 +123,9 @@ const generateRecapHash = (bookId, priorBooks) => {
   return crypto.createHash('md5').update(bookIds).digest('hex');
 };
 
-function register(router, { db, authenticateToken }) {
+function register(router, { db, authenticateToken, requireAdmin }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
+  const { getAudiobookById } = createQueryHelpers(db);
 
   // ============================================
   // FAVORITES ENDPOINTS (/:id routes only - /favorites GET is defined earlier)
@@ -553,12 +555,8 @@ The reader has started this book and wants to remember what it's about and any k
   });
 
   // Batch delete (admin only)
-  router.post('/batch/delete', batchDeleteLimiter, authenticateToken, async (req, res) => {
+  router.post('/batch/delete', batchDeleteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { audiobook_ids, delete_files } = req.body;
-
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
 
     if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
       return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
@@ -575,7 +573,7 @@ The reader has started this book and wants to remember what it's about and any k
       for (const audiobookId of audiobook_ids) {
         try {
           // Get audiobook info first
-          const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
+          const audiobook = await getAudiobookById(audiobookId);
 
           if (!audiobook) {
             errors.push({ id: audiobookId, error: 'Not found' });

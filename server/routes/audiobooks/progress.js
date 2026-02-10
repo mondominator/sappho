@@ -4,9 +4,11 @@
  */
 const { getOrCreateSessionId, clearSessionId, getClientIP, activeSessionIds } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
+const { createQueryHelpers } = require('../../utils/queryHelpers');
 
 function register(router, { db, authenticateToken }) {
   const { dbGet, dbRun } = createDbHelpers(db);
+  const { getAudiobookById } = createQueryHelpers(db);
 
   /**
    * Queue the next book in a series when the current book is finished.
@@ -108,7 +110,7 @@ function register(router, { db, authenticateToken }) {
       const sessionId = getOrCreateSessionId(userId, audiobookId);
 
       // Get audiobook details for session tracking
-      const audiobook = await dbGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
+      const audiobook = await getAudiobookById(audiobookId);
       if (audiobook) {
         const actualState = completed ? 'stopped' : state;
 

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite, getRating, setRating, getAverageRating, refreshMetadata } from '../api';
 import EditMetadataModal from '../components/EditMetadataModal';
 import AddToCollectionModal from '../components/AddToCollectionModal';
 import StarRating from '../components/StarRating';
+import { AudiobookDetailSkeleton } from '../components/Skeleton';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -33,6 +34,10 @@ export default function AudiobookDetail({ onPlay }) {
   const [refreshingMetadata, setRefreshingMetadata] = useState(false);
   const [narratorIndex, setNarratorIndex] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(false);
+  const descriptionRef = useRef(null);
+  const chaptersModalRef = useRef(null);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -54,6 +59,7 @@ export default function AudiobookDetail({ onPlay }) {
     setRecapExpanded(false);
     setRecapError(null);
     setNarratorIndex(0);
+    setDescriptionExpanded(false);
   }, [id]);
 
   // Auto-cycle through narrators
@@ -68,6 +74,55 @@ export default function AudiobookDetail({ onPlay }) {
 
     return () => clearInterval(interval);
   }, [audiobook?.narrator]);
+
+  // Check if description text is truncated (needs Show more button)
+  useEffect(() => {
+    if (descriptionRef.current) {
+      const el = descriptionRef.current;
+      setIsDescriptionTruncated(el.scrollHeight > el.clientHeight + 1);
+    }
+  }, [audiobook?.description, descriptionExpanded]);
+
+  // Focus trap for chapters modal
+  useEffect(() => {
+    if (!showChapters || !chaptersModalRef.current) return;
+
+    const modal = chaptersModalRef.current;
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowChapters(false);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+
+      const focusable = modal.querySelectorAll(focusableSelector);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    // Focus the close button when modal opens
+    const closeBtn = modal.querySelector('.chapters-modal-close');
+    if (closeBtn) closeBtn.focus();
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showChapters]);
 
   const checkAiStatus = async () => {
     try {
@@ -285,7 +340,7 @@ export default function AudiobookDetail({ onPlay }) {
   };
 
   if (loading) {
-    return <div className="loading">Loading audiobook...</div>;
+    return <AudiobookDetailSkeleton />;
   }
 
   if (!audiobook) {
@@ -601,7 +656,7 @@ export default function AudiobookDetail({ onPlay }) {
           {/* Chapters modal (mobile) */}
           {chapters.length > 0 && showChapters && (
             <div className="chapters-modal-overlay" onClick={() => setShowChapters(false)}>
-              <div className="chapters-modal" onClick={e => e.stopPropagation()}>
+              <div className="chapters-modal" ref={chaptersModalRef} role="dialog" aria-label="Chapters" onClick={e => e.stopPropagation()}>
                 <div className="chapters-modal-header">
                   <h3>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</h3>
                   <button className="chapters-modal-close" onClick={() => setShowChapters(false)}>
@@ -776,7 +831,28 @@ export default function AudiobookDetail({ onPlay }) {
                   </span>
                 )}
               </div>
-              <p>{cleanDescription(audiobook.description)}</p>
+              <div className="description-text-wrapper">
+                <p
+                  ref={descriptionRef}
+                  className={`description-text ${descriptionExpanded ? 'expanded' : ''}`}
+                >
+                  {cleanDescription(audiobook.description)}
+                </p>
+                {!descriptionExpanded && isDescriptionTruncated && (
+                  <div className="description-fade" />
+                )}
+              </div>
+              {isDescriptionTruncated && (
+                <button
+                  className={`description-toggle ${descriptionExpanded ? 'expanded' : ''}`}
+                  onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                >
+                  {descriptionExpanded ? 'Show less' : 'Show more'}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              )}
 
               {/* Recap content shown inline after About text */}
               {aiConfigured && recapError && (

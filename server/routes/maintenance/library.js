@@ -7,15 +7,11 @@ const path = require('path');
 const { maintenanceWriteLimiter, getForceRescanInProgress, setForceRescanInProgress } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 
-function register(router, { db, authenticateToken, extractFileMetadata, scanLibrary, lockScanning, unlockScanning, isScanningLocked }) {
+function register(router, { db, authenticateToken, requireAdmin, extractFileMetadata, scanLibrary, lockScanning, unlockScanning, isScanningLocked }) {
   const { dbGet, dbAll, dbRun, dbTransaction } = createDbHelpers(db);
 
   // Consolidate multi-file audiobooks
-  router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       console.log('Starting multi-file audiobook consolidation...');
 
@@ -120,11 +116,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
   });
 
   // Clear all audiobooks from database
-  router.post('/clear-library', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/clear-library', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       console.log('Clearing library database...');
 
@@ -144,11 +136,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
   });
 
   // Trigger immediate library scan (imports new files only)
-  router.post('/scan-library', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/scan-library', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const refreshMetadata = req.body.refreshMetadata === true;
 
     try {
@@ -248,11 +236,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
   });
 
   // Run database migrations
-  router.post('/migrate', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/migrate', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       console.log('Running database migrations...');
 
@@ -315,11 +299,7 @@ function register(router, { db, authenticateToken, extractFileMetadata, scanLibr
   });
 
   // Force rescan - re-extract metadata for all audiobooks while preserving IDs
-  router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
+  router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     if (getForceRescanInProgress()) {
       return res.status(409).json({ error: 'Force rescan already in progress. Please wait.' });
     }
