@@ -1,6 +1,6 @@
 # Sappho
 
-![Sappho Logo](logo-banner.svg)
+![Sappho Logo](client/public/sappho-logo-navbar.png)
 
 Self-hosted audiobook server with a PWA interface. Mount your existing library, and Sappho handles metadata extraction, progress tracking, and multi-device sync.
 
