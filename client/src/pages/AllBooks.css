@@ -110,13 +110,17 @@
   padding-bottom: 100px;
 }
 
+/* Card wrapper - holds cover card + info below */
+.audiobook-card-wrapper {
+  cursor: pointer;
+}
+
 /* Book Card */
 .audiobook-card {
   position: relative;
   aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
-  cursor: pointer;
   -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
 }
@@ -126,6 +130,50 @@
   height: 100%;
   position: relative;
   background: #1a1a1a;
+}
+
+/* Book info below cover */
+.audiobook-card-wrapper > .book-card-info {
+  padding: 4px 2px;
+}
+
+.audiobook-card-wrapper .book-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audiobook-card-wrapper .book-card-author {
+  font-size: 10px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* Rating badge on cover */
+.cover-rating-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.cover-rating-badge span {
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1;
 }
 
 .audiobook-cover img {
@@ -160,6 +208,7 @@
 }
 
 /* Selection Mode */
+.audiobook-card-wrapper.selection-mode .audiobook-card::after,
 .audiobook-card.selection-mode::after {
   content: '';
   position: absolute;
@@ -171,6 +220,7 @@
   pointer-events: none;
 }
 
+.audiobook-card-wrapper.selected .audiobook-card::after,
 .audiobook-card.selected::after {
   background: rgba(0, 0, 0, 0.4);
 }
@@ -271,6 +321,7 @@
 }
 
 @media (hover: hover) {
+  .audiobook-card-wrapper:hover .play-overlay,
   .audiobook-card:hover .play-overlay {
     opacity: 1;
   }
