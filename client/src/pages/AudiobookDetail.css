@@ -1111,7 +1111,7 @@
   }
 
   .audiobook-detail {
-    padding-top: 0 !important;
+    padding-top: 0.75rem !important;
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -1123,7 +1123,7 @@
   }
 
   .detail-top-bar {
-    margin-top: -8px;
+    margin-top: 0;
     margin-bottom: 1rem;
   }
 
