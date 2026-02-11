@@ -72,6 +72,11 @@
   margin: -0.5rem;
 }
 
+/* Card wrapper - holds cover card + info below */
+.series-books-grid .audiobook-card-wrapper {
+  cursor: pointer;
+}
+
 /* Reuse audiobook card styles from Home page */
 .series-books-grid .audiobook-card {
   position: relative;
@@ -79,13 +84,56 @@
   aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
-  cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.series-books-grid .audiobook-card:hover {
+.series-books-grid .audiobook-card-wrapper:hover .audiobook-card {
   transform: scale(1.05);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Book info below cover */
+.series-books-grid .book-card-info {
+  padding: 0.5rem 0.125rem;
+}
+
+.series-books-grid .book-card-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.series-books-grid .book-card-author {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.125rem;
+}
+
+/* Rating badge on cover */
+.series-books-grid .cover-rating-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.series-books-grid .cover-rating-badge span {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1;
 }
 
 .series-books-grid .audiobook-cover {
@@ -180,7 +228,7 @@
   transition: opacity 0.2s;
 }
 
-.series-books-grid .audiobook-card:hover .play-overlay {
+.series-books-grid .audiobook-card-wrapper:hover .play-overlay {
   opacity: 1;
 }
 
@@ -503,7 +551,7 @@
 }
 
 /* Card selection styles */
-.series-books-grid .audiobook-card.selection-mode {
+.series-books-grid .audiobook-card-wrapper.selection-mode {
   cursor: pointer;
 }
 
@@ -521,7 +569,7 @@
   z-index: 3;
 }
 
-.series-books-grid .audiobook-card.selection-mode:hover::after {
+.series-books-grid .audiobook-card-wrapper.selection-mode:hover .audiobook-card::after {
   opacity: 1;
 }
 

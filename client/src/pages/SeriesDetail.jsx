@@ -165,57 +165,73 @@ export default function SeriesDetail({ onPlay }) {
       }
     };
 
+    const displayRating = book.user_rating || book.average_rating;
+
     return (
       <div
         key={book.id}
-        className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
+        className={`audiobook-card-wrapper ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
       >
-        {selectionMode && (
-          <div className="selection-checkbox">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => toggleBookSelection(book.id)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        )}
-        <div className="audiobook-cover" onClick={handleCardClick}>
-          <div className="audiobook-cover-placeholder">
-            <h3>{book.title}</h3>
-          </div>
-          {book.cover_image && (
-            <img src={getCoverUrl(book.id, null, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
-          )}
-          {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
-            <div className="progress-bar-overlay">
-              <div
-                className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
-                style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+        <div className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}>
+          {selectionMode && (
+            <div className="selection-checkbox">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => toggleBookSelection(book.id)}
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           )}
-          {book.series_position && (
-            <div className="series-badge">#{book.series_position}</div>
-          )}
-          {!selectionMode && (
-            <div className="play-overlay">
-              <button
-                className="play-button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const progressResponse = await getProgress(book.id);
-                    onPlay(book, progressResponse.data);
-                  } catch (error) {
-                    console.error('Error loading progress:', error);
-                    onPlay(book, null);
-                  }
-                }}
-                aria-label={`Play ${book.title}`}
-              />
+          <div className="audiobook-cover" onClick={handleCardClick}>
+            <div className="audiobook-cover-placeholder">
+              <h3>{book.title}</h3>
             </div>
-          )}
+            {book.cover_image && (
+              <img src={getCoverUrl(book.id, null, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
+            )}
+            {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
+              <div className="progress-bar-overlay">
+                <div
+                  className={`progress-bar-fill ${book.progress.completed === 1 ? 'completed' : ''}`}
+                  style={{ width: book.progress.completed === 1 ? '100%' : `${Math.round((book.progress.position / book.duration) * 100)}%` }}
+                />
+              </div>
+            )}
+            {book.series_position && (
+              <div className="series-badge">#{book.series_position}</div>
+            )}
+            {displayRating > 0 && (
+              <div className="cover-rating-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="1.5">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                <span>{book.user_rating || (Math.round(book.average_rating * 10) / 10)}</span>
+              </div>
+            )}
+            {!selectionMode && (
+              <div className="play-overlay">
+                <button
+                  className="play-button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const progressResponse = await getProgress(book.id);
+                      onPlay(book, progressResponse.data);
+                    } catch (error) {
+                      console.error('Error loading progress:', error);
+                      onPlay(book, null);
+                    }
+                  }}
+                  aria-label={`Play ${book.title}`}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="book-card-info" onClick={handleCardClick}>
+          <div className="book-card-title">{book.title}</div>
+          {book.author && <div className="book-card-author">{book.author}</div>}
         </div>
       </div>
     );

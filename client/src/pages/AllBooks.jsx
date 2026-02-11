@@ -379,10 +379,12 @@ export default function AllBooks({ onPlay }) {
       e.preventDefault();
     };
 
+    const displayRating = book.user_rating || book.average_rating;
+
     return (
       <div
         key={book.id}
-        className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
+        className={`audiobook-card-wrapper ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}
         onClick={handleCardClick}
         onTouchStart={handleLongPressStart}
         onTouchEnd={handleLongPressEnd}
@@ -392,52 +394,66 @@ export default function AllBooks({ onPlay }) {
         onMouseLeave={handleLongPressEnd}
         onContextMenu={handleContextMenu}
       >
-        {/* Selection indicator - circular checkbox in top-right (Android style) */}
-        {selectionMode ? (
-          <div className={`selection-indicator ${isSelected ? 'selected' : ''}`}>
-            {isSelected && (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
+        <div className={`audiobook-card ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'selected' : ''}`}>
+          {/* Selection indicator - circular checkbox in top-right (Android style) */}
+          {selectionMode ? (
+            <div className={`selection-indicator ${isSelected ? 'selected' : ''}`}>
+              {isSelected && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              )}
+            </div>
+          ) : (
+            /* Reading list ribbon - blue folded corner (Android style) */
+            book.is_favorite && (
+              <div className="reading-list-ribbon" />
+            )
+          )}
+          <div className="audiobook-cover">
+            <div className="audiobook-cover-placeholder">
+              <h3>{book.title}</h3>
+            </div>
+            {book.cover_image && (
+              <img
+                src={getCoverUrl(book.id, null, 300)}
+                alt={book.title}
+                loading="lazy"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            )}
+            {progressPercent > 0 && (
+              <div className="progress-bar-overlay">
+                <div
+                  className={`progress-bar-fill ${isFinished ? 'completed' : ''}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            )}
+            {displayRating > 0 && (
+              <div className="cover-rating-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="1.5">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                <span>{book.user_rating || (Math.round(book.average_rating * 10) / 10)}</span>
+              </div>
+            )}
+            {!selectionMode && (
+              <div className="play-overlay">
+                <button
+                  className="play-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onPlay) onPlay(book);
+                  }}
+                />
+              </div>
             )}
           </div>
-        ) : (
-          /* Reading list ribbon - blue folded corner (Android style) */
-          book.is_favorite && (
-            <div className="reading-list-ribbon" />
-          )
-        )}
-        <div className="audiobook-cover">
-          <div className="audiobook-cover-placeholder">
-            <h3>{book.title}</h3>
-          </div>
-          {book.cover_image && (
-            <img
-              src={getCoverUrl(book.id, null, 300)}
-              alt={book.title}
-              loading="lazy"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
-          )}
-          {progressPercent > 0 && (
-            <div className="progress-bar-overlay">
-              <div
-                className={`progress-bar-fill ${isFinished ? 'completed' : ''}`}
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-          )}
-          {!selectionMode && (
-            <div className="play-overlay">
-              <button
-                className="play-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onPlay) onPlay(book);
-                }}
-              />
-            </div>
-          )}
+        </div>
+        <div className="book-card-info">
+          <div className="book-card-title">{book.title}</div>
+          {book.author && <div className="book-card-author">{book.author}</div>}
         </div>
       </div>
     );
