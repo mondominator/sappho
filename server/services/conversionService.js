@@ -201,7 +201,7 @@ class ConversionService {
       this.broadcastJobStatus(job);
 
       // Try to extract cover art from first file (works for any format with embedded art)
-      let hasCover = await this.extractCoverArt(job);
+      const hasCover = await this.extractCoverArt(job);
 
       job.message = job.isMultiFile
         ? `Converting ${job.sourceFiles.length} files...`

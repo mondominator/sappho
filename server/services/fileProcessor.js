@@ -152,7 +152,7 @@ function looksLikeChapterListing(text) {
  * Extract series name and position from MP4/iTunes, ID3v2, and Vorbis tags.
  * Returns { series, seriesPosition }.
  */
-function extractSeriesInfo(nativeTags, common, iTunesTags) {
+function extractSeriesInfo(nativeTags, common, _iTunesTags) {
   let series = null;
   let seriesPosition = null;
 
