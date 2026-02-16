@@ -21,6 +21,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
+  min-height: 44px;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -28,7 +29,11 @@
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .back-button-modern:hover {
@@ -43,6 +48,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
+  min-height: 44px;
   background: rgba(59, 130, 246, 0.15);
   border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 8px;
@@ -50,7 +56,11 @@
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .edit-button-top:hover {
