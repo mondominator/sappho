@@ -10,8 +10,8 @@ const path = require('path');
 const { sanitizeHtml } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
-const { searchAudible, searchGoogleBooks, searchOpenLibrary, formatOpenLibraryResult } = require('../../utils/metadataSearch');
-const { downloadCover } = require('../../utils/coverDownloader');
+const { searchAudible, searchGoogleBooks, searchOpenLibrary, formatOpenLibraryResult } = require('../../services/metadataSearch');
+const { downloadCover } = require('../../services/coverDownloader');
 const { embedWithTone, embedWithFfmpeg } = require('../../services/metadataEmbedder');
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, organizeAudiobook, needsOrganization }) {
