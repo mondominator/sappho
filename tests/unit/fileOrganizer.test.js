@@ -191,13 +191,14 @@ describe('File Organizer Service', () => {
       expect(result).toBe(true);
     });
 
-    test('returns true when filename differs', () => {
+    test('returns true when filename differs for single-file book', () => {
       const audiobook = {
         title: 'Book Title',
         author: 'Author Name',
         series: null,
         series_position: null,
-        file_path: path.join('/test/audiobooks', 'Author Name', 'Book Title', 'wrong-name.m4b')
+        file_path: path.join('/test/audiobooks', 'Author Name', 'Book Title', 'wrong-name.m4b'),
+        is_multi_file: false
       };
 
       const result = needsOrganization(audiobook);
@@ -215,6 +216,34 @@ describe('File Organizer Service', () => {
 
       const result = needsOrganization(audiobook);
       expect(result).toBe(false);
+    });
+
+    test('returns false for multi-file book when directory is correct (ignores filename)', () => {
+      const audiobook = {
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: path.join('/test/audiobooks', 'Author Name', 'Book Title', '01 - Chapter One.mp3'),
+        is_multi_file: true
+      };
+
+      const result = needsOrganization(audiobook);
+      expect(result).toBe(false);
+    });
+
+    test('returns true for multi-file book when directory differs', () => {
+      const audiobook = {
+        title: 'Book Title',
+        author: 'Author Name',
+        series: null,
+        series_position: null,
+        file_path: '/old/path/01 - Chapter One.mp3',
+        is_multi_file: true
+      };
+
+      const result = needsOrganization(audiobook);
+      expect(result).toBe(true);
     });
   });
 
@@ -474,21 +503,23 @@ describe('File Organizer Service', () => {
       expect(fs.renameSync).toHaveBeenCalledTimes(2);
     });
 
-    test('handles multi-file audiobooks', async () => {
+    test('handles multi-file audiobooks preserving chapter filenames', async () => {
+      // Track moved files so existsSync returns false after a file is moved
+      const movedFiles = new Set();
       fs.existsSync.mockImplementation((p) => {
-        if (p === '/old/path/file.m4b') return true;
-        if (p === '/old/path/chapter1.mp3') return true;
-        if (p === '/old/path/chapter2.mp3') return true;
+        if (movedFiles.has(p)) return false;
+        if (p === '/old/path/01 - Chapter One.mp3') return true;
+        if (p === '/old/path/02 - Chapter Two.mp3') return true;
         if (p.startsWith('/test/audiobooks')) return false;
         return false;
       });
-      fs.renameSync.mockImplementation(() => {});
+      fs.renameSync.mockImplementation((src) => { movedFiles.add(src); });
       fs.mkdirSync.mockImplementation(() => {});
       fs.readdirSync.mockReturnValue(['remaining-file.txt']);
       db.all.mockImplementation((query, params, callback) => {
         callback(null, [
-          { file_path: '/old/path/chapter1.mp3' },
-          { file_path: '/old/path/chapter2.mp3' }
+          { file_path: '/old/path/01 - Chapter One.mp3' },
+          { file_path: '/old/path/02 - Chapter Two.mp3' }
         ]);
       });
       db.run.mockImplementation((query, params, callback) => {
@@ -501,14 +532,23 @@ describe('File Organizer Service', () => {
         author: 'Author Name',
         series: null,
         series_position: null,
-        file_path: '/old/path/file.m4b',
+        file_path: '/old/path/01 - Chapter One.mp3',
         is_multi_file: true
       };
 
       const result = await organizeAudiobook(audiobook);
       expect(result.moved).toBe(true);
-      // Main file + 2 chapters = 3 moves
-      expect(fs.renameSync).toHaveBeenCalledTimes(3);
+      // 2 chapter moves (main file_path is same as first chapter, already moved)
+      expect(fs.renameSync).toHaveBeenCalledTimes(2);
+
+      // Verify chapter filenames are preserved (not renamed to Book Title.mp3)
+      const renameCalls = fs.renameSync.mock.calls;
+      expect(renameCalls[0][1]).toContain('01 - Chapter One.mp3');
+      expect(renameCalls[1][1]).toContain('02 - Chapter Two.mp3');
+
+      // Verify the audiobook file_path preserves original filename
+      expect(result.newPath).toContain('01 - Chapter One.mp3');
+      expect(result.newPath).not.toContain('Book Title.mp3');
     });
 
     test('catches unexpected errors', async () => {
