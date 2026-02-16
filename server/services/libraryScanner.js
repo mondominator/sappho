@@ -25,7 +25,7 @@ const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../
 /**
  * Import a single-file audiobook into the database without moving it
  */
-async function importAudiobook(filePath, userId = 1) {
+async function importAudiobook(filePath, userId) {
   try {
     // Check if directory has an active conversion in progress
     const dir = path.dirname(filePath);
@@ -205,7 +205,7 @@ async function importAudiobook(filePath, userId = 1) {
 /**
  * Import a multi-file audiobook (multiple chapters) into the database
  */
-async function importMultiFileAudiobook(chapterFiles, userId = 1) {
+async function importMultiFileAudiobook(chapterFiles, userId) {
   try {
     // Sort chapter files by name using natural numeric sort
     // (so title2.mp3 comes before title10.mp3)
@@ -401,6 +401,20 @@ async function scanLibrary() {
     return { imported: 0, skipped: 0, errors: 0 };
   }
 
+  // Resolve a valid user ID for added_by — the original default admin (id=1) may have been deleted
+  const scanUserId = await new Promise((resolve) => {
+    db.get('SELECT id FROM users WHERE is_admin = 1 ORDER BY id LIMIT 1', (err, row) => {
+      if (row) return resolve(row.id);
+      db.get('SELECT id FROM users ORDER BY id LIMIT 1', (err2, row2) => {
+        resolve(row2?.id || null);
+      });
+    });
+  });
+  if (!scanUserId) {
+    console.error('Library scan aborted: no users exist in the database');
+    return { imported: 0, skipped: 0, errors: 0 };
+  }
+
   // Load all existing paths into memory for fast lookups during scan
   await loadPathCache();
 
@@ -445,7 +459,7 @@ async function scanLibrary() {
       if (isMultiFileBook) {
         // Multi-file audiobook - treat all files in directory as chapters
         console.log(`Processing multi-file audiobook in ${directory} (${files.length} files)`);
-        const result = await importMultiFileAudiobook(files);
+        const result = await importMultiFileAudiobook(files, scanUserId);
         if (result) {
           imported++;
           // Organize the newly imported book
@@ -456,7 +470,7 @@ async function scanLibrary() {
       } else {
         // Single file audiobook(s) - process each file separately
         for (const file of files) {
-          const result = await importAudiobook(file);
+          const result = await importAudiobook(file, scanUserId);
           if (result) {
             imported++;
             // Organize the newly imported book
