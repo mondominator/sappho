@@ -654,7 +654,11 @@ describe('Library Scanner - Module Exports', () => {
 
       libraryScanner = require('../../server/services/libraryScanner');
 
-      // Mock loadPathCache db.all
+      // Mock db.get for user ID resolution and db.all for loadPathCache
+      mockDb.get = jest.fn((sql, params, cb) => {
+        if (typeof params === 'function') { params(null, { id: 1 }); return; }
+        cb(null, { id: 1 });
+      });
       mockDb.all = jest.fn((sql, params, cb) => {
         if (typeof params === 'function') { params(null, []); return; }
         cb(null, []);
