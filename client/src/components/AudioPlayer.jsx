@@ -1,7 +1,12 @@
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStreamUrl, getCoverUrl, getChapters } from '../api';
+import { formatTime } from '../utils/formatting';
 import { useProgressSync } from './player/useProgressSync';
+import { useMediaSession } from './player/useMediaSession';
+import { useSleepTimer } from './player/useSleepTimer';
+import { usePlayerKeyboard } from './player/usePlayerKeyboard';
+import { usePositionRestoration } from './player/usePositionRestoration';
 import PlaybackControls from './player/PlaybackControls';
 import FullscreenPlayer from './player/FullscreenPlayer';
 import ChapterModal from './player/ChapterModal';
@@ -22,32 +27,8 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   });
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [sleepTimer, setSleepTimer] = useState(null); // minutes remaining or 'chapter'
-  const [sleepTimerEnd, setSleepTimerEnd] = useState(null); // timestamp when timer ends
-  const [showSleepMenu, setShowSleepMenu] = useState(false);
-  const sleepTimerIntervalRef = useRef(null);
   const [progressDisplayMode, setProgressDisplayMode] = useState(() => {
     return localStorage.getItem('progressDisplayMode') || 'book';
-  });
-  const [hasRestoredPosition, setHasRestoredPosition] = useState(false);
-  const [isNewLoad, setIsNewLoad] = useState(() => {
-    // Check if this is a page refresh by checking session storage
-    // sessionStorage persists during the same tab session but clears on refresh
-    try {
-      const isSessionActive = sessionStorage.getItem('audioPlayerActive');
-      if (isSessionActive === 'true') {
-        // Session was active, this is NOT a new load (navigating within app)
-        return false;
-      } else {
-        // No active session marker = page refresh or new load
-        // Mark session as active for future navigation
-        sessionStorage.setItem('audioPlayerActive', 'true');
-        return true;
-      }
-    } catch (err) {
-      console.error('Error checking page refresh state:', err);
-      return true; // Default to new load on error
-    }
   });
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [chapters, setChapters] = useState([]);
@@ -85,6 +66,97 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }));
 
+  // Define skip/toggle functions before hooks that need them
+  const skipBackward = useCallback(() => {
+    if (!audioRef.current) return;
+    const actualTime = audioRef.current.currentTime;
+    const newTime = Math.max(0, actualTime - 15);
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  }, []);
+
+  const skipForward = useCallback(() => {
+    if (!audioRef.current) return;
+    const actualTime = audioRef.current.currentTime;
+    const audioDuration = audioRef.current.duration || duration;
+    const newTime = Math.min(audioDuration, actualTime + 15);
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  }, [duration]);
+
+  const togglePlay = useCallback(() => {
+    if (!audioRef.current) return;
+
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+      // Send pause state immediately
+      const currentTime = Math.floor(audioRef.current.currentTime);
+      const duration = audioRef.current.duration;
+      const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+      const isFinished = progressPercent >= 98;
+      updateProgressSafe(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
+    } else {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setPlaying(true);
+            const currentTime = Math.floor(audioRef.current.currentTime);
+            const duration = audioRef.current.duration;
+            const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+            const isFinished = progressPercent >= 98;
+            updateProgressSafe(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
+          })
+          .catch(err => {
+            console.error('Playback failed:', err);
+            setPlaying(false);
+          });
+      }
+    }
+  }, [playing, audiobook.id, updateProgressSafe]);
+
+  // --- Extracted hooks ---
+
+  // Media Session API (lock screen controls)
+  useMediaSession({
+    audiobook,
+    audioRef,
+    chapters,
+    setPlaying,
+    setCurrentTime
+  });
+
+  // Sleep timer
+  const {
+    sleepTimer,
+    showSleepMenu,
+    setShowSleepMenu,
+    handleSleepTimer,
+    formatSleepTimer
+  } = useSleepTimer({
+    audioRef,
+    audiobook,
+    chapters,
+    currentChapter,
+    currentTime,
+    playing,
+    setPlaying,
+    updateProgressSafe
+  });
+
+  // Keyboard shortcuts
+  usePlayerKeyboard({ togglePlay, skipBackward, skipForward });
+
+  // Position restoration & auto-play
+  usePositionRestoration({
+    audioRef,
+    audiobook,
+    progress,
+    setPlaying,
+    setCurrentTime
+  });
+
   useEffect(() => {
     if (!audiobook || !audiobook.id) {
       console.error('Invalid audiobook in useEffect');
@@ -95,19 +167,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       try {
         audioRef.current.src = getStreamUrl(audiobook.id);
         audioRef.current.load();
-
-        // Check if this is a different audiobook than what was saved
-        const savedAudiobookId = localStorage.getItem('currentAudiobookId');
-        const isDifferentBook = !savedAudiobookId || parseInt(savedAudiobookId) !== audiobook.id;
-
-        // If _playRequested exists, treat this as a new play request
-        const isPlayRequest = audiobook._playRequested !== undefined;
-
-        setIsNewLoad(isDifferentBook || isPlayRequest); // Mark as new load if different book or play requested
-        setHasRestoredPosition(false); // Reset restoration flag
-
-        // Save current audiobook ID
-        localStorage.setItem('currentAudiobookId', audiobook.id.toString());
       } catch (err) {
         console.error('Error initializing audio:', err);
       }
@@ -131,7 +190,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
   // Pause audio before page unload/refresh to prevent crashes
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
+    const handleBeforeUnload = () => {
       if (audioRef.current && playing) {
         audioRef.current.pause();
         // Save the playing state so we can resume after refresh
@@ -151,237 +210,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     }
   }, [volume]);
 
-  // Restore saved position when metadata loads and auto-play
-  useEffect(() => {
-    const handleLoadedMetadata = () => {
-      if (!hasRestoredPosition && audioRef.current && audiobook && audiobook.id) {
-        const audioDuration = audioRef.current.duration;
-
-        // Restore position if available and not finished
-        // If position is within 30 seconds of the end, consider it finished and start from beginning
-        if (progress && progress.position > 0 && audioDuration) {
-          const isFinished = (audioDuration - progress.position) < 30;
-          if (!isFinished) {
-            audioRef.current.currentTime = progress.position;
-          } else {
-            // Start from beginning if finished
-            audioRef.current.currentTime = 0;
-          }
-        }
-        setHasRestoredPosition(true);
-
-        // Auto-play logic:
-        // - On DESKTOP: If new book load, auto-play. If page refresh, only resume if was playing.
-        // - On MOBILE/PWA: Never auto-play (even on new book), user must manually press play
-        const savedPlaying = localStorage.getItem('playerPlaying');
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
-                      window.navigator.standalone === true;
-
-        // Mobile/PWA: Only auto-play if _openFullscreen is true (explicit play from detail page)
-        // AND it's a new load (not a page refresh)
-        if (isMobile || isPWA) {
-          const shouldAutoPlay = audiobook._openFullscreen === true && isNewLoad;
-          if (shouldAutoPlay) {
-            setTimeout(() => {
-              if (audioRef.current) {
-                audioRef.current.play().then(() => {
-                  setPlaying(true);
-                  setIsNewLoad(false);
-                  localStorage.setItem('playerPlaying', 'true');
-                }).catch(err => {
-                  console.warn('Auto-play prevented or failed:', err);
-                  setPlaying(false);
-                  setIsNewLoad(false);
-                });
-              }
-            }, 100);
-          } else {
-            setPlaying(false);
-            setIsNewLoad(false);
-            localStorage.setItem('playerPlaying', 'false');
-            if (audioRef.current) {
-              audioRef.current.pause();
-            }
-          }
-        }
-        // Desktop + New book load: Auto-play
-        else if (isNewLoad) {
-          setTimeout(() => {
-            if (audioRef.current) {
-              audioRef.current.play().then(() => {
-                setPlaying(true);
-                setIsNewLoad(false);
-                localStorage.setItem('playerPlaying', 'true');
-              }).catch(err => {
-                console.warn('Auto-play prevented or failed:', err);
-                setPlaying(false);
-                setIsNewLoad(false);
-              });
-            }
-          }, 100);
-        }
-        // Desktop + Page refresh + Was playing: Resume playback
-        else if (savedPlaying === 'true') {
-          setTimeout(() => {
-            if (audioRef.current) {
-              audioRef.current.play().then(() => {
-                setPlaying(true);
-                setIsNewLoad(false);
-              }).catch(err => {
-                console.warn('Auto-play on refresh prevented:', err);
-                setPlaying(false);
-                setIsNewLoad(false);
-              });
-            }
-          }, 100);
-        }
-        // Desktop + Page refresh + Was paused: Stay paused
-        else {
-          setPlaying(false);
-          setIsNewLoad(false);
-        }
-      }
-    };
-
-    const audio = audioRef.current;
-    if (audio) {
-      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      return () => audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-    }
-  }, [progress, hasRestoredPosition, isNewLoad]);
-
   // 5s progress sync is handled by useProgressSync hook
-
-  // Set up Media Session API for OS-level media controls
-  useEffect(() => {
-    if ('mediaSession' in navigator && audiobook) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: audiobook.title || 'Unknown Title',
-        artist: audiobook.author || 'Unknown Author',
-        album: audiobook.series || 'Audiobook',
-        artwork: audiobook.cover_image ? [
-          { src: getCoverUrl(audiobook.id, null, 600), sizes: '512x512', type: 'image/jpeg' }
-        ] : []
-      });
-
-      navigator.mediaSession.setActionHandler('play', () => {
-        if (audioRef.current) {
-          audioRef.current.play();
-          setPlaying(true);
-        }
-      });
-
-      navigator.mediaSession.setActionHandler('pause', () => {
-        if (audioRef.current) {
-          audioRef.current.pause();
-          setPlaying(false);
-        }
-      });
-
-      // Use inline handlers with audioRef to avoid stale state from rapid taps
-      navigator.mediaSession.setActionHandler('seekbackward', () => {
-        if (!audioRef.current) return;
-        const actualTime = audioRef.current.currentTime;
-        const newTime = Math.max(0, actualTime - 15);
-        audioRef.current.currentTime = newTime;
-        setCurrentTime(newTime);
-      });
-
-      navigator.mediaSession.setActionHandler('seekforward', () => {
-        if (!audioRef.current) return;
-        const actualTime = audioRef.current.currentTime;
-        const audioDuration = audioRef.current.duration || 0;
-        const newTime = Math.min(audioDuration, actualTime + 15);
-        audioRef.current.currentTime = newTime;
-        setCurrentTime(newTime);
-      });
-
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        if (!audioRef.current) return;
-        const actualTime = audioRef.current.currentTime;
-
-        // If near the beginning (< 5 seconds), just skip back 15s instead of restarting
-        if (actualTime < 5) {
-          const newTime = Math.max(0, actualTime - 15);
-          audioRef.current.currentTime = newTime;
-          setCurrentTime(newTime);
-          return;
-        }
-
-        if (chapters.length > 0) {
-          // Find current chapter based on actual time
-          const currentChapterIndex = chapters.findIndex((chapter, index) => {
-            const nextChapter = chapters[index + 1];
-            return actualTime >= chapter.start_time &&
-                   (!nextChapter || actualTime < nextChapter.start_time);
-          });
-
-          // If at the beginning of current chapter (< 3 seconds in), go to previous chapter
-          // Otherwise, go to start of current chapter
-          const chapter = chapters[currentChapterIndex];
-          const timeIntoChapter = actualTime - (chapter?.start_time || 0);
-
-          if (timeIntoChapter < 3 && currentChapterIndex > 0) {
-            // Go to previous chapter
-            const prevChapter = chapters[currentChapterIndex - 1];
-            audioRef.current.currentTime = prevChapter.start_time;
-            setCurrentTime(prevChapter.start_time);
-          } else if (chapter) {
-            // Go to start of current chapter
-            audioRef.current.currentTime = chapter.start_time;
-            setCurrentTime(chapter.start_time);
-          }
-        } else {
-          // No chapters - skip back 15 seconds
-          const newTime = Math.max(0, actualTime - 15);
-          audioRef.current.currentTime = newTime;
-          setCurrentTime(newTime);
-        }
-      });
-
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        if (!audioRef.current) return;
-
-        if (chapters.length > 0) {
-          const actualTime = audioRef.current.currentTime;
-          const audioDuration = audioRef.current.duration || 0;
-
-          // Find current chapter based on actual time
-          const currentChapterIndex = chapters.findIndex((chapter, index) => {
-            const nextChapter = chapters[index + 1];
-            return actualTime >= chapter.start_time &&
-                   (!nextChapter || actualTime < nextChapter.start_time);
-          });
-
-          if (currentChapterIndex !== -1 && currentChapterIndex < chapters.length - 1) {
-            const nextChapter = chapters[currentChapterIndex + 1];
-            audioRef.current.currentTime = nextChapter.start_time;
-            setCurrentTime(nextChapter.start_time);
-          }
-        } else {
-          // No chapters - skip forward 15 seconds
-          const actualTime = audioRef.current.currentTime;
-          const audioDuration = audioRef.current.duration || 0;
-          const newTime = Math.min(audioDuration, actualTime + 15);
-          audioRef.current.currentTime = newTime;
-          setCurrentTime(newTime);
-        }
-      });
-    }
-
-    return () => {
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = null;
-        navigator.mediaSession.setActionHandler('play', null);
-        navigator.mediaSession.setActionHandler('pause', null);
-        navigator.mediaSession.setActionHandler('seekbackward', null);
-        navigator.mediaSession.setActionHandler('seekforward', null);
-        navigator.mediaSession.setActionHandler('previoustrack', null);
-        navigator.mediaSession.setActionHandler('nexttrack', null);
-      }
-    };
-  }, [audiobook, chapters]);
 
   // Handle audio interruptions (bluetooth disconnect, phone calls, etc.)
   useEffect(() => {
@@ -407,89 +236,10 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     };
   }, [audiobook.id]);
 
-  // Global keyboard shortcuts for playback control
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Don't capture if user is typing in an input/textarea/contenteditable
-      const tag = e.target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-
-      switch (e.key) {
-        case ' ':
-          e.preventDefault();
-          togglePlay();
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          skipBackward();
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          skipForward();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playing]);
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-
-    if (playing) {
-      audioRef.current.pause();
-      setPlaying(false);
-      // Send pause state immediately
-      const currentTime = Math.floor(audioRef.current.currentTime);
-      const duration = audioRef.current.duration;
-      const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-      const isFinished = progressPercent >= 98;
-      updateProgressSafe(audiobook.id, currentTime, isFinished ? 1 : 0, 'paused');
-    } else {
-      // Better error handling for play
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setPlaying(true);
-            const currentTime = Math.floor(audioRef.current.currentTime);
-            const duration = audioRef.current.duration;
-            const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-            const isFinished = progressPercent >= 98;
-            updateProgressSafe(audiobook.id, currentTime, isFinished ? 1 : 0, 'playing');
-          })
-          .catch(err => {
-            console.error('Playback failed:', err);
-            setPlaying(false);
-          });
-      }
-    }
-  };
-
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
     audioRef.current.currentTime = time;
     setCurrentTime(time);
-  };
-
-  const skipBackward = () => {
-    if (!audioRef.current) return;
-    // Use audioRef.current.currentTime directly to avoid stale state on rapid taps
-    const actualTime = audioRef.current.currentTime;
-    const newTime = Math.max(0, actualTime - 15);
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
-
-  const skipForward = () => {
-    if (!audioRef.current) return;
-    // Use audioRef.current.currentTime directly to avoid stale state on rapid taps
-    const actualTime = audioRef.current.currentTime;
-    const audioDuration = audioRef.current.duration || duration;
-    const newTime = Math.min(audioDuration, actualTime + 15);
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
   };
 
   const skipToPreviousChapter = () => {
@@ -518,32 +268,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     // Save to localStorage for this book
     localStorage.setItem(`playbackSpeed_${audiobook.id}`, speed.toString());
     setShowSpeedMenu(false);
-  };
-
-  const handleSleepTimer = (minutes) => {
-    if (minutes === null) {
-      // Cancel timer
-      setSleepTimer(null);
-      setSleepTimerEnd(null);
-    } else if (minutes === 'chapter') {
-      setSleepTimer('chapter');
-      setSleepTimerEnd(null);
-    } else {
-      setSleepTimer(minutes);
-      setSleepTimerEnd(Date.now() + minutes * 60000);
-    }
-    setShowSleepMenu(false);
-  };
-
-  const formatSleepTimer = () => {
-    if (sleepTimer === 'chapter') return 'End of chapter';
-    if (sleepTimer === null) return null;
-    if (sleepTimer >= 60) {
-      const hours = Math.floor(sleepTimer / 60);
-      const mins = sleepTimer % 60;
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-    return `${sleepTimer}m`;
   };
 
   const handleTimeUpdate = () => {
@@ -618,29 +342,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     setIsBuffering(false);
   };
 
-  const formatTime = (seconds) => {
-    if (isNaN(seconds)) return '0m 0s';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`;
-    }
-    return `${minutes}m ${secs}s`;
-  };
-
-  const formatTimeShort = (seconds) => {
-    if (isNaN(seconds)) return '0m 0s';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`;
-    }
-    return `${minutes}m ${secs}s`;
-  };
+  const formatTimeShort = formatTime;
 
 
   // Calculate chapter progress for chapter display mode
@@ -908,66 +610,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       audioRef.current.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed]);
-
-  // Sleep timer countdown
-  useEffect(() => {
-    // Clear any existing interval
-    if (sleepTimerIntervalRef.current) {
-      clearInterval(sleepTimerIntervalRef.current);
-      sleepTimerIntervalRef.current = null;
-    }
-
-    if (sleepTimer === null || sleepTimer === 'chapter') {
-      return;
-    }
-
-    // Update timer every second
-    sleepTimerIntervalRef.current = setInterval(() => {
-      if (!sleepTimerEnd) return;
-
-      const remaining = Math.max(0, Math.ceil((sleepTimerEnd - Date.now()) / 60000));
-
-      if (remaining <= 0) {
-        // Timer expired - pause playback
-        if (audioRef.current && playing) {
-          audioRef.current.pause();
-          setPlaying(false);
-          updateProgressSafe(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
-        }
-        setSleepTimer(null);
-        setSleepTimerEnd(null);
-        clearInterval(sleepTimerIntervalRef.current);
-        sleepTimerIntervalRef.current = null;
-      } else if (remaining !== sleepTimer) {
-        setSleepTimer(remaining);
-      }
-    }, 1000);
-
-    return () => {
-      if (sleepTimerIntervalRef.current) {
-        clearInterval(sleepTimerIntervalRef.current);
-        sleepTimerIntervalRef.current = null;
-      }
-    };
-  }, [sleepTimer, sleepTimerEnd, playing, audiobook?.id]);
-
-  // Handle "end of chapter" sleep timer
-  useEffect(() => {
-    if (sleepTimer !== 'chapter' || !chapters.length) return;
-
-    const currentChapterObj = chapters[currentChapter];
-    const nextChapter = chapters[currentChapter + 1];
-
-    if (nextChapter && currentTime >= nextChapter.start_time - 0.5) {
-      // We've reached the next chapter - pause
-      if (audioRef.current && playing) {
-        audioRef.current.pause();
-        setPlaying(false);
-        updateProgressSafe(audiobook.id, Math.floor(audioRef.current.currentTime), 0, 'paused');
-      }
-      setSleepTimer(null);
-    }
-  }, [currentTime, currentChapter, chapters, sleepTimer, playing, audiobook?.id]);
 
   // Detect mini player title overflow for marquee animation
   useEffect(() => {

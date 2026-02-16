@@ -1,7 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
-const { promisify } = require('util');
 const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
 const websocketManager = require('./websocketManager');
@@ -9,6 +7,9 @@ const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
 const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
+const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('../utils/fileSystemUtils');
+const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash } = require('./pathCache');
+const { findUnavailableByHash, markAvailable, markUnavailable, checkAvailability, restoreAudiobook } = require('../utils/libraryQueries');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -19,347 +20,7 @@ const getConversionChecker = () => {
   return isDirectoryBeingConverted;
 };
 
-const execFileAsync = promisify(execFile);
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
-
-// Audio file extensions we support
-const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma'];
-
-/**
- * Recursively scan a directory for audio files, grouped by directory
- * Returns an array of objects: { directory: string, files: string[] }
- */
-function scanDirectory(dir, groupByDirectory = false) {
-  const audioFiles = [];
-  const groupedFiles = new Map(); // Map of directory -> files
-
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        // Recursively scan subdirectories
-        if (groupByDirectory) {
-          const subResults = scanDirectory(fullPath, true);
-          for (const [subDir, files] of subResults.entries()) {
-            groupedFiles.set(subDir, files);
-          }
-        } else {
-          audioFiles.push(...scanDirectory(fullPath, false));
-        }
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (audioExtensions.includes(ext)) {
-          if (groupByDirectory) {
-            if (!groupedFiles.has(dir)) {
-              groupedFiles.set(dir, []);
-            }
-            groupedFiles.get(dir).push(fullPath);
-          } else {
-            audioFiles.push(fullPath);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error(`Error scanning directory ${dir}:`, error.message);
-  }
-
-  return groupByDirectory ? groupedFiles : audioFiles;
-}
-
-/**
- * Extract chapters from an audio file using ffprobe.
- * Works on any format with embedded chapters (M4B, M4A, MP3, OGG, FLAC, etc.)
- */
-async function extractM4BChapters(filePath) {
-  try {
-    const { stdout } = await execFileAsync('ffprobe', [
-      '-v', 'quiet',
-      '-print_format', 'json',
-      '-show_chapters',
-      filePath
-    ]);
-
-    const data = JSON.parse(stdout);
-    if (!data.chapters || data.chapters.length === 0) {
-      return null;
-    }
-
-    return data.chapters.map((chapter, index) => ({
-      chapter_number: index + 1,
-      title: chapter.tags?.title || `Chapter ${index + 1}`,
-      start_time: parseFloat(chapter.start_time) || 0,
-      end_time: parseFloat(chapter.end_time) || 0,
-      duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
-    }));
-  } catch (_error) {
-    console.log(`No chapters found in ${path.basename(filePath)} or ffprobe not available`);
-    return null;
-  }
-}
-
-// In-memory caches for scan-time lookups (populated at scan start, cleared after)
-let knownFilePaths = null;  // Set of all file_path values in audiobooks table
-let knownDirectories = null;  // Map of directory -> { id, file_path } for directory-level dedup
-
-/**
- * Load all existing audiobook paths into memory for fast O(1) lookup during scan.
- * Call this once at the start of a scan instead of querying per-file.
- */
-function loadPathCache() {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT id, file_path FROM audiobooks', [], (err, rows) => {
-      if (err) return reject(err);
-
-      knownFilePaths = new Set();
-      knownDirectories = new Map();
-
-      for (const row of (rows || [])) {
-        knownFilePaths.add(row.file_path);
-        const dir = path.dirname(row.file_path);
-        if (!knownDirectories.has(dir)) {
-          knownDirectories.set(dir, { id: row.id, file_path: row.file_path });
-        }
-      }
-
-      console.log(`Path cache loaded: ${knownFilePaths.size} files in ${knownDirectories.size} directories`);
-      resolve();
-    });
-  });
-}
-
-/**
- * Clear the in-memory path cache (call after scan completes)
- */
-function clearPathCache() {
-  knownFilePaths = null;
-  knownDirectories = null;
-}
-
-/**
- * Check if a file already exists in the database (uses cache if available)
- */
-function fileExistsInDatabase(filePath) {
-  if (knownFilePaths) {
-    return Promise.resolve(knownFilePaths.has(filePath));
-  }
-  return new Promise((resolve, reject) => {
-    db.get('SELECT id FROM audiobooks WHERE file_path = ?', [filePath], (err, row) => {
-      if (err) reject(err);
-      else resolve(!!row);
-    });
-  });
-}
-
-/**
- * Check if another audiobook already exists in the same directory (uses cache if available)
- */
-function audiobookExistsInDirectory(filePath) {
-  const dir = path.dirname(filePath);
-  if (knownDirectories) {
-    return Promise.resolve(knownDirectories.get(dir) || null);
-  }
-  return new Promise((resolve, reject) => {
-    db.get('SELECT id, file_path FROM audiobooks WHERE file_path LIKE ?', [`${dir}/%`], (err, row) => {
-      if (err) reject(err);
-      else resolve(row || null);
-    });
-  });
-}
-
-/**
- * Check if an audiobook with the given content hash already exists
- */
-function audiobookExistsByHash(contentHash) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT id, file_path, title FROM audiobooks WHERE content_hash = ?', [contentHash], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row || null);
-      }
-    });
-  });
-}
-
-/**
- * Check if an unavailable audiobook with the given content hash exists
- * Used for restoring books that were previously removed
- */
-function findUnavailableByHash(contentHash) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM audiobooks WHERE content_hash = ? AND is_available = 0',
-      [contentHash],
-      (err, row) => {
-        if (err) reject(err);
-        else resolve(row || null);
-      }
-    );
-  });
-}
-
-/**
- * Mark an audiobook as available (file exists)
- */
-function markAvailable(audiobookId, filePath = null) {
-  return new Promise((resolve, reject) => {
-    const updates = filePath
-      ? 'is_available = 1, last_seen_at = CURRENT_TIMESTAMP, file_path = ?'
-      : 'is_available = 1, last_seen_at = CURRENT_TIMESTAMP';
-    const params = filePath ? [filePath, audiobookId] : [audiobookId];
-
-    db.run(
-      `UPDATE audiobooks SET ${updates} WHERE id = ?`,
-      params,
-      (err) => {
-        if (err) reject(err);
-        else {
-          console.log(`Marked audiobook ${audiobookId} as available`);
-          resolve();
-        }
-      }
-    );
-  });
-}
-
-/**
- * Mark an audiobook as unavailable (file missing)
- * Preserves all user data (progress, ratings, collections)
- */
-function markUnavailable(audiobookId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'UPDATE audiobooks SET is_available = 0, original_path = file_path WHERE id = ?',
-      [audiobookId],
-      (err) => {
-        if (err) reject(err);
-        else {
-          console.log(`Marked audiobook ${audiobookId} as unavailable (file missing)`);
-          // Broadcast to connected clients
-          websocketManager.broadcastLibraryUpdate('library.unavailable', { id: audiobookId });
-          resolve();
-        }
-      }
-    );
-  });
-}
-
-/**
- * Update last_seen_at timestamp for an audiobook
- */
-function updateLastSeen(audiobookId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'UPDATE audiobooks SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [audiobookId],
-      (err) => {
-        if (err) reject(err);
-        else resolve();
-      }
-    );
-  });
-}
-
-/**
- * Get all audiobooks from the database
- */
-function getAllAudiobooks() {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM audiobooks', [], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows || []);
-    });
-  });
-}
-
-/**
- * Check file availability for all audiobooks and update status
- */
-async function checkAvailability() {
-  console.log('Checking file availability...');
-  const audiobooks = await getAllAudiobooks();
-  let restored = 0;
-  let missing = 0;
-
-  for (const book of audiobooks) {
-    const fileExists = fs.existsSync(book.file_path);
-
-    // For multi-file books, check if at least one chapter exists
-    let hasChapters = false;
-    if (book.is_multi_file && !fileExists) {
-      const chapters = await new Promise((resolve, reject) => {
-        db.all(
-          'SELECT file_path FROM audiobook_chapters WHERE audiobook_id = ?',
-          [book.id],
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
-      hasChapters = chapters.some(ch => fs.existsSync(ch.file_path));
-    }
-
-    const isAvailable = fileExists || hasChapters;
-    const wasAvailable = book.is_available !== 0;
-
-    if (isAvailable && !wasAvailable) {
-      // Book returned - restore availability
-      await markAvailable(book.id);
-      restored++;
-    } else if (!isAvailable && wasAvailable) {
-      // Book missing - mark unavailable (keep all user data)
-      await markUnavailable(book.id);
-      missing++;
-    } else if (isAvailable) {
-      // Update last_seen timestamp
-      await updateLastSeen(book.id);
-    }
-  }
-
-  if (restored > 0 || missing > 0) {
-    console.log(`Availability check: ${restored} restored, ${missing} marked unavailable`);
-  }
-
-  return { restored, missing };
-}
-
-/**
- * Restore an unavailable audiobook with a new file path
- */
-async function restoreAudiobook(existingBook, newFilePath, _metadata) {
-  console.log(`Restoring previously unavailable book: ${existingBook.title}`);
-
-  // Update the existing record with new file path and mark as available
-  return new Promise((resolve, reject) => {
-    db.run(
-      `UPDATE audiobooks
-       SET file_path = ?, is_available = 1, last_seen_at = CURRENT_TIMESTAMP,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [newFilePath, existingBook.id],
-      function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          db.get('SELECT * FROM audiobooks WHERE id = ?', [existingBook.id], (err, audiobook) => {
-            if (err) {
-              reject(err);
-            } else {
-              console.log(`Restored: ${existingBook.title} - user data preserved`);
-              websocketManager.broadcastLibraryUpdate('library.restored', audiobook);
-              resolve(audiobook);
-            }
-          });
-        }
-      }
-    );
-  });
-}
 
 /**
  * Import a single-file audiobook into the database without moving it
@@ -546,8 +207,11 @@ async function importAudiobook(filePath, userId = 1) {
  */
 async function importMultiFileAudiobook(chapterFiles, userId = 1) {
   try {
-    // Sort chapter files by name to ensure correct order
-    const sortedFiles = chapterFiles.sort();
+    // Sort chapter files by name using natural numeric sort
+    // (so title2.mp3 comes before title10.mp3)
+    const sortedFiles = chapterFiles.sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
 
     // Extract metadata from first file to represent the audiobook
     const metadata = await extractFileMetadata(sortedFiles[0]);
@@ -724,105 +388,6 @@ async function importMultiFileAudiobook(chapterFiles, userId = 1) {
 }
 
 /**
- * Merge subdirectories that belong to the same audiobook
- * For example: /Book/CD1/file.mp3 and /Book/CD2/file.mp3 should be merged
- */
-function mergeSubdirectories(groupedFiles) {
-  const mergedGroups = new Map();
-  const processedDirs = new Set();
-
-  // Group directories by their parent
-  const parentGroups = new Map();
-  for (const [dir, files] of groupedFiles.entries()) {
-    const parent = path.dirname(dir);
-    if (!parentGroups.has(parent)) {
-      parentGroups.set(parent, []);
-    }
-    parentGroups.set(parent, [...parentGroups.get(parent), { dir, files }]);
-  }
-
-  // For each parent directory
-  for (const [parent, children] of parentGroups.entries()) {
-    // If there's only one child directory, no merging needed
-    if (children.length === 1) {
-      const { dir, files } = children[0];
-      mergedGroups.set(dir, files);
-      processedDirs.add(dir);
-      continue;
-    }
-
-    // Check if children look like multi-part audiobook (CD1, CD2, Part 1, Part 2, etc.)
-    // Common patterns: CD, Disc, Disk, Part, Vol, Volume, Chapter, numbered directories
-    const dirNames = children.map(c => path.basename(c.dir).toLowerCase());
-    const looksLikeMultiPart = dirNames.some(name =>
-      /^(cd|disc|disk|part|vol|volume|chapter|ch)[\s_-]*\d+$/i.test(name) ||
-      /^\d+$/.test(name) // Just a number
-    );
-
-    const allFiles = children.flatMap(c => c.files);
-
-    if (looksLikeMultiPart) {
-      // Merge all files from subdirectories into parent
-      console.log(`Merging ${children.length} subdirectories under ${parent}`);
-      mergedGroups.set(parent, allFiles);
-      children.forEach(c => processedDirs.add(c.dir));
-    } else {
-      // Don't merge, keep as separate directories
-      children.forEach(({ dir, files }) => {
-        mergedGroups.set(dir, files);
-        processedDirs.add(dir);
-      });
-    }
-  }
-
-  return mergedGroups;
-}
-
-/**
- * Recursively find and remove all empty directories in the library
- * Works bottom-up to handle nested empty directories
- */
-function cleanupAllEmptyDirectories() {
-  let removed = 0;
-
-  function scanAndClean(dir) {
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (_err) {
-      return;
-    }
-
-    // First, recurse into subdirectories
-    for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith('.')) {
-        scanAndClean(path.join(dir, entry.name));
-      }
-    }
-
-    // After processing children, check if this directory is now empty
-    // Re-read to get updated contents after child cleanup
-    if (dir !== audiobooksDir) {
-      try {
-        const currentEntries = fs.readdirSync(dir);
-        // Filter out hidden files for the empty check
-        const visibleEntries = currentEntries.filter(e => !e.startsWith('.'));
-        if (visibleEntries.length === 0) {
-          fs.rmdirSync(dir);
-          console.log(`Removed empty directory: ${dir}`);
-          removed++;
-        }
-      } catch (_err) {
-        // Directory might have been removed or inaccessible
-      }
-    }
-  }
-
-  scanAndClean(audiobooksDir);
-  return removed;
-}
-
-/**
  * Scan the entire audiobooks library and import any new files
  */
 async function scanLibrary() {
@@ -914,7 +479,7 @@ async function scanLibrary() {
   const availabilityStats = await checkAvailability();
 
   // Clean up empty directories left behind from moves, deletes, or external changes
-  const emptyDirsRemoved = cleanupAllEmptyDirectories();
+  const emptyDirsRemoved = cleanupAllEmptyDirectories(audiobooksDir);
   if (emptyDirsRemoved > 0) {
     console.log(`Removed ${emptyDirsRemoved} empty directories`);
   }
@@ -1085,6 +650,7 @@ module.exports = {
   unlockScanning,
   isScanningLocked,
   getJobStatus,
+  // Re-export from libraryQueries for backward compatibility
   checkAvailability,
   markAvailable,
   markUnavailable,

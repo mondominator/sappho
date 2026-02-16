@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getUsers, createUser, updateUser, deleteUser, unlockUser, getUserDetails, disableUser, enableUser } from '../../api';
+import { formatDurationStat } from '../../utils/formatting';
 import './UsersSettings.css';
 
 export default function UsersSettings({ currentUserId }) {
@@ -219,18 +220,6 @@ export default function UsersSettings({ currentUserId }) {
     setFormErrors({});
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds || seconds === 0) return '0h';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
-      return `${days}d ${remainingHours}h`;
-    }
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Never';
@@ -530,7 +519,7 @@ export default function UsersSettings({ currentUserId }) {
                     <div className="detail-item">
                       <span className="detail-label">Total Listen Time</span>
                       <span className="detail-value">
-                        {formatDuration(userDetails.listeningStats.totalListenTimeSeconds)}
+                        {formatDurationStat(userDetails.listeningStats.totalListenTimeSeconds)}
                       </span>
                     </div>
                     <div className="detail-item">
@@ -559,7 +548,7 @@ export default function UsersSettings({ currentUserId }) {
                           </div>
                           <div className="activity-meta">
                             <span className={`completion-badge ${item.completed ? 'completed' : ''}`}>
-                              {item.completed ? 'Completed' : formatDuration(item.position)}
+                              {item.completed ? 'Completed' : formatDurationStat(item.position)}
                             </span>
                             <span className="activity-date">{formatDate(item.lastPlayed)}</span>
                           </div>
