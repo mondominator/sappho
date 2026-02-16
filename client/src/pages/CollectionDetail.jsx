@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getCollection, updateCollection, removeFromCollection, reorderCollection, getCoverUrl } from '../api';
+import { formatDuration } from '../utils/formatting';
 import './CollectionDetail.css';
 
 export default function CollectionDetail() {
@@ -100,12 +101,6 @@ export default function CollectionDetail() {
     }
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-  };
 
   const getProgress = (book) => {
     if (book.progress_completed) return 100;

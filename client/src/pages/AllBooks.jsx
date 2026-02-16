@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAudiobooks, getCoverUrl, getProgress, getGenreMappings, getProfile } from '../api';
 import BatchActionBar from '../components/BatchActionBar';
+import { formatDuration } from '../utils/formatting';
 import './AllBooks.css';
 
 // Long press duration in ms
@@ -314,15 +315,6 @@ export default function AllBooks({ onPlay }) {
     return sortOrder === 'desc' ? -result : result;
   });
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   const getProgressPercent = (book) => {
     if (!book.progress || !book.duration) return 0;

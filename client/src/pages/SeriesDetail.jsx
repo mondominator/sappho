@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAudiobooks, getCoverUrl, getProgress, getProfile } from '../api';
+import { formatDurationCompact } from '../utils/formatting';
 import './SeriesDetail.css';
 
 export default function SeriesDetail({ onPlay }) {
@@ -126,10 +127,6 @@ export default function SeriesDetail({ onPlay }) {
     return Math.min(1, totalProgress / totalDur);
   };
 
-  const formatDuration = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    return `${hours}h`;
-  };
 
   const renderBookCard = (book) => {
     const displayRating = book.user_rating || book.average_rating;
@@ -328,7 +325,7 @@ export default function SeriesDetail({ onPlay }) {
           <span className="stat-card-label">{audiobooks.length === 1 ? 'Book' : 'Books'}</span>
         </div>
         <div className="stat-card">
-          <span className="stat-card-value">{formatDuration(totalDuration)}</span>
+          <span className="stat-card-value">{formatDurationCompact(totalDuration)}</span>
           <span className="stat-card-label">Total</span>
         </div>
         <div className="stat-card">

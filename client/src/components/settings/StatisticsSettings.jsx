@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getLibraryStatistics } from '../../api';
+import { formatDurationStat } from '../../utils/formatting';
 import './StatisticsSettings.css';
 
 export default function StatisticsSettings() {
@@ -30,16 +31,6 @@ export default function StatisticsSettings() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '0h';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      return `${days}d ${hours % 24}h`;
-    }
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-  };
 
   if (loading) return <div className="stats-loading">Loading...</div>;
   if (!stats) return <div className="stats-loading">Failed to load</div>;
@@ -57,11 +48,11 @@ export default function StatisticsSettings() {
           <span className="stats-label">Storage</span>
         </div>
         <div className="stats-card">
-          <span className="stats-number">{formatDuration(stats.totals.duration)}</span>
+          <span className="stats-number">{formatDurationStat(stats.totals.duration)}</span>
           <span className="stats-label">Total Length</span>
         </div>
         <div className="stats-card">
-          <span className="stats-number">{formatDuration(stats.totals.avgDuration)}</span>
+          <span className="stats-number">{formatDurationStat(stats.totals.avgDuration)}</span>
           <span className="stats-label">Avg Length</span>
         </div>
       </div>
@@ -132,7 +123,7 @@ export default function StatisticsSettings() {
             {stats.userStats.map((u, i) => (
               <div key={u.username || i} className="stats-row">
                 <span className="stats-row-label">{u.username}</span>
-                <span className="stats-row-value">{u.booksCompleted || 0} completed · {formatDuration(u.totalListenTime)}</span>
+                <span className="stats-row-value">{u.booksCompleted || 0} completed · {formatDurationStat(u.totalListenTime)}</span>
               </div>
             ))}
           </div>

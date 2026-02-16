@@ -516,7 +516,7 @@ describe('Conversion Service', () => {
       const audiobook = {
         id: 1,
         title: 'Test Book',
-        file_path: '/test/book.wav',
+        file_path: '/test/book.mid',
         is_multi_file: false
       };
       const mockDb = {};

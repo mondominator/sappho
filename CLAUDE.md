@@ -15,21 +15,23 @@ Sappho is a modern, self-hosted audiobook streaming server with automatic metada
 
 ## Development Commands
 
-**CRITICAL: This project runs in a Docker container. NEVER use `npm run dev` to test changes. ALWAYS rebuild and restart the container:**
+**CRITICAL: This project runs in a Podman container. NEVER use `npm run dev` to test changes. ALWAYS rebuild and restart the container:**
 
 ```bash
 # After making code changes, rebuild and restart:
-docker-compose build --no-cache && docker-compose up -d
+podman-compose build --no-cache && podman-compose up -d
 
 # Test at http://localhost:3003
 
 # Watch logs:
-docker-compose logs -f
+podman-compose logs -f
 ```
 
 **Why:** The user tests in the browser against the containerized app. Running `npm run dev` starts a separate local server that the user is NOT looking at. Changes will appear to "not work" if you don't rebuild the container.
 
-**Production deployment:** Push to GitHub, merge PR, then pull new image on server with `docker pull ghcr.io/mondominator/sappho:latest && docker-compose up -d`.
+**Note:** This project uses Podman (`podman-compose`), not Docker. The Podman machine must be running first (`podman machine start`).
+
+**Production deployment:** Push to GitHub, merge PR, then pull new image on server with `podman pull ghcr.io/mondominator/sappho:latest && podman-compose up -d`.
 
 ### Running the Application
 
@@ -55,27 +57,30 @@ cd client && npm run build
 npm start
 ```
 
-### Docker Commands
+### Podman Commands
 
 ```bash
+# Ensure podman machine is running
+podman machine start
+
 # Build and start
-docker-compose build
-docker-compose up -d
+podman-compose build
+podman-compose up -d
 
 # Rebuild without cache (required after code changes)
-docker-compose build --no-cache
-docker-compose up -d
+podman-compose build --no-cache
+podman-compose up -d
 
 # View logs
-docker-compose logs -f
+podman-compose logs -f
 # OR
-docker logs sappho-container-name --follow
+podman logs sappho-container-name --follow
 
 # Stop
-docker-compose down
+podman-compose down
 ```
 
-**Important:** Like all Docker deployments, source code is not mounted - it's baked into the image. After code changes, rebuild with `--no-cache` to ensure changes are included.
+**Important:** Like all container deployments, source code is not mounted - it's baked into the image. After code changes, rebuild with `--no-cache` to ensure changes are included.
 
 ## Architecture
 
@@ -324,7 +329,7 @@ This preserves user data while getting fresh metadata extraction.
 - **CodeQL Analysis**: Static analysis for JavaScript security issues
 - Required status check for merging to main (branch protection enabled)
 
-**`docker.yml`** - Build Docker Image (runs on all pushes):
+**`docker.yml`** - Build Docker Image (runs on all pushes, uses Docker in CI):
 - Builds on every push to any branch
 - Tags with branch name (e.g., `ghcr.io/mondominator/sappho:feature-branch`)
 - On main branch, also tags as `latest`
@@ -360,7 +365,7 @@ Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
 
 ## Common Pitfalls
 
-1. **Docker cache issues**: Always rebuild with `--no-cache` after code changes
+1. **Container cache issues**: Always rebuild with `--no-cache` after code changes
 2. **Missing JWT_SECRET**: Server won't start without this env var - generate with `openssl rand -base64 32`
 3. **File permissions**: Ensure audiobooks directory is readable by container user (UID 1000 default)
 4. **PWA not installing**: Requires HTTPS (except localhost) - check service worker registration in browser console

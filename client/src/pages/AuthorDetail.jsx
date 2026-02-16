@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAudiobooks, getCoverUrl, getProgress } from '../api';
+import { formatDuration } from '../utils/formatting';
 import './AuthorDetail.css';
 
 export default function AuthorDetail({ onPlay }) {
@@ -24,15 +25,6 @@ export default function AuthorDetail({ onPlay }) {
     }
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   const getTotalDuration = () => {
     const total = audiobooks.reduce((sum, book) => sum + (book.duration || 0), 0);
