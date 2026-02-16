@@ -7,9 +7,9 @@ const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
 const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
-const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('../utils/fileSystemUtils');
+const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('./fileSystemUtils');
 const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash } = require('./pathCache');
-const { findUnavailableByHash, markAvailable, markUnavailable, checkAvailability, restoreAudiobook } = require('../utils/libraryQueries');
+const { findUnavailableByHash, markAvailable, markUnavailable, checkAvailability, restoreAudiobook } = require('./libraryQueries');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
