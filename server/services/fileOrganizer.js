@@ -96,15 +96,20 @@ function getTargetDirectory(audiobook) {
  */
 function needsOrganization(audiobook) {
   const currentDir = path.dirname(audiobook.file_path);
-  const currentFilename = path.basename(audiobook.file_path);
   const targetDir = getTargetDirectory(audiobook);
-  const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
 
   // Normalize paths for comparison
   const normalizedCurrent = path.normalize(currentDir);
   const normalizedTarget = path.normalize(targetDir);
 
-  // Check if directory OR filename needs to change
+  // For multi-file books, only check directory (chapter filenames should not be renamed)
+  if (audiobook.is_multi_file) {
+    return normalizedCurrent !== normalizedTarget;
+  }
+
+  // For single-file books, check directory and filename
+  const currentFilename = path.basename(audiobook.file_path);
+  const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
   return normalizedCurrent !== normalizedTarget || currentFilename !== targetFilename;
 }
 
@@ -241,30 +246,55 @@ async function organizeAudiobook(audiobook) {
     const currentDir = path.dirname(audiobook.file_path);
     const targetDir = getTargetDirectory(audiobook);
     const originalFilename = path.basename(audiobook.file_path);
-    const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
 
     console.log(`Organizing: "${audiobook.title}" by ${audiobook.author}`);
-    console.log(`  From: ${path.join(currentDir, originalFilename)}`);
-    console.log(`  To: ${path.join(targetDir, targetFilename)}`);
+    console.log(`  From: ${currentDir}`);
+    console.log(`  To: ${targetDir}`);
 
     // Create target directory
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    // Handle potential filename conflicts
-    let newFilePath = path.join(targetDir, targetFilename);
-    let counter = 1;
-    while (fs.existsSync(newFilePath) && newFilePath !== audiobook.file_path) {
-      const ext = path.extname(targetFilename);
-      const base = path.basename(targetFilename, ext);
-      newFilePath = path.join(targetDir, `${base} (${counter})${ext}`);
-      counter++;
-    }
+    let newFilePath;
 
-    // Move main audio file
-    if (!moveFile(audiobook.file_path, newFilePath)) {
-      return { moved: false, error: 'Failed to move audio file' };
+    if (audiobook.is_multi_file) {
+      // Multi-file: move all chapter files preserving their original filenames.
+      // The audiobook's file_path references the first chapter — don't rename it.
+      const chapterFiles = await getChapterFiles(audiobook.id);
+      for (const chapterPath of chapterFiles) {
+        if (fs.existsSync(chapterPath) && path.normalize(path.dirname(chapterPath)) === path.normalize(currentDir)) {
+          const chapterFileName = path.basename(chapterPath);
+          const targetChapterPath = path.join(targetDir, chapterFileName);
+          moveFile(chapterPath, targetChapterPath);
+        }
+      }
+
+      // Move the main file_path reference if it wasn't already moved as a chapter
+      newFilePath = path.join(targetDir, originalFilename);
+      if (fs.existsSync(audiobook.file_path)) {
+        moveFile(audiobook.file_path, newFilePath);
+      }
+
+      // Update chapter paths in database (directory-level replace)
+      await updateChapterPaths(audiobook.id, currentDir, targetDir);
+    } else {
+      // Single-file: rename to Title.ext
+      const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
+      newFilePath = path.join(targetDir, targetFilename);
+
+      // Handle potential filename conflicts
+      let counter = 1;
+      while (fs.existsSync(newFilePath) && newFilePath !== audiobook.file_path) {
+        const ext = path.extname(targetFilename);
+        const base = path.basename(targetFilename, ext);
+        newFilePath = path.join(targetDir, `${base} (${counter})${ext}`);
+        counter++;
+      }
+
+      if (!moveFile(audiobook.file_path, newFilePath)) {
+        return { moved: false, error: 'Failed to move audio file' };
+      }
     }
 
     // Move cover art if it exists in the same directory
@@ -278,20 +308,6 @@ async function organizeAudiobook(audiobook) {
           newCoverPath = targetCoverPath;
         }
       }
-    }
-
-    // Handle multi-file audiobooks (move all chapter files)
-    if (audiobook.is_multi_file) {
-      const chapterFiles = await getChapterFiles(audiobook.id);
-      for (const chapterPath of chapterFiles) {
-        if (fs.existsSync(chapterPath) && path.dirname(chapterPath) === currentDir) {
-          const chapterFileName = path.basename(chapterPath);
-          const targetChapterPath = path.join(targetDir, chapterFileName);
-          moveFile(chapterPath, targetChapterPath);
-        }
-      }
-      // Update chapter paths in database
-      await updateChapterPaths(audiobook.id, currentDir, targetDir);
     }
 
     // Update database with new paths
@@ -384,7 +400,10 @@ async function getOrganizationPreview() {
 
   for (const audiobook of audiobooks) {
     if (needsOrganization(audiobook)) {
-      const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
+      // Multi-file books preserve their chapter filenames; single-file books get renamed
+      const targetFilename = audiobook.is_multi_file
+        ? path.basename(audiobook.file_path)
+        : getTargetFilename(audiobook, audiobook.file_path);
       needsMove.push({
         id: audiobook.id,
         title: audiobook.title,

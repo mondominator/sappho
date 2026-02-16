@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { createDbHelpers } = require('../utils/db');
+const { sanitizeName } = require('../services/fileOrganizer');
 
 // SECURITY: Sanitize uploaded filename to prevent path traversal
 function sanitizeFilename(name) {
@@ -208,10 +209,9 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
 
     const author = firstFileMetadata.author || 'Unknown Author';
 
-    // Create organized directory structure
-    const sanitize = (str) => str.replace(/[^a-z0-9\s]/gi, '_').trim();
-    const authorDir = path.join(audiobooksDir, sanitize(author));
-    const bookDir = path.join(authorDir, sanitize(title));
+    // Create organized directory structure (use sanitizeName for consistency with file organizer)
+    const authorDir = path.join(audiobooksDir, sanitizeName(author) || 'Unknown Author');
+    const bookDir = path.join(authorDir, sanitizeName(title) || 'Unknown Title');
 
     if (!fs.existsSync(bookDir)) {
       fs.mkdirSync(bookDir, { recursive: true });
