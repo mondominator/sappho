@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { uploadAudiobook, uploadMultiFileAudiobook } from '../api';
+import { formatFileSize } from '../utils/formatting';
 import './UploadModal.css';
 
 export default function UploadModal({ isOpen, onClose }) {
@@ -59,12 +60,6 @@ export default function UploadModal({ isOpen, onClose }) {
     }
   };
 
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  };
 
   const formatSpeed = (bytesPerSecond) => {
     if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`;

@@ -1,4 +1,23 @@
+.edit-metadata-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 1rem;
+}
+
 .edit-metadata-modal {
+  background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
   max-width: 600px;
   width: 95%;
   max-height: 90vh;

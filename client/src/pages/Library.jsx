@@ -4,6 +4,7 @@ import { getAudiobooks, getSeries, getAuthors, getFavorites, getCollections, cre
 import { useWebSocket } from '../contexts/WebSocketContext';
 import UploadModal from '../components/UploadModal';
 import { LibrarySkeleton } from '../components/Skeleton';
+import { formatDurationParts } from '../utils/formatting';
 import './Library.css';
 
 // Component for rotating collection covers
@@ -213,12 +214,6 @@ export default function Library({ onPlay }) {
     }
   };
 
-  const formatDuration = (seconds) => {
-    const totalMinutes = Math.floor(seconds / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return { hours, minutes };
-  };
 
   if (loading) {
     return <LibrarySkeleton />;
@@ -253,8 +248,8 @@ export default function Library({ onPlay }) {
         <div className="stat-divider"></div>
         <div className="stat-item">
           <span className="stat-value">
-            {formatDuration(stats.totalDuration).hours}<span className="stat-unit">h</span>{' '}
-            {formatDuration(stats.totalDuration).minutes}<span className="stat-unit">m</span>
+            {formatDurationParts(stats.totalDuration).hours}<span className="stat-unit">h</span>{' '}
+            {formatDurationParts(stats.totalDuration).minutes}<span className="stat-unit">m</span>
           </span>
           <span className="stat-label">Total</span>
         </div>

@@ -59,7 +59,7 @@ class ConversionService {
   async startConversion(audiobook, db) {
     const jobId = crypto.randomUUID();
     const dir = path.dirname(audiobook.file_path);
-    const supportedFormats = ['.m4a', '.mp3', '.mp4', '.ogg', '.flac'];
+    const supportedFormats = ['.m4a', '.mp3', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma'];
 
     // Check if multifile audiobook
     let sourceFiles = [];
@@ -200,11 +200,8 @@ class ConversionService {
       job.progress = 5;
       this.broadcastJobStatus(job);
 
-      // Try to extract cover art from first file
-      let hasCover = false;
-      if (job.ext === '.mp3') {
-        hasCover = await this.extractCoverArt(job);
-      }
+      // Try to extract cover art from first file (works for any format with embedded art)
+      const hasCover = await this.extractCoverArt(job);
 
       job.message = job.isMultiFile
         ? `Converting ${job.sourceFiles.length} files...`
@@ -342,8 +339,8 @@ class ConversionService {
         '-progress', 'pipe:1',
         '-y', job.tempPath
       ];
-    } else if (job.ext === '.m4a' || job.ext === '.mp4') {
-      // Single M4A/MP4 - just copy streams
+    } else if (job.ext === '.m4a' || job.ext === '.mp4' || job.ext === '.aac') {
+      // Single M4A/MP4/AAC - already AAC codec, just copy streams into M4B container
       return [
         '-i', job.sourceFiles[0].path,
         '-c', 'copy',
@@ -351,7 +348,7 @@ class ConversionService {
         '-y', job.tempPath
       ];
     } else {
-      // Single MP3, OGG, FLAC - re-encode to AAC
+      // Single MP3, OGG, FLAC, OPUS, WAV, WMA - re-encode to AAC
       return [
         '-i', job.sourceFiles[0].path,
         '-vn',
@@ -460,7 +457,7 @@ class ConversionService {
           fs.existsSync(job.tempCoverPath) &&
           fs.statSync(job.tempCoverPath).size > 0;
         if (hasCover) {
-          console.log('Extracted cover art from MP3');
+          console.log(`Extracted cover art from ${job.ext} file`);
         }
         resolve(hasCover);
       });
