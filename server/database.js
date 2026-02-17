@@ -39,6 +39,7 @@ const dbReady = new Promise((resolve) => {
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database:', err);
+    process.exit(1);
   } else {
     console.log('Connected to SQLite database at:', dbPath);
     // Enable foreign key constraint enforcement (off by default in SQLite)

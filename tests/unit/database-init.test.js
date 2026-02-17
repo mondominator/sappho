@@ -258,6 +258,7 @@ describe('Database Initialization - Error Paths', () => {
     it('handles sqlite3 Database constructor error', async () => {
       await jest.isolateModulesAsync(async () => {
         const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
         const fsMock = mockFsExists();
         const { mockDb, DatabaseConstructor } = createMockSetup({
           openErr: new Error('SQLITE_CANTOPEN'),
@@ -265,7 +266,9 @@ describe('Database Initialization - Error Paths', () => {
 
         await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
         expect(consoleSpy).toHaveBeenCalledWith('Error opening database:', expect.any(Error));
+        expect(exitSpy).toHaveBeenCalledWith(1);
         consoleSpy.mockRestore();
+        exitSpy.mockRestore();
       });
     });
   });

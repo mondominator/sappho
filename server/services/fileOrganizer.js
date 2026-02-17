@@ -211,12 +211,12 @@ function getChapterFiles(audiobookId) {
  */
 function updateChapterPaths(audiobookId, oldDir, newDir) {
   return new Promise((resolve, reject) => {
-    // Update all chapter paths by replacing the old directory with new
+    // Update chapter paths by replacing the directory prefix (anchored to start of path)
     db.run(
       `UPDATE audiobook_chapters
-       SET file_path = REPLACE(file_path, ?, ?)
-       WHERE audiobook_id = ?`,
-      [oldDir, newDir, audiobookId],
+       SET file_path = ? || SUBSTR(file_path, LENGTH(?) + 1)
+       WHERE audiobook_id = ? AND file_path LIKE ? || '%'`,
+      [newDir, oldDir, audiobookId, oldDir],
       (err) => {
         if (err) reject(err);
         else resolve();
