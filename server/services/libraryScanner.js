@@ -10,6 +10,7 @@ const { readExternalMetadata, mergeExternalMetadata } = require('../utils/extern
 const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('./fileSystemUtils');
 const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash } = require('./pathCache');
 const { findUnavailableByHash, markAvailable, markUnavailable, checkAvailability, restoreAudiobook } = require('./libraryQueries');
+const { createDbHelpers } = require('../utils/db');
 
 // Lazy load to avoid circular dependency
 let isDirectoryBeingConverted = null;
@@ -58,8 +59,11 @@ async function importAudiobook(filePath, userId) {
     const externalMeta = await readExternalMetadata(bookDir);
     mergeExternalMetadata(metadata, externalMeta);
 
+    // Get file stats (needed for hash and database insert)
+    const stats = fs.statSync(filePath);
+
     // Generate content hash for stable identification
-    const contentHash = generateBestHash(metadata, filePath);
+    const contentHash = generateBestHash({ ...metadata, fileSize: stats.size }, filePath);
 
     // Check if an unavailable audiobook with this content hash exists (restore it)
     const unavailableBook = await findUnavailableByHash(contentHash);
@@ -79,9 +83,6 @@ async function importAudiobook(filePath, userId) {
       return null;
     }
 
-    // Get file stats
-    const stats = fs.statSync(filePath);
-
     // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
     let chapters = null;
     chapters = await extractM4BChapters(filePath);
@@ -89,9 +90,10 @@ async function importAudiobook(filePath, userId) {
     // Determine if this should be marked as multi-file (has embedded chapters)
     const hasChapters = chapters && chapters.length > 1;
 
-    // Save to database without moving the file
-    return new Promise((resolve, reject) => {
-      db.run(
+    // Save to database in a transaction (audiobook + chapters atomically)
+    const { dbTransaction } = createDbHelpers(db);
+    const audiobook = await dbTransaction(async ({ dbRun, dbGet }) => {
+      const { lastID: audiobookId } = await dbRun(
         `INSERT INTO audiobooks
          (title, author, narrator, description, duration, file_path, file_size,
           genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
@@ -123,79 +125,31 @@ async function importAudiobook(filePath, userId) {
           metadata.abridged ? 1 : 0,
           metadata.subtitle,
           contentHash,
-        ],
-        function (err) {
-          if (err) {
-            reject(err);
-          } else {
-            const audiobookId = this.lastID;
-
-            // If we have chapters, insert them
-            if (hasChapters) {
-              // Use Promise.all to insert all chapters and wait for all to complete
-              const chapterInsertPromises = chapters.map((chapter) => {
-                return new Promise((resolveChapter, rejectChapter) => {
-                  db.run(
-                    `INSERT INTO audiobook_chapters
-                     (audiobook_id, chapter_number, file_path, duration, start_time, title)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                      audiobookId,
-                      chapter.chapter_number,
-                      filePath, // Same file for all chapters in m4b
-                      chapter.duration,
-                      chapter.start_time,
-                      chapter.title,
-                    ],
-                    (err) => {
-                      if (err) rejectChapter(err);
-                      else resolveChapter();
-                    }
-                  );
-                });
-              });
-
-              Promise.all(chapterInsertPromises)
-                .then(() => {
-                  db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-                    if (err) {
-                      reject(err);
-                    } else {
-                      console.log(`Imported: ${metadata.title} by ${metadata.author} (${chapters.length} chapters)`);
-                      // Broadcast to connected clients
-                      websocketManager.broadcastLibraryUpdate('library.add', audiobook);
-                      // Send email notification to subscribed users
-                      emailService.notifyNewAudiobook(audiobook).catch(e =>
-                        console.error('Error sending new audiobook notification:', e.message)
-                      );
-                      resolve(audiobook);
-                    }
-                  });
-                })
-                .catch((err) => {
-                  console.error(`Error inserting chapters for ${metadata.title}:`, err.message);
-                  reject(err);
-                });
-            } else {
-              db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  console.log(`Imported: ${metadata.title} by ${metadata.author}`);
-                  // Broadcast to connected clients
-                  websocketManager.broadcastLibraryUpdate('library.add', audiobook);
-                  // Send email notification to subscribed users
-                  emailService.notifyNewAudiobook(audiobook).catch(e =>
-                    console.error('Error sending new audiobook notification:', e.message)
-                  );
-                  resolve(audiobook);
-                }
-              });
-            }
-          }
-        }
+        ]
       );
+
+      // Insert chapters sequentially within the same transaction
+      if (hasChapters) {
+        for (const chapter of chapters) {
+          await dbRun(
+            `INSERT INTO audiobook_chapters
+             (audiobook_id, chapter_number, file_path, duration, start_time, title)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [audiobookId, chapter.chapter_number, filePath, chapter.duration, chapter.start_time, chapter.title]
+          );
+        }
+      }
+
+      return await dbGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
     });
+
+    const chapterCount = hasChapters ? ` (${chapters.length} chapters)` : '';
+    console.log(`Imported: ${metadata.title} by ${metadata.author}${chapterCount}`);
+    websocketManager.broadcastLibraryUpdate('library.add', audiobook);
+    emailService.notifyNewAudiobook(audiobook).catch(e =>
+      console.error('Error sending new audiobook notification:', e.message)
+    );
+    return audiobook;
   } catch (error) {
     console.error(`Error importing ${filePath}:`, error.message);
     return null;
@@ -260,8 +214,8 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       return null;
     }
 
-    // Generate content hash for stable identification (use total duration for multi-file)
-    const contentHash = generateBestHash({ ...metadata, duration: totalDuration }, firstFilePath);
+    // Generate content hash for stable identification (use total duration and size for multi-file)
+    const contentHash = generateBestHash({ ...metadata, duration: totalDuration, fileSize: totalSize }, firstFilePath);
 
     // Check if an unavailable audiobook with this content hash exists (restore it)
     const unavailableBook = await findUnavailableByHash(contentHash);
@@ -281,9 +235,18 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       return null;
     }
 
-    // Save audiobook to database with is_multi_file flag
-    return new Promise((resolve, reject) => {
-      db.run(
+    // Save audiobook and chapters in a single transaction
+    const { dbTransaction } = createDbHelpers(db);
+    // Calculate cumulative start times for each chapter
+    let cumulativeTime = 0;
+    const chaptersWithStartTimes = chapterMetadata.map((chapter) => {
+      const chapterWithStart = { ...chapter, start_time: cumulativeTime };
+      cumulativeTime += chapter.duration || 0;
+      return chapterWithStart;
+    });
+
+    const audiobook = await dbTransaction(async ({ dbRun, dbGet }) => {
+      const { lastID: audiobookId } = await dbRun(
         `INSERT INTO audiobooks
          (title, author, narrator, description, duration, file_path, file_size,
           genre, published_year, isbn, series, series_position, cover_image, is_multi_file, added_by,
@@ -314,73 +277,29 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
           metadata.abridged ? 1 : 0,
           metadata.subtitle,
           contentHash,
-        ],
-        function (err) {
-          if (err) {
-            reject(err);
-          } else {
-            const audiobookId = this.lastID;
-
-            // Calculate cumulative start times for each chapter
-            let cumulativeTime = 0;
-            const chaptersWithStartTimes = chapterMetadata.map((chapter, _index) => {
-              const chapterWithStart = {
-                ...chapter,
-                start_time: cumulativeTime
-              };
-              cumulativeTime += chapter.duration || 0;
-              return chapterWithStart;
-            });
-
-            // Use Promise.all to insert all chapters and wait for all to complete
-            const chapterInsertPromises = chaptersWithStartTimes.map((chapter, index) => {
-              return new Promise((resolveChapter, rejectChapter) => {
-                db.run(
-                  `INSERT INTO audiobook_chapters
-                   (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                  [
-                    audiobookId,
-                    index + 1,
-                    chapter.file_path,
-                    chapter.duration,
-                    chapter.file_size,
-                    chapter.title,
-                    chapter.start_time,
-                  ],
-                  (err) => {
-                    if (err) rejectChapter(err);
-                    else resolveChapter();
-                  }
-                );
-              });
-            });
-
-            Promise.all(chapterInsertPromises)
-              .then(() => {
-                db.get('SELECT * FROM audiobooks WHERE id = ?', [audiobookId], (err, audiobook) => {
-                  if (err) {
-                    reject(err);
-                  } else {
-                    console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
-                    // Broadcast to connected clients
-                    websocketManager.broadcastLibraryUpdate('library.add', audiobook);
-                    // Send email notification to subscribed users
-                    emailService.notifyNewAudiobook(audiobook).catch(e =>
-                      console.error('Error sending new audiobook notification:', e.message)
-                    );
-                    resolve(audiobook);
-                  }
-                });
-              })
-              .catch((err) => {
-                console.error(`Error inserting chapters for multi-file audiobook ${metadata.title}:`, err.message);
-                reject(err);
-              });
-          }
-        }
+        ]
       );
+
+      // Insert chapters sequentially within the same transaction
+      for (let i = 0; i < chaptersWithStartTimes.length; i++) {
+        const chapter = chaptersWithStartTimes[i];
+        await dbRun(
+          `INSERT INTO audiobook_chapters
+           (audiobook_id, chapter_number, file_path, duration, file_size, title, start_time)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [audiobookId, i + 1, chapter.file_path, chapter.duration, chapter.file_size, chapter.title, chapter.start_time]
+        );
+      }
+
+      return await dbGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
     });
+
+    console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
+    websocketManager.broadcastLibraryUpdate('library.add', audiobook);
+    emailService.notifyNewAudiobook(audiobook).catch(e =>
+      console.error('Error sending new audiobook notification:', e.message)
+    );
+    return audiobook;
   } catch (error) {
     console.error('Error importing multi-file audiobook:', error.message);
     return null;

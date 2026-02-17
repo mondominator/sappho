@@ -5,7 +5,7 @@
 
 const { createDbHelpers } = require('../../utils/db');
 
-function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPINGS, DEFAULT_GENRE_METADATA }) {
+function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, GENRE_MAPPINGS, DEFAULT_GENRE_METADATA }) {
   const { dbAll } = createDbHelpers(db);
 
   // Helper to transform progress fields into nested object
@@ -229,8 +229,8 @@ function register(router, { db, authenticateToken, normalizeGenres, GENRE_MAPPIN
     }
   });
 
-  // Get ALL in-progress audiobooks (all users) - for monitoring systems
-  router.get('/meta/in-progress/all', authenticateToken, async (req, res) => {
+  // Get ALL in-progress audiobooks (all users) - admin only
+  router.get('/meta/in-progress/all', authenticateToken, requireAdmin, async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
 
     try {

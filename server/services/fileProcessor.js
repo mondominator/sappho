@@ -943,7 +943,7 @@ async function organizeFile(sourcePath, metadata) {
 
 async function saveToDatabase(metadata, filePath, fileSize, userId) {
   // Generate content hash for stable identification
-  const contentHash = generateBestHash(metadata, filePath);
+  const contentHash = generateBestHash({ ...metadata, fileSize }, filePath);
 
   return new Promise((resolve, reject) => {
     db.run(
