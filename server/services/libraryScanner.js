@@ -91,7 +91,7 @@ async function importAudiobook(filePath, userId) {
     const hasChapters = chapters && chapters.length > 1;
 
     // Save to database in a transaction (audiobook + chapters atomically)
-    const { dbRun: txRun, dbGet: txGet, dbTransaction } = createDbHelpers(db);
+    const { dbTransaction } = createDbHelpers(db);
     const audiobook = await dbTransaction(async ({ dbRun, dbGet }) => {
       const { lastID: audiobookId } = await dbRun(
         `INSERT INTO audiobooks

@@ -145,6 +145,18 @@ describe('Content Hash Utilities', () => {
       expect(hash1).not.toBe(hash2);
     });
 
+    test('includes fileSize in hash when provided', () => {
+      const hashWithout = generateBestHash({ title: 'Book', author: 'Author', duration: 1000 }, '/path/to/file.m4b');
+      const hashWith = generateBestHash({ title: 'Book', author: 'Author', duration: 1000, fileSize: 50000000 }, '/path/to/file.m4b');
+      expect(hashWithout).not.toBe(hashWith);
+    });
+
+    test('same fileSize produces same hash', () => {
+      const hash1 = generateBestHash({ title: 'Book', author: 'Author', duration: 1000, fileSize: 50000000 }, '/a.m4b');
+      const hash2 = generateBestHash({ title: 'Book', author: 'Author', duration: 1000, fileSize: 50000000 }, '/b.m4b');
+      expect(hash1).toBe(hash2);
+    });
+
     test('handles empty string author', () => {
       const hash1 = generateBestHash({ title: 'Book', author: '', duration: 1000 }, '/path/to/file1.m4b');
       const hash2 = generateBestHash({ title: 'Book', author: '', duration: 1000 }, '/path/to/file2.m4b');
@@ -194,6 +206,13 @@ describe('Content Hash Utilities', () => {
     test('handles empty string title', () => {
       const hash = generateContentHash('', 'Author', 1000);
       expect(hash).toHaveLength(32);
+    });
+
+    test('includes fileSize when provided', () => {
+      const hash1 = generateContentHash('Book', 'Author', 1000);
+      const hash2 = generateContentHash('Book', 'Author', 1000, 50000000);
+      expect(hash1).not.toBe(hash2);
+      expect(hash2).toHaveLength(32);
     });
   });
 
