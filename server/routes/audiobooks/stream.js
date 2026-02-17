@@ -30,13 +30,8 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
       // List all files in the directory
       const files = fs.readdirSync(directory);
 
-      // Filter to only audio files and sort them
-      const audioExtensions = ['.mp3', '.m4a', '.m4b', '.flac', '.ogg', '.wav'];
-      const audioFiles = files
-        .filter(file => {
-          const ext = path.extname(file).toLowerCase();
-          return audioExtensions.includes(ext);
-        })
+      // Return all files in the directory, sorted by name
+      const allFiles = files
         .map(file => {
           const fullPath = path.join(directory, file);
           const stats = fs.statSync(fullPath);
@@ -49,7 +44,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         })
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-      res.json(audioFiles);
+      res.json(allFiles);
     } catch (error) {
       console.error('Error reading directory:', error);
       res.status(500).json({ error: 'Failed to read directory' });
