@@ -512,6 +512,36 @@ describe('Conversion Service', () => {
       expect(result.error).toBe('File is already M4B format');
     });
 
+    test('allows M4B for multi-file merge', async () => {
+      fs.existsSync.mockReturnValue(true);
+      spawn.mockReturnValue({
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn()
+      });
+
+      const audiobook = {
+        id: 1,
+        title: 'Test Book',
+        file_path: '/test/chapter1.m4b',
+        duration: 3600,
+        is_multi_file: 1
+      };
+      const mockDb = {
+        all: jest.fn((query, params, cb) => cb(null, [
+          { file_path: '/test/chapter1.m4b', duration: 1800, title: 'Chapter 1' },
+          { file_path: '/test/chapter2.m4b', duration: 1800, title: 'Chapter 2' }
+        ])),
+        run: jest.fn((query, params, cb) => cb && cb(null))
+      };
+
+      const result = await conversionService.startConversion(audiobook, mockDb);
+
+      expect(result.error).toBeUndefined();
+      expect(result.jobId).toBeDefined();
+      expect(result.status).toBe('started');
+    });
+
     test('returns error for unsupported format', async () => {
       const audiobook = {
         id: 1,
@@ -628,15 +658,16 @@ describe('Conversion Service', () => {
   });
 
   describe('buildFFmpegArgs', () => {
-    test('builds concat args for multifile', async () => {
+    test('builds concat args for multifile with chapter metadata', async () => {
       const job = {
         isMultiFile: true,
         sourceFiles: [
-          { path: '/test/ch1.mp3' },
-          { path: '/test/ch2.mp3' }
+          { path: '/test/ch1.mp3', duration: 1800, title: 'Chapter 1' },
+          { path: '/test/ch2.mp3', duration: 1200, title: 'Chapter 2' }
         ],
         tempPath: '/test/output.m4b',
         concatListPath: '/test/concat.txt',
+        chapterMetadataPath: '/test/chapters.txt',
         ext: '.mp3'
       };
 
@@ -644,13 +675,32 @@ describe('Conversion Service', () => {
 
       expect(args).toContain('-f');
       expect(args).toContain('concat');
+      expect(args).toContain('-map_chapters');
+      expect(args).toContain('1');
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         '/test/concat.txt',
         expect.stringContaining("file '/test/ch1.mp3'")
       );
+      // Verify chapter metadata file was written
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining(';FFMETADATA1')
+      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining('title=Chapter 1')
+      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining('START=0')
+      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining('START=1800000')
+      );
     });
 
-    test('builds copy args for M4A', async () => {
+    test('builds copy args for M4A with progress', async () => {
       const job = {
         isMultiFile: false,
         sourceFiles: [{ path: '/test/book.m4a' }],
@@ -662,6 +712,7 @@ describe('Conversion Service', () => {
 
       expect(args).toContain('-c');
       expect(args).toContain('copy');
+      expect(args).toContain('-progress');
     });
 
     test('builds re-encode args for MP3', async () => {
