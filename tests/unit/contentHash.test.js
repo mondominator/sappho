@@ -15,9 +15,9 @@ describe('Content Hash Utilities', () => {
       expect(hash1).toBe(hash2);
     });
 
-    test('generates 16-character hex hash', () => {
+    test('generates 32-character hex hash', () => {
       const hash = generateBestHash({ title: 'Test Book', author: 'Test Author', duration: 3600 }, '/path/to/file.m4b');
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
 
@@ -98,13 +98,13 @@ describe('Content Hash Utilities', () => {
 
     test('falls back to file path hash when metadata is null', () => {
       const hash = generateBestHash(null, '/path/to/file.m4b');
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
 
     test('falls back to file path hash when metadata is undefined', () => {
       const hash = generateBestHash(undefined, '/path/to/file.m4b');
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
 
@@ -145,6 +145,18 @@ describe('Content Hash Utilities', () => {
       expect(hash1).not.toBe(hash2);
     });
 
+    test('includes fileSize in hash when provided', () => {
+      const hashWithout = generateBestHash({ title: 'Book', author: 'Author', duration: 1000 }, '/path/to/file.m4b');
+      const hashWith = generateBestHash({ title: 'Book', author: 'Author', duration: 1000, fileSize: 50000000 }, '/path/to/file.m4b');
+      expect(hashWithout).not.toBe(hashWith);
+    });
+
+    test('same fileSize produces same hash', () => {
+      const hash1 = generateBestHash({ title: 'Book', author: 'Author', duration: 1000, fileSize: 50000000 }, '/a.m4b');
+      const hash2 = generateBestHash({ title: 'Book', author: 'Author', duration: 1000, fileSize: 50000000 }, '/b.m4b');
+      expect(hash1).toBe(hash2);
+    });
+
     test('handles empty string author', () => {
       const hash1 = generateBestHash({ title: 'Book', author: '', duration: 1000 }, '/path/to/file1.m4b');
       const hash2 = generateBestHash({ title: 'Book', author: '', duration: 1000 }, '/path/to/file2.m4b');
@@ -154,19 +166,19 @@ describe('Content Hash Utilities', () => {
 
     test('handles null file path', () => {
       const hash = generateBestHash({ title: 'Only Title' }, null);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
 
     test('handles undefined file path', () => {
       const hash = generateBestHash({ title: 'Only Title' }, undefined);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
 
     test('handles empty string file path', () => {
       const hash = generateBestHash({ title: 'Only Title' }, '');
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
 
@@ -183,34 +195,41 @@ describe('Content Hash Utilities', () => {
   describe('generateContentHash (internal)', () => {
     test('handles null title', () => {
       const hash = generateContentHash(null, 'Author', 1000);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
     });
 
     test('handles undefined title', () => {
       const hash = generateContentHash(undefined, 'Author', 1000);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
     });
 
     test('handles empty string title', () => {
       const hash = generateContentHash('', 'Author', 1000);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
+    });
+
+    test('includes fileSize when provided', () => {
+      const hash1 = generateContentHash('Book', 'Author', 1000);
+      const hash2 = generateContentHash('Book', 'Author', 1000, 50000000);
+      expect(hash1).not.toBe(hash2);
+      expect(hash2).toHaveLength(32);
     });
   });
 
   describe('generateFilePathHash (internal)', () => {
     test('handles null file path', () => {
       const hash = generateFilePathHash(null);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
     });
 
     test('handles undefined file path', () => {
       const hash = generateFilePathHash(undefined);
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
     });
 
     test('handles empty string file path', () => {
       const hash = generateFilePathHash('');
-      expect(hash).toHaveLength(16);
+      expect(hash).toHaveLength(32);
     });
   });
 });

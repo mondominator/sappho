@@ -175,8 +175,15 @@ function createAuthRouter(deps = {}) {
       const result = await login(username, password);
       res.json(result);
     } catch (error) {
+      // Pass through intentional auth errors (lockout, disabled, invalid creds)
+      const msg = error.message;
+      if (msg === 'Invalid username or password' ||
+          msg.startsWith('Account is locked') ||
+          msg.startsWith('Your account has been disabled')) {
+        return res.status(401).json({ error: msg });
+      }
       console.error('Login error:', error);
-      res.status(401).json({ error: 'Login failed' });
+      res.status(500).json({ error: 'Login failed' });
     }
   });
 
