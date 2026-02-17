@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const websocketManager = require('./websocketManager');
+const { createDbHelpers } = require('../utils/db');
 
 /**
  * Conversion Service - Manages async audio conversion jobs with progress tracking
@@ -106,10 +107,12 @@ class ConversionService {
     // Validate all source files
     for (const file of sourceFiles) {
       const ext = path.extname(file.path).toLowerCase();
-      if (ext === '.m4b') {
+      // Only reject single-file M4B (already in target format).
+      // Multi-file M4B collections should be merged into a single M4B.
+      if (ext === '.m4b' && !isMultiFile) {
         return { error: 'File is already M4B format' };
       }
-      if (!supportedFormats.includes(ext)) {
+      if (ext !== '.m4b' && !supportedFormats.includes(ext)) {
         return { error: `Unsupported format: ${ext}. Supported: ${supportedFormats.join(', ')}` };
       }
       if (!fs.existsSync(file.path)) {
@@ -123,10 +126,15 @@ class ConversionService {
       .replace(/\s+/g, ' ')
       .trim()
       .substring(0, 100);
-    const tempPath = path.join(dir, `${sanitizedTitle}_converting.m4b`);
+    const tempDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../data/uploads');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const tempPath = path.join(tempDir, `${sanitizedTitle}_converting.m4b`);
     const finalPath = path.join(dir, `${sanitizedTitle}.m4b`);
-    const tempCoverPath = path.join(dir, `${sanitizedTitle}_temp_cover.jpg`);
-    const concatListPath = path.join(dir, `${sanitizedTitle}_concat.txt`);
+    const tempCoverPath = path.join(tempDir, `${sanitizedTitle}_temp_cover.jpg`);
+    const concatListPath = path.join(tempDir, `${sanitizedTitle}_concat.txt`);
+    const chapterMetadataPath = path.join(tempDir, `${sanitizedTitle}_chapters.txt`);
 
     // Create job info
     const job = {
@@ -143,6 +151,7 @@ class ConversionService {
       finalPath,
       tempCoverPath,
       concatListPath,
+      chapterMetadataPath,
       dir,
       ext: path.extname(sourceFiles[0].path).toLowerCase(),
       startedAt: new Date().toISOString(),
@@ -235,7 +244,22 @@ class ConversionService {
       // Commit: rename temp to final
       fs.renameSync(job.tempPath, job.finalPath);
 
-      // Delete original source files
+      // Update database BEFORE deleting source files (if DB fails, sources are intact)
+      const { dbTransaction } = createDbHelpers(db);
+      await dbTransaction(async ({ dbRun }) => {
+        await dbRun(
+          'UPDATE audiobooks SET file_path = ?, file_size = ?, is_multi_file = 0 WHERE id = ?',
+          [job.finalPath, newStats.size, audiobook.id]
+        );
+        if (job.isMultiFile) {
+          await dbRun(
+            'DELETE FROM audiobook_chapters WHERE audiobook_id = ?',
+            [audiobook.id]
+          );
+        }
+      });
+
+      // Delete original source files (safe: DB already updated)
       for (const file of job.sourceFiles) {
         if (fs.existsSync(file.path) && file.path !== job.finalPath) {
           try {
@@ -246,35 +270,12 @@ class ConversionService {
         }
       }
 
-      // Clean up concat list file if used
+      // Clean up temp list files
       if (job.concatListPath && fs.existsSync(job.concatListPath)) {
         try { fs.unlinkSync(job.concatListPath); } catch (_e) { /* ignore */ }
       }
-
-      // Update database
-      await new Promise((resolve, reject) => {
-        db.run(
-          'UPDATE audiobooks SET file_path = ?, file_size = ?, is_multi_file = 0 WHERE id = ?',
-          [job.finalPath, newStats.size, audiobook.id],
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
-
-      // If multifile, clear the chapter records (now merged into single file)
-      if (job.isMultiFile) {
-        await new Promise((resolve, reject) => {
-          db.run(
-            'DELETE FROM audiobook_chapters WHERE audiobook_id = ?',
-            [audiobook.id],
-            (err) => {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        });
+      if (job.chapterMetadataPath && fs.existsSync(job.chapterMetadataPath)) {
+        try { fs.unlinkSync(job.chapterMetadataPath); } catch (_e) { /* ignore */ }
       }
 
       // Success!
@@ -325,11 +326,29 @@ class ConversionService {
       fs.writeFileSync(job.concatListPath, concatContent);
       console.log(`buildFFmpegArgs: using concat demuxer with ${job.sourceFiles.length} files`);
 
-      // Multifile - concatenate and re-encode to ensure compatibility
+      // Generate FFMETADATA chapter markers from source file durations
+      let metadataContent = ';FFMETADATA1\n';
+      let cumulativeMs = 0;
+      for (let i = 0; i < job.sourceFiles.length; i++) {
+        const file = job.sourceFiles[i];
+        const durationMs = Math.round((file.duration || 0) * 1000);
+        const startMs = cumulativeMs;
+        const endMs = cumulativeMs + durationMs;
+        const title = file.title || `Chapter ${i + 1}`;
+        metadataContent += `[CHAPTER]\nTIMEBASE=1/1000\nSTART=${startMs}\nEND=${endMs}\ntitle=${title.replace(/[=;\n\\]/g, '\\$&')}\n`;
+        cumulativeMs = endMs;
+      }
+      fs.writeFileSync(job.chapterMetadataPath, metadataContent);
+      console.log(`buildFFmpegArgs: generated chapter metadata for ${job.sourceFiles.length} chapters`);
+
+      // Multifile - concatenate with chapter markers and re-encode
       return [
         '-f', 'concat',
         '-safe', '0',
         '-i', job.concatListPath,
+        '-i', job.chapterMetadataPath,
+        '-map_metadata', '1',
+        '-map_chapters', '1',
         '-vn',
         '-c:a', 'aac',
         '-b:a', '128k',
@@ -345,6 +364,7 @@ class ConversionService {
         '-i', job.sourceFiles[0].path,
         '-c', 'copy',
         '-f', 'ipod',
+        '-progress', 'pipe:1',
         '-y', job.tempPath
       ];
     } else {
@@ -528,6 +548,9 @@ class ConversionService {
     }
     if (job.concatListPath && fs.existsSync(job.concatListPath)) {
       try { fs.unlinkSync(job.concatListPath); } catch (_e) { /* ignore cleanup errors */ }
+    }
+    if (job.chapterMetadataPath && fs.existsSync(job.chapterMetadataPath)) {
+      try { fs.unlinkSync(job.chapterMetadataPath); } catch (_e) { /* ignore cleanup errors */ }
     }
   }
 
