@@ -278,7 +278,8 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
     const contentHash = generateBestHash({
       title,
       author,
-      duration: totalDuration
+      duration: totalDuration,
+      fileSize: totalSize,
     }, movedFiles[0]);
 
     // Save audiobook and chapters in a single transaction
