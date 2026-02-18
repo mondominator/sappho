@@ -13,7 +13,9 @@ jest.mock('fs', () => ({
   writeFileSync: jest.fn(),
   statSync: jest.fn(),
   renameSync: jest.fn(),
-  unlinkSync: jest.fn()
+  unlinkSync: jest.fn(),
+  readdirSync: jest.fn().mockReturnValue([]),
+  mkdirSync: jest.fn()
 }));
 
 jest.mock('../../server/services/websocketManager', () => ({
@@ -23,6 +25,10 @@ jest.mock('../../server/services/websocketManager', () => ({
 
 jest.mock('../../server/services/pathCache', () => ({
   updatePathCacheEntry: jest.fn()
+}));
+
+jest.mock('../../server/utils/contentHash', () => ({
+  generateBestHash: jest.fn().mockReturnValue('abcdef1234567890')
 }));
 
 const { spawn } = require('child_process');
@@ -656,7 +662,7 @@ describe('Conversion Service', () => {
 
       expect(result.jobId).toBeDefined();
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('treating as single file')
+        expect.stringContaining('will check filesystem')
       );
     });
   });
