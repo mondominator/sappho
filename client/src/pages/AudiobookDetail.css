@@ -228,6 +228,7 @@
   align-items: flex-start;
   gap: 0.75rem;
   flex-wrap: wrap;
+  margin-bottom: -0.5rem;
 }
 
 .detail-title {
@@ -1114,9 +1115,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 1rem;
 }
 
 .desktop-action-btn {
