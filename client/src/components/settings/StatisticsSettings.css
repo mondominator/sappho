@@ -19,6 +19,12 @@
   gap: 0.5rem;
 }
 
+@media (min-width: 600px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 .stats-card {
   background: var(--bg-secondary);
   border-radius: 10px;
