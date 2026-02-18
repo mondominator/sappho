@@ -1109,6 +1109,68 @@
   font-weight: 600;
 }
 
+/* Desktop Action Buttons - visible on desktop, hidden on mobile */
+.desktop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.desktop-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: rgba(107, 114, 128, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #d1d5db;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.desktop-action-btn:hover {
+  background: rgba(107, 114, 128, 0.25);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #f3f4f6;
+}
+
+.desktop-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.desktop-action-btn svg {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.desktop-action-btn:hover svg {
+  color: #d1d5db;
+}
+
+.desktop-action-btn svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.desktop-action-btn.danger {
+  color: #fca5a5;
+}
+
+.desktop-action-btn.danger svg {
+  color: #f87171;
+}
+
+.desktop-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 @media (max-width: 768px) {
   /* Hide desktop-only blocks on mobile */
   .desktop-only-block {
@@ -1117,6 +1179,11 @@
 
   /* Hide desktop cover buttons on mobile */
   .desktop-cover-buttons {
+    display: none !important;
+  }
+
+  /* Hide desktop actions on mobile (overflow menu used instead) */
+  .desktop-actions {
     display: none !important;
   }
 
@@ -1870,26 +1937,10 @@
   background: rgba(239, 68, 68, 0.15);
 }
 
-/* Desktop: Show more menu in play-button-row (play button hidden, cover overlay used instead) */
+/* Desktop: Hide more menu (desktop-actions section used instead) */
 @media (min-width: 769px) {
-  .play-button-row {
-    display: flex;
-    margin-top: 0.75rem;
-  }
-
-  .play-button-row .detail-play-button {
+  .more-menu-container {
     display: none;
-  }
-
-  .play-button-row .more-menu-container {
-    display: block;
-  }
-
-  .play-button-row .more-menu-dropdown {
-    bottom: auto;
-    top: 100%;
-    margin-bottom: 0;
-    margin-top: 8px;
   }
 }
 
