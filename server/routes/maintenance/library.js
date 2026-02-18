@@ -93,6 +93,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
 
           if (sortedBooks.length > 1) {
             const idsToDelete = sortedBooks.slice(1).map(b => b.id);
+            await dbRun(`DELETE FROM playback_progress WHERE audiobook_id IN (${idsToDelete.join(',')})`);
             await dbRun(`DELETE FROM audiobooks WHERE id IN (${idsToDelete.join(',')})`);
           }
 
