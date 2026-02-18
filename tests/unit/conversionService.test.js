@@ -5,7 +5,8 @@
 
 // Mock dependencies before requiring the module
 jest.mock('child_process', () => ({
-  spawn: jest.fn()
+  spawn: jest.fn(),
+  execFile: jest.fn()
 }));
 
 jest.mock('fs', () => ({
@@ -30,6 +31,10 @@ jest.mock('../../server/services/pathCache', () => ({
 
 jest.mock('../../server/utils/contentHash', () => ({
   generateBestHash: jest.fn().mockReturnValue('abcdef1234567890')
+}));
+
+jest.mock('../../server/services/fileSystemUtils', () => ({
+  extractM4BChapters: jest.fn().mockResolvedValue(null)
 }));
 
 const { spawn } = require('child_process');
