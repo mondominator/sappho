@@ -3,7 +3,7 @@
 .settings-page {
   padding: 1rem;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0));
-  max-width: 500px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -32,9 +32,15 @@
 
 /* Menu */
 .settings-menu {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 0.5rem;
+}
+
+@media (min-width: 600px) {
+  .settings-menu {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .settings-menu-item {
