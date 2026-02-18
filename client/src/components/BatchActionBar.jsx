@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { getCollections, batchMarkFinished, batchClearProgress, batchAddToReadingList, batchAddToCollection } from '../api';
+import { getCollections, batchMarkFinished, batchClearProgress, batchAddToReadingList, batchAddToCollection, batchDelete } from '../api';
 import './BatchActionBar.css';
 
-export default function BatchActionBar({ selectedIds, onActionComplete, onClose }) {
+export default function BatchActionBar({ selectedIds, onActionComplete, onClose, isAdmin }) {
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -70,6 +70,19 @@ export default function BatchActionBar({ selectedIds, onActionComplete, onClose 
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm(`Delete ${count} book${count !== 1 ? 's' : ''} and their files? This cannot be undone.`)) return;
+    setLoading(true);
+    try {
+      await batchDelete(selectedIds, true);
+      onActionComplete(`Deleted ${count} book${count !== 1 ? 's' : ''}`);
+    } catch (error) {
+      alert('Failed to delete: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="batch-action-bar">
       {/* Android-style: 4 evenly spaced icon columns */}
@@ -125,6 +138,23 @@ export default function BatchActionBar({ selectedIds, onActionComplete, onClose 
           </svg>
           <span>Collection</span>
         </button>
+
+        {/* Delete - red (admin only) */}
+        {isAdmin && (
+          <button
+            className="batch-action-col"
+            onClick={handleDelete}
+            disabled={loading || count === 0}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            <span>Delete</span>
+          </button>
+        )}
       </div>
 
       {/* Collection Picker Modal */}
