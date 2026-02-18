@@ -196,12 +196,15 @@ function initializeDatabase() {
     // Run migrations after core tables are created
     runMigrations();
 
-    console.log('Database initialized');
-
-    // Signal that database is ready
-    if (dbReadyResolve) {
-      dbReadyResolve();
-    }
+    // Signal that database is ready AFTER all queued SQL has executed.
+    // db.get() inside serialize ensures the callback fires only after
+    // all preceding serialized statements have completed.
+    db.get('SELECT 1', [], () => {
+      console.log('Database initialized');
+      if (dbReadyResolve) {
+        dbReadyResolve();
+      }
+    });
   });
 }
 

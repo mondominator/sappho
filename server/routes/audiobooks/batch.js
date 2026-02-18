@@ -539,9 +539,12 @@ The reader has started this book and wants to remember what it's about and any k
 
   // Batch delete (admin only)
   router.post('/batch/delete', batchDeleteLimiter, authenticateToken, requireAdmin, async (req, res) => {
-    const { audiobook_ids, delete_files } = req.body;
+    // Accept both snake_case and camelCase keys (Android Gson may send camelCase)
+    const audiobook_ids = req.body.audiobook_ids || req.body.audiobookIds;
+    const delete_files = req.body.delete_files !== undefined ? req.body.delete_files : req.body.deleteFiles;
 
     if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
+      console.error('Batch delete validation failed. req.body keys:', Object.keys(req.body), 'audiobook_ids type:', typeof audiobook_ids);
       return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
     }
 
@@ -563,7 +566,8 @@ The reader has started this book and wants to remember what it's about and any k
             continue;
           }
 
-          // Delete from database
+          // Delete related data first (playback_progress lacks ON DELETE CASCADE)
+          await dbRun('DELETE FROM playback_progress WHERE audiobook_id = ?', [audiobookId]);
           await dbRun('DELETE FROM audiobooks WHERE id = ?', [audiobookId]);
 
           // Optionally delete files and directory

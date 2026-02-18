@@ -1870,10 +1870,26 @@
   background: rgba(239, 68, 68, 0.15);
 }
 
-/* Desktop: Hide more menu button, show detail-actions */
+/* Desktop: Show more menu in play-button-row (play button hidden, cover overlay used instead) */
 @media (min-width: 769px) {
-  .more-menu-container {
+  .play-button-row {
+    display: flex;
+    margin-top: 0.75rem;
+  }
+
+  .play-button-row .detail-play-button {
     display: none;
+  }
+
+  .play-button-row .more-menu-container {
+    display: block;
+  }
+
+  .play-button-row .more-menu-dropdown {
+    bottom: auto;
+    top: 100%;
+    margin-bottom: 0;
+    margin-top: 8px;
   }
 }
 

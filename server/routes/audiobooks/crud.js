@@ -6,6 +6,7 @@
  * - DELETE /:id (admin delete)
  */
 const fs = require('fs');
+const path = require('path');
 const { sanitizeFtsQuery } = require('../../utils/ftsSearch');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
@@ -263,18 +264,31 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
-      // Delete file
-      if (fs.existsSync(audiobook.file_path)) {
-        fs.unlinkSync(audiobook.file_path);
-      }
-
-      // Delete cover image if exists
-      if (audiobook.cover_image && fs.existsSync(audiobook.cover_image)) {
-        fs.unlinkSync(audiobook.cover_image);
-      }
-
-      // Delete from database
+      // Delete related data first (playback_progress lacks ON DELETE CASCADE)
+      await dbRun('DELETE FROM playback_progress WHERE audiobook_id = ?', [req.params.id]);
       await dbRun('DELETE FROM audiobooks WHERE id = ?', [req.params.id]);
+
+      // Delete entire audiobook directory (contains audio file, cover, etc.)
+      if (audiobook.file_path) {
+        const audioDir = path.dirname(audiobook.file_path);
+        if (fs.existsSync(audioDir)) {
+          fs.rmSync(audioDir, { recursive: true, force: true });
+          console.log(`Deleted audiobook directory: ${audioDir}`);
+
+          // Remove empty parent directory (e.g., author folder)
+          const parentDir = path.dirname(audioDir);
+          try {
+            const parentContents = fs.readdirSync(parentDir);
+            if (parentContents.length === 0) {
+              fs.rmdirSync(parentDir);
+              console.log(`Removed empty parent directory: ${parentDir}`);
+            }
+          } catch (_parentErr) {
+            // Parent not empty or can't remove - that's fine
+          }
+        }
+      }
+
       res.json({ message: 'Audiobook deleted successfully' });
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
