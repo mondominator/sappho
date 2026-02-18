@@ -364,6 +364,9 @@ export const batchAddToReadingList = (audiobookIds) =>
 export const batchAddToCollection = (audiobookIds, collectionId) =>
   api.post('/audiobooks/batch/add-to-collection', { audiobook_ids: audiobookIds, collection_id: collectionId });
 
+export const batchDelete = (audiobookIds, deleteFiles = true) =>
+  api.post('/audiobooks/batch/delete', { audiobook_ids: audiobookIds, delete_files: deleteFiles });
+
 // MFA (Multi-Factor Authentication)
 export const getMFAStatus = () =>
   api.get('/mfa/status');

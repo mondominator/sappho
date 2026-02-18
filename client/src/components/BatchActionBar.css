@@ -25,7 +25,7 @@
   gap: 4px;
   background: transparent;
   border: none;
-  padding: 8px 12px;
+  padding: 8px 8px;
   cursor: pointer;
   transition: opacity 0.2s;
   -webkit-tap-highlight-color: transparent;
