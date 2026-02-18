@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const websocketManager = require('./websocketManager');
 const { createDbHelpers } = require('../utils/db');
 const { updatePathCacheEntry } = require('./pathCache');
+const { generateBestHash } = require('../utils/contentHash');
 
 /**
  * Conversion Service - Manages async audio conversion jobs with progress tracking
@@ -90,9 +91,34 @@ class ConversionService {
         }));
         console.log(`Conversion: multifile with ${sourceFiles.length} source files`);
       } else {
-        // No chapters found, treat as single file
+        // No chapters in DB — fall through to filesystem detection below
         isMultiFile = false;
-        console.log('Conversion: no chapters found, treating as single file');
+        console.log('Conversion: no chapters in DB, will check filesystem');
+      }
+    }
+
+    // If not detected as multi-file yet, check the filesystem for other audio files
+    // in the same directory. This handles books imported before multi-file support
+    // or cases where the chapter records are missing.
+    if (!isMultiFile) {
+      const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma'];
+      try {
+        const dirFiles = fs.readdirSync(dir)
+          .filter(f => audioExtensions.includes(path.extname(f).toLowerCase()))
+          .map(f => path.join(dir, f))
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+        if (dirFiles.length > 1) {
+          console.log(`Conversion: found ${dirFiles.length} audio files in directory, treating as multi-file`);
+          isMultiFile = true;
+          sourceFiles = dirFiles.map(f => ({
+            path: f,
+            duration: null,  // Will be determined by ffmpeg
+            title: path.basename(f, path.extname(f))
+          }));
+        }
+      } catch (e) {
+        console.warn(`Conversion: could not scan directory ${dir}:`, e.message);
       }
     }
 
@@ -245,12 +271,18 @@ class ConversionService {
       // Commit: rename temp to final
       fs.renameSync(job.tempPath, job.finalPath);
 
+      // Recalculate content hash with new file size so rescans don't create duplicates
+      const newContentHash = generateBestHash(
+        { title: audiobook.title, author: audiobook.author, duration: audiobook.duration, fileSize: newStats.size },
+        job.finalPath
+      );
+
       // Update database BEFORE deleting source files (if DB fails, sources are intact)
       const { dbTransaction } = createDbHelpers(db);
       await dbTransaction(async ({ dbRun }) => {
         await dbRun(
-          'UPDATE audiobooks SET file_path = ?, file_size = ?, is_multi_file = 0 WHERE id = ?',
-          [job.finalPath, newStats.size, audiobook.id]
+          'UPDATE audiobooks SET file_path = ?, file_size = ?, is_multi_file = 0, content_hash = ? WHERE id = ?',
+          [job.finalPath, newStats.size, newContentHash, audiobook.id]
         );
         if (job.isMultiFile) {
           await dbRun(
