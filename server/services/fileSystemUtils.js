@@ -30,6 +30,8 @@ function scanDirectory(dir, groupByDirectory = false) {
       const fullPath = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
+        // Skip hidden/internal directories (e.g. .metadata-backups)
+        if (entry.name.startsWith('.')) continue;
         // Recursively scan subdirectories
         if (groupByDirectory) {
           const subResults = scanDirectory(fullPath, true);
