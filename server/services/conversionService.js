@@ -1,4 +1,5 @@
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
+const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -6,6 +7,9 @@ const websocketManager = require('./websocketManager');
 const { createDbHelpers } = require('../utils/db');
 const { updatePathCacheEntry } = require('./pathCache');
 const { generateBestHash } = require('../utils/contentHash');
+const { extractM4BChapters } = require('./fileSystemUtils');
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Conversion Service - Manages async audio conversion jobs with progress tracking
@@ -287,9 +291,32 @@ class ConversionService {
         }
       }
 
-      // Recalculate content hash with new file size so rescans don't create duplicates
+      // Probe the new M4B for its actual duration
+      let newDuration = audiobook.duration;
+      try {
+        const { stdout } = await execFileAsync('ffprobe', [
+          '-v', 'quiet', '-print_format', 'json', '-show_format', job.finalPath
+        ]);
+        const probeData = JSON.parse(stdout);
+        if (probeData.format && probeData.format.duration) {
+          newDuration = Math.round(parseFloat(probeData.format.duration));
+          console.log(`Conversion: probed new duration ${newDuration}s for "${audiobook.title}"`);
+        }
+      } catch (probeErr) {
+        console.warn('Failed to probe new M4B duration, keeping original:', probeErr.message);
+      }
+
+      // Extract chapters from the new M4B (ffmpeg embeds chapter markers during concat)
+      let newChapters = null;
+      try {
+        newChapters = await extractM4BChapters(job.finalPath);
+      } catch (chapterErr) {
+        console.warn('Failed to extract chapters from new M4B:', chapterErr.message);
+      }
+
+      // Recalculate content hash with new file size and duration so rescans don't create duplicates
       const newContentHash = generateBestHash(
-        { title: audiobook.title, author: audiobook.author, duration: audiobook.duration, fileSize: newStats.size },
+        { title: audiobook.title, author: audiobook.author, duration: newDuration, fileSize: newStats.size },
         job.finalPath
       );
 
@@ -297,14 +324,34 @@ class ConversionService {
       const { dbTransaction } = createDbHelpers(db);
       await dbTransaction(async ({ dbRun }) => {
         await dbRun(
-          'UPDATE audiobooks SET file_path = ?, file_size = ?, is_multi_file = 0, content_hash = ? WHERE id = ?',
-          [job.finalPath, newStats.size, newContentHash, audiobook.id]
+          'UPDATE audiobooks SET file_path = ?, file_size = ?, duration = ?, is_multi_file = 0, content_hash = ? WHERE id = ?',
+          [job.finalPath, newStats.size, newDuration, newContentHash, audiobook.id]
         );
-        if (job.isMultiFile) {
-          await dbRun(
-            'DELETE FROM audiobook_chapters WHERE audiobook_id = ?',
-            [audiobook.id]
-          );
+
+        // Remove old chapters
+        await dbRun(
+          'DELETE FROM audiobook_chapters WHERE audiobook_id = ?',
+          [audiobook.id]
+        );
+
+        // Insert new chapters from the converted M4B
+        if (newChapters && newChapters.length > 1) {
+          for (let i = 0; i < newChapters.length; i++) {
+            const ch = newChapters[i];
+            await dbRun(
+              `INSERT INTO audiobook_chapters
+               (audiobook_id, chapter_number, file_path, duration, start_time, title)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [
+                audiobook.id,
+                i + 1,
+                job.finalPath,
+                ch.duration ? Math.round(ch.duration) : null,
+                ch.start_time || 0,
+                ch.title || `Chapter ${i + 1}`
+              ]
+            );
+          }
         }
       });
 
