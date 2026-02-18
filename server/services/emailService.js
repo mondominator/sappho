@@ -565,8 +565,12 @@ async function sendAccountUnlockEmail(user, unlockToken) {
   });
 }
 
-// Initialize transporter on module load
-initializeTransporter();
+// Initialize transporter after database is ready
+if (db.ready) {
+  db.ready.then(() => initializeTransporter());
+} else {
+  initializeTransporter();
+}
 
 module.exports = {
   getSMTPSettings,
