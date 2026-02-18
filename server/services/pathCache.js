@@ -93,10 +93,39 @@ function audiobookExistsByHash(contentHash) {
   });
 }
 
+/**
+ * Update path cache after a file path change (e.g., after conversion).
+ * If the cache is loaded (mid-scan), updates it so subsequent imports
+ * see the new path. No-op if cache is not loaded.
+ */
+function updatePathCacheEntry(oldFilePath, newFilePath, audiobookId) {
+  if (!knownFilePaths) return; // Cache not loaded, nothing to update
+
+  // Remove old path, add new path
+  if (oldFilePath) knownFilePaths.delete(oldFilePath);
+  if (newFilePath) knownFilePaths.add(newFilePath);
+
+  // Update directory cache
+  if (oldFilePath) {
+    const oldDir = path.dirname(oldFilePath);
+    const entry = knownDirectories?.get(oldDir);
+    if (entry && entry.id === audiobookId) {
+      knownDirectories.delete(oldDir);
+    }
+  }
+  if (newFilePath && audiobookId) {
+    const newDir = path.dirname(newFilePath);
+    if (!knownDirectories.has(newDir)) {
+      knownDirectories.set(newDir, { id: audiobookId, file_path: newFilePath });
+    }
+  }
+}
+
 module.exports = {
   loadPathCache,
   clearPathCache,
   fileExistsInDatabase,
   audiobookExistsInDirectory,
-  audiobookExistsByHash
+  audiobookExistsByHash,
+  updatePathCacheEntry
 };
