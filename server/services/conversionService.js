@@ -4,6 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const websocketManager = require('./websocketManager');
 const { createDbHelpers } = require('../utils/db');
+const { updatePathCacheEntry } = require('./pathCache');
 
 /**
  * Conversion Service - Manages async audio conversion jobs with progress tracking
@@ -258,6 +259,9 @@ class ConversionService {
           );
         }
       });
+
+      // Update scanner's path cache so a mid-scan conversion doesn't cause duplicates
+      updatePathCacheEntry(audiobook.file_path, job.finalPath, audiobook.id);
 
       // Delete original source files (safe: DB already updated)
       for (const file of job.sourceFiles) {

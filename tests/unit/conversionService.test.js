@@ -21,6 +21,10 @@ jest.mock('../../server/services/websocketManager', () => ({
   broadcastLibraryUpdate: jest.fn()
 }));
 
+jest.mock('../../server/services/pathCache', () => ({
+  updatePathCacheEntry: jest.fn()
+}));
+
 const { spawn } = require('child_process');
 const fs = require('fs');
 const websocketManager = require('../../server/services/websocketManager');

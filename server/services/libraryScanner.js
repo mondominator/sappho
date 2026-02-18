@@ -167,6 +167,14 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
     );
 
+    // Check if directory has an active conversion in progress
+    const directory = path.dirname(sortedFiles[0]);
+    const checkConversion = getConversionChecker();
+    if (checkConversion && checkConversion(directory)) {
+      console.log(`Skipping multi-file import in ${directory} - conversion in progress`);
+      return null;
+    }
+
     // Extract metadata from first file to represent the audiobook
     const metadata = await extractFileMetadata(sortedFiles[0]);
 
@@ -191,7 +199,6 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     }
 
     // Use directory name as a fallback for title if metadata title seems like a chapter
-    const directory = path.dirname(sortedFiles[0]);
     const dirName = path.basename(directory);
 
     // If title looks like a chapter (contains "chapter", "part", numbers), use directory name
@@ -211,6 +218,13 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     const exists = await fileExistsInDatabase(firstFilePath);
     if (exists) {
       console.log(`Skipping multi-file audiobook ${metadata.title} - already in database`);
+      return null;
+    }
+
+    // Check if another audiobook already exists in the same directory (e.g., converted file)
+    const existingInDir = await audiobookExistsInDirectory(firstFilePath);
+    if (existingInDir) {
+      console.log(`Skipping multi-file audiobook ${metadata.title} - another audiobook already exists in this directory: ${existingInDir.file_path}`);
       return null;
     }
 
