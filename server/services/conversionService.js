@@ -268,8 +268,24 @@ class ConversionService {
       // Get new file size
       const newStats = fs.statSync(job.tempPath);
 
-      // Commit: rename temp to final
-      fs.renameSync(job.tempPath, job.finalPath);
+      // Move temp file to final location (handles cross-filesystem moves)
+      try {
+        fs.renameSync(job.tempPath, job.finalPath);
+      } catch (renameErr) {
+        if (renameErr.code === 'EXDEV') {
+          // Cross-filesystem: copy then delete
+          fs.copyFileSync(job.tempPath, job.finalPath);
+          const srcSize = newStats.size;
+          const destSize = fs.statSync(job.finalPath).size;
+          if (srcSize !== destSize) {
+            fs.unlinkSync(job.finalPath);
+            throw new Error('File size mismatch after cross-filesystem copy');
+          }
+          fs.unlinkSync(job.tempPath);
+        } else {
+          throw renameErr;
+        }
+      }
 
       // Recalculate content hash with new file size so rescans don't create duplicates
       const newContentHash = generateBestHash(
