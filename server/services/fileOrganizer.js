@@ -13,6 +13,19 @@ const websocketManager = require('./websocketManager');
 
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
+// Lazy-load conversion lock check to avoid circular dependency
+let _isDirectoryBeingConverted = null;
+function isDirectoryBeingConverted(dir) {
+  if (!_isDirectoryBeingConverted) {
+    try {
+      _isDirectoryBeingConverted = require('../routes/audiobooks').isDirectoryBeingConverted;
+    } catch (_e) {
+      return false;
+    }
+  }
+  return _isDirectoryBeingConverted ? _isDirectoryBeingConverted(dir) : false;
+}
+
 /**
  * Sanitize a string for use as a directory/file name
  * Replaces invalid characters with underscores
@@ -238,12 +251,18 @@ async function organizeAudiobook(audiobook) {
       return { moved: false };
     }
 
+    // Skip if directory has an active conversion (don't move files ffmpeg is reading)
+    const currentDir = path.dirname(audiobook.file_path);
+    if (isDirectoryBeingConverted(currentDir)) {
+      console.log(`Skipping organization of "${audiobook.title}" - conversion in progress`);
+      return { moved: false };
+    }
+
     // Check if source file exists
     if (!fs.existsSync(audiobook.file_path)) {
       return { moved: false, error: 'Source file not found' };
     }
 
-    const currentDir = path.dirname(audiobook.file_path);
     const targetDir = getTargetDirectory(audiobook);
     const originalFilename = path.basename(audiobook.file_path);
 
