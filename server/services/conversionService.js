@@ -447,6 +447,48 @@ class ConversionService {
     if (job.isMultiFile && job.sourceFiles.length > 1) {
       const n = job.sourceFiles.length;
 
+      // Check if all chapter records reference the same physical file
+      // (single file with chapter markers in the database, not separate files)
+      const uniquePaths = new Set(job.sourceFiles.map(f => f.path));
+
+      if (uniquePaths.size === 1) {
+        // Single file with chapter markers — re-encode with chapter metadata
+        console.log(`buildFFmpegArgs: all ${n} chapters reference same file, converting as single file with chapters`);
+
+        // Generate FFMETADATA chapter markers
+        let metadataContent = ';FFMETADATA1\n';
+        let cumulativeMs = 0;
+        for (let i = 0; i < n; i++) {
+          const file = job.sourceFiles[i];
+          const durationMs = Math.round((file.duration || 0) * 1000);
+          const startMs = cumulativeMs;
+          const endMs = cumulativeMs + durationMs;
+          const title = file.title || `Chapter ${i + 1}`;
+          metadataContent += `[CHAPTER]\nTIMEBASE=1/1000\nSTART=${startMs}\nEND=${endMs}\ntitle=${title.replace(/[=;\n\\]/g, '\\$&')}\n`;
+          cumulativeMs = endMs;
+        }
+        fs.writeFileSync(job.chapterMetadataPath, metadataContent);
+        console.log(`buildFFmpegArgs: generated chapter metadata for ${n} chapters`);
+
+        return [
+          '-i', job.sourceFiles[0].path,
+          '-i', job.chapterMetadataPath,
+          '-vn',
+          '-map', '0:a',
+          '-map_metadata', '1',
+          '-map_chapters', '1',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-ar', '44100',
+          '-ac', '1',
+          '-f', 'ipod',
+          '-progress', 'pipe:1',
+          '-y', job.tempPath
+        ];
+      }
+
+      // True multifile — separate physical files to concatenate
+
       // Generate FFMETADATA chapter markers from source file durations
       let metadataContent = ';FFMETADATA1\n';
       let cumulativeMs = 0;
