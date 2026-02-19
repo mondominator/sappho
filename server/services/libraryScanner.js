@@ -87,7 +87,8 @@ async function importAudiobook(filePath, userId) {
     let chapters = null;
     chapters = await extractM4BChapters(filePath);
 
-    // Determine if this should be marked as multi-file (has embedded chapters)
+    // Single files with embedded chapters are NOT multi-file.
+    // is_multi_file means separate physical files (handled by importMultiFileAudiobook).
     const hasChapters = chapters && chapters.length > 1;
 
     // Save to database in a transaction (audiobook + chapters atomically)
@@ -114,7 +115,7 @@ async function importAudiobook(filePath, userId) {
           metadata.series,
           metadata.series_position,
           metadata.cover_image,
-          hasChapters ? 1 : 0,
+          0, // is_multi_file: always 0 for single files (even with embedded chapters)
           userId,
           metadata.tags,
           metadata.publisher,

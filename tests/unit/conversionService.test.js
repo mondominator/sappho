@@ -731,6 +731,58 @@ describe('Conversion Service', () => {
       );
     });
 
+    test('builds single-file args when all chapters reference same file', async () => {
+      const job = {
+        isMultiFile: true,
+        sourceFiles: [
+          { path: '/test/book.m4a', duration: 600, title: 'Chapter 1' },
+          { path: '/test/book.m4a', duration: 900, title: 'Chapter 2' },
+          { path: '/test/book.m4a', duration: 750, title: 'Chapter 3' }
+        ],
+        tempPath: '/test/output.m4b',
+        chapterMetadataPath: '/test/chapters.txt',
+        ext: '.m4a'
+      };
+
+      const args = await conversionService.buildFFmpegArgs(job);
+
+      // Should NOT use concat filter (single file, not multiple)
+      expect(args).not.toContain('-filter_complex');
+
+      // Should have single -i for audio + -i for chapter metadata
+      const iCount = args.filter(a => a === '-i').length;
+      expect(iCount).toBe(2);
+
+      // Should have -vn to strip video streams
+      expect(args).toContain('-vn');
+
+      // Should map audio from first input and metadata from second
+      expect(args).toContain('-map');
+      expect(args).toContain('0:a');
+      expect(args).toContain('-map_metadata');
+      expect(args).toContain('1');
+      expect(args).toContain('-map_chapters');
+
+      // Should write chapter metadata
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining(';FFMETADATA1')
+      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining('title=Chapter 1')
+      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining('title=Chapter 3')
+      );
+      // Chapter 2 starts at 600000ms (after Chapter 1's 600s)
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/test/chapters.txt',
+        expect.stringContaining('START=600000')
+      );
+    });
+
     test('builds re-encode args for single M4A with -vn', async () => {
       const job = {
         isMultiFile: false,
