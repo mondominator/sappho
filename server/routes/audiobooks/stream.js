@@ -30,7 +30,10 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
       // List all files in the directory
       const files = fs.readdirSync(directory);
 
-      // Return all files in the directory, sorted by name
+      // Audio extensions for sorting priority
+      const audioExtensions = new Set(['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma']);
+
+      // Return all files in the directory, sorted: audio first, then non-audio
       const allFiles = files
         .map(file => {
           const fullPath = path.join(directory, file);
@@ -42,7 +45,12 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
             extension: path.extname(file).toLowerCase()
           };
         })
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+        .sort((a, b) => {
+          const aIsAudio = audioExtensions.has(a.extension);
+          const bIsAudio = audioExtensions.has(b.extension);
+          if (aIsAudio !== bIsAudio) return aIsAudio ? -1 : 1;
+          return a.name.localeCompare(b.name, undefined, { numeric: true });
+        });
 
       res.json(allFiles);
     } catch (error) {
