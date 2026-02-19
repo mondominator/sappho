@@ -334,6 +334,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+  background: #111827;
 }
 
 .collection-detail-page .book-cover .progress-bar-overlay {

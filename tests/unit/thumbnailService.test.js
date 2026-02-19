@@ -119,7 +119,7 @@ describe('ThumbnailService', () => {
       // Verify sharp was called with correct parameters
       const sharp = require('sharp');
       expect(sharp).toHaveBeenCalledWith(originalCover);
-      expect(mockSharpInstance.resize).toHaveBeenCalledWith(width, width, { fit: 'cover' });
+      expect(mockSharpInstance.resize).toHaveBeenCalledWith(width, width, { fit: 'inside' });
       expect(mockSharpInstance.jpeg).toHaveBeenCalledWith({ quality: 80 });
       expect(mockSharpInstance.toFile).toHaveBeenCalledWith(expectedPath);
 
