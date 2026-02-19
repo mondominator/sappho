@@ -90,7 +90,7 @@ describe('Conversion Service', () => {
       const result = conversionService.getJobStatus('test-job-id');
 
       expect(result).toEqual({
-        id: 'test-job-id',
+        jobId: 'test-job-id',
         audiobookId: 1,
         audiobookTitle: 'Test Book',
         status: 'converting',
@@ -135,9 +135,9 @@ describe('Conversion Service', () => {
       const result = conversionService.getActiveJobs();
 
       expect(result.length).toBe(2);
-      expect(result.map(j => j.id)).toContain('job-1');
-      expect(result.map(j => j.id)).toContain('job-3');
-      expect(result.map(j => j.id)).not.toContain('job-2');
+      expect(result.map(j => j.jobId)).toContain('job-1');
+      expect(result.map(j => j.jobId)).toContain('job-3');
+      expect(result.map(j => j.jobId)).not.toContain('job-2');
     });
 
     test('includes queued jobs', () => {
@@ -159,8 +159,8 @@ describe('Conversion Service', () => {
       const result = conversionService.getActiveJobs();
 
       expect(result.length).toBe(2);
-      expect(result.map(j => j.id)).toContain('job-1');
-      expect(result.map(j => j.id)).toContain('job-2');
+      expect(result.map(j => j.jobId)).toContain('job-1');
+      expect(result.map(j => j.jobId)).toContain('job-2');
     });
   });
 
@@ -225,7 +225,7 @@ describe('Conversion Service', () => {
       const result = conversionService.getActiveJobForAudiobook(5);
 
       expect(result).not.toBeNull();
-      expect(result.id).toBe('job-1');
+      expect(result.jobId).toBe('job-1');
       expect(result.status).toBe('queued');
     });
 
@@ -284,7 +284,7 @@ describe('Conversion Service', () => {
       const result = conversionService.getActiveJobForAudiobook(5);
 
       expect(result).not.toBeNull();
-      expect(result.id).toBe('job-1');
+      expect(result.jobId).toBe('job-1');
       expect(result.audiobookId).toBe(5);
     });
 

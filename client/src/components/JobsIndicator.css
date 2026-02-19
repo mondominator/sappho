@@ -68,7 +68,7 @@
 
 .jobs-panel.compact {
   width: 320px;
-  max-height: 80px;
+  max-height: 100px;
   cursor: pointer;
 }
 
