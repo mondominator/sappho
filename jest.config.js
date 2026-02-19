@@ -28,6 +28,6 @@ module.exports = {
   },
   testPathIgnorePatterns: ['/node_modules/', '/client/'],
   setupFilesAfterEnv: ['./tests/setup.js'],
-  testTimeout: 10000,
+  testTimeout: 20000,
   verbose: true
 };

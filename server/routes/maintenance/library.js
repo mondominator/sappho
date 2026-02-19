@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { maintenanceWriteLimiter, getForceRescanInProgress, setForceRescanInProgress } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
+const { clearAllThumbnails, invalidateThumbnails } = require('../../services/thumbnailService');
 
 function register(router, { db, authenticateToken, requireAdmin, extractFileMetadata, scanLibrary, lockScanning, unlockScanning, isScanningLocked }) {
   const { dbGet, dbAll, dbRun, dbTransaction } = createDbHelpers(db);
@@ -203,6 +204,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
                   ]
                 );
 
+                invalidateThumbnails(audiobook.id);
                 updated++;
                 if (updated % 10 === 0) {
                   console.log(`Metadata refresh progress: ${updated}/${audiobooks.length}`);
@@ -325,6 +327,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
 
     setImmediate(async () => {
       try {
+        clearAllThumbnails();
         console.log('Force rescan: marking all audiobooks as unavailable (preserving IDs)...');
 
         const countRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks');
