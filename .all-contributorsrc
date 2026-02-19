@@ -1,0 +1,31 @@
+{
+  "projectName": "sappho",
+  "projectOwner": "mondominator",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "none",
+  "contributors": [
+    {
+      "name": "Roberto Diaz",
+      "contributions": ["test"]
+    },
+    {
+      "name": "Kev Beaudin",
+      "contributions": ["test"]
+    },
+    {
+      "name": "Chad Beaudin",
+      "contributions": ["test"]
+    },
+    {
+      "name": "Sara Johnson",
+      "contributions": ["test"]
+    }
+  ],
+  "contributorsPerLine": 7
+}
