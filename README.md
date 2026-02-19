@@ -58,6 +58,22 @@ npm install && cd client && npm install && cd ..
 docker-compose build --no-cache && docker-compose up -d
 ```
 
+## Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="25%"><sub><b>Roberto Diaz</b></sub><br /><sub>🧪 Testing</sub></td>
+      <td align="center" valign="top" width="25%"><sub><b>Kev Beaudin</b></sub><br /><sub>🧪 Testing</sub></td>
+      <td align="center" valign="top" width="25%"><sub><b>Chad Beaudin</b></sub><br /><sub>🧪 Testing</sub></td>
+      <td align="center" valign="top" width="25%"><sub><b>Sara Johnson</b></sub><br /><sub>🧪 Testing</sub></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
 ## License
 
 MIT
