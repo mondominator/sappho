@@ -99,8 +99,9 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
               );
             }
 
-            // Update is_multi_file flag
-            await txRun('UPDATE audiobooks SET is_multi_file = 1 WHERE id = ?', [audiobook.id]);
+            // Note: do NOT set is_multi_file = 1 here. Embedded chapters in a single
+            // file are not the same as multiple physical files. is_multi_file is only
+            // set by importMultiFileAudiobook and the multifile upload endpoint.
           });
 
           console.log(`Extracted ${data.chapters.length} chapters from uploaded ${path.basename(finalPath)}`);
