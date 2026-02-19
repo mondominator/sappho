@@ -64,10 +64,10 @@ docker-compose build --no-cache && docker-compose up -d
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="25%"><sub><b>Roberto Diaz</b></sub><br /><sub>🧪 Testing</sub></td>
-      <td align="center" valign="top" width="25%"><sub><b>Kev Beaudin</b></sub><br /><sub>🧪 Testing</sub></td>
-      <td align="center" valign="top" width="25%"><sub><b>Chad Beaudin</b></sub><br /><sub>🧪 Testing</sub></td>
-      <td align="center" valign="top" width="25%"><sub><b>Sara Johnson</b></sub><br /><sub>🧪 Testing</sub></td>
+      <td align="center" valign="top" width="25%"><b>Roberto&nbsp;Diaz</b><br />🧪 Testing</td>
+      <td align="center" valign="top" width="25%"><b>Kev&nbsp;Beaudin</b><br />🧪 Testing</td>
+      <td align="center" valign="top" width="25%"><b>Chad&nbsp;Beaudin</b><br />🧪 Testing</td>
+      <td align="center" valign="top" width="25%"><b>Sara&nbsp;Johnson</b><br />🧪 Testing</td>
     </tr>
   </tbody>
 </table>
