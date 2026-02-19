@@ -13,6 +13,7 @@ const { createQueryHelpers } = require('../../utils/queryHelpers');
 const { searchAudible, searchGoogleBooks, searchOpenLibrary, formatOpenLibraryResult } = require('../../services/metadataSearch');
 const { downloadCover } = require('../../services/coverDownloader');
 const { embedWithTone, embedWithFfmpeg } = require('../../services/metadataEmbedder');
+const { invalidateThumbnails } = require('../../services/thumbnailService');
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, organizeAudiobook, needsOrganization }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
@@ -311,52 +312,105 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         return res.status(404).json({ error: 'Audio file not found on disk' });
       }
 
-      // Re-extract metadata
+      // Re-extract metadata from primary file
       const { extractFileMetadata } = require('../../services/fileProcessor');
       const metadata = await extractFileMetadata(audiobook.file_path);
 
-      // Check if this is an M4B file with embedded chapters
-      const ext = path.extname(audiobook.file_path).toLowerCase();
-      const isM4B = ext === '.m4b';
-      let chapters = null;
+      let totalDuration = metadata.duration;
 
-      if (isM4B) {
-        // Extract chapters using ffprobe
-        const { execFile } = require('child_process');
-        const { promisify } = require('util');
-        const execFileAsync = promisify(execFile);
+      // Handle multifile audiobooks: recalculate duration from all chapter files
+      if (audiobook.is_multi_file) {
+        const existingChapters = await dbAll(
+          'SELECT * FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number ASC',
+          [req.params.id]
+        );
 
-        try {
-          const { stdout } = await execFileAsync('ffprobe', [
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_chapters',
-            audiobook.file_path
-          ]);
+        if (existingChapters.length > 0) {
+          totalDuration = 0;
+          let cumulativeTime = 0;
 
-          const data = JSON.parse(stdout);
-          if (data.chapters && data.chapters.length > 0) {
-            chapters = data.chapters.map((chapter, index) => ({
-              chapter_number: index + 1,
-              title: chapter.tags?.title || `Chapter ${index + 1}`,
-              start_time: parseFloat(chapter.start_time) || 0,
-              end_time: parseFloat(chapter.end_time) || 0,
-              duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
-            }));
+          for (const chapter of existingChapters) {
+            if (chapter.file_path && fs.existsSync(chapter.file_path)) {
+              const chapterMeta = await extractFileMetadata(chapter.file_path);
+              const chapterDuration = chapterMeta.duration || 0;
+              totalDuration += chapterDuration;
+
+              // Update chapter with refreshed duration and start time
+              await dbRun(
+                'UPDATE audiobook_chapters SET duration = ?, start_time = ?, title = ? WHERE id = ?',
+                [chapterDuration, cumulativeTime, chapterMeta.title || chapter.title, chapter.id]
+              );
+              cumulativeTime += chapterDuration;
+            }
           }
-        } catch (error) {
-          console.log(`No chapters found in ${path.basename(audiobook.file_path)} or ffprobe failed:`, error.message);
+
+          console.log(`Refreshed ${existingChapters.length} chapter files for multifile audiobook: ${audiobook.title}`);
+        }
+      } else {
+        // Single file: check for embedded chapters (M4B)
+        const ext = path.extname(audiobook.file_path).toLowerCase();
+        const isM4B = ext === '.m4b';
+        let chapters = null;
+
+        if (isM4B) {
+          const { execFile } = require('child_process');
+          const { promisify } = require('util');
+          const execFileAsync = promisify(execFile);
+
+          try {
+            const { stdout } = await execFileAsync('ffprobe', [
+              '-v', 'quiet',
+              '-print_format', 'json',
+              '-show_chapters',
+              audiobook.file_path
+            ]);
+
+            const data = JSON.parse(stdout);
+            if (data.chapters && data.chapters.length > 0) {
+              chapters = data.chapters.map((chapter, index) => ({
+                chapter_number: index + 1,
+                title: chapter.tags?.title || `Chapter ${index + 1}`,
+                start_time: parseFloat(chapter.start_time) || 0,
+                end_time: parseFloat(chapter.end_time) || 0,
+                duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
+              }));
+            }
+          } catch (error) {
+            console.log(`No chapters found in ${path.basename(audiobook.file_path)} or ffprobe failed:`, error.message);
+          }
+        }
+
+        const hasEmbeddedChapters = chapters && chapters.length > 1;
+
+        // Replace embedded chapters if found
+        if (hasEmbeddedChapters) {
+          await dbRun('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id]);
+
+          for (const chapter of chapters) {
+            await dbRun(
+              `INSERT INTO audiobook_chapters
+               (audiobook_id, chapter_number, file_path, duration, start_time, title)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [
+                req.params.id,
+                chapter.chapter_number,
+                audiobook.file_path,
+                chapter.duration,
+                chapter.start_time,
+                chapter.title,
+              ]
+            );
+          }
+          console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
         }
       }
 
-      const hasChapters = chapters && chapters.length > 1;
-
-      // Update database with new metadata
+      // Update database with refreshed metadata (preserve is_multi_file status)
       await dbRun(
         `UPDATE audiobooks
          SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
              series = ?, series_position = ?, published_year = ?, cover_image = ?,
-             duration = ?, is_multi_file = ?, updated_at = CURRENT_TIMESTAMP
+             duration = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           metadata.title,
@@ -368,35 +422,13 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           metadata.series_position,
           metadata.published_year,
           metadata.cover_image,
-          metadata.duration,
-          hasChapters ? 1 : 0,
+          totalDuration,
           req.params.id
         ]
       );
 
-      // Delete existing chapters and insert new ones if we have chapters
-      if (hasChapters) {
-        // Delete old chapters
-        await dbRun('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id]);
-
-        // Insert new chapters
-        for (const chapter of chapters) {
-          await dbRun(
-            `INSERT INTO audiobook_chapters
-             (audiobook_id, chapter_number, file_path, duration, start_time, title)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              req.params.id,
-              chapter.chapter_number,
-              audiobook.file_path, // Same file for all chapters in m4b
-              chapter.duration,
-              chapter.start_time,
-              chapter.title,
-            ]
-          );
-        }
-        console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
-      }
+      // Invalidate cached thumbnails so the new cover is picked up
+      invalidateThumbnails(req.params.id);
 
       // Get updated audiobook
       let updatedAudiobook = await getAudiobookById(req.params.id);
@@ -559,6 +591,9 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           id
         ]
       );
+
+      // Invalidate cached thumbnails so the new cover is picked up
+      invalidateThumbnails(id);
 
       // Check if file reorganization is needed (author, title, series, or position changed)
       let fileReorganized = false;
