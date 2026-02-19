@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite, refreshMetadata, convertToM4B } from '../api';
@@ -8,6 +8,7 @@ import RatingSection from '../components/RatingSection';
 import { useRecap, RecapTrigger, RecapContent } from '../components/RecapSection';
 import { AudiobookDetailSkeleton } from '../components/Skeleton';
 import { formatDuration, formatFileSize, cleanDescription } from '../utils/formatting';
+import { useWebSocketEvent } from '../contexts/WebSocketContext';
 import './AudiobookDetail.css';
 
 export default function AudiobookDetail({ onPlay }) {
@@ -255,14 +256,29 @@ export default function AudiobookDetail({ onPlay }) {
     setConverting(true);
     try {
       await convertToM4B(audiobook.id);
-      await loadAudiobook();
-      alert('Converted to M4B successfully!');
+      // Conversion runs asynchronously on the server.
+      // The JobsIndicator panel shows progress via WebSocket.
+      // We listen for completion below via handleJobUpdate.
     } catch (err) {
-      alert('Failed to convert: ' + (err.response?.data?.error || err.message));
-    } finally {
+      alert('Failed to start conversion: ' + (err.response?.data?.error || err.message));
       setConverting(false);
     }
   };
+
+  // Listen for conversion job completion for this audiobook
+  const handleJobUpdate = useCallback((data) => {
+    const job = data.job;
+    if (!job || String(job.audiobookId) !== String(id)) return;
+
+    if (job.status === 'completed') {
+      setConverting(false);
+      loadAudiobook();
+    } else if (job.status === 'failed' || job.status === 'cancelled') {
+      setConverting(false);
+    }
+  }, [id]);
+
+  useWebSocketEvent('job.update', handleJobUpdate);
 
   if (loading) {
     return <AudiobookDetailSkeleton />;
@@ -662,12 +678,16 @@ export default function AudiobookDetail({ onPlay }) {
               <span className="meta-label">Duration</span>
               <span className="meta-value">{formatDurationOrUnknown(audiobook.duration)}</span>
             </div>
-            {audiobook.file_path && (
-              <div className="meta-item">
-                <span className="meta-label">Format</span>
-                <span className="meta-value">{audiobook.file_path.split('.').pop().toUpperCase()}</span>
-              </div>
-            )}
+            {audiobook.file_path && (() => {
+              const ext = audiobook.file_path.split('.').pop().toLowerCase();
+              const audioFormats = ['mp3', 'm4a', 'm4b', 'mp4', 'ogg', 'flac', 'opus', 'aac', 'wav', 'wma'];
+              return audioFormats.includes(ext) ? (
+                <div className="meta-item">
+                  <span className="meta-label">Format</span>
+                  <span className="meta-value">{ext.toUpperCase()}</span>
+                </div>
+              ) : null;
+            })()}
             {progress && progress.position > 0 && (
               <div className="meta-item">
                 <span className="meta-label">Progress</span>

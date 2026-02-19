@@ -755,7 +755,7 @@ class ConversionService {
       return null;
     }
     return {
-      id: job.id,
+      jobId: job.id,
       audiobookId: job.audiobookId,
       audiobookTitle: job.audiobookTitle,
       status: job.status,
