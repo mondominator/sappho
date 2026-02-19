@@ -249,6 +249,34 @@ class ConversionService {
       job.progress = 10;
       this.broadcastJobStatus(job);
 
+      // Pre-calculate total duration for progress tracking
+      // The concat filter doesn't report a single combined Duration on stderr,
+      // so we need to know the total upfront.
+      let totalDuration = 0;
+      for (const file of job.sourceFiles) {
+        if (file.duration) {
+          totalDuration += file.duration;
+        } else {
+          // Probe files with unknown duration
+          try {
+            const { stdout } = await execFileAsync('ffprobe', [
+              '-v', 'quiet', '-print_format', 'json', '-show_format', file.path
+            ]);
+            const probeData = JSON.parse(stdout);
+            if (probeData.format && probeData.format.duration) {
+              const dur = parseFloat(probeData.format.duration);
+              file.duration = dur;
+              totalDuration += dur;
+            }
+          } catch (probeErr) {
+            console.warn(`Failed to probe duration for ${path.basename(file.path)}:`, probeErr.message);
+          }
+        }
+      }
+      if (totalDuration > 0) {
+        job.totalDuration = totalDuration;
+      }
+
       // Build ffmpeg arguments (handles both single and multifile)
       const args = await this.buildFFmpegArgs(job);
 
@@ -412,23 +440,17 @@ class ConversionService {
 
   /**
    * Build ffmpeg arguments based on source format
-   * For multifile, creates a concat list file and uses concat demuxer
+   * For multifile, uses concat filter with separate inputs (handles MP4 containers properly)
    */
   async buildFFmpegArgs(job) {
     console.log(`buildFFmpegArgs: isMultiFile=${job.isMultiFile}, sourceFiles.length=${job.sourceFiles.length}, ext=${job.ext}`);
     if (job.isMultiFile && job.sourceFiles.length > 1) {
-      // Create concat list file for ffmpeg
-      // Format: file 'path/to/file.mp3'
-      const concatContent = job.sourceFiles
-        .map(f => `file '${f.path.replace(/'/g, "'\\''")}'`)
-        .join('\n');
-      fs.writeFileSync(job.concatListPath, concatContent);
-      console.log(`buildFFmpegArgs: using concat demuxer with ${job.sourceFiles.length} files`);
+      const n = job.sourceFiles.length;
 
       // Generate FFMETADATA chapter markers from source file durations
       let metadataContent = ';FFMETADATA1\n';
       let cumulativeMs = 0;
-      for (let i = 0; i < job.sourceFiles.length; i++) {
+      for (let i = 0; i < n; i++) {
         const file = job.sourceFiles[i];
         const durationMs = Math.round((file.duration || 0) * 1000);
         const startMs = cumulativeMs;
@@ -438,17 +460,28 @@ class ConversionService {
         cumulativeMs = endMs;
       }
       fs.writeFileSync(job.chapterMetadataPath, metadataContent);
-      console.log(`buildFFmpegArgs: generated chapter metadata for ${job.sourceFiles.length} chapters`);
+      console.log(`buildFFmpegArgs: generated chapter metadata for ${n} chapters`);
 
-      // Multifile - concatenate with chapter markers and re-encode
+      // Build concat filter: each source file is a separate -i, then filter_complex concatenates audio streams
+      const inputArgs = [];
+      for (const file of job.sourceFiles) {
+        inputArgs.push('-i', file.path);
+      }
+      // Metadata file is the last input (index n)
+      inputArgs.push('-i', job.chapterMetadataPath);
+
+      // Build filter_complex string: [0:a][1:a]...[N-1:a]concat=n=N:v=0:a=1[out]
+      const filterInputs = job.sourceFiles.map((_, i) => `[${i}:a]`).join('');
+      const filterComplex = `${filterInputs}concat=n=${n}:v=0:a=1[out]`;
+      console.log(`buildFFmpegArgs: using concat filter with ${n} inputs`);
+
+      // Multifile - concatenate with concat filter, chapter markers, and re-encode
       return [
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', job.concatListPath,
-        '-i', job.chapterMetadataPath,
-        '-map_metadata', '1',
-        '-map_chapters', '1',
-        '-vn',
+        ...inputArgs,
+        '-filter_complex', filterComplex,
+        '-map', '[out]',
+        '-map_metadata', String(n),
+        '-map_chapters', String(n),
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
@@ -458,10 +491,14 @@ class ConversionService {
         '-y', job.tempPath
       ];
     } else if (job.ext === '.m4a' || job.ext === '.mp4' || job.ext === '.aac') {
-      // Single M4A/MP4/AAC - already AAC codec, just copy streams into M4B container
+      // Single M4A/MP4/AAC - re-encode to strip video streams (cover art) that break ipod muxer
       return [
         '-i', job.sourceFiles[0].path,
-        '-c', 'copy',
+        '-vn',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-ac', '1',
         '-f', 'ipod',
         '-progress', 'pipe:1',
         '-y', job.tempPath
@@ -490,7 +527,7 @@ class ConversionService {
       const ffmpeg = spawn('ffmpeg', args);
       job.process = ffmpeg;
 
-      let duration = null;
+      let duration = job.totalDuration || null;
       let lastProgress = 10;
 
       // Parse stderr for duration
