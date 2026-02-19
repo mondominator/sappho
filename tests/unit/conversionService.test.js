@@ -674,7 +674,7 @@ describe('Conversion Service', () => {
   });
 
   describe('buildFFmpegArgs', () => {
-    test('builds concat args for multifile with chapter metadata', async () => {
+    test('builds concat filter args for multifile with chapter metadata', async () => {
       const job = {
         isMultiFile: true,
         sourceFiles: [
@@ -689,14 +689,29 @@ describe('Conversion Service', () => {
 
       const args = await conversionService.buildFFmpegArgs(job);
 
-      expect(args).toContain('-f');
-      expect(args).toContain('concat');
+      // Should use concat filter, not concat demuxer
+      expect(args).toContain('-filter_complex');
+      const filterIdx = args.indexOf('-filter_complex');
+      expect(args[filterIdx + 1]).toContain('concat=n=2:v=0:a=1');
+      expect(args[filterIdx + 1]).toContain('[0:a][1:a]');
+      expect(args).toContain('-map');
+      expect(args).toContain('[out]');
+
+      // Metadata file is input index 2 (after 2 source files)
       expect(args).toContain('-map_chapters');
-      expect(args).toContain('1');
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
+      const chapIdx = args.indexOf('-map_chapters');
+      expect(args[chapIdx + 1]).toBe('2');
+
+      // Each source file should be a separate -i input
+      expect(args).toContain('/test/ch1.mp3');
+      expect(args).toContain('/test/ch2.mp3');
+
+      // Should NOT write a concat list file
+      expect(fs.writeFileSync).not.toHaveBeenCalledWith(
         '/test/concat.txt',
-        expect.stringContaining("file '/test/ch1.mp3'")
+        expect.anything()
       );
+
       // Verify chapter metadata file was written
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         '/test/chapters.txt',
@@ -716,7 +731,7 @@ describe('Conversion Service', () => {
       );
     });
 
-    test('builds copy args for M4A with progress', async () => {
+    test('builds re-encode args for single M4A with -vn', async () => {
       const job = {
         isMultiFile: false,
         sourceFiles: [{ path: '/test/book.m4a' }],
@@ -726,8 +741,11 @@ describe('Conversion Service', () => {
 
       const args = await conversionService.buildFFmpegArgs(job);
 
-      expect(args).toContain('-c');
-      expect(args).toContain('copy');
+      expect(args).toContain('-vn');
+      expect(args).toContain('-c:a');
+      expect(args).toContain('aac');
+      expect(args).not.toContain('-c');
+      expect(args).not.toContain('copy');
       expect(args).toContain('-progress');
     });
 
