@@ -84,7 +84,7 @@ async function getOrGenerateThumbnail(originalCoverPath, audiobookId, width) {
       const sharp = require('sharp');
 
       await sharp(originalCoverPath)
-        .resize(width, width, { fit: 'cover' })
+        .resize(width, width, { fit: 'inside' })
         .jpeg({ quality: 80 })
         .toFile(thumbPath);
 
