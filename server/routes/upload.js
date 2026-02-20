@@ -196,6 +196,8 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
 
     // Use provided book name, or metadata title, or directory name from original path
     let title = bookName || firstFileMetadata.title;
+    let series = firstFileMetadata.series || null;
+    let seriesPosition = firstFileMetadata.series_position || null;
 
     // If title looks like a chapter/part name, try to get a better title
     if (title && /^(chapter|part|track|disc|cd)[\s_-]*\d+/i.test(title)) {
@@ -204,6 +206,51 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
       const pathParts = originalPath.split('/');
       if (pathParts.length > 1) {
         title = pathParts[0]; // Use folder name
+      }
+    }
+
+    // Clean directory-style names: dots/underscores used as word separators, strip trailing parens
+    if (title && /\w[._]\w/.test(title)) {
+      let cleanTitle = title
+        .replace(/[._]+/g, ' ')
+        .replace(/\s*\([^)]*$/, '')
+        .replace(/\s*\([^)]*\)\s*$/, '')
+        .trim();
+
+      // Try to extract series from patterns like "Author - Series Bk N - Title"
+      const bkMatch = cleanTitle.match(/(?:^[^-]+-\s*)?(.+?)\s*(?:Bk|Book|Vol|Volume)\s*\.?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(.+)/i);
+      if (bkMatch) {
+        const dirSeries = bkMatch[1].trim().replace(/\s+/g, ' ');
+        const dirPosition = parseFloat(bkMatch[2]);
+        const dirTitle = bkMatch[3].trim().replace(/\s+/g, ' ');
+        if (dirTitle && dirSeries) {
+          cleanTitle = dirTitle;
+          if (!series) {
+            series = dirSeries;
+            if (!seriesPosition && !isNaN(dirPosition)) {
+              seriesPosition = dirPosition;
+            }
+          }
+        }
+      } else {
+        // Remove author prefix if it matches extracted author
+        const author = firstFileMetadata.author;
+        if (author) {
+          const authorPattern = author.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s._-]+');
+          cleanTitle = cleanTitle.replace(new RegExp('^' + authorPattern + '\\s*[-–]\\s*', 'i'), '');
+        }
+      }
+
+      title = cleanTitle || title;
+    }
+
+    // Discard series if it matches the title
+    if (series && title) {
+      const normSeries = series.trim().toLowerCase();
+      const normTitle = title.trim().toLowerCase();
+      if (normSeries === normTitle || normTitle.startsWith(normSeries + ':') || normTitle.startsWith(normSeries + ' -')) {
+        series = null;
+        seriesPosition = null;
       }
     }
 
@@ -303,8 +350,8 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
           firstFileMetadata.genre,
           firstFileMetadata.published_year,
           firstFileMetadata.isbn,
-          firstFileMetadata.series,
-          firstFileMetadata.series_position,
+          series,
+          seriesPosition,
           coverPath,
           userId,
           firstFileMetadata.tags,
