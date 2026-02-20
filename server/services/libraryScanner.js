@@ -202,9 +202,46 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     // Use directory name as a fallback for title if metadata title seems like a chapter
     const dirName = path.basename(directory);
 
-    // If title looks like a chapter (contains "chapter", "part", numbers), use directory name
-    if (metadata.title && /chapter|part|\d+/i.test(metadata.title)) {
-      metadata.title = dirName;
+    // If title looks like a chapter name (not a real book title), use directory name
+    // Detect: "Chapter 3", "Part 1", "01 of 18", "Track 05", leading track numbers "01 - Title"
+    const looksLikeChapter = /\bchapter\s+\d/i.test(metadata.title) ||
+      /\bpart\s+\d/i.test(metadata.title) ||
+      /\btrack\s+\d/i.test(metadata.title) ||
+      /\d+\s*(of|\/)\s*\d+/.test(metadata.title) ||
+      /^\d{1,3}\s*[-–.]/.test(metadata.title);
+    if (metadata.title && looksLikeChapter) {
+      // Clean directory name: replace dots/underscores with spaces, remove author prefix patterns
+      let cleanDir = dirName
+        .replace(/[._]+/g, ' ')          // dots/underscores → spaces
+        .replace(/\s*\([^)]*$/, '')       // remove trailing unclosed parens e.g. "(NMR"
+        .replace(/\s*\([^)]*\)\s*$/, '')  // remove trailing parens e.g. "(Unabridged)"
+        .trim();
+
+      // Try to extract series from directory patterns like "Author-Series.Bk.N-Title" or "Series - Book N - Title"
+      // Pattern: "Author - Series Bk N - Title" or "Author.Series.Bk.2.Title"
+      const bkMatch = cleanDir.match(/(?:^[^-]+-\s*)?(.+?)\s*(?:Bk|Book|Vol|Volume)\s*\.?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(.+)/i);
+      if (bkMatch) {
+        const dirSeries = bkMatch[1].trim().replace(/\s+/g, ' ');
+        const dirPosition = parseFloat(bkMatch[2]);
+        const dirTitle = bkMatch[3].trim().replace(/\s+/g, ' ');
+        if (dirTitle && dirSeries) {
+          cleanDir = dirTitle;
+          if (!metadata.series) {
+            metadata.series = dirSeries;
+            if (!metadata.series_position && !isNaN(dirPosition)) {
+              metadata.series_position = dirPosition;
+            }
+          }
+        }
+      } else {
+        // Remove leading "Author - " or "Author." prefix if it matches the extracted author
+        if (metadata.author) {
+          const authorPattern = metadata.author.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s._-]+');
+          cleanDir = cleanDir.replace(new RegExp('^' + authorPattern + '\\s*[-–]\\s*', 'i'), '');
+        }
+      }
+
+      metadata.title = cleanDir || dirName;
     }
 
     // Supplement with external metadata files (desc.txt, narrator.txt, *.opf)

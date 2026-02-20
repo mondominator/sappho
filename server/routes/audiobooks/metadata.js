@@ -405,6 +405,55 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         }
       }
 
+      // For multifile books, if the title looks like a chapter name, use the directory name instead
+      const looksLikeChapter = metadata.title && (
+        /\bchapter\s+\d/i.test(metadata.title) ||
+        /\bpart\s+\d/i.test(metadata.title) ||
+        /\btrack\s+\d/i.test(metadata.title) ||
+        /\d+\s*(of|\/)\s*\d+/.test(metadata.title) ||
+        /^\d{1,3}\s*[-–.]/.test(metadata.title)
+      );
+      if (audiobook.is_multi_file && looksLikeChapter) {
+        const directory = path.dirname(audiobook.file_path);
+        let cleanDir = path.basename(directory)
+          .replace(/[._]+/g, ' ')
+          .replace(/\s*\([^)]*$/, '')
+          .replace(/\s*\([^)]*\)\s*$/, '')
+          .trim();
+
+        // Try to extract series from directory patterns like "Series Bk N - Title"
+        const bkMatch = cleanDir.match(/(?:^[^-]+-\s*)?(.+?)\s*(?:Bk|Book|Vol|Volume)\s*\.?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(.+)/i);
+        if (bkMatch) {
+          const dirSeries = bkMatch[1].trim().replace(/\s+/g, ' ');
+          const dirPosition = parseFloat(bkMatch[2]);
+          const dirTitle = bkMatch[3].trim().replace(/\s+/g, ' ');
+          if (dirTitle && dirSeries) {
+            cleanDir = dirTitle;
+            if (!metadata.series) {
+              metadata.series = dirSeries;
+              if (!metadata.series_position && !isNaN(dirPosition)) {
+                metadata.series_position = dirPosition;
+              }
+            }
+          }
+        } else if (metadata.author) {
+          const authorPattern = metadata.author.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s._-]+');
+          cleanDir = cleanDir.replace(new RegExp('^' + authorPattern + '\\s*[-–]\\s*', 'i'), '');
+        }
+
+        metadata.title = cleanDir || metadata.title;
+      }
+
+      // Discard series if it's the same as the title
+      if (metadata.series && metadata.title) {
+        const normSeries = metadata.series.trim().toLowerCase();
+        const normTitle = metadata.title.trim().toLowerCase();
+        if (normSeries === normTitle || normTitle.startsWith(normSeries + ':') || normTitle.startsWith(normSeries + ' -')) {
+          metadata.series = null;
+          metadata.series_position = null;
+        }
+      }
+
       // Update database with refreshed metadata (preserve is_multi_file status)
       await dbRun(
         `UPDATE audiobooks
