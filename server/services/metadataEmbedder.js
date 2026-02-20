@@ -70,6 +70,7 @@ async function embedWithTone(audiobook, chapters, coverFile) {
     if (audiobook.tags) toneMetadata.meta.group = audiobook.tags;
 
     // Series info - use movement tags (proper audiobook series tags)
+    // Always set album explicitly to prevent stale tags from causing series/title swaps on re-scan
     if (audiobook.series) {
       toneMetadata.meta.movementName = audiobook.series;
       toneMetadata.meta.album = audiobook.series;
@@ -79,6 +80,15 @@ async function embedWithTone(audiobook, chapters, coverFile) {
         toneMetadata.meta.movement = String(audiobook.series_position);
         toneMetadata.meta.part = String(audiobook.series_position);
       }
+    } else {
+      // No series — set album to title so old series data in album tag doesn't persist
+      if (audiobook.title) {
+        toneMetadata.meta.album = audiobook.title;
+        toneMetadata.meta.sortAlbum = audiobook.title.replace(/^(The|A|An)\s+/i, '');
+      }
+      // Clear movement tags so stale series info doesn't linger
+      toneMetadata.meta.movementName = '';
+      toneMetadata.meta.movement = '';
     }
 
     // Embed cover art if available
@@ -210,6 +220,7 @@ async function embedWithFfmpeg(audiobook, chapters, coverFile) {
     if (audiobook.subtitle) args.push('-metadata', `subtitle=${audiobook.subtitle}`);
 
     // Series info — write format-appropriate tags for proper round-trip
+    // Always set album explicitly to prevent stale tags from causing series/title swaps on re-scan
     if (audiobook.series) {
       args.push('-metadata', `album=${audiobook.series}`);
       const seriesWithPosition = audiobook.series_position
@@ -225,6 +236,15 @@ async function embedWithFfmpeg(audiobook, chapters, coverFile) {
         if (audiobook.series_position) {
           args.push('-metadata', `PART=${audiobook.series_position}`);
         }
+      }
+    } else {
+      // No series — set album to title so old series data doesn't persist
+      if (audiobook.title) args.push('-metadata', `album=${audiobook.title}`);
+      // Clear grouping so stale series info doesn't linger
+      args.push('-metadata', 'grouping=');
+      if (isVorbis) {
+        args.push('-metadata', 'SERIES=');
+        args.push('-metadata', 'PART=');
       }
     }
 
