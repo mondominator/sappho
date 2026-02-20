@@ -446,6 +446,18 @@ async function createDefaultAdmin() {
   }
 }
 
+/**
+ * Check if a user's tokens have been invalidated after a given token issuance time
+ */
+function isUserTokenInvalidated(userId, tokenIat) {
+  const key = `user_invalidation_${userId}`;
+  const invalidationTime = tokenBlacklist.get(key);
+  if (invalidationTime && tokenIat * 1000 < invalidationTime) {
+    return true;
+  }
+  return false;
+}
+
 module.exports = {
   authenticateToken,
   authenticateMediaToken,
@@ -457,6 +469,8 @@ module.exports = {
   validatePassword,
   blacklistToken,
   invalidateUserTokens,
+  isTokenBlacklisted,
+  isUserTokenInvalidated,
   isAccountLocked,
   getLockoutRemaining,
   clearFailedAttempts,

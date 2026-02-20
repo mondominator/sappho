@@ -460,15 +460,20 @@ function getTestEmailTemplate() {
 }
 
 function getNewAudiobookTemplate(audiobook, user) {
+  const safeUsername = escapeHtml(user.username);
+  const safeTitle = escapeHtml(audiobook.title);
+  const safeAuthor = escapeHtml(audiobook.author || 'Unknown Author');
+  const safeNarrator = escapeHtml(audiobook.narrator);
+  const safeSeries = escapeHtml(audiobook.series_name);
   return getBaseTemplate(`
     <h2>New Audiobook Added</h2>
-    <p>Hi ${user.username},</p>
+    <p>Hi ${safeUsername},</p>
     <p>A new audiobook has been added to your library:</p>
     <div class="audiobook-card">
-      <div class="audiobook-title">${audiobook.title}</div>
-      <div class="audiobook-author">by ${audiobook.author || 'Unknown Author'}</div>
-      ${audiobook.narrator ? `<div>Narrated by ${audiobook.narrator}</div>` : ''}
-      ${audiobook.series_name ? `<div>Series: ${audiobook.series_name}</div>` : ''}
+      <div class="audiobook-title">${safeTitle}</div>
+      <div class="audiobook-author">by ${safeAuthor}</div>
+      ${audiobook.narrator ? `<div>Narrated by ${safeNarrator}</div>` : ''}
+      ${audiobook.series_name ? `<div>Series: ${safeSeries}</div>` : ''}
     </div>
     <p>
       <a href="#" class="button">Listen Now</a>
@@ -477,13 +482,16 @@ function getNewAudiobookTemplate(audiobook, user) {
 }
 
 function getNewUserTemplate(newUser, admin) {
+  const safeAdminUsername = escapeHtml(admin.username);
+  const safeNewUsername = escapeHtml(newUser.username);
+  const safeEmail = escapeHtml(newUser.email || 'Not provided');
   return getBaseTemplate(`
     <h2>New User Registration</h2>
-    <p>Hi ${admin.username},</p>
+    <p>Hi ${safeAdminUsername},</p>
     <p>A new user has registered on your Sappho server:</p>
     <ul>
-      <li><strong>Username:</strong> ${newUser.username}</li>
-      <li><strong>Email:</strong> ${newUser.email || 'Not provided'}</li>
+      <li><strong>Username:</strong> ${safeNewUsername}</li>
+      <li><strong>Email:</strong> ${safeEmail}</li>
       <li><strong>Registered:</strong> ${new Date().toLocaleString()}</li>
     </ul>
     <p>You can manage users in the admin panel.</p>
@@ -491,18 +499,20 @@ function getNewUserTemplate(newUser, admin) {
 }
 
 function getPasswordResetTemplate(user, resetUrl) {
+  const safeUsername = escapeHtml(user.username);
+  const safeUrl = escapeHtml(resetUrl);
   return getBaseTemplate(`
     <h2>Password Reset Request</h2>
-    <p>Hi ${user.username},</p>
+    <p>Hi ${safeUsername},</p>
     <p>We received a request to reset your password. Click the button below to create a new password:</p>
     <p style="text-align: center;">
-      <a href="${resetUrl}" class="button">Reset Password</a>
+      <a href="${safeUrl}" class="button">Reset Password</a>
     </p>
     <p>This link will expire in 1 hour.</p>
     <p>If you didn't request this password reset, you can safely ignore this email.</p>
     <p style="color: #666; font-size: 12px;">
       If the button doesn't work, copy and paste this URL into your browser:<br>
-      ${resetUrl}
+      ${safeUrl}
     </p>
   `);
 }
@@ -585,5 +595,8 @@ module.exports = {
   notifyAdminNewUser,
   sendPasswordResetEmail,
   sendAccountUnlockEmail,
-  initializeTransporter
+  initializeTransporter,
+  // Exported for testing
+  _getNewAudiobookTemplate: getNewAudiobookTemplate,
+  _getNewUserTemplate: getNewUserTemplate,
 };

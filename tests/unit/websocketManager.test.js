@@ -10,6 +10,14 @@ jest.mock('../../server/database', () => ({
   get: jest.fn()
 }));
 
+// Mock auth module before requiring websocketManager
+const mockIsTokenBlacklisted = jest.fn().mockReturnValue(false);
+const mockIsUserTokenInvalidated = jest.fn().mockReturnValue(false);
+jest.mock('../../server/auth', () => ({
+  isTokenBlacklisted: mockIsTokenBlacklisted,
+  isUserTokenInvalidated: mockIsUserTokenInvalidated,
+}));
+
 // Get the class constructor for testing
 const WebSocketManager = require('../../server/services/websocketManager').constructor;
 const jwt = require('jsonwebtoken');
@@ -20,6 +28,8 @@ describe('WebSocketManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsTokenBlacklisted.mockReturnValue(false);
+    mockIsUserTokenInvalidated.mockReturnValue(false);
     wsManager = new WebSocketManager();
   });
 
@@ -395,6 +405,11 @@ describe('WebSocketManager', () => {
       const originalServer = WebSocket.Server;
       WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
 
+      // Mock DB for user lookup during JWT auth
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, { id: 1, username: 'testuser', account_disabled: 0 });
+      });
+
       const testManager = new WebSocketManager();
       testManager.initialize(mockServer);
 
@@ -416,7 +431,7 @@ describe('WebSocketManager', () => {
       expect(mockWs.on).toHaveBeenCalledWith('close', expect.any(Function));
       expect(mockWs.on).toHaveBeenCalledWith('error', expect.any(Function));
 
-      // Should send initial connection message
+      // Should send connection message after auth completes
       expect(mockWs.send).toHaveBeenCalledWith(
         expect.stringContaining('connected')
       );
@@ -438,6 +453,11 @@ describe('WebSocketManager', () => {
       const WebSocket = require('ws');
       const originalServer = WebSocket.Server;
       WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
+
+      // Mock DB for user lookup during JWT auth
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, { id: 1, username: 'testuser', account_disabled: 0 });
+      });
 
       const testManager = new WebSocketManager();
       testManager.initialize(mockServer);
@@ -480,6 +500,11 @@ describe('WebSocketManager', () => {
       const originalServer = WebSocket.Server;
       WebSocket.Server = jest.fn().mockImplementation(() => mockWss);
 
+      // Mock DB for user lookup during JWT auth
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, { id: 1, username: 'testuser', account_disabled: 0 });
+      });
+
       const testManager = new WebSocketManager();
       testManager.initialize(mockServer);
 
@@ -507,12 +532,17 @@ describe('WebSocketManager', () => {
   });
 
   describe('authenticateClient', () => {
-    test('authenticates valid JWT token', () => {
+    test('authenticates valid JWT token after DB check', () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
         close: jest.fn()
       };
+
+      // Mock DB to return active user
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, { id: 1, username: 'testuser', account_disabled: 0 });
+      });
 
       const validToken = jwt.sign(
         { id: 1, username: 'testuser' },
@@ -528,6 +558,95 @@ describe('WebSocketManager', () => {
       expect(clientInfo.userId).toBe(1);
       expect(clientInfo.username).toBe('testuser');
       expect(mockWs.close).not.toHaveBeenCalled();
+      // Should send connected message after auth
+      expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('connected'));
+    });
+
+    test('rejects blacklisted JWT token', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      mockIsTokenBlacklisted.mockReturnValue(true);
+
+      const validToken = jwt.sign(
+        { id: 1, username: 'testuser' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      wsManager.authenticateClient(mockWs, validToken);
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Token has been revoked');
+      expect(wsManager.clients.has(mockWs)).toBe(false);
+    });
+
+    test('rejects JWT when user tokens have been invalidated', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      mockIsUserTokenInvalidated.mockReturnValue(true);
+
+      const validToken = jwt.sign(
+        { id: 1, username: 'testuser' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      wsManager.authenticateClient(mockWs, validToken);
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Token has been invalidated');
+      expect(wsManager.clients.has(mockWs)).toBe(false);
+    });
+
+    test('rejects JWT when user account is disabled', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, { id: 1, username: 'testuser', account_disabled: 1 });
+      });
+
+      const validToken = jwt.sign(
+        { id: 1, username: 'testuser' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      wsManager.authenticateClient(mockWs, validToken);
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Account is disabled');
+      expect(wsManager.clients.has(mockWs)).toBe(false);
+    });
+
+    test('rejects JWT when user not found in DB', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      db.get.mockImplementation((sql, params, callback) => {
+        callback(null, null);
+      });
+
+      const validToken = jwt.sign(
+        { id: 999, username: 'deleteduser' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      wsManager.authenticateClient(mockWs, validToken);
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'User not found');
     });
 
     test('closes connection for invalid JWT token', () => {
@@ -592,7 +711,7 @@ describe('WebSocketManager', () => {
         if (callCount === 1) {
           callback(null, { id: 1, user_id: 1, is_active: 1, expires_at: null });
         } else {
-          callback(null, { id: 1, username: 'apiuser' });
+          callback(null, { id: 1, username: 'apiuser', account_disabled: 0 });
         }
       });
 
@@ -603,6 +722,31 @@ describe('WebSocketManager', () => {
       expect(clientInfo.authenticated).toBe(true);
       expect(clientInfo.username).toBe('apiuser');
       expect(mockWs.close).not.toHaveBeenCalled();
+      // Should send connected message after auth
+      expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('connected'));
+    });
+
+    test('rejects API key when user account is disabled', () => {
+      const mockWs = {
+        readyState: 1,
+        send: jest.fn(),
+        close: jest.fn()
+      };
+
+      let callCount = 0;
+      db.get.mockImplementation((sql, params, callback) => {
+        callCount++;
+        if (callCount === 1) {
+          callback(null, { id: 1, user_id: 1, is_active: 1, expires_at: null });
+        } else {
+          callback(null, { id: 1, username: 'disableduser', account_disabled: 1 });
+        }
+      });
+
+      wsManager.authenticateClient(mockWs, 'sapho_disabled_user_key');
+
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'Account is disabled');
+      expect(wsManager.clients.has(mockWs)).toBe(false);
     });
 
     test('rejects expired API key', () => {

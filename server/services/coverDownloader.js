@@ -6,16 +6,70 @@
 
 const fs = require('fs');
 const path = require('path');
+const dns = require('dns');
 const { isPrivateHostname } = require('../routes/audiobooks/helpers');
+
+const MAX_REDIRECTS = 5;
+
+/**
+ * Check if a resolved IP address is private/internal
+ */
+function isPrivateIP(ip) {
+  if (!ip) return true;
+
+  // IPv4 private ranges
+  if (ip === '127.0.0.1' || ip === '0.0.0.0') return true;
+  if (ip.startsWith('10.')) return true;
+  if (ip.startsWith('192.168.')) return true;
+  if (ip.startsWith('169.254.')) return true;
+
+  const match172 = ip.match(/^172\.(\d+)\./);
+  if (match172) {
+    const secondOctet = parseInt(match172[1], 10);
+    if (secondOctet >= 16 && secondOctet <= 31) return true;
+  }
+
+  // IPv6 private
+  if (ip === '::1') return true;
+  const lower = ip.toLowerCase();
+  if (/^f[cd][0-9a-f]{2}:/.test(lower)) return true;
+  if (/^fe[89ab][0-9a-f]:/.test(lower)) return true;
+
+  return false;
+}
+
+/**
+ * Resolve hostname and validate the resolved IP is not private (DNS rebinding protection)
+ */
+function resolveAndValidate(hostname) {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, (err, address) => {
+      if (err) {
+        reject(new Error(`DNS resolution failed for ${hostname}: ${err.message}`));
+        return;
+      }
+      if (isPrivateIP(address)) {
+        reject(new Error('Hostname resolves to a private/internal IP address'));
+        return;
+      }
+      resolve(address);
+    });
+  });
+}
 
 /**
  * Download cover image from URL to local covers directory.
- * Includes SSRF protection via isPrivateHostname check.
+ * Includes SSRF protection via hostname check, DNS rebinding protection, and redirect limits.
  */
-async function downloadCover(url, audiobookId) {
+async function downloadCover(url, audiobookId, redirectCount = 0) {
   try {
     const https = require('https');
     const http = require('http');
+
+    // SECURITY: Redirect depth limit
+    if (redirectCount > MAX_REDIRECTS) {
+      throw new Error('Too many redirects');
+    }
 
     const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
     const coversDir = path.join(dataDir, 'covers');
@@ -26,10 +80,13 @@ async function downloadCover(url, audiobookId) {
     // Determine extension from URL or default to jpg
     const parsedUrl = new URL(url);
 
-    // SECURITY: SSRF protection - block private/internal addresses
+    // SECURITY: SSRF protection - block private/internal hostnames
     if (isPrivateHostname(parsedUrl.hostname)) {
       throw new Error('Private or internal URLs are not allowed');
     }
+
+    // SECURITY: DNS rebinding protection - resolve and validate IP before connecting
+    await resolveAndValidate(parsedUrl.hostname);
 
     let ext = path.extname(parsedUrl.pathname).toLowerCase();
     if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
@@ -53,9 +110,9 @@ async function downloadCover(url, audiobookId) {
         }
       };
       const request = protocol.get(requestOptions, (response) => {
-        // Handle redirects
+        // Handle redirects with depth tracking
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          downloadCover(response.headers.location, audiobookId).then(resolve).catch(reject);
+          downloadCover(response.headers.location, audiobookId, redirectCount + 1).then(resolve).catch(reject);
           return;
         }
 
@@ -89,4 +146,4 @@ async function downloadCover(url, audiobookId) {
   }
 }
 
-module.exports = { downloadCover };
+module.exports = { downloadCover, isPrivateIP };
