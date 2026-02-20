@@ -137,6 +137,7 @@ async function consolidateGroup(books) {
                     const idsToDelete = sortedBooks.slice(1).map(b => b.id);
 
                     if (idsToDelete.length > 0) {
+                      db.run(`DELETE FROM collection_items WHERE audiobook_id IN (${idsToDelete.join(',')})`, () => {});
                       db.run(
                         `DELETE FROM audiobooks WHERE id IN (${idsToDelete.join(',')})`,
                         (err) => {
