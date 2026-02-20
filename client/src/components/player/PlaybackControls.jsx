@@ -70,12 +70,21 @@ function ForwardIcon({ size, strokeWidth = 2 }) {
   );
 }
 
+function StopIcon({ size }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+    </svg>
+  );
+}
+
 export default function PlaybackControls({
   variant = 'desktop',
   playing, isBuffering,
   chapters, currentChapter,
   onTogglePlay, onSkipBackward, onSkipForward,
   onSkipToPreviousChapter, onSkipToNextChapter,
+  onStop,
 }) {
   if (variant === 'fullscreen') {
     return (
@@ -111,6 +120,11 @@ export default function PlaybackControls({
       {chapters.length > 0 && (
         <button className="control-btn chapter-skip-desktop" onClick={onSkipToPreviousChapter} disabled={currentChapter === 0} title="Previous Chapter" aria-label="Previous chapter">
           <PrevChapterIcon size={20} />
+        </button>
+      )}
+      {onStop && (
+        <button className="control-btn stop-btn" onClick={onStop} title="Stop Playback" aria-label="Stop playback">
+          <StopIcon size={16} />
         </button>
       )}
       <button className="control-btn" onClick={onSkipBackward} title="Skip back 15 seconds" aria-label="Rewind 15 seconds">
