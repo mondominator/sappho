@@ -269,13 +269,7 @@
 }
 
 .player-actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  display: none;
   z-index: 10;
 }
 
@@ -307,13 +301,13 @@
   opacity: 1;
 }
 
-.btn-close {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #dc2626;
-  border: none;
-  color: #fff;
+.btn-stop {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(75, 85, 99, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -322,9 +316,10 @@
   flex-shrink: 0;
 }
 
-.btn-close:hover {
-  background: #b91c1c;
-  transform: scale(1.1);
+.btn-stop:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
 }
 
 .casting-indicator {
@@ -1223,9 +1218,11 @@
     display: none;
   }
 
-  /* Hide close button on desktop */
-  .player-actions {
-    display: none !important;
+  .player-controls .stop-btn {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 6px !important;
+    margin-right: 12px;
   }
 }
 
@@ -1603,7 +1600,7 @@
   }
 
   .player-actions {
-    display: none !important; /* Hide desktop close button on mobile */
+    display: none !important;
   }
 
   /* Remove any bottom margin/padding that creates gap */
