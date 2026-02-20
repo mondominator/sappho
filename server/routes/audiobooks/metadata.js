@@ -14,6 +14,9 @@ const { searchAudible, searchGoogleBooks, searchOpenLibrary, formatOpenLibraryRe
 const { downloadCover } = require('../../services/coverDownloader');
 const { embedWithTone, embedWithFfmpeg } = require('../../services/metadataEmbedder');
 const { invalidateThumbnails } = require('../../services/thumbnailService');
+const { extractFileMetadata } = require('../../services/fileProcessor');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, organizeAudiobook, needsOrganization }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
@@ -313,7 +316,6 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Re-extract metadata from primary file
-      const { extractFileMetadata } = require('../../services/fileProcessor');
       const metadata = await extractFileMetadata(audiobook.file_path);
 
       let totalDuration = metadata.duration;
@@ -353,8 +355,6 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         let chapters = null;
 
         if (isM4B) {
-          const { execFile } = require('child_process');
-          const { promisify } = require('util');
           const execFileAsync = promisify(execFile);
 
           try {
@@ -680,5 +680,4 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 }
 
-// Helper function to format Open Library response
 module.exports = { register };
