@@ -95,6 +95,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
           if (sortedBooks.length > 1) {
             const idsToDelete = sortedBooks.slice(1).map(b => b.id);
             await dbRun(`DELETE FROM playback_progress WHERE audiobook_id IN (${idsToDelete.join(',')})`);
+            await dbRun(`DELETE FROM collection_items WHERE audiobook_id IN (${idsToDelete.join(',')})`);
             await dbRun(`DELETE FROM audiobooks WHERE id IN (${idsToDelete.join(',')})`);
           }
 
@@ -124,6 +125,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
 
       await dbRun('DELETE FROM audiobook_chapters');
       await dbRun('DELETE FROM playback_progress');
+      await dbRun('DELETE FROM collection_items');
       await dbRun('DELETE FROM audiobooks');
 
       console.log('Library database cleared successfully');
