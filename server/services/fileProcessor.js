@@ -314,10 +314,9 @@ function extractSeriesInfo(nativeTags, common, _iTunesTags) {
       }
     }
 
-    // Fallback: check TALB (album) for series — many tools write series to album
-    if (!series && common.album && common.album !== common.title) {
-      series = common.album;
-    }
+    // Note: We intentionally do NOT fall back to TALB (album) as series.
+    // Many taggers set album to the book title, not the series name.
+    // Only explicit series tags (TXXX:SERIES, TIT1, movement tags) are trusted.
 
     // Look for series position in TXXX:PART or TXXX:SERIESPART
     const posTag = id3Tags.find(tag =>
@@ -485,6 +484,8 @@ function extractTitle(common, nativeTags, iTunesTags, filePath) {
       .replace(/^\d{1,3}\s*[-._)\]]\s*/, '')  // "01 - Title", "01_Title", "01.Title"
       .replace(/^track\s*\d+\s*[-._)]\s*/i, '')  // "Track 01 - Title"
       .replace(/[-_]+/g, ' ')  // Replace dashes/underscores with spaces
+      .replace(/\s+\d{1,3}$/, '')  // Remove trailing track numbers e.g. "Title 001"
+      .replace(/\s+\d{1,3}\s+of\s+\d+$/i, '')  // Remove trailing "01 of 18"
       .trim();
 
     // If the cleaned filename is too short, empty, or just a number, use parent directory name
@@ -815,6 +816,17 @@ async function extractFileMetadata(filePath) {
     if (!series && titleSeries) {
       series = titleSeries;
       if (titleSeriesPosition) seriesPosition = titleSeriesPosition;
+    }
+
+    // Discard series if it's the same as the title (or nearly so) — many taggers
+    // write the book title into movement/grouping/album fields, not the series name
+    if (series && title) {
+      const normSeries = series.trim().toLowerCase();
+      const normTitle = title.trim().toLowerCase();
+      if (normSeries === normTitle || normTitle.startsWith(normSeries + ':') || normTitle.startsWith(normSeries + ' -')) {
+        series = null;
+        seriesPosition = null;
+      }
     }
 
     const description = extractDescription(common, nativeTags, iTunesTags);
