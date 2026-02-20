@@ -320,6 +320,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       const placeholders = deleteIds.map(() => '?').join(',');
       await dbRun(`DELETE FROM playback_progress WHERE audiobook_id IN (${placeholders})`, deleteIds);
       await dbRun(`DELETE FROM audiobook_chapters WHERE audiobook_id IN (${placeholders})`, deleteIds);
+      await dbRun(`DELETE FROM collection_items WHERE audiobook_id IN (${placeholders})`, deleteIds);
       await dbRun(`DELETE FROM audiobooks WHERE id IN (${placeholders})`, deleteIds);
 
       // Optionally delete the actual files

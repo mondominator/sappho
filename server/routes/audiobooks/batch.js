@@ -566,8 +566,9 @@ The reader has started this book and wants to remember what it's about and any k
             continue;
           }
 
-          // Delete related data first (playback_progress lacks ON DELETE CASCADE)
+          // Delete related data first (explicit cleanup ensures no orphans)
           await dbRun('DELETE FROM playback_progress WHERE audiobook_id = ?', [audiobookId]);
+          await dbRun('DELETE FROM collection_items WHERE audiobook_id = ?', [audiobookId]);
           await dbRun('DELETE FROM audiobooks WHERE id = ?', [audiobookId]);
 
           // Optionally delete files and directory
