@@ -108,20 +108,45 @@ function getAudioMimeType(filePath) {
  * Check if hostname is a private/local address
  */
 function isPrivateHostname(hostname) {
-  if (!hostname) return false;
-  return hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname.startsWith('192.168.') ||
-    hostname.startsWith('10.') ||
-    hostname.startsWith('172.16.') ||
-    hostname.startsWith('172.17.') ||
-    hostname.startsWith('172.18.') ||
-    hostname.startsWith('172.19.') ||
-    hostname.startsWith('172.2') ||
-    hostname.startsWith('172.30.') ||
-    hostname.startsWith('172.31.') ||
-    hostname.endsWith('.local');
+  if (!hostname) return true;
+
+  const lower = hostname.toLowerCase();
+
+  // Loopback
+  if (lower === 'localhost' || lower === '127.0.0.1' || lower === '::1' || lower === '0.0.0.0') {
+    return true;
+  }
+
+  // Private TLDs and suffixes
+  if (lower.endsWith('.local') || lower.endsWith('.internal') || lower.endsWith('.localhost')) {
+    return true;
+  }
+
+  // 10.x.x.x
+  if (lower.startsWith('10.')) return true;
+
+  // 192.168.x.x
+  if (lower.startsWith('192.168.')) return true;
+
+  // 169.254.x.x (link-local / cloud metadata)
+  if (lower.startsWith('169.254.')) return true;
+
+  // 172.16.0.0 - 172.31.255.255 (check second octet 16-31)
+  const match172 = lower.match(/^172\.(\d+)\./);
+  if (match172) {
+    const secondOctet = parseInt(match172[1], 10);
+    if (secondOctet >= 16 && secondOctet <= 31) return true;
+  }
+
+  // IPv6 private ranges
+  // fc00::/7 (unique local addresses: fc00:: and fd00::)
+  if (lower.startsWith('fc') || lower.startsWith('fd')) {
+    if (/^f[cd][0-9a-f]{2}:/.test(lower)) return true;
+  }
+  // fe80::/10 (link-local)
+  if (/^fe[89ab][0-9a-f]:/.test(lower)) return true;
+
+  return false;
 }
 
 module.exports = {

@@ -616,6 +616,52 @@ describe('Email Service', () => {
     });
   });
 
+  describe('XSS prevention in email templates', () => {
+    test('getNewAudiobookTemplate escapes HTML in all fields', () => {
+      const html = emailService._getNewAudiobookTemplate(
+        {
+          title: '<img src=x onerror=alert(1)>',
+          author: '<script>steal()</script>',
+          narrator: '"><script>xss</script>',
+          series_name: '<b onmouseover=alert(1)>Series</b>'
+        },
+        { username: '<script>alert("XSS")</script>' }
+      );
+
+      expect(html).not.toContain('<script>');
+      expect(html).not.toContain('<img src=x');
+      expect(html).toContain('&lt;script&gt;alert');
+      expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    });
+
+    test('getNewUserTemplate escapes HTML in all fields', () => {
+      const html = emailService._getNewUserTemplate(
+        {
+          username: '<script>alert("newuser")</script>',
+          email: '"><script>xss</script>@evil.com'
+        },
+        { username: '<script>admin</script>' }
+      );
+
+      expect(html).not.toContain('<script>');
+      expect(html).toContain('&lt;script&gt;alert(&quot;newuser&quot;)&lt;/script&gt;');
+      expect(html).toContain('&lt;script&gt;admin&lt;/script&gt;');
+    });
+
+    test('getPasswordResetTemplate escapes HTML in username and URL', async () => {
+      await emailService.sendPasswordResetEmail(
+        { username: '<script>alert("XSS")</script>', email: 'user@example.com' },
+        'token123',
+        'http://example.com/reset?token="><script>xss</script>'
+      );
+
+      const sentHtml = mockSendMail.mock.calls[0][0].html;
+      expect(sentHtml).not.toContain('<script>');
+      expect(sentHtml).toContain('&lt;script&gt;alert');
+      expect(sentHtml).toContain('&quot;&gt;&lt;script&gt;xss&lt;/script&gt;');
+    });
+  });
+
   describe('initializeTransporter', () => {
     test('sets transporter to null when no settings', async () => {
       db.get.mockImplementation((query, params, callback) => {

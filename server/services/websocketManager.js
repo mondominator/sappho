@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const url = require('url');
 const jwt = require('jsonwebtoken');
+const { isTokenBlacklisted, isUserTokenInvalidated } = require('../auth');
 
 // SECURITY: JWT_SECRET is validated at startup in auth.js
 // This will throw if auth.js hasn't been loaded first (which is fine - it means misconfiguration)
@@ -42,7 +43,7 @@ class WebSocketManager {
         return;
       }
 
-      // Verify token (JWT or API key)
+      // Verify token (JWT or API key) - success message sent after auth completes
       this.authenticateClient(ws, token);
 
       ws.on('close', () => {
@@ -52,12 +53,6 @@ class WebSocketManager {
 
       ws.on('error', (error) => {
         console.error('WebSocket error:', error.message);
-      });
-
-      // Send initial connection success message
-      this.sendToClient(ws, {
-        type: 'connected',
-        message: 'Successfully connected to Sappho notifications',
       });
     });
 
@@ -86,17 +81,49 @@ class WebSocketManager {
    */
   authenticateClient(ws, token) {
     // Try JWT first
+    let decoded;
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      this.clients.set(ws, {
-        userId: decoded.id,
-        username: decoded.username,
-        authenticated: true,
-      });
-      console.log(`✅ WebSocket client authenticated (JWT): ${decoded.username}`);
-      return;
+      decoded = jwt.verify(token, JWT_SECRET);
     } catch (_jwtError) {
-      // JWT failed, try API key
+      // JWT failed, fall through to API key
+    }
+
+    if (decoded) {
+      // SECURITY: Check if token is blacklisted (logged out)
+      if (isTokenBlacklisted(token)) {
+        ws.close(1008, 'Token has been revoked');
+        return;
+      }
+
+      // SECURITY: Check if user's tokens were invalidated after this token was issued
+      if (isUserTokenInvalidated(decoded.id, decoded.iat)) {
+        ws.close(1008, 'Token has been invalidated');
+        return;
+      }
+
+      // SECURITY: Verify user exists and is not disabled
+      const db = require('../database');
+      db.get('SELECT id, username, account_disabled FROM users WHERE id = ?', [decoded.id], (err, user) => {
+        if (err || !user) {
+          ws.close(1008, 'User not found');
+          return;
+        }
+        if (user.account_disabled) {
+          ws.close(1008, 'Account is disabled');
+          return;
+        }
+        this.clients.set(ws, {
+          userId: user.id,
+          username: user.username,
+          authenticated: true,
+        });
+        console.log(`✅ WebSocket client authenticated (JWT): ${user.username}`);
+        this.sendToClient(ws, {
+          type: 'connected',
+          message: 'Successfully connected to Sappho notifications',
+        });
+      });
+      return;
     }
 
     // Try API key authentication
@@ -115,9 +142,13 @@ class WebSocketManager {
           ws.close(1008, 'Invalid or expired API key');
           return;
         }
-        db.get('SELECT id, username FROM users WHERE id = ?', [key.user_id], (userErr, user) => {
+        db.get('SELECT id, username, account_disabled FROM users WHERE id = ?', [key.user_id], (userErr, user) => {
           if (userErr || !user) {
             ws.close(1008, 'API key user not found');
+            return;
+          }
+          if (user.account_disabled) {
+            ws.close(1008, 'Account is disabled');
             return;
           }
           this.clients.set(ws, {
@@ -126,6 +157,10 @@ class WebSocketManager {
             authenticated: true,
           });
           console.log(`✅ WebSocket client authenticated (API Key): ${user.username}`);
+          this.sendToClient(ws, {
+            type: 'connected',
+            message: 'Successfully connected to Sappho notifications',
+          });
         });
       });
       return;
