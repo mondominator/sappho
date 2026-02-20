@@ -157,7 +157,7 @@ Provide a thorough recap including major plot points, twists, and revelations fr
       console.error('Error generating series recap:', error);
       res.status(500).json({
         error: 'Failed to generate recap',
-        message: error.message
+        message: 'An internal error occurred'
       });
     }
   });

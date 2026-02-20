@@ -410,17 +410,6 @@ function logout(token) {
   return false;
 }
 
-// Generate a secure random password
-function _generateSecurePassword(length = 16) {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  const randomBytes = crypto.randomBytes(length);
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset[randomBytes[i] % charset.length];
-  }
-  return password;
-}
-
 // Create default admin user if no users exist
 async function createDefaultAdmin() {
   const row = await dbGet('SELECT COUNT(*) as count FROM users', []);
