@@ -511,7 +511,6 @@ function isScanningLocked() {
  * Get job status for UI display
  */
 function getJobStatus() {
-  const _now = new Date();
   let nextScanTime = null;
 
   if (scanInterval && lastScanTime && !scanningLocked) {

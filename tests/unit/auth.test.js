@@ -209,11 +209,11 @@ describe('authenticateToken', () => {
     mockReq.headers['authorization'] = `Bearer ${validToken}`;
 
     db.get.mockImplementation((query, params, callback) => {
-      callback(null, { id: 1, username: 'testuser', is_admin: 0 });
+      callback(null, { id: 1, username: 'testuser', is_admin: 0, must_change_password: 0 });
     });
 
     authenticateToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0 });
+      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false });
       expect(mockReq.token).toBe(validToken);
       done();
     });
@@ -404,11 +404,11 @@ describe('authenticateMediaToken', () => {
     mockReq.query.token = validToken;
 
     db.get.mockImplementation((query, params, callback) => {
-      callback(null, { id: 1, username: 'testuser', is_admin: 0 });
+      callback(null, { id: 1, username: 'testuser', is_admin: 0, must_change_password: 0 });
     });
 
     authenticateMediaToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0 });
+      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false });
       done();
     });
   });

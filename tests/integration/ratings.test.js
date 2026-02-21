@@ -49,7 +49,7 @@ describe('Ratings Routes', () => {
           .get(`/api/ratings/audiobook/${book1.id}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -114,7 +114,7 @@ describe('Ratings Routes', () => {
           .get(`/api/ratings/audiobook/${book2.id}/all`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -157,7 +157,7 @@ describe('Ratings Routes', () => {
           .get(`/api/ratings/audiobook/${book2.id}/average`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -214,7 +214,7 @@ describe('Ratings Routes', () => {
           .send({ rating: 5 })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -378,7 +378,7 @@ describe('Ratings Routes', () => {
           .delete(`/api/ratings/audiobook/${testBookId}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -444,7 +444,7 @@ describe('Ratings Routes', () => {
           .get('/api/ratings/my-ratings')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 

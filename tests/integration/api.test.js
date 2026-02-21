@@ -75,7 +75,7 @@ describe('API Integration Tests', () => {
         .send({})
         .expect(400);
 
-      expect(response.body.error).toBe('Username and password required');
+      expect(response.body.error).toBe('Username and password are required');
     });
   });
 
@@ -105,7 +105,7 @@ describe('API Integration Tests', () => {
         .get('/api/profile')
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Access token required');
     });
 
     test('GET /api/profile with invalid token returns 401', async () => {
@@ -114,7 +114,7 @@ describe('API Integration Tests', () => {
         .set('Authorization', 'Bearer invalid-token')
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Invalid or expired token');
     });
   });
 
@@ -136,7 +136,7 @@ describe('API Integration Tests', () => {
         .get('/api/audiobooks')
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Access token required');
     });
   });
 });

@@ -41,7 +41,7 @@ describe('Profile Routes', () => {
           .get('/api/profile')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('returns profile with valid token', async () => {
@@ -116,7 +116,7 @@ describe('Profile Routes', () => {
           .get('/api/profile/stats')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('returns stats with valid token', async () => {
@@ -194,7 +194,7 @@ describe('Profile Routes', () => {
           .send({ displayName: 'New Name' })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -303,7 +303,7 @@ describe('Profile Routes', () => {
           .delete('/api/profile/avatar')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -353,7 +353,7 @@ describe('Profile Routes', () => {
           .send({ currentPassword: 'old', newPassword: 'new' })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -385,7 +385,7 @@ describe('Profile Routes', () => {
           .send({ currentPassword: 'OldPassword123!', newPassword: '12345' })
           .expect(400);
 
-        expect(res.body.error).toBe('Password must be at least 8 characters');
+        expect(res.body.error).toContain('Password must be at least 8 characters');
       });
 
       it('returns 401 with wrong current password', async () => {

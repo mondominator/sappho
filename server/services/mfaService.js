@@ -61,7 +61,7 @@ function generateBackupCodes(count = 10) {
     // Generate 8-character alphanumeric code
     const code = crypto.randomBytes(4).toString('hex').toUpperCase();
     plainCodes.push(code);
-    hashedCodes.push(bcrypt.hashSync(code, 10));
+    hashedCodes.push(bcrypt.hashSync(code, 12));
   }
 
   return { plainCodes, hashedCodes };

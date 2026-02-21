@@ -237,6 +237,35 @@ function runMigrations() {
   }
 }
 
+/**
+ * Checkpoint WAL to flush pending writes into the main database file.
+ * Should be called before any operation that needs a consistent DB file on disk.
+ */
+function checkpoint() {
+  return new Promise((resolve, reject) => {
+    db.run('PRAGMA wal_checkpoint(TRUNCATE)', (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+/**
+ * Close the database connection.
+ * Used before backup restore to release file locks.
+ */
+function closeDatabase() {
+  return new Promise((resolve, reject) => {
+    db.close((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 // Export both the db instance and the ready promise
 db.ready = dbReady;
+db.checkpoint = checkpoint;
+db.closeDatabase = closeDatabase;
+db.dbPath = dbPath;
 module.exports = db;

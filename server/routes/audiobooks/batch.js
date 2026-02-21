@@ -11,6 +11,7 @@ const { batchDeleteLimiter } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
 const { callAI, getModelUsed, generateRecapHash } = require('../../services/aiProvider');
+const { getRecapPrompt } = require('../settings');
 
 function register(router, { db, authenticateToken, requireAdmin }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
@@ -204,7 +205,6 @@ function register(router, { db, authenticateToken, requireAdmin }) {
   router.get('/:id/recap', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const audiobookId = parseInt(req.params.id);
-    const { getRecapPrompt } = require('../settings');
 
     try {
       // Get the audiobook

@@ -85,6 +85,10 @@ const validateDirectory = (dir) => {
     if (typeof dir !== 'string' || dir.includes('\0')) {
       return false;
     }
+    // SECURITY: Reject path traversal sequences
+    if (dir.includes('..')) {
+      return false;
+    }
     // SECURITY: Only allow absolute paths (expected in Docker container)
     if (!path.isAbsolute(dir)) {
       return false;
