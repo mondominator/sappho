@@ -139,7 +139,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Sappho server is running',
-    version: packageJson.version
+    version: process.env.APP_VERSION || packageJson.version
   });
 });
 

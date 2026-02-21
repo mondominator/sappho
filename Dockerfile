@@ -16,6 +16,10 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
+# Version injected from git tag at build time (falls back to package.json)
+ARG APP_VERSION
+ENV APP_VERSION=${APP_VERSION}
+
 # Install ffmpeg for m4b chapter extraction
 RUN apk add --no-cache ffmpeg
 
