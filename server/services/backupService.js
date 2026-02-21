@@ -154,83 +154,194 @@ function deleteBackup(filename) {
 }
 
 /**
- * Restore from a backup file
+ * Validate that a file has a valid SQLite header.
  */
-async function restoreBackup(backupPath, options = {}) {
-  const { restoreDatabase = true, restoreCovers = true } = options;
-
-  if (!fs.existsSync(backupPath)) {
-    throw new Error('Backup file not found');
+function validateSqliteFile(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const header = Buffer.alloc(16);
+    fs.readSync(fd, header, 0, 16, 0);
+    return header.toString('utf8', 0, 15) === 'SQLite format 3';
+  } finally {
+    fs.closeSync(fd);
   }
+}
+
+/**
+ * Extract zip entries to a temp directory, then apply the restore.
+ * This separates extraction from file replacement to avoid race conditions.
+ */
+async function extractBackupToTemp(backupPath, options) {
+  const { restoreDatabase = true, restoreCovers = true } = options;
+  const os = require('os');
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sappho-restore-'));
 
   const results = {
     database: false,
     covers: 0,
     manifest: null,
+    tempDir,
+    tempDbPath: null,
+    coverFiles: [],
   };
 
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     fs.createReadStream(backupPath)
       .pipe(unzipper.Parse())
       .on('entry', async (entry) => {
-        const fileName = entry.path;
+        try {
+          const fileName = entry.path;
 
-        if (fileName === 'manifest.json') {
-          const content = await entry.buffer();
-          results.manifest = JSON.parse(content.toString());
-        } else if ((fileName === 'sappho.db' || fileName === 'sapho.db') && restoreDatabase) {
-          // Backup current database first
-          if (fs.existsSync(DATABASE_PATH)) {
-            const backupName = DATABASE_PATH + '.pre-restore';
-            fs.copyFileSync(DATABASE_PATH, backupName);
-            console.log(`📦 Backed up current database to ${backupName}`);
-          }
-
-          // Write new database
-          entry.pipe(fs.createWriteStream(DATABASE_PATH))
-            .on('finish', () => {
-              results.database = true;
-              console.log('✅ Database restored');
+          if (fileName === 'manifest.json') {
+            const content = await entry.buffer();
+            results.manifest = JSON.parse(content.toString());
+          } else if ((fileName === 'sappho.db' || fileName === 'sapho.db') && restoreDatabase) {
+            const tempDbPath = path.join(tempDir, 'sappho.db');
+            await new Promise((res, rej) => {
+              entry.pipe(fs.createWriteStream(tempDbPath))
+                .on('finish', res)
+                .on('error', rej);
             });
-        } else if (fileName.startsWith('covers/') && restoreCovers) {
-          const coverName = fileName.replace('covers/', '');
-          // SECURITY: Validate path to prevent directory traversal attacks
-          if (coverName && !coverName.includes('..') && !coverName.startsWith('/') && !path.isAbsolute(coverName)) {
-            const coverPath = path.join(COVERS_DIR, coverName);
-            // Double-check resolved path is within COVERS_DIR
-            const resolvedPath = path.resolve(coverPath);
-            if (!resolvedPath.startsWith(path.resolve(COVERS_DIR) + path.sep)) {
-              console.warn(`⚠️ Skipping suspicious cover path: ${fileName}`);
-              entry.autodrain();
-              return;
-            }
-
-            // Ensure covers directory exists
-            if (!fs.existsSync(COVERS_DIR)) {
-              fs.mkdirSync(COVERS_DIR, { recursive: true });
-            }
-
-            entry.pipe(fs.createWriteStream(coverPath))
-              .on('finish', () => {
-                results.covers++;
+            results.tempDbPath = tempDbPath;
+          } else if (fileName.startsWith('covers/') && restoreCovers) {
+            const coverName = fileName.replace('covers/', '');
+            if (coverName && !coverName.includes('..') && !coverName.startsWith('/') && !path.isAbsolute(coverName)) {
+              const tempCoverPath = path.join(tempDir, 'covers', coverName);
+              const tempCoverDir = path.dirname(tempCoverPath);
+              if (!fs.existsSync(tempCoverDir)) {
+                fs.mkdirSync(tempCoverDir, { recursive: true });
+              }
+              await new Promise((res, rej) => {
+                entry.pipe(fs.createWriteStream(tempCoverPath))
+                  .on('finish', res)
+                  .on('error', rej);
               });
-          } else {
-            // Initial validation failed - skip with warning
-            if (coverName) {
-              console.warn(`⚠️ Skipping invalid cover path: ${fileName}`);
+              results.coverFiles.push(coverName);
+            } else {
+              if (coverName) {
+                console.warn(`⚠️ Skipping invalid cover path: ${fileName}`);
+              }
+              entry.autodrain();
             }
+          } else {
             entry.autodrain();
           }
-        } else {
+        } catch (err) {
           entry.autodrain();
+          reject(err);
         }
       })
-      .on('close', () => {
-        console.log(`✅ Restore complete: database=${results.database}, covers=${results.covers}`);
-        resolve(results);
-      })
+      .on('close', resolve)
       .on('error', reject);
   });
+
+  return results;
+}
+
+/**
+ * Restore from a backup file.
+ *
+ * Safety measures:
+ * 1. Extracts zip to temp directory first (no partial writes to live files)
+ * 2. Validates extracted database has valid SQLite header
+ * 3. Checkpoints WAL to flush pending writes before overwriting
+ * 4. Closes active database connection before file replacement
+ * 5. Removes stale WAL/SHM journal files
+ * 6. Uses fs.copyFileSync for atomic-ish file replacement
+ * 7. Backs up current database before overwriting
+ */
+async function restoreBackup(backupPath, options = {}) {
+  if (!fs.existsSync(backupPath)) {
+    throw new Error('Backup file not found');
+  }
+
+  // Phase 1: Extract zip to temp directory
+  const extracted = await extractBackupToTemp(backupPath, options);
+
+  const results = {
+    database: false,
+    covers: 0,
+    manifest: extracted.manifest,
+  };
+
+  try {
+    // Phase 2: Restore database
+    if (extracted.tempDbPath) {
+      // Validate the extracted database file
+      if (!validateSqliteFile(extracted.tempDbPath)) {
+        throw new Error('Invalid backup: extracted file is not a valid SQLite database');
+      }
+
+      // Backup current database
+      if (fs.existsSync(DATABASE_PATH)) {
+        const preRestorePath = DATABASE_PATH + '.pre-restore';
+        fs.copyFileSync(DATABASE_PATH, preRestorePath);
+        console.log(`📦 Backed up current database to ${preRestorePath}`);
+      }
+
+      // Checkpoint and close the active database connection
+      const db = require('../database');
+      try {
+        await db.checkpoint();
+        console.log('📦 WAL checkpoint complete');
+      } catch (err) {
+        console.warn('⚠️ WAL checkpoint failed (may not be in WAL mode):', err.message);
+      }
+
+      try {
+        await db.closeDatabase();
+        console.log('📦 Database connection closed');
+      } catch (err) {
+        console.warn('⚠️ Failed to close database connection:', err.message);
+      }
+
+      // Remove stale WAL and SHM journal files
+      const walPath = DATABASE_PATH + '-wal';
+      const shmPath = DATABASE_PATH + '-shm';
+      for (const journalFile of [walPath, shmPath]) {
+        try {
+          if (fs.existsSync(journalFile)) {
+            fs.unlinkSync(journalFile);
+          }
+        } catch (_e) { /* may not exist */ }
+      }
+
+      // Copy the validated backup database over the live database
+      fs.copyFileSync(extracted.tempDbPath, DATABASE_PATH);
+      results.database = true;
+      console.log('✅ Database restored');
+    }
+
+    // Phase 3: Restore covers
+    if (extracted.coverFiles.length > 0) {
+      if (!fs.existsSync(COVERS_DIR)) {
+        fs.mkdirSync(COVERS_DIR, { recursive: true });
+      }
+
+      for (const coverName of extracted.coverFiles) {
+        const srcPath = path.join(extracted.tempDir, 'covers', coverName);
+        const destPath = path.join(COVERS_DIR, coverName);
+
+        // SECURITY: Validate resolved path is within COVERS_DIR
+        const resolvedDest = path.resolve(destPath);
+        if (!resolvedDest.startsWith(path.resolve(COVERS_DIR) + path.sep)) {
+          console.warn(`⚠️ Skipping suspicious cover path: ${coverName}`);
+          continue;
+        }
+
+        fs.copyFileSync(srcPath, destPath);
+        results.covers++;
+      }
+    }
+
+    console.log(`✅ Restore complete: database=${results.database}, covers=${results.covers}`);
+    return results;
+  } finally {
+    // Clean up temp directory
+    try {
+      fs.rmSync(extracted.tempDir, { recursive: true, force: true });
+    } catch (_e) { /* best effort cleanup */ }
+  }
 }
 
 /**

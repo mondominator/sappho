@@ -186,7 +186,6 @@
 }
 
 .category-card.featured {
-  grid-column: span 2;
   min-height: 140px;
 }
 

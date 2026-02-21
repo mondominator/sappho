@@ -36,7 +36,7 @@ describe('Authorization Tests', () => {
         .get('/api/audiobooks')
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Access token required');
     });
 
     test('rejects requests with invalid token format', async () => {
@@ -45,7 +45,7 @@ describe('Authorization Tests', () => {
         .set('Authorization', 'InvalidFormat')
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Access token required');
     });
 
     test('rejects requests with malformed Bearer token', async () => {
@@ -54,7 +54,7 @@ describe('Authorization Tests', () => {
         .set('Authorization', 'Bearer not-a-valid-jwt')
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Invalid or expired token');
     });
 
     test('accepts requests with valid Bearer token', async () => {

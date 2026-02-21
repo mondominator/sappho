@@ -3,6 +3,19 @@
  * Tests: Server settings, library settings, AI settings (all admin-only)
  */
 
+// Mock settingsService to avoid locked env vars and filesystem writes in tests.
+// In the test environment, NODE_ENV, DATABASE_PATH, etc. are set by tests/setup.js,
+// which causes settingsService to detect them as "locked" startup env vars.
+// Mocking with an empty startupEnvVars object removes the lock check,
+// and mocking updateEnvFile/validateDirectory avoids filesystem side effects.
+jest.mock('../../server/services/settingsService', () => ({
+  updateEnvFile: jest.fn(),
+  validateDirectory: jest.fn(() => true),
+  startupEnvVars: {},
+  DEFAULT_RECAP_PROMPT: 'test prompt',
+  getRecapPrompt: () => 'test prompt',
+}));
+
 const request = require('supertest');
 const {
   createTestDatabase,
@@ -40,7 +53,7 @@ describe('Settings Routes', () => {
           .get('/api/settings/all')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('returns 403 for non-admin users', async () => {
@@ -102,7 +115,7 @@ describe('Settings Routes', () => {
           .send({ port: 3002 })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('returns 403 for non-admin users', async () => {
@@ -199,7 +212,8 @@ describe('Settings Routes', () => {
           .expect(200);
 
         expect(res.body.updated).toContain('LIBRARY_SCAN_INTERVAL');
-        expect(res.body.requiresRestart).not.toContain('LIBRARY_SCAN_INTERVAL');
+        // requiresRestart is undefined when no restart-requiring settings were changed
+        expect(res.body.requiresRestart || []).not.toContain('LIBRARY_SCAN_INTERVAL');
       });
     });
   });
@@ -376,7 +390,7 @@ describe('Settings Routes', () => {
           .get('/api/settings/ai/status')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('allows regular users to check AI status', async () => {

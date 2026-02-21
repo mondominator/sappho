@@ -51,7 +51,7 @@ describe('Collections Routes', () => {
           .get('/api/collections')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('returns collections with valid token', async () => {
@@ -210,7 +210,7 @@ describe('Collections Routes', () => {
           .send({ name: 'New Collection' })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -317,7 +317,7 @@ describe('Collections Routes', () => {
         .get(`/api/collections/for-book/${book1.id}`)
         .expect(401);
 
-      expect(res.body.error).toBe('Unauthorized');
+      expect(res.body.error).toBe('Access token required');
     });
 
     it('returns collections with contains_book flag', async () => {
@@ -384,7 +384,7 @@ describe('Collections Routes', () => {
           .get(`/api/collections/${privateCollection.id}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -494,7 +494,7 @@ describe('Collections Routes', () => {
           .send({ name: 'Updated' })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -606,7 +606,7 @@ describe('Collections Routes', () => {
           .delete(`/api/collections/${collection.id}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -697,7 +697,7 @@ describe('Collections Routes', () => {
           .send({ audiobook_id: book1.id })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -820,7 +820,7 @@ describe('Collections Routes', () => {
           .delete(`/api/collections/${privateCollection.id}/items/${book1.id}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -895,7 +895,7 @@ describe('Collections Routes', () => {
           .send({ order: [book3.id, book1.id, book2.id] })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 

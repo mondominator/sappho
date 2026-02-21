@@ -8,7 +8,7 @@ const helmet = require('helmet');
 const path = require('path');
 const logger = require('./utils/logger');
 const db = require('./database');
-const { createDefaultAdmin } = require('./auth');
+const { createDefaultAdmin, requirePasswordChanged } = require('./auth');
 const { startPeriodicScan, stopPeriodicScan } = require('./services/libraryScanner');
 const { startScheduledBackups } = require('./services/backupService');
 const conversionService = require('./services/conversionService');
@@ -83,6 +83,13 @@ app.use(pinoHttp({
   logger,
   autoLogging: {
     ignore: (req) => req.url.includes('/health')
+  },
+  // SECURITY: Redact media tokens from logged URLs to prevent credential leakage
+  serializers: {
+    req(req) {
+      req.url = req.url.replace(/([?&])token=[^&]*/g, '$1token=REDACTED');
+      return req;
+    }
   }
 }));
 
@@ -98,6 +105,19 @@ app.use('/api/', globalApiLimiter);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+
+// SECURITY: Enforce password change before accessing any other API endpoint
+// Exempt: auth routes (above), profile GET (to know who you are), password change, and logout
+app.use('/api/', (req, res, next) => {
+  // Skip non-authenticated routes and exempt paths
+  if (req.path === '/health') return next();
+  if (req.method === 'POST' && req.path === '/auth/logout') return next();
+  if (req.method === 'PUT' && req.path === '/profile/password') return next();
+  if (req.method === 'GET' && req.path === '/profile') return next();
+  if (req.method === 'GET' && req.path === '/profile/') return next();
+  requirePasswordChanged(req, res, next);
+});
+
 app.use('/api/audiobooks', require('./routes/audiobooks'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/api-keys', require('./routes/apiKeys'));

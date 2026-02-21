@@ -140,7 +140,7 @@ describe('Security Edge Cases', () => {
         .set('Authorization', `Bearer ${unsignedToken}`)
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Invalid or expired token');
     });
 
     test('rejects token with modified payload', async () => {
@@ -163,7 +163,7 @@ describe('Security Edge Cases', () => {
         .set('Authorization', `Bearer ${modifiedToken}`)
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Invalid or expired token');
     });
 
     test('rejects token signed with different secret', async () => {
@@ -178,7 +178,7 @@ describe('Security Edge Cases', () => {
         .set('Authorization', `Bearer ${wrongSecretToken}`)
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Invalid or expired token');
     });
 
     test('rejects expired token', async () => {
@@ -193,7 +193,7 @@ describe('Security Edge Cases', () => {
         .set('Authorization', `Bearer ${expiredToken}`)
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('Invalid or expired token');
     });
 
     test('rejects token with non-existent user ID', async () => {
@@ -203,13 +203,13 @@ describe('Security Edge Cases', () => {
         { expiresIn: '1h' }
       );
 
-      // The middleware should find no user and not set req.user
+      // The middleware should find no user and reject the token
       const response = await request(app)
         .get('/api/profile')
         .set('Authorization', `Bearer ${fakeUserToken}`)
         .expect(401);
 
-      expect(response.body.error).toBe('Unauthorized');
+      expect(response.body.error).toBe('User not found');
     });
   });
 
@@ -390,7 +390,7 @@ describe('Security Edge Cases', () => {
         .set('Authorization', `Bearer ${tempToken}`)
         .expect(401);
 
-      expect(afterResponse.body.error).toBe('Unauthorized');
+      expect(afterResponse.body.error).toBe('User not found');
     });
   });
 

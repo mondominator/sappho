@@ -42,7 +42,7 @@ describe('API Keys Routes', () => {
           .get('/api/api-keys')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
 
       it('returns empty array for user with no API keys', async () => {
@@ -113,7 +113,7 @@ describe('API Keys Routes', () => {
           .send({ name: 'Test Key' })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -264,7 +264,7 @@ describe('API Keys Routes', () => {
           .send({ name: 'New Name' })
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -412,7 +412,7 @@ describe('API Keys Routes', () => {
           .delete(`/api/api-keys/${testKeyId}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
