@@ -245,12 +245,28 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
-      // Check if audiobook is in user's favorites
-      const favorite = await dbGet(
-        'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
-        [req.user.id, req.params.id]
-      );
-      res.json({ ...audiobook, normalized_genre: normalizeGenres(audiobook.genre), is_favorite: !!favorite });
+      // Fetch user's progress and favorite status
+      const [progressRow, favorite] = await Promise.all([
+        dbGet(
+          'SELECT position, completed, updated_at FROM playback_progress WHERE audiobook_id = ? AND user_id = ?',
+          [req.params.id, req.user.id]
+        ),
+        dbGet(
+          'SELECT id FROM user_favorites WHERE user_id = ? AND audiobook_id = ?',
+          [req.user.id, req.params.id]
+        )
+      ]);
+
+      res.json({
+        ...audiobook,
+        normalized_genre: normalizeGenres(audiobook.genre),
+        is_favorite: !!favorite,
+        progress: progressRow ? {
+          position: progressRow.position,
+          completed: progressRow.completed,
+          updated_at: progressRow.updated_at
+        } : null
+      });
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
     }
