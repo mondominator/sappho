@@ -6,12 +6,24 @@
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
   mkdirSync: jest.fn(),
+  mkdtempSync: jest.fn(),
   readdirSync: jest.fn(),
   statSync: jest.fn(),
   unlinkSync: jest.fn(),
   createWriteStream: jest.fn(),
   createReadStream: jest.fn(),
-  copyFileSync: jest.fn()
+  copyFileSync: jest.fn(),
+  openSync: jest.fn(),
+  readSync: jest.fn(),
+  closeSync: jest.fn(),
+  rmSync: jest.fn(),
+}));
+
+// Mock database module for restore operations
+jest.mock('../../server/database', () => ({
+  checkpoint: jest.fn().mockResolvedValue(),
+  closeDatabase: jest.fn().mockResolvedValue(),
+  dbPath: '/app/data/sappho.db',
 }));
 
 // Mock archiver
@@ -450,12 +462,11 @@ describe('Backup Service', () => {
   describe('restoreBackup', () => {
     let mockReadStream;
     let mockParseStream;
-    let mockEntries;
 
     beforeEach(() => {
       const unzipper = require('unzipper');
+      const db = require('../../server/database');
 
-      mockEntries = [];
       mockParseStream = {
         on: jest.fn()
       };
@@ -464,7 +475,12 @@ describe('Backup Service', () => {
       };
 
       fs.createReadStream.mockReturnValue(mockReadStream);
+      fs.mkdtempSync.mockReturnValue('/tmp/sappho-restore-test');
       unzipper.Parse.mockReturnValue({});
+
+      // Reset database mocks
+      db.checkpoint.mockResolvedValue();
+      db.closeDatabase.mockResolvedValue();
     });
 
     test('throws error if backup file not found', async () => {
@@ -473,7 +489,7 @@ describe('Backup Service', () => {
       await expect(restoreBackup('/path/to/nonexistent.zip')).rejects.toThrow('Backup file not found');
     });
 
-    test('restores backup successfully', async () => {
+    test('extracts backup to temp directory before applying', async () => {
       fs.existsSync.mockReturnValue(true);
 
       mockParseStream.on.mockImplementation((event, callback) => {
@@ -488,13 +504,13 @@ describe('Backup Service', () => {
 
       const result = await resultPromise;
 
-      expect(fs.createReadStream).toHaveBeenCalledWith('/path/to/backup.zip');
+      expect(fs.mkdtempSync).toHaveBeenCalled();
       expect(result).toHaveProperty('database');
       expect(result).toHaveProperty('covers');
       expect(result).toHaveProperty('manifest');
     });
 
-    test('handles restore with database only option', async () => {
+    test('restores without database when restoreCovers only', async () => {
       fs.existsSync.mockReturnValue(true);
 
       mockParseStream.on.mockImplementation((event, callback) => {
@@ -504,12 +520,12 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip', { restoreDatabase: true, restoreCovers: false });
+      const resultPromise = restoreBackup('/path/to/backup.zip', { restoreDatabase: false, restoreCovers: true });
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const result = await resultPromise;
 
-      expect(result.database).toBe(false); // No entry processed yet
+      expect(result.database).toBe(false);
       expect(result.covers).toBe(0);
     });
 
@@ -526,7 +542,6 @@ describe('Backup Service', () => {
 
       const resultPromise = restoreBackup('/path/to/backup.zip');
 
-      // Trigger error callback
       if (errorCallback) {
         errorCallback(new Error('Stream error'));
       }
@@ -540,18 +555,13 @@ describe('Backup Service', () => {
       let entryCallback;
       let closeCallback;
       mockParseStream.on.mockImplementation((event, callback) => {
-        if (event === 'entry') {
-          entryCallback = callback;
-        }
-        if (event === 'close') {
-          closeCallback = callback;
-        }
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
         return mockParseStream;
       });
 
       const resultPromise = restoreBackup('/path/to/backup.zip');
 
-      // Simulate manifest entry
       if (entryCallback) {
         const mockEntry = {
           path: 'manifest.json',
@@ -560,29 +570,14 @@ describe('Backup Service', () => {
         await entryCallback(mockEntry);
       }
 
-      // Close the stream
-      if (closeCallback) {
-        closeCallback();
-      }
+      if (closeCallback) closeCallback();
 
       const result = await resultPromise;
       expect(result.manifest).toEqual({ version: '1.0', includes: ['database'] });
     });
 
-    test('processes database entry with existing backup', async () => {
+    test('validates SQLite header before restoring database', async () => {
       fs.existsSync.mockReturnValue(true);
-
-      let entryCallback;
-      let closeCallback;
-      mockParseStream.on.mockImplementation((event, callback) => {
-        if (event === 'entry') {
-          entryCallback = callback;
-        }
-        if (event === 'close') {
-          closeCallback = callback;
-        }
-        return mockParseStream;
-      });
 
       const mockWriteStream = {
         on: jest.fn((event, cb) => {
@@ -591,10 +586,23 @@ describe('Backup Service', () => {
         })
       };
       fs.createWriteStream.mockReturnValue(mockWriteStream);
+      fs.openSync.mockReturnValue(42);
+      // Return valid SQLite header
+      fs.readSync.mockImplementation((fd, buffer) => {
+        Buffer.from('SQLite format 3\0').copy(buffer);
+        return 16;
+      });
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
+        return mockParseStream;
+      });
 
       const resultPromise = restoreBackup('/path/to/backup.zip');
 
-      // Simulate database entry
       if (entryCallback) {
         const mockEntry = {
           path: 'sappho.db',
@@ -604,30 +612,16 @@ describe('Backup Service', () => {
       }
 
       await new Promise(resolve => setTimeout(resolve, 20));
-
-      // Close the stream
-      if (closeCallback) {
-        closeCallback();
-      }
+      if (closeCallback) closeCallback();
 
       const result = await resultPromise;
-      expect(fs.copyFileSync).toHaveBeenCalled(); // Backup of current db
+      expect(result.database).toBe(true);
+      expect(fs.openSync).toHaveBeenCalled();
+      expect(fs.copyFileSync).toHaveBeenCalled();
     });
 
-    test('processes cover entries', async () => {
+    test('rejects invalid SQLite database file', async () => {
       fs.existsSync.mockReturnValue(true);
-
-      let entryCallback;
-      let closeCallback;
-      mockParseStream.on.mockImplementation((event, callback) => {
-        if (event === 'entry') {
-          entryCallback = callback;
-        }
-        if (event === 'close') {
-          closeCallback = callback;
-        }
-        return mockParseStream;
-      });
 
       const mockWriteStream = {
         on: jest.fn((event, cb) => {
@@ -636,27 +630,78 @@ describe('Backup Service', () => {
         })
       };
       fs.createWriteStream.mockReturnValue(mockWriteStream);
+      fs.openSync.mockReturnValue(42);
+      // Return invalid header
+      fs.readSync.mockImplementation((fd, buffer) => {
+        Buffer.from('not a database!!').copy(buffer);
+        return 16;
+      });
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
+        return mockParseStream;
+      });
 
       const resultPromise = restoreBackup('/path/to/backup.zip');
 
-      // Simulate cover entry
       if (entryCallback) {
         const mockEntry = {
-          path: 'covers/cover1.jpg',
+          path: 'sappho.db',
           pipe: jest.fn().mockReturnValue(mockWriteStream)
         };
         await entryCallback(mockEntry);
       }
 
       await new Promise(resolve => setTimeout(resolve, 20));
+      if (closeCallback) closeCallback();
 
-      // Close the stream
-      if (closeCallback) {
-        closeCallback();
+      await expect(resultPromise).rejects.toThrow('Invalid backup');
+    });
+
+    test('checkpoints WAL and closes DB before overwriting', async () => {
+      const db = require('../../server/database');
+      fs.existsSync.mockReturnValue(true);
+
+      const mockWriteStream = {
+        on: jest.fn((event, cb) => {
+          if (event === 'finish') setTimeout(cb, 0);
+          return mockWriteStream;
+        })
+      };
+      fs.createWriteStream.mockReturnValue(mockWriteStream);
+      fs.openSync.mockReturnValue(42);
+      fs.readSync.mockImplementation((fd, buffer) => {
+        Buffer.from('SQLite format 3\0').copy(buffer);
+        return 16;
+      });
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'sappho.db',
+          pipe: jest.fn().mockReturnValue(mockWriteStream)
+        };
+        await entryCallback(mockEntry);
       }
 
-      const result = await resultPromise;
-      expect(result).toBeDefined();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      if (closeCallback) closeCallback();
+
+      await resultPromise;
+      expect(db.checkpoint).toHaveBeenCalled();
+      expect(db.closeDatabase).toHaveBeenCalled();
     });
 
     test('autodrains unhandled entries', async () => {
@@ -665,18 +710,13 @@ describe('Backup Service', () => {
       let entryCallback;
       let closeCallback;
       mockParseStream.on.mockImplementation((event, callback) => {
-        if (event === 'entry') {
-          entryCallback = callback;
-        }
-        if (event === 'close') {
-          closeCallback = callback;
-        }
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
         return mockParseStream;
       });
 
       const resultPromise = restoreBackup('/path/to/backup.zip');
 
-      // Simulate unhandled entry
       if (entryCallback) {
         const mockEntry = {
           path: 'some-other-file.txt',
@@ -686,11 +726,7 @@ describe('Backup Service', () => {
         expect(mockEntry.autodrain).toHaveBeenCalled();
       }
 
-      // Close the stream
-      if (closeCallback) {
-        closeCallback();
-      }
-
+      if (closeCallback) closeCallback();
       await resultPromise;
     });
 
@@ -700,18 +736,13 @@ describe('Backup Service', () => {
       let entryCallback;
       let closeCallback;
       mockParseStream.on.mockImplementation((event, callback) => {
-        if (event === 'entry') {
-          entryCallback = callback;
-        }
-        if (event === 'close') {
-          closeCallback = callback;
-        }
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
         return mockParseStream;
       });
 
       const resultPromise = restoreBackup('/path/to/backup.zip');
 
-      // Simulate cover directory entry (no filename after covers/)
       if (entryCallback) {
         const mockEntry = {
           path: 'covers/',
@@ -721,12 +752,69 @@ describe('Backup Service', () => {
         expect(mockEntry.autodrain).toHaveBeenCalled();
       }
 
-      // Close the stream
-      if (closeCallback) {
-        closeCallback();
+      if (closeCallback) closeCallback();
+      await resultPromise;
+    });
+
+    test('cleans up temp directory after restore', async () => {
+      fs.existsSync.mockReturnValue(true);
+
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'close') setTimeout(callback, 0);
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+      await new Promise(resolve => setTimeout(resolve, 10));
+      await resultPromise;
+
+      expect(fs.rmSync).toHaveBeenCalledWith('/tmp/sappho-restore-test', { recursive: true, force: true });
+    });
+
+    test('continues restore even if WAL checkpoint fails', async () => {
+      const db = require('../../server/database');
+      db.checkpoint.mockRejectedValue(new Error('Not in WAL mode'));
+      fs.existsSync.mockReturnValue(true);
+
+      const mockWriteStream = {
+        on: jest.fn((event, cb) => {
+          if (event === 'finish') setTimeout(cb, 0);
+          return mockWriteStream;
+        })
+      };
+      fs.createWriteStream.mockReturnValue(mockWriteStream);
+      fs.openSync.mockReturnValue(42);
+      fs.readSync.mockImplementation((fd, buffer) => {
+        Buffer.from('SQLite format 3\0').copy(buffer);
+        return 16;
+      });
+
+      jest.spyOn(console, 'warn').mockImplementation();
+
+      let entryCallback;
+      let closeCallback;
+      mockParseStream.on.mockImplementation((event, callback) => {
+        if (event === 'entry') entryCallback = callback;
+        if (event === 'close') closeCallback = callback;
+        return mockParseStream;
+      });
+
+      const resultPromise = restoreBackup('/path/to/backup.zip');
+
+      if (entryCallback) {
+        const mockEntry = {
+          path: 'sappho.db',
+          pipe: jest.fn().mockReturnValue(mockWriteStream)
+        };
+        await entryCallback(mockEntry);
       }
 
-      await resultPromise;
+      await new Promise(resolve => setTimeout(resolve, 20));
+      if (closeCallback) closeCallback();
+
+      const result = await resultPromise;
+      expect(result.database).toBe(true);
+      console.warn.mockRestore();
     });
   });
 });

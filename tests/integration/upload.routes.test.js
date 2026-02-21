@@ -72,7 +72,7 @@ describe('Upload Routes', () => {
         .attach('audiobook', Buffer.from('test'), 'test.mp3');
 
       expect(res.status).toBe(401);
-      expect(res.body.error).toBe('Unauthorized');
+      expect(res.body.error).toBe('Access token required');
     });
 
     it('returns 400 when no file is uploaded', async () => {
@@ -316,7 +316,7 @@ describe('Upload Routes', () => {
       expect(res.body.audiobook.title).toBe('My Great Audiobook');
     });
 
-    it('uses default title when bookName not provided', async () => {
+    it('uses metadata title when bookName not provided', async () => {
       const res = await request(app)
         .post('/api/upload/multifile')
         .set('Authorization', `Bearer ${userToken}`)
@@ -324,7 +324,8 @@ describe('Upload Routes', () => {
         .attach('audiobooks', Buffer.from('chapter 2'), 'track02.mp3');
 
       expect(res.status).toBe(200);
-      expect(res.body.audiobook.title).toBe('Multi-File Audiobook');
+      // When no bookName is provided, title comes from extracted metadata
+      expect(res.body.audiobook.title).toBe('Test Audiobook');
     });
 
     it('calculates total duration from all files', async () => {

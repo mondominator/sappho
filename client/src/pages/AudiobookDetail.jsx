@@ -537,35 +537,6 @@ export default function AudiobookDetail({ onPlay }) {
             </div>
           </div>
 
-          {/* Chapters modal (mobile) */}
-          {chapters.length > 0 && showChapters && (
-            <div className="chapters-modal-overlay" onClick={() => setShowChapters(false)}>
-              <div className="chapters-modal" ref={chaptersModalRef} role="dialog" aria-label="Chapters" onClick={e => e.stopPropagation()}>
-                <div className="chapters-modal-header">
-                  <h3>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</h3>
-                  <button className="chapters-modal-close" onClick={() => setShowChapters(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
-                </div>
-                <div className="chapters-modal-list">
-                  {chapters.map((chapter, index) => (
-                    <div key={chapter.id || index} className="chapter-item clickable" onClick={() => { handleChapterClick(chapter, index); setShowChapters(false); }}>
-                      <div className="chapter-info">
-                        <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
-                        <div className="chapter-meta">
-                          {chapter.duration && <span className="chapter-duration">{formatDuration(chapter.duration)}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Mobile Progress Section */}
           {hasProgress && (
             <div className="mobile-progress-section">
@@ -794,6 +765,35 @@ export default function AudiobookDetail({ onPlay }) {
 
         </div>
       </div>
+
+      {/* Chapters modal - rendered outside detail-content to avoid stacking context issues with sticky sidebar */}
+      {chapters.length > 0 && showChapters && (
+        <div className="chapters-modal-overlay" onClick={() => setShowChapters(false)}>
+          <div className="chapters-modal" ref={chaptersModalRef} role="dialog" aria-label="Chapters" onClick={e => e.stopPropagation()}>
+            <div className="chapters-modal-header">
+              <h3>{chapters.length} Chapter{chapters.length !== 1 ? 's' : ''}</h3>
+              <button className="chapters-modal-close" onClick={() => setShowChapters(false)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="chapters-modal-list">
+              {chapters.map((chapter, index) => (
+                <div key={chapter.id || index} className="chapter-item clickable" onClick={() => { handleChapterClick(chapter, index); setShowChapters(false); }}>
+                  <div className="chapter-info">
+                    <div className="chapter-title">{chapter.title || `Chapter ${index + 1}`}</div>
+                    <div className="chapter-meta">
+                      {chapter.duration && <span className="chapter-duration">{formatDuration(chapter.duration)}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <EditMetadataModal
         isOpen={showEditModal}

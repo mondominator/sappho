@@ -199,7 +199,7 @@ function createUsersRouter(deps = {}) {
       return res.status(400).json({ error: passwordErrors.join('. ') });
     }
 
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = bcrypt.hashSync(password, 12);
 
     try {
       const { lastID } = await dbRun(
@@ -234,7 +234,7 @@ function createUsersRouter(deps = {}) {
 
     if (password !== undefined && password !== '') {
       updates.push('password_hash = ?');
-      params.push(bcrypt.hashSync(password, 10));
+      params.push(bcrypt.hashSync(password, 12));
     }
 
     if (email !== undefined) {

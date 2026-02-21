@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const { sanitizeHtml } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
@@ -17,6 +18,15 @@ const { invalidateThumbnails } = require('../../services/thumbnailService');
 const { extractFileMetadata } = require('../../services/fileProcessor');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+
+// SECURITY: Rate limiter for metadata search/embed endpoints (prevents abuse of external API calls)
+const metadataSearchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many metadata requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function register(router, { db, authenticateToken, requireAdmin, normalizeGenres, organizeAudiobook, needsOrganization }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
@@ -142,7 +152,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Search multiple sources for metadata (admin only)
-  router.get('/:id/search-audnexus', authenticateToken, requireAdmin, async (req, res) => {
+  router.get('/:id/search-audnexus', metadataSearchLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { title, author, asin } = req.query;
 
     if (!title && !author && !asin) {
@@ -188,7 +198,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
   });
 
   // Search Open Library for metadata (admin only)
-  router.get('/:id/search-metadata', authenticateToken, requireAdmin, async (req, res) => {
+  router.get('/:id/search-metadata', metadataSearchLimiter, authenticateToken, requireAdmin, async (req, res) => {
     // Ensure query params are strings (prevent type confusion from arrays)
     const title = Array.isArray(req.query.title) ? req.query.title[0] : req.query.title;
     const author = Array.isArray(req.query.author) ? req.query.author[0] : req.query.author;
@@ -508,7 +518,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
   // Embed metadata into audio file tags using tone (admin only)
   // Uses tone for M4B/M4A files (proper audiobook tag support) and ffmpeg for other formats
-  router.post('/:id/embed-metadata', authenticateToken, requireAdmin, async (req, res) => {
+  router.post('/:id/embed-metadata', metadataSearchLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid audiobook ID' });

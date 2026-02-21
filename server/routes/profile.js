@@ -58,7 +58,9 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
+    // SECURITY: Derive extension from validated MIME type, not user-supplied filename
+    const mimeToExt = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp' };
+    const ext = mimeToExt[file.mimetype] || '.jpg';
     const filename = `user-${req.user.id}${ext}`;
     console.log('[Avatar] Saving file:', filename, 'original:', file.originalname, 'mimetype:', file.mimetype);
     cb(null, filename);
@@ -439,7 +441,7 @@ function createProfileRouter(deps = {}) {
       }
 
       // Hash new password and update, also clear must_change_password flag
-      const newPasswordHash = bcrypt.hashSync(newPassword, 10);
+      const newPasswordHash = bcrypt.hashSync(newPassword, 12);
       await dbRun(
         'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?',
         [newPasswordHash, req.user.id]

@@ -47,7 +47,7 @@ describe('Sessions Routes', () => {
           .get('/api/sessions')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -81,7 +81,7 @@ describe('Sessions Routes', () => {
           .get(`/api/sessions/user/${user1.id}`)
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -132,7 +132,7 @@ describe('Sessions Routes', () => {
           .get('/api/sessions/test-session-id')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
@@ -166,7 +166,7 @@ describe('Sessions Routes', () => {
           .delete('/api/sessions/test-session-id')
           .expect(401);
 
-        expect(res.body.error).toBe('Unauthorized');
+        expect(res.body.error).toBe('Access token required');
       });
     });
 
