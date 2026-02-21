@@ -545,15 +545,15 @@
 /* Audiobook Grid */
 .audiobook-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 1.25rem;
 }
 
 .audiobook-card {
   position: relative;
   flex-shrink: 0;
-  width: 100%;
-  aspect-ratio: 2 / 3;
+  width: 180px;
+  height: 180px;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
@@ -714,7 +714,7 @@
 
 .favorites-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 1.25rem;
 }
 
@@ -731,7 +731,7 @@
 
 .book-cover {
   width: 100%;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
   background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
@@ -1437,7 +1437,7 @@
   .audiobook-card {
     width: 100% !important;
     height: 0 !important;
-    padding-bottom: 150% !important;
+    padding-bottom: 100% !important;
     min-width: unset !important;
     border-radius: 6px !important;
   }
