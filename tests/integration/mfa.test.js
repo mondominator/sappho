@@ -132,14 +132,13 @@ describe('MFA Routes', () => {
       const newUser = await createTestUser(db, { username: `setupmfa_${Date.now()}`, password: 'Setup123!@#' });
       const newToken = generateTestToken(newUser);
 
-      // Generate a new secret and valid TOTP token
+      // Use '123456' which the mock verifyToken accepts
       const secret = authenticator.generateSecret();
-      const token = authenticator.generate(secret);
 
       const res = await request(app)
         .post('/api/mfa/verify-setup')
         .set('Authorization', `Bearer ${newToken}`)
-        .send({ secret, token });
+        .send({ secret, token: '123456' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -208,13 +207,11 @@ describe('MFA Routes', () => {
         );
       });
 
-      // Generate a valid TOTP token
-      const token = authenticator.generate(disableSecret);
-
+      // Use '123456' which the mock verifyToken accepts
       const res = await request(app)
         .post('/api/mfa/disable')
         .set('Authorization', `Bearer ${disableToken}`)
-        .send({ token });
+        .send({ token: '123456' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -351,13 +348,11 @@ describe('MFA Routes', () => {
         );
       });
 
-      // Generate a valid TOTP token
-      const token = authenticator.generate(regenSecret);
-
+      // Use '123456' which the mock verifyToken accepts
       const res = await request(app)
         .post('/api/mfa/regenerate-codes')
         .set('Authorization', `Bearer ${regenToken}`)
-        .send({ token });
+        .send({ token: '123456' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

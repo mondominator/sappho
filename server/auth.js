@@ -38,8 +38,11 @@ const failedAttempts = new Map(); // username -> { count, lockedUntil }
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
+// SECURITY: Bcrypt cost factor — 12 rounds provides ~300ms hash time (OWASP minimum recommendation)
+const BCRYPT_ROUNDS = 12;
+
 // SECURITY: Dummy hash for constant-time comparison (prevents timing attacks)
-const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-safety', 10);
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-safety', BCRYPT_ROUNDS);
 
 /**
  * Check if a token is blacklisted
@@ -213,7 +216,7 @@ async function verifyToken(token, req, res, next) {
 
   try {
     // SECURITY: Fetch current user state from database instead of trusting JWT claims
-    const user = await dbGet('SELECT id, username, is_admin FROM users WHERE id = ?', [decoded.id]);
+    const user = await dbGet('SELECT id, username, is_admin, must_change_password FROM users WHERE id = ?', [decoded.id]);
     if (!user) {
       return res.status(403).json({ error: 'User not found' });
     }
@@ -222,7 +225,8 @@ async function verifyToken(token, req, res, next) {
     req.user = {
       id: user.id,
       username: user.username,
-      is_admin: user.is_admin
+      is_admin: user.is_admin,
+      must_change_password: !!user.must_change_password
     };
     req.token = token;
     next();
@@ -313,7 +317,7 @@ async function register(username, password, email = null) {
   }
 
   // Hash password
-  const passwordHash = bcrypt.hashSync(password, 10);
+  const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
 
   try {
     const { lastID } = await dbRun(
@@ -410,24 +414,13 @@ function logout(token) {
   return false;
 }
 
-// Generate a secure random password
-function _generateSecurePassword(length = 16) {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  const randomBytes = crypto.randomBytes(length);
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset[randomBytes[i] % charset.length];
-  }
-  return password;
-}
-
 // Create default admin user if no users exist
 async function createDefaultAdmin() {
   const row = await dbGet('SELECT COUNT(*) as count FROM users', []);
   if (row.count === 0) {
     // Default admin credentials - user must change password on first login
     const defaultPassword = 'admin';
-    const passwordHash = bcrypt.hashSync(defaultPassword, 10);
+    const passwordHash = bcrypt.hashSync(defaultPassword, BCRYPT_ROUNDS);
     // SECURITY: Set must_change_password=1 to force password change on first login
     await dbRun(
       'INSERT INTO users (username, password_hash, is_admin, must_change_password) VALUES (?, ?, 1, 1)',
@@ -446,6 +439,17 @@ async function createDefaultAdmin() {
   }
 }
 
+// SECURITY: Block access for users who must change their password
+function requirePasswordChanged(req, res, next) {
+  if (req.user && req.user.must_change_password) {
+    return res.status(403).json({
+      error: 'Password change required',
+      must_change_password: true
+    });
+  }
+  next();
+}
+
 /**
  * Check if a user's tokens have been invalidated after a given token issuance time
  */
@@ -462,6 +466,7 @@ module.exports = {
   authenticateToken,
   authenticateMediaToken,
   requireAdmin,
+  requirePasswordChanged,
   register,
   login,
   logout,

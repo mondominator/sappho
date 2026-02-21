@@ -155,7 +155,8 @@ router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks
         const audiobook = await processAudiobook(file.path, userId);
         results.push({ success: true, filename: sanitizeFilename(file.originalname), audiobook });
       } catch (error) {
-        results.push({ success: false, filename: sanitizeFilename(file.originalname), error: error.message });
+        console.error('Error processing uploaded file:', error);
+        results.push({ success: false, filename: sanitizeFilename(file.originalname), error: 'Failed to process file' });
         // Clean up failed file
         if (fs.existsSync(file.path)) {
           fs.unlinkSync(file.path);
