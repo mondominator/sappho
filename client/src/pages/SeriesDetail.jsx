@@ -182,10 +182,6 @@ export default function SeriesDetail({ onPlay }) {
             </div>
           </div>
         </div>
-        <div className="book-card-info">
-          <div className="book-card-title">{book.title}</div>
-          {book.author && <div className="book-card-author">{book.author}</div>}
-        </div>
       </div>
     );
   };
