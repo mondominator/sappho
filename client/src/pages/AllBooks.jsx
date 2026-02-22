@@ -443,10 +443,6 @@ export default function AllBooks({ onPlay }) {
             )}
           </div>
         </div>
-        <div className="book-card-info">
-          <div className="book-card-title">{book.title}</div>
-          {book.author && <div className="book-card-author">{book.author}</div>}
-        </div>
       </div>
     );
   };

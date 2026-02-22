@@ -207,25 +207,6 @@ export default function AuthorDetail({ onPlay }) {
                   )}
                 </div>
 
-                <div className="book-card-info">
-                  <h3 className="book-card-title">{book.title}</h3>
-                  {book.series && (
-                    <p className="book-card-series">
-                      {book.series}{book.series_position ? ` #${book.series_position}` : ''}
-                    </p>
-                  )}
-                  <div className="book-card-meta">
-                    {book.narrator && (
-                      <span className="book-card-narrator">{book.narrator}</span>
-                    )}
-                    {book.duration && (
-                      <>
-                        {book.narrator && <span>·</span>}
-                        <span className="book-card-duration">{formatDuration(book.duration)}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
               </div>
             ))}
           </div>
