@@ -535,10 +535,6 @@ export default function Library({ onPlay }) {
                         }}
                       />
                     </div>
-                    <div className="book-info">
-                      <h4 className="book-title">{book.title}</h4>
-                      <p className="book-author">{book.author}</p>
-                    </div>
                   </div>
                 ))}
               </div>
