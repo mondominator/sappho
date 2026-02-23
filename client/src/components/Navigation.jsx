@@ -13,6 +13,7 @@ export default function Navigation({ onLogout }) {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [castReady, setCastReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [appVersion, setAppVersion] = useState(null);
 
   // Check for Cast SDK availability
   useEffect(() => {
@@ -91,6 +92,10 @@ export default function Navigation({ onLogout }) {
         .catch(err => console.error('Error fetching profile:', err));
     }
   };
+
+  useEffect(() => {
+    fetch('/api/health').then(r => r.json()).then(d => setAppVersion(d.version)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadUserProfile();
@@ -317,6 +322,9 @@ export default function Navigation({ onLogout }) {
                     </svg>
                     Logout
                   </button>
+                  {appVersion && (
+                    <div className="dropdown-version">v{appVersion}</div>
+                  )}
                 </div>
               )}
             </div>
@@ -390,6 +398,9 @@ export default function Navigation({ onLogout }) {
               </svg>
               <span>Logout</span>
             </button>
+            {appVersion && (
+              <div className="dropdown-version">v{appVersion}</div>
+            )}
           </div>
         </div>
       )}
