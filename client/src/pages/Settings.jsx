@@ -10,6 +10,7 @@ import StatisticsSettings from '../components/settings/StatisticsSettings';
 import BackupSettings from '../components/settings/BackupSettings';
 import EmailSettings from '../components/settings/EmailSettings';
 import UsersSettings from '../components/settings/UsersSettings';
+import OidcSettings from '../components/settings/OidcSettings';
 import './Settings.css';
 
 const sections = [
@@ -22,6 +23,7 @@ const sections = [
   { id: 'logs', label: 'Logs', desc: 'System logs' },
   { id: 'ai', label: 'AI', desc: 'AI features' },
   { id: 'email', label: 'Email', desc: 'Notifications' },
+  { id: 'oidc', label: 'OIDC', desc: 'Single sign-on' },
   { id: 'api-keys', label: 'API Keys', desc: 'External access' },
 ];
 
@@ -125,6 +127,7 @@ export default function Settings() {
       case 'logs': return <LogsSettings />;
       case 'ai': return <AISettings />;
       case 'email': return <EmailSettings />;
+      case 'oidc': return <OidcSettings />;
       case 'users': return <UsersSettings currentUserId={currentUser?.id} />;
       case 'api-keys': return (
         <div className="settings-content">
