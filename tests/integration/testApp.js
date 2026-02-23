@@ -75,6 +75,7 @@ function createTestDatabase() {
             account_disabled INTEGER DEFAULT 0,
             disabled_at DATETIME,
             disabled_reason TEXT,
+            auth_method TEXT DEFAULT 'local',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);

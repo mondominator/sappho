@@ -356,6 +356,9 @@ export default function UsersSettings({ currentUserId }) {
                 <span className={`role-badge ${user.is_admin ? 'admin' : 'user'}`}>
                   {user.is_admin ? 'Admin' : 'User'}
                 </span>
+                {user.auth_method === 'oidc' && (
+                  <span className="auth-badge sso">SSO</span>
+                )}
               </div>
             </div>
             <div className="user-card-meta">
@@ -455,6 +458,14 @@ export default function UsersSettings({ currentUserId }) {
                       <span className="detail-label">Email</span>
                       <span className="detail-value">{userDetails.user.email || 'Not set'}</span>
                     </div>
+                    {userDetails.user.auth_method === 'oidc' && (
+                      <div className="detail-item">
+                        <span className="detail-label">Auth Method</span>
+                        <span className="detail-value">
+                          <span className="auth-badge sso">SSO (OIDC)</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

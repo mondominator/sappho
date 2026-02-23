@@ -105,6 +105,7 @@ app.use('/api/', globalApiLimiter);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth/oidc', require('./routes/oidcAuth'));
 
 // SECURITY: Enforce password change before accessing any other API endpoint
 // Exempt: auth routes (above), profile GET (to know who you are), password change, and logout
@@ -132,6 +133,8 @@ app.use('/api/collections', require('./routes/collections'));
 app.use('/api/ratings', require('./routes/ratings'));
 app.use('/api/mfa', require('./routes/mfa'));
 app.use('/api/email', require('./routes/email'));
+app.use('/api/auth/oidc', require('./routes/oidcAuth'));
+app.use('/api/settings/oidc', require('./routes/oidcSettings'));
 
 // Health check
 app.get('/api/health', (req, res) => {

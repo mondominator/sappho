@@ -232,6 +232,10 @@ export const requestUnlock = (email) =>
 export const unlockAccount = (token) =>
   api.post('/auth/unlock', { token });
 
+// OIDC (SSO) authentication
+export const getOidcConfig = () =>
+  api.get('/auth/oidc/config');
+
 // Maintenance (admin only)
 export const scanLibrary = (refreshMetadata = false) =>
   api.post('/maintenance/scan-library', { refreshMetadata });
@@ -398,5 +402,18 @@ export const testEmailConnection = (settings) =>
 
 export const sendTestEmail = (to) =>
   api.post('/email/send-test', { to });
+
+// OIDC (OpenID Connect) Settings
+export const getOidcSettings = () =>
+  api.get('/settings/oidc');
+
+export const saveOidcSettings = (config) =>
+  api.post('/settings/oidc', config);
+
+export const testOidcConnection = (issuerUrl) =>
+  api.post('/settings/oidc/test', { issuer_url: issuerUrl });
+
+export const deleteOidcSettings = () =>
+  api.delete('/settings/oidc');
 
 export default api;
