@@ -213,7 +213,7 @@ describe('authenticateToken', () => {
     });
 
     authenticateToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false });
+      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
       expect(mockReq.token).toBe(validToken);
       done();
     });
@@ -408,7 +408,7 @@ describe('authenticateMediaToken', () => {
     });
 
     authenticateMediaToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false });
+      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
       done();
     });
   });
