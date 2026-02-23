@@ -413,6 +413,11 @@ function createProfileRouter(deps = {}) {
 
   // Change password
   router.put('/password', passwordChangeLimiter, authenticateToken, async (req, res) => {
+    // Block password changes for OIDC users
+    if (req.user.auth_method === 'oidc') {
+      return res.status(403).json({ error: 'Password changes are not available for SSO accounts' });
+    }
+
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {

@@ -216,7 +216,7 @@ async function verifyToken(token, req, res, next) {
 
   try {
     // SECURITY: Fetch current user state from database instead of trusting JWT claims
-    const user = await dbGet('SELECT id, username, is_admin, must_change_password FROM users WHERE id = ?', [decoded.id]);
+    const user = await dbGet('SELECT id, username, is_admin, must_change_password, auth_method FROM users WHERE id = ?', [decoded.id]);
     if (!user) {
       return res.status(403).json({ error: 'User not found' });
     }
@@ -226,7 +226,8 @@ async function verifyToken(token, req, res, next) {
       id: user.id,
       username: user.username,
       is_admin: user.is_admin,
-      must_change_password: !!user.must_change_password
+      must_change_password: !!user.must_change_password,
+      auth_method: user.auth_method || 'local'
     };
     req.token = token;
     next();

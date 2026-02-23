@@ -72,7 +72,7 @@ function createUsersRouter(deps = {}) {
   router.get('/', userLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
       const users = await dbAll(
-        'SELECT id, username, email, is_admin, account_disabled, disabled_at, disabled_reason, created_at FROM users ORDER BY created_at DESC'
+        'SELECT id, username, email, is_admin, account_disabled, disabled_at, disabled_reason, auth_method, created_at FROM users ORDER BY created_at DESC'
       );
       const usersWithLockout = users.map(user => ({
         ...user,
@@ -116,7 +116,7 @@ function createUsersRouter(deps = {}) {
     try {
       const user = await dbGet(
         `SELECT id, username, email, is_admin, account_disabled, disabled_at,
-                disabled_reason, created_at FROM users WHERE id = ?`,
+                disabled_reason, auth_method, created_at FROM users WHERE id = ?`,
         [userId]
       );
 
