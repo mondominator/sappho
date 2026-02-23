@@ -228,3 +228,47 @@
     margin-top: 8px;
   }
 }
+
+/* SSO / OIDC Styles */
+.sso-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.sso-divider-line {
+  flex: 1;
+  height: 1px;
+  background: #374151;
+}
+
+.sso-divider-text {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.sso-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #374151;
+  color: white;
+  font-weight: 500;
+  font-size: 15px;
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.2s;
+  box-sizing: border-box;
+  border: none;
+  cursor: pointer;
+}
+
+.sso-button:hover {
+  background: #4b5563;
+}

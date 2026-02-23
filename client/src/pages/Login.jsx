@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { login, verifyMFA, requestUnlock } from '../api';
+import { useState, useEffect } from 'react';
+import { login, verifyMFA, requestUnlock, getOidcConfig } from '../api';
 import './Login.css';
 
 export default function Login({ onLogin }) {
@@ -19,6 +19,13 @@ export default function Login({ onLogin }) {
   const [unlockEmail, setUnlockEmail] = useState('');
   const [unlockMessage, setUnlockMessage] = useState('');
   const [isLocked, setIsLocked] = useState(false);
+
+  // OIDC state
+  const [oidcConfig, setOidcConfig] = useState(null);
+
+  useEffect(() => {
+    getOidcConfig().then(res => setOidcConfig(res.data)).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -262,6 +269,22 @@ export default function Login({ onLogin }) {
             </div>
           )}
         </form>
+
+        {oidcConfig?.enabled && (
+          <>
+            <div className="sso-divider">
+              <div className="sso-divider-line"></div>
+              <span className="sso-divider-text">or</span>
+              <div className="sso-divider-line"></div>
+            </div>
+            <a
+              href="/api/auth/oidc/authorize"
+              className="sso-button"
+            >
+              Login with {oidcConfig.provider_name || 'SSO'}
+            </a>
+          </>
+        )}
       </div>
     </div>
   );

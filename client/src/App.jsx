@@ -161,6 +161,24 @@ function App() {
     }
   }, [token]);
 
+  // Handle OIDC callback token from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    const urlError = params.get('error');
+
+    if (urlToken) {
+      localStorage.setItem('token', urlToken);
+      setToken(urlToken);
+      window.history.replaceState({}, '', '/');
+    }
+
+    if (urlError) {
+      console.error('OIDC error:', urlError);
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
   // Initialize Google Cast SDK
   useEffect(() => {
     window['__onGCastApiAvailable'] = (isAvailable) => {
