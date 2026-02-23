@@ -8,6 +8,12 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { encryptSecret } = require('../utils/oidcCrypto');
+
+function trimTrailingSlashes(str) {
+  let end = str.length;
+  while (end > 0 && str[end - 1] === '/') end--;
+  return str.slice(0, end);
+}
 const { OidcService } = require('../services/oidcService');
 
 /**
@@ -138,7 +144,7 @@ function createOidcSettingsRouter(deps = {}) {
       `;
       const params = [
         provider_name,
-        issuer_url.replace(/\/+$/, ''), // normalize trailing slashes
+        trimTrailingSlashes(issuer_url),
         client_id,
         encryptedSecret,
         auto_provision !== undefined ? (auto_provision ? 1 : 0) : 1,

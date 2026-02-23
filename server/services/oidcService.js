@@ -2,6 +2,20 @@ const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
+function trimTrailingSlashes(str) {
+  let end = str.length;
+  while (end > 0 && str[end - 1] === '/') end--;
+  return str.slice(0, end);
+}
+
+function validateHttpUrl(url) {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('Only HTTP(S) URLs are supported');
+  }
+  return parsed;
+}
+
 class OidcService {
   constructor() {
     this._discoveryCache = new Map();
@@ -13,7 +27,7 @@ class OidcService {
     if (cached && cached.expiresAt > Date.now()) {
       return cached.doc;
     }
-    const url = issuerUrl.replace(/\/+$/, '') + '/.well-known/openid-configuration';
+    const url = trimTrailingSlashes(issuerUrl) + '/.well-known/openid-configuration';
     const doc = await this._httpGet(url);
     this._discoveryCache.set(issuerUrl, { doc, expiresAt: Date.now() + 3600000 });
     return doc;
@@ -93,9 +107,10 @@ class OidcService {
   }
 
   _httpGet(url) {
-    const client = url.startsWith('https') ? https : http;
+    const parsed = validateHttpUrl(url);
+    const client = parsed.protocol === 'https:' ? https : http;
     return new Promise((resolve, reject) => {
-      const req = client.get(url, (res) => {
+      const req = client.get(parsed.href, (res) => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
           return reject(new Error(`HTTP ${res.statusCode} from ${url}`));
         }
