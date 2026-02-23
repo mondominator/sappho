@@ -110,7 +110,12 @@ class OidcService {
     const parsed = validateHttpUrl(url);
     const client = parsed.protocol === 'https:' ? https : http;
     return new Promise((resolve, reject) => {
-      const req = client.get(parsed.href, (res) => {
+      const req = client.request({
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname + parsed.search,
+        method: 'GET',
+      }, (res) => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
           return reject(new Error(`HTTP ${res.statusCode} from ${url}`));
         }
@@ -123,6 +128,7 @@ class OidcService {
       });
       req.on('error', reject);
       req.setTimeout(10000, () => { req.destroy(); reject(new Error('Request timeout')); });
+      req.end();
     });
   }
 
