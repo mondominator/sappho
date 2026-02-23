@@ -10,6 +10,7 @@ const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
 const { cleanDescription } = require('../utils/cleanDescription');
 const { sanitizeName } = require('./fileOrganizer');
+const { normalizeAuthor } = require('../utils/normalizeAuthor');
 
 const execFileAsync = promisify(execFile);
 
@@ -759,7 +760,7 @@ function extractAuthor(common, nativeTags, iTunesTags) {
       }
     }
   }
-  return author;
+  return normalizeAuthor(author);
 }
 
 async function extractFileMetadata(filePath) {

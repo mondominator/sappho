@@ -16,6 +16,7 @@ const { downloadCover } = require('../../services/coverDownloader');
 const { embedWithTone, embedWithFfmpeg } = require('../../services/metadataEmbedder');
 const { invalidateThumbnails } = require('../../services/thumbnailService');
 const { extractFileMetadata } = require('../../services/fileProcessor');
+const { normalizeAuthor } = require('../../utils/normalizeAuthor');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 
@@ -465,6 +466,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Update database with refreshed metadata (preserve is_multi_file status)
+      metadata.author = normalizeAuthor(metadata.author);
       await dbRun(
         `UPDATE audiobooks
          SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
@@ -597,10 +599,11 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     }
 
     const {
-      title, subtitle, author, narrator, description, genre, tags,
+      title, subtitle, author: rawAuthor, narrator, description, genre, tags,
       series, series_position, published_year, copyright_year,
       publisher, isbn, asin, language, rating, abridged, cover_url
     } = req.body;
+    const author = normalizeAuthor(rawAuthor);
 
     try {
       // Get current audiobook to check if author/title changed
