@@ -103,7 +103,7 @@ class OidcService {
         res.on('data', (chunk) => { body += chunk; });
         res.on('end', () => {
           try { resolve(JSON.parse(body)); }
-          catch (e) { reject(new Error('Invalid JSON response')); }
+          catch (_e) { reject(new Error('Invalid JSON response')); }
         });
       });
       req.on('error', reject);

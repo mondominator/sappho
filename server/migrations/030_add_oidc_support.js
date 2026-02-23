@@ -10,7 +10,7 @@ function runSql(db, sql, params = []) {
 async function up(db) {
   // Check if column already exists (idempotent)
   const cols = await new Promise((resolve, reject) => {
-    db.all("PRAGMA table_info(users)", [], (err, rows) => err ? reject(err) : resolve(rows));
+    db.all('PRAGMA table_info(users)', [], (err, rows) => err ? reject(err) : resolve(rows));
   });
   if (!cols.find(c => c.name === 'auth_method')) {
     await runSql(db, "ALTER TABLE users ADD COLUMN auth_method TEXT DEFAULT 'local'");
