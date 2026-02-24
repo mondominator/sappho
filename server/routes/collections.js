@@ -230,17 +230,27 @@ function createCollectionsRouter(deps = {}) {
 
   /**
    * DELETE /api/collections/:id
-   * Delete a collection (owner only)
+   * Delete a collection (owner, or admin for public collections)
    */
   router.delete('/:id', collectionWriteLimiter, authenticateToken, async (req, res) => {
     try {
-      const { changes } = await dbRun(
-        'DELETE FROM user_collections WHERE id = ? AND user_id = ?',
-        [req.params.id, req.user.id]
+      const collection = await dbGet(
+        'SELECT id, user_id, is_public FROM user_collections WHERE id = ?',
+        [req.params.id]
       );
-      if (changes === 0) {
+
+      if (!collection) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+
+      const isOwner = collection.user_id === req.user.id;
+      const isAdminDeletingPublic = req.user.is_admin === 1 && collection.is_public === 1;
+
+      if (!isOwner && !isAdminDeletingPublic) {
         return res.status(404).json({ error: 'Collection not found or not owned by you' });
       }
+
+      await dbRun('DELETE FROM user_collections WHERE id = ?', [collection.id]);
       res.json({ success: true });
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
