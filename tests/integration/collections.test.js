@@ -653,6 +653,51 @@ describe('Collections Routes', () => {
 
         expect(res.body.error).toBe('Collection not found or not owned by you');
       });
+
+      it('admin can delete public collection from another user', async () => {
+        const collection = await createTestCollection(db, {
+          user_id: user1.id,
+          name: 'Admin Delete Public Test',
+          is_public: 1
+        });
+
+        const res = await request(app)
+          .delete(`/api/collections/${collection.id}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(200);
+
+        expect(res.body.success).toBe(true);
+      });
+
+      it('admin cannot delete private collection from another user', async () => {
+        const collection = await createTestCollection(db, {
+          user_id: user1.id,
+          name: 'Admin Delete Private Test',
+          is_public: 0
+        });
+
+        const res = await request(app)
+          .delete(`/api/collections/${collection.id}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(404);
+
+        expect(res.body.error).toBe('Collection not found or not owned by you');
+      });
+
+      it('admin can delete own collection', async () => {
+        const collection = await createTestCollection(db, {
+          user_id: adminUser.id,
+          name: 'Admin Own Collection',
+          is_public: 0
+        });
+
+        const res = await request(app)
+          .delete(`/api/collections/${collection.id}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(200);
+
+        expect(res.body.success).toBe(true);
+      });
     });
 
     describe('Not found', () => {
