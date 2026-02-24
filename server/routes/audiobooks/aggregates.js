@@ -159,6 +159,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
          LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
          LEFT JOIN user_favorites f ON a.id = f.audiobook_id AND f.user_id = ?
          WHERE (a.is_available = 1 OR a.is_available IS NULL)
+           AND a.duration IS NOT NULL
          ORDER BY a.created_at DESC
          LIMIT ?`,
         [userId, userId, limit]

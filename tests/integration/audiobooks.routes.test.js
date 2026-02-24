@@ -1266,6 +1266,19 @@ describe('Audiobooks Routes', () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveLength(1);
       });
+
+      it('excludes books with no duration (incomplete/converting)', async () => {
+        await createTestAudiobook(db, { title: 'Complete Book', duration: 3600 });
+        await createTestAudiobook(db, { title: 'Converting Book', duration: null });
+
+        const res = await request(app)
+          .get('/api/audiobooks/meta/recent')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].title).toBe('Complete Book');
+      });
     });
 
     describe('GET /api/audiobooks/meta/in-progress', () => {
