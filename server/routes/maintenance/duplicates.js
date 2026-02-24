@@ -7,6 +7,7 @@ const path = require('path');
 const { maintenanceLimiter, maintenanceWriteLimiter } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
+const { levenshteinSimilarity, normalizeTitle } = require('../../utils/stringSimilarity');
 
 function register(router, { db, authenticateToken, requireAdmin }) {
   const { dbGet, dbAll, dbRun } = createDbHelpers(db);
@@ -60,7 +61,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       for (const [key, books] of isbnGroups) {
         if (books.length > 1) {
           const groupKey = `isbn:${key}`;
-          groupMap.set(groupKey, { reason: 'Same ISBN', books });
+          groupMap.set(groupKey, { reason: 'Same ISBN', score: 90, books });
           for (const b of books) matched.add(b.id);
         }
       }
@@ -93,7 +94,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       for (const [key, books] of asinGroups) {
         if (books.length > 1) {
           const groupKey = `asin:${key}`;
-          groupMap.set(groupKey, { reason: 'Same ASIN', books });
+          groupMap.set(groupKey, { reason: 'Same ASIN', score: 90, books });
           for (const b of books) matched.add(b.id);
         }
       }
@@ -129,13 +130,12 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       for (const [key, books] of titleAuthorGroups) {
         if (books.length > 1) {
           const groupKey = `titleauthor:${key}`;
-          groupMap.set(groupKey, { reason: 'Same title and author', books });
+          groupMap.set(groupKey, { reason: 'Same title and author', score: 80, books });
           for (const b of books) matched.add(b.id);
         }
       }
 
-      // --- 4. Fuzzy duration/size match on remaining unmatched books ---
-      // Only fetch books not already in a duplicate group
+      // --- 4. Fuzzy title similarity + duration/size match on remaining unmatched books ---
       const remainingBooks = await dbAll(
         `SELECT id, title, author, narrator, duration, file_size, file_path,
                 isbn, asin, series, series_position, cover_image, cover_path,
@@ -149,42 +149,35 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         [...matched]
       );
 
-      // Group remaining books by normalized title to avoid full O(n^2)
-      const normalizedTitleGroups = new Map();
+      // Group by normalized title for O(n) bucketing, then pairwise Levenshtein between buckets
+      const normalizedGroups = new Map();
       for (const book of remainingBooks) {
-        const normalizedTitle = book.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!normalizedTitle) continue;
-        if (!normalizedTitleGroups.has(normalizedTitle)) normalizedTitleGroups.set(normalizedTitle, []);
-        normalizedTitleGroups.get(normalizedTitle).push(book);
+        const norm = normalizeTitle(book.title);
+        if (!norm) continue;
+        if (!normalizedGroups.has(norm)) normalizedGroups.set(norm, []);
+        normalizedGroups.get(norm).push(book);
       }
 
-      // Also check for substring matches between normalized title keys
-      // Build a list of title keys that have potential substring overlaps
-      const titleKeys = [...normalizedTitleGroups.keys()].sort();
-      const mergedTitleBuckets = new Map(); // bucket key -> array of books
-      const keyToBucket = new Map(); // title key -> bucket key
+      // Collect all normalized keys and do pairwise Levenshtein between keys
+      const normKeys = [...normalizedGroups.keys()];
+      const titleBuckets = new Map();
 
-      for (const key of titleKeys) {
-        if (keyToBucket.has(key)) continue;
-        // Check if this key is a substring of or contains any existing bucket key
-        let assignedBucket = null;
-        for (const [bucketKey] of mergedTitleBuckets) {
-          if (key.includes(bucketKey) || bucketKey.includes(key)) {
-            assignedBucket = bucketKey;
+      for (const key of normKeys) {
+        let assigned = false;
+        for (const [bucketKey, bucketBooks] of titleBuckets) {
+          if (levenshteinSimilarity(key, bucketKey) >= 0.85) {
+            bucketBooks.push(...normalizedGroups.get(key));
+            assigned = true;
             break;
           }
         }
-        if (assignedBucket) {
-          keyToBucket.set(key, assignedBucket);
-          mergedTitleBuckets.get(assignedBucket).push(...normalizedTitleGroups.get(key));
-        } else {
-          keyToBucket.set(key, key);
-          mergedTitleBuckets.set(key, [...normalizedTitleGroups.get(key)]);
+        if (!assigned) {
+          titleBuckets.set(key, [...normalizedGroups.get(key)]);
         }
       }
 
-      // Within each bucket, do pairwise duration/size comparison (bucket sizes are small)
-      for (const [, bucketBooks] of mergedTitleBuckets) {
+      // Within each bucket, do pairwise duration/size comparison
+      for (const [, bucketBooks] of titleBuckets) {
         if (bucketBooks.length < 2) continue;
 
         const fuzzyProcessed = new Set();
@@ -201,15 +194,20 @@ function register(router, { db, authenticateToken, requireAdmin }) {
             const sizeDiff = Math.abs(book.file_size - candidate.file_size) / Math.max(book.file_size, candidate.file_size);
 
             if (durationDiff < 0.02 && sizeDiff < 0.15) {
-              // Title similarity already guaranteed by being in the same bucket
               fuzzyMatches.push(candidate);
               fuzzyProcessed.add(candidate.id);
             }
           }
 
           if (fuzzyMatches.length > 1) {
+            const titleSim = levenshteinSimilarity(
+              normalizeTitle(fuzzyMatches[0].title),
+              normalizeTitle(fuzzyMatches[1].title)
+            );
+            const score = Math.min(70, Math.round(50 + (titleSim - 0.85) * 133));
+
             const groupKey = `fuzzy:${book.id}`;
-            groupMap.set(groupKey, { reason: 'Similar duration and file size', books: fuzzyMatches });
+            groupMap.set(groupKey, { reason: 'Similar title, duration and file size', score, books: fuzzyMatches });
             for (const b of fuzzyMatches) matched.add(b.id);
             fuzzyProcessed.add(book.id);
           }
@@ -238,6 +236,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         duplicateGroups.push({
           id: `group-${groupIndex++}`,
           matchReason: group.reason,
+          score: group.score,
           books: matchesWithProgress,
           suggestedKeep: matchesWithProgress[0].id,
         });
