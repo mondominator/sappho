@@ -217,10 +217,21 @@
   margin: 0.5rem 0 0 2rem;
 }
 
-.edit-actions {
+.collection-detail-page .edit-actions {
   display: flex;
-  gap: 1rem;
-  margin-top: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.edit-actions-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.delete-collection-btn {
+  margin-right: auto;
 }
 
 .edit-actions .btn {

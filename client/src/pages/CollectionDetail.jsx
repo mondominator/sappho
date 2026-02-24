@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCollection, updateCollection, removeFromCollection, reorderCollection, getCoverUrl } from '../api';
+import { getCollection, updateCollection, removeFromCollection, reorderCollection, getCoverUrl, deleteCollection, getProfile } from '../api';
 import { formatDuration } from '../utils/formatting';
 import './CollectionDetail.css';
 
@@ -15,10 +15,22 @@ export default function CollectionDetail() {
   const [editIsPublic, setEditIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadCollection();
   }, [id]);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const response = await getProfile();
+        setIsAdmin(!!response.data.is_admin);
+      } catch (_) {}
+    };
+    checkAdmin();
+  }, []);
 
   const loadCollection = async () => {
     try {
@@ -102,6 +114,20 @@ export default function CollectionDetail() {
   };
 
 
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${collection.name}"? This cannot be undone.`)) return;
+
+    setDeleting(true);
+    try {
+      await deleteCollection(id);
+      navigate('/collections');
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      alert('Failed to delete collection');
+      setDeleting(false);
+    }
+  };
+
   const getProgress = (book) => {
     if (book.progress_completed) return 100;
     if (!book.progress_position || !book.duration) return 0;
@@ -157,10 +183,22 @@ export default function CollectionDetail() {
               </div>
             )}
             <div className="edit-actions">
-              <button className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={!editName.trim() || saving}>
-                {saving ? 'Saving...' : 'Save'}
-              </button>
+              {(collection.is_owner === 1 || (isAdmin && collection.is_public === 1)) && (
+                <button
+                  className="btn btn-danger delete-collection-btn"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  type="button"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Collection'}
+                </button>
+              )}
+              <div className="edit-actions-right">
+                <button className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={!editName.trim() || saving}>
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
         ) : (
