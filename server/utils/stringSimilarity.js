@@ -30,7 +30,6 @@ function levenshteinSimilarity(a, b) {
   if (!a && !b) return 0;
   if (!a || !b) return 0;
   const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 0;
   return 1 - levenshteinDistance(a, b) / maxLen;
 }
 
