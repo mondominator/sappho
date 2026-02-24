@@ -65,7 +65,9 @@ export default function Collections() {
       try {
         const response = await getProfile();
         setIsAdmin(!!response.data.is_admin);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('Failed to check admin status:', err);
+      }
     };
     checkAdmin();
   }, []);

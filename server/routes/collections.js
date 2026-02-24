@@ -252,7 +252,8 @@ function createCollectionsRouter(deps = {}) {
 
       await dbRun('DELETE FROM user_collections WHERE id = ?', [collection.id]);
       res.json({ success: true });
-    } catch (_err) {
+    } catch (err) {
+      console.error(`Failed to delete collection ${req.params.id}:`, err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
