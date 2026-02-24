@@ -121,11 +121,35 @@ function updatePathCacheEntry(oldFilePath, newFilePath, audiobookId) {
   }
 }
 
+/**
+ * Check if an audiobook with the given ISBN already exists
+ */
+function audiobookExistsByIsbn(isbn) {
+  if (!isbn || !isbn.trim()) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    db.get('SELECT id, title, file_path FROM audiobooks WHERE isbn = ? AND (is_available = 1 OR is_available IS NULL) LIMIT 1',
+      [isbn.trim()], (err, row) => err ? reject(err) : resolve(row || null));
+  });
+}
+
+/**
+ * Check if an audiobook with the given ASIN already exists
+ */
+function audiobookExistsByAsin(asin) {
+  if (!asin || !asin.trim()) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    db.get('SELECT id, title, file_path FROM audiobooks WHERE asin = ? AND (is_available = 1 OR is_available IS NULL) LIMIT 1',
+      [asin.trim()], (err, row) => err ? reject(err) : resolve(row || null));
+  });
+}
+
 module.exports = {
   loadPathCache,
   clearPathCache,
   fileExistsInDatabase,
   audiobookExistsInDirectory,
   audiobookExistsByHash,
-  updatePathCacheEntry
+  updatePathCacheEntry,
+  audiobookExistsByIsbn,
+  audiobookExistsByAsin
 };

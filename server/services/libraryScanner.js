@@ -8,7 +8,7 @@ const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
 const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
 const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('./fileSystemUtils');
-const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash } = require('./pathCache');
+const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash, audiobookExistsByIsbn, audiobookExistsByAsin } = require('./pathCache');
 const { findUnavailableByHash, markAvailable, markUnavailable, checkAvailability, restoreAudiobook } = require('./libraryQueries');
 const { createDbHelpers } = require('../utils/db');
 
@@ -81,6 +81,24 @@ async function importAudiobook(filePath, userId) {
     if (existingByHash) {
       console.log(`Skipping ${filePath} - audiobook with same content hash already exists: ${existingByHash.title}`);
       return null;
+    }
+
+    // Auto-merge: skip if an audiobook with same ISBN already exists
+    if (metadata.isbn) {
+      const existingByIsbn = await audiobookExistsByIsbn(metadata.isbn);
+      if (existingByIsbn) {
+        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByIsbn.title}" by ISBN ${metadata.isbn}`);
+        return null;
+      }
+    }
+
+    // Auto-merge: skip if an audiobook with same ASIN already exists
+    if (metadata.asin) {
+      const existingByAsin = await audiobookExistsByAsin(metadata.asin);
+      if (existingByAsin) {
+        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByAsin.title}" by ASIN ${metadata.asin}`);
+        return null;
+      }
     }
 
     // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
@@ -285,6 +303,24 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     if (existingByHash) {
       console.log(`Skipping multi-file audiobook ${metadata.title} - audiobook with same content hash already exists: ${existingByHash.title}`);
       return null;
+    }
+
+    // Auto-merge: skip if an audiobook with same ISBN already exists
+    if (metadata.isbn) {
+      const existingByIsbn = await audiobookExistsByIsbn(metadata.isbn);
+      if (existingByIsbn) {
+        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByIsbn.title}" by ISBN ${metadata.isbn}`);
+        return null;
+      }
+    }
+
+    // Auto-merge: skip if an audiobook with same ASIN already exists
+    if (metadata.asin) {
+      const existingByAsin = await audiobookExistsByAsin(metadata.asin);
+      if (existingByAsin) {
+        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByAsin.title}" by ASIN ${metadata.asin}`);
+        return null;
+      }
     }
 
     // Save audiobook and chapters in a single transaction
