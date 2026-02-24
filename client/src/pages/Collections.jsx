@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCollections, createCollection, deleteCollection, getCoverUrl } from '../api';
+import { getCollections, createCollection, deleteCollection, getCoverUrl, getProfile } from '../api';
 import './Collections.css';
 
 // Component for rotating collection covers
@@ -54,9 +54,20 @@ export default function Collections() {
   const [newDescription, setNewDescription] = useState('');
   const [newIsPublic, setNewIsPublic] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadCollections();
+  }, []);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const response = await getProfile();
+        setIsAdmin(!!response.data.is_admin);
+      } catch (_) {}
+    };
+    checkAdmin();
   }, []);
 
   const loadCollections = async () => {
@@ -94,7 +105,8 @@ export default function Collections() {
 
   const handleDelete = async (e, collection) => {
     e.stopPropagation();
-    if (!collection.is_owner) {
+    const canDelete = collection.is_owner === 1 || (isAdmin && collection.is_public === 1);
+    if (!canDelete) {
       alert("You can only delete collections you created.");
       return;
     }
@@ -144,7 +156,7 @@ export default function Collections() {
               className="collection-card"
               onClick={() => navigate(`/collections/${collection.id}`)}
             >
-              {collection.is_owner === 1 && (
+              {(collection.is_owner === 1 || (isAdmin && collection.is_public === 1)) && (
                 <button
                   className="delete-btn"
                   onClick={(e) => handleDelete(e, collection)}
