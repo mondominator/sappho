@@ -241,7 +241,12 @@ export default function JobsSettings() {
                         <div className="dup-info">
                           <span className="dup-title">{group.books[0].title}</span>
                           <span className="dup-author">{group.books[0].author}</span>
-                          <span className="dup-count">{group.books.length} copies</span>
+                          <span className="dup-meta">
+                            <span className="dup-count">{group.books.length} copies</span>
+                            <span className={`dup-score ${group.score >= 90 ? 'high' : group.score >= 70 ? 'medium' : 'low'}`}>
+                              {group.score}%
+                            </span>
+                          </span>
                         </div>
                         <button
                           className="merge-btn"
