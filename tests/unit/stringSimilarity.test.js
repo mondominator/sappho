@@ -38,6 +38,16 @@ describe('stringSimilarity', () => {
       const sim = levenshteinSimilarity('storm assault', 'storm assault');
       expect(sim).toBe(1);
     });
+
+    it('is symmetric', () => {
+      expect(levenshteinSimilarity('abc', 'abcd')).toBe(levenshteinSimilarity('abcd', 'abc'));
+    });
+
+    it('coerces non-string input to empty string', () => {
+      expect(levenshteinSimilarity(123, 'hello')).toBe(0);
+      expect(levenshteinSimilarity('hello', 42)).toBe(0);
+      expect(levenshteinSimilarity(null, undefined)).toBe(0);
+    });
   });
 
   describe('normalizeTitle', () => {
@@ -52,6 +62,14 @@ describe('stringSimilarity', () => {
     it('handles null/undefined', () => {
       expect(normalizeTitle(null)).toBe('');
       expect(normalizeTitle(undefined)).toBe('');
+    });
+
+    it('strips accented characters', () => {
+      expect(normalizeTitle('Café au Lait')).toBe('caf au lait');
+    });
+
+    it('handles numbers-only titles', () => {
+      expect(normalizeTitle('1984')).toBe('1984');
     });
   });
 });

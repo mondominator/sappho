@@ -14,12 +14,12 @@ Each duplicate group gets a numeric score (0-100):
 
 | Match type | Score | Rationale |
 |---|---|---|
-| Same file path | 100 | Identical file, DB duplicate |
-| Same content_hash | 95 | Same title+author+duration+size |
 | Same ISBN | 90 | Published identifier |
 | Same ASIN | 90 | Published identifier |
 | Same title + author (exact) | 80 | Strong match, could be different editions |
 | Fuzzy (title similarity + duration/size) | 50-70 | Calculated from Levenshtein similarity |
+
+Note: Content hash and file path duplicates are already caught during library scan (auto-skip) and never reach the detection endpoint.
 
 Fuzzy score formula: `50 + (titleSimilarity - 0.85) * 133`, capped at 70.
 
@@ -27,14 +27,9 @@ The score is returned in the API response and displayed in the web UI.
 
 ### Auto-Merge on Scan (score >= 90)
 
-During library scan, after importing a new book, check for duplicates by content_hash, ISBN, and ASIN against existing books. If a match scores >= 90, auto-merge immediately:
+During library scan, after importing a new book, check for duplicates by ISBN and ASIN against existing books. If a match is found, skip creating a new DB entry (the existing record is kept, preserving playback progress). This extends the existing content_hash dedup in the scanner to also catch ISBN/ASIN matches.
 
-- Keep the older record (preserves playback progress)
-- Update its file path to the new file location
-- Skip creating a new DB entry
-- Log the auto-merge
-
-This extends the existing content_hash dedup in the scanner to also catch ISBN/ASIN matches.
+The dedup check fails open: if the database query errors, the import proceeds (a duplicate that can be merged later is better than a silently lost book).
 
 ### Fuzzy Matching: Levenshtein Similarity
 

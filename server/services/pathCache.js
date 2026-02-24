@@ -12,6 +12,8 @@ const db = require('../database');
 // In-memory caches for scan-time lookups (populated at scan start, cleared after)
 let knownFilePaths = null;  // Set of all file_path values in audiobooks table
 let knownDirectories = null;  // Map of directory -> { id, file_path } for directory-level dedup
+let knownIsbns = null;  // Map of isbn -> { id, title, file_path } for ISBN dedup
+let knownAsins = null;  // Map of asin -> { id, title, file_path } for ASIN dedup
 
 /**
  * Load all existing audiobook paths into memory for fast O(1) lookup during scan.
@@ -19,17 +21,26 @@ let knownDirectories = null;  // Map of directory -> { id, file_path } for direc
  */
 function loadPathCache() {
   return new Promise((resolve, reject) => {
-    db.all('SELECT id, file_path FROM audiobooks', [], (err, rows) => {
+    db.all('SELECT id, file_path, title, isbn, asin, is_available FROM audiobooks', [], (err, rows) => {
       if (err) return reject(err);
 
       knownFilePaths = new Set();
       knownDirectories = new Map();
+      knownIsbns = new Map();
+      knownAsins = new Map();
 
       for (const row of (rows || [])) {
         knownFilePaths.add(row.file_path);
         const dir = path.dirname(row.file_path);
         if (!knownDirectories.has(dir)) {
           knownDirectories.set(dir, { id: row.id, file_path: row.file_path });
+        }
+        const isAvailable = row.is_available === 1 || row.is_available === null;
+        if (isAvailable && row.isbn && row.isbn.trim()) {
+          knownIsbns.set(row.isbn.trim(), { id: row.id, title: row.title, file_path: row.file_path });
+        }
+        if (isAvailable && row.asin && row.asin.trim()) {
+          knownAsins.set(row.asin.trim(), { id: row.id, title: row.title, file_path: row.file_path });
         }
       }
 
@@ -45,6 +56,8 @@ function loadPathCache() {
 function clearPathCache() {
   knownFilePaths = null;
   knownDirectories = null;
+  knownIsbns = null;
+  knownAsins = null;
 }
 
 /**
@@ -122,10 +135,13 @@ function updatePathCacheEntry(oldFilePath, newFilePath, audiobookId) {
 }
 
 /**
- * Check if an audiobook with the given ISBN already exists
+ * Check if an audiobook with the given ISBN already exists (uses cache if available)
  */
 function audiobookExistsByIsbn(isbn) {
   if (!isbn || !isbn.trim()) return Promise.resolve(null);
+  if (knownIsbns) {
+    return Promise.resolve(knownIsbns.get(isbn.trim()) || null);
+  }
   return new Promise((resolve, reject) => {
     db.get('SELECT id, title, file_path FROM audiobooks WHERE isbn = ? AND (is_available = 1 OR is_available IS NULL) LIMIT 1',
       [isbn.trim()], (err, row) => err ? reject(err) : resolve(row || null));
@@ -133,10 +149,13 @@ function audiobookExistsByIsbn(isbn) {
 }
 
 /**
- * Check if an audiobook with the given ASIN already exists
+ * Check if an audiobook with the given ASIN already exists (uses cache if available)
  */
 function audiobookExistsByAsin(asin) {
   if (!asin || !asin.trim()) return Promise.resolve(null);
+  if (knownAsins) {
+    return Promise.resolve(knownAsins.get(asin.trim()) || null);
+  }
   return new Promise((resolve, reject) => {
     db.get('SELECT id, title, file_path FROM audiobooks WHERE asin = ? AND (is_available = 1 OR is_available IS NULL) LIMIT 1',
       [asin.trim()], (err, row) => err ? reject(err) : resolve(row || null));

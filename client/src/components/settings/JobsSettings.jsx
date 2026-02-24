@@ -243,9 +243,11 @@ export default function JobsSettings() {
                           <span className="dup-author">{group.books[0].author}</span>
                           <span className="dup-meta">
                             <span className="dup-count">{group.books.length} copies</span>
-                            <span className={`dup-score ${group.score >= 90 ? 'high' : group.score >= 70 ? 'medium' : 'low'}`}>
-                              {group.score}%
-                            </span>
+                            {group.score != null && (
+                              <span className={`dup-score ${group.score >= 90 ? 'high' : group.score >= 70 ? 'medium' : 'low'}`}>
+                                {group.score}%
+                              </span>
+                            )}
                           </span>
                         </div>
                         <button

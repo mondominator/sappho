@@ -25,6 +25,8 @@ function levenshteinDistance(a, b) {
  * 1 = identical, 0 = completely different or both empty.
  */
 function levenshteinSimilarity(a, b) {
+  a = typeof a === 'string' ? a : '';
+  b = typeof b === 'string' ? b : '';
   if (!a && !b) return 0;
   if (!a || !b) return 0;
   const maxLen = Math.max(a.length, b.length);

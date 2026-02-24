@@ -24,6 +24,38 @@ const getConversionChecker = () => {
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
 /**
+ * Check if a book with the same ISBN or ASIN already exists.
+ * Returns true if a duplicate was found (caller should skip import).
+ * Fails open: if the DB query errors, logs a warning and returns false
+ * so the import proceeds (a duplicate is better than a lost book).
+ */
+async function isDuplicateByIdentifier(metadata) {
+  if (metadata.isbn) {
+    try {
+      const existing = await audiobookExistsByIsbn(metadata.isbn);
+      if (existing) {
+        console.log(`Skipping duplicate: "${metadata.title}" matches existing "${existing.title}" by ISBN ${metadata.isbn}`);
+        return true;
+      }
+    } catch (err) {
+      console.error(`ISBN dedup check failed for "${metadata.title}" (ISBN: ${metadata.isbn}), proceeding with import:`, err.message);
+    }
+  }
+  if (metadata.asin) {
+    try {
+      const existing = await audiobookExistsByAsin(metadata.asin);
+      if (existing) {
+        console.log(`Skipping duplicate: "${metadata.title}" matches existing "${existing.title}" by ASIN ${metadata.asin}`);
+        return true;
+      }
+    } catch (err) {
+      console.error(`ASIN dedup check failed for "${metadata.title}" (ASIN: ${metadata.asin}), proceeding with import:`, err.message);
+    }
+  }
+  return false;
+}
+
+/**
  * Import a single-file audiobook into the database without moving it
  */
 async function importAudiobook(filePath, userId) {
@@ -83,23 +115,8 @@ async function importAudiobook(filePath, userId) {
       return null;
     }
 
-    // Auto-merge: skip if an audiobook with same ISBN already exists
-    if (metadata.isbn) {
-      const existingByIsbn = await audiobookExistsByIsbn(metadata.isbn);
-      if (existingByIsbn) {
-        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByIsbn.title}" by ISBN ${metadata.isbn}`);
-        return null;
-      }
-    }
-
-    // Auto-merge: skip if an audiobook with same ASIN already exists
-    if (metadata.asin) {
-      const existingByAsin = await audiobookExistsByAsin(metadata.asin);
-      if (existingByAsin) {
-        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByAsin.title}" by ASIN ${metadata.asin}`);
-        return null;
-      }
-    }
+    // Skip if an audiobook with same ISBN or ASIN already exists
+    if (await isDuplicateByIdentifier(metadata)) return null;
 
     // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
     let chapters = null;
@@ -305,23 +322,8 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       return null;
     }
 
-    // Auto-merge: skip if an audiobook with same ISBN already exists
-    if (metadata.isbn) {
-      const existingByIsbn = await audiobookExistsByIsbn(metadata.isbn);
-      if (existingByIsbn) {
-        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByIsbn.title}" by ISBN ${metadata.isbn}`);
-        return null;
-      }
-    }
-
-    // Auto-merge: skip if an audiobook with same ASIN already exists
-    if (metadata.asin) {
-      const existingByAsin = await audiobookExistsByAsin(metadata.asin);
-      if (existingByAsin) {
-        console.log(`Auto-merge: "${metadata.title}" matches existing "${existingByAsin.title}" by ASIN ${metadata.asin}`);
-        return null;
-      }
-    }
+    // Skip if an audiobook with same ISBN or ASIN already exists
+    if (await isDuplicateByIdentifier(metadata)) return null;
 
     // Save audiobook and chapters in a single transaction
     const { dbTransaction } = createDbHelpers(db);

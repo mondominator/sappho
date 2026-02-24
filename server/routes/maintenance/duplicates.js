@@ -204,7 +204,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
               normalizeTitle(fuzzyMatches[0].title),
               normalizeTitle(fuzzyMatches[1].title)
             );
-            const score = Math.min(70, Math.round(50 + (titleSim - 0.85) * 133));
+            const score = Math.max(50, Math.min(70, Math.round(50 + (titleSim - 0.85) * 133)));
 
             const groupKey = `fuzzy:${book.id}`;
             groupMap.set(groupKey, { reason: 'Similar title, duration and file size', score, books: fuzzyMatches });
