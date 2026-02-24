@@ -8,7 +8,7 @@ const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
 const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
 const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('./fileSystemUtils');
-const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash } = require('./pathCache');
+const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash, audiobookExistsByIsbn, audiobookExistsByAsin } = require('./pathCache');
 const { findUnavailableByHash, markAvailable, markUnavailable, checkAvailability, restoreAudiobook } = require('./libraryQueries');
 const { createDbHelpers } = require('../utils/db');
 
@@ -22,6 +22,38 @@ const getConversionChecker = () => {
 };
 
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
+
+/**
+ * Check if a book with the same ISBN or ASIN already exists.
+ * Returns true if a duplicate was found (caller should skip import).
+ * Fails open: if the DB query errors, logs a warning and returns false
+ * so the import proceeds (a duplicate is better than a lost book).
+ */
+async function isDuplicateByIdentifier(metadata) {
+  if (metadata.isbn) {
+    try {
+      const existing = await audiobookExistsByIsbn(metadata.isbn);
+      if (existing) {
+        console.log(`Skipping duplicate: "${metadata.title}" matches existing "${existing.title}" by ISBN ${metadata.isbn}`);
+        return true;
+      }
+    } catch (err) {
+      console.error(`ISBN dedup check failed for "${metadata.title}" (ISBN: ${metadata.isbn}), proceeding with import:`, err.message);
+    }
+  }
+  if (metadata.asin) {
+    try {
+      const existing = await audiobookExistsByAsin(metadata.asin);
+      if (existing) {
+        console.log(`Skipping duplicate: "${metadata.title}" matches existing "${existing.title}" by ASIN ${metadata.asin}`);
+        return true;
+      }
+    } catch (err) {
+      console.error(`ASIN dedup check failed for "${metadata.title}" (ASIN: ${metadata.asin}), proceeding with import:`, err.message);
+    }
+  }
+  return false;
+}
 
 /**
  * Import a single-file audiobook into the database without moving it
@@ -82,6 +114,9 @@ async function importAudiobook(filePath, userId) {
       console.log(`Skipping ${filePath} - audiobook with same content hash already exists: ${existingByHash.title}`);
       return null;
     }
+
+    // Skip if an audiobook with same ISBN or ASIN already exists
+    if (await isDuplicateByIdentifier(metadata)) return null;
 
     // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
     let chapters = null;
@@ -286,6 +321,9 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       console.log(`Skipping multi-file audiobook ${metadata.title} - audiobook with same content hash already exists: ${existingByHash.title}`);
       return null;
     }
+
+    // Skip if an audiobook with same ISBN or ASIN already exists
+    if (await isDuplicateByIdentifier(metadata)) return null;
 
     // Save audiobook and chapters in a single transaction
     const { dbTransaction } = createDbHelpers(db);

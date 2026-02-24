@@ -334,6 +334,119 @@ describe('Maintenance Routes', () => {
       expect(res.body.duplicateGroups).toBeDefined();
       expect(res.body.totalDuplicates).toBeDefined();
     });
+
+    it('returns score for each duplicate group', async () => {
+      // Create two books with same ISBN (score 90)
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size, isbn) VALUES (?, ?, ?, ?, ?)`,
+          ['Score Test', 'Author', 3600, 100000, '978-1234567890'],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size, isbn) VALUES (?, ?, ?, ?, ?)`,
+          ['Score Test Dup', 'Author', 3600, 100000, '978-1234567890'],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+
+      const res = await request(app)
+        .get('/api/maintenance/duplicates')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const isbnGroup = res.body.duplicateGroups.find(g => g.matchReason === 'Same ISBN');
+      expect(isbnGroup).toBeDefined();
+      expect(isbnGroup.score).toBe(90);
+    });
+
+    it('returns score 80 for same title and author matches', async () => {
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size) VALUES (?, ?, ?, ?)`,
+          ['Title Author Score Test', 'Same Author', 3600, 100000],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size) VALUES (?, ?, ?, ?)`,
+          ['Title Author Score Test', 'Same Author', 7200, 200000],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+
+      const res = await request(app)
+        .get('/api/maintenance/duplicates')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const taGroup = res.body.duplicateGroups.find(g => g.matchReason === 'Same title and author');
+      expect(taGroup).toBeDefined();
+      expect(taGroup.score).toBe(80);
+    });
+
+    it('detects fuzzy match true positive with score 50-70', async () => {
+      // Two books with same title, similar duration/size, different authors — triggers fuzzy match
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size) VALUES (?, ?, ?, ?)`,
+          ['Fuzzy Score Test Book', 'Author A', 50000, 700000000],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size) VALUES (?, ?, ?, ?)`,
+          ['Fuzzy Score Test Book', 'Author B', 50000, 700000000],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+
+      const res = await request(app)
+        .get('/api/maintenance/duplicates')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const fuzzyGroup = res.body.duplicateGroups.find(g =>
+        g.matchReason === 'Similar title, duration and file size' &&
+        g.books.some(b => b.title === 'Fuzzy Score Test Book')
+      );
+      expect(fuzzyGroup).toBeDefined();
+      expect(fuzzyGroup.score).toBeGreaterThanOrEqual(50);
+      expect(fuzzyGroup.score).toBeLessThanOrEqual(70);
+    });
+
+    it('does not match dissimilar titles in fuzzy matching', async () => {
+      // "Canticle" and "Blood Canticle" should NOT match even with similar duration/size
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size) VALUES (?, ?, ?, ?)`,
+          ['Canticle', 'R. A. Salvatore', 36000, 500000000],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO audiobooks (title, author, duration, file_size) VALUES (?, ?, ?, ?)`,
+          ['Blood Canticle', 'Anne Rice', 36000, 500000000],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+
+      const res = await request(app)
+        .get('/api/maintenance/duplicates')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const fuzzyGroups = res.body.duplicateGroups.filter(g => g.matchReason === 'Similar title, duration and file size');
+      const falsePositive = fuzzyGroups.find(g =>
+        g.books.some(b => b.title === 'Canticle') && g.books.some(b => b.title === 'Blood Canticle')
+      );
+      expect(falsePositive).toBeUndefined();
+    });
   });
 
   describe('POST /api/maintenance/duplicates/merge', () => {
