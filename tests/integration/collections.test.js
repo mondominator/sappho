@@ -662,7 +662,7 @@ describe('Collections Routes', () => {
           .set('Authorization', `Bearer ${user1Token}`)
           .expect(404);
 
-        expect(res.body.error).toBe('Collection not found or not owned by you');
+        expect(res.body.error).toBe('Collection not found');
       });
     });
   });
