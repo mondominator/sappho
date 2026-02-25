@@ -834,12 +834,31 @@ async function extractFileMetadata(filePath) {
     const extended = extractExtendedMetadata(iTunesTags, common);
     const author = extractAuthor(common, nativeTags, iTunesTags);
 
+    // music-metadata can misreport duration for some m4b files (e.g. reporting
+    // half the real duration due to sample rate misdetection). Use ffprobe as
+    // the authoritative source when available, fall back to music-metadata.
+    let duration = format.duration ? Math.round(format.duration) : null;
+    try {
+      const { stdout } = await execFileAsync('ffprobe', [
+        '-v', 'quiet',
+        '-show_entries', 'format=duration',
+        '-of', 'csv=p=0',
+        filePath
+      ]);
+      const ffprobeDuration = Math.round(parseFloat(stdout.trim()));
+      if (ffprobeDuration > 0) {
+        duration = ffprobeDuration;
+      }
+    } catch (_) {
+      // ffprobe not available — keep music-metadata duration
+    }
+
     return {
       title,
       author,
       narrator,
       description,
-      duration: format.duration ? Math.round(format.duration) : null,
+      duration,
       genre: common.genre ? (Array.isArray(common.genre) ? common.genre.join(', ') : String(common.genre)) : null,
       published_year: extended.published_year,
       isbn: extended.isbn,
