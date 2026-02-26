@@ -95,6 +95,16 @@ async function downloadCover(url, audiobookId, redirectCount = 0) {
 
     const coverPath = path.join(coversDir, `audiobook_${audiobookId}${ext}`);
 
+    // Remove any existing cover files for this audiobook (may have different extension)
+    const existingCovers = fs.readdirSync(coversDir)
+      .filter(f => f.startsWith(`audiobook_${audiobookId}.`));
+    for (const old of existingCovers) {
+      const oldPath = path.join(coversDir, old);
+      if (oldPath !== coverPath) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
     return new Promise((resolve, reject) => {
       const protocol = url.startsWith('https') ? https : http;
       // Build request options with headers (required for Amazon CDN and other image servers)
