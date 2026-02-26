@@ -370,9 +370,8 @@ describe('File Organizer Service', () => {
       };
 
       const result = await organizeAudiobook(audiobook);
-      expect(result.moved).toBe(true);
-      // Should have added a (1) suffix
-      expect(result.newPath).toContain('(1)');
+      // Should skip the move rather than create a duplicate with (1) suffix
+      expect(result.moved).toBe(false);
     });
 
     test('handles cross-filesystem move', async () => {
