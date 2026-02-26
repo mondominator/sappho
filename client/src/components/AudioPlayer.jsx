@@ -825,7 +825,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       <div className="player-info">
         {audiobook.cover_image && (
           <img
-            src={getCoverUrl(audiobook.id, null, 120)}
+            src={getCoverUrl(audiobook.id, audiobook.updated_at, 120)}
             alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`}
             className="player-cover"
             onClick={(e) => {

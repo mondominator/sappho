@@ -249,7 +249,7 @@ export default function CollectionDetail() {
               <div className="drag-handle">⋮⋮</div>
               <div className="book-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
                 <img
-                  src={getCoverUrl(book.id, null, 300)}
+                  src={getCoverUrl(book.id, book.updated_at, 300)}
                   alt={book.title}
                   loading="lazy"
                   onError={(e) => e.target.src = '/placeholder-cover.png'}
