@@ -466,12 +466,15 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       }
 
       // Update database with refreshed metadata (preserve is_multi_file status)
+      // Clear cover_path so the re-extracted cover_image takes precedence.
+      // The cover endpoint checks cover_path first, so leaving a stale
+      // downloaded cover there would prevent the embedded cover from showing.
       metadata.author = normalizeAuthor(metadata.author);
       await dbRun(
         `UPDATE audiobooks
          SET title = ?, author = ?, narrator = ?, description = ?, genre = ?,
              series = ?, series_position = ?, published_year = ?, cover_image = ?,
-             duration = ?, updated_at = CURRENT_TIMESTAMP
+             cover_path = ?, duration = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           metadata.title,
@@ -482,6 +485,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           metadata.series,
           metadata.series_position,
           metadata.published_year,
+          metadata.cover_image,
           metadata.cover_image,
           totalDuration,
           req.params.id
