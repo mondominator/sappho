@@ -302,13 +302,10 @@ async function organizeAudiobook(audiobook) {
       const targetFilename = getTargetFilename(audiobook, audiobook.file_path);
       newFilePath = path.join(targetDir, targetFilename);
 
-      // Handle potential filename conflicts
-      let counter = 1;
-      while (fs.existsSync(newFilePath) && newFilePath !== audiobook.file_path) {
-        const ext = path.extname(targetFilename);
-        const base = path.basename(targetFilename, ext);
-        newFilePath = path.join(targetDir, `${base} (${counter})${ext}`);
-        counter++;
+      // If target already exists and isn't the source file, skip the move
+      if (fs.existsSync(newFilePath) && path.normalize(newFilePath) !== path.normalize(audiobook.file_path)) {
+        console.log(`  Skipping move: target already exists at ${newFilePath}`);
+        return { moved: false };
       }
 
       if (!moveFile(audiobook.file_path, newFilePath)) {
