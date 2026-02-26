@@ -255,7 +255,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
             return res.status(304).end();
           }
 
-          res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
           res.setHeader('ETag', etag);
           res.setHeader('Content-Type', 'image/jpeg');
           return res.sendFile(path.resolve(thumbPath));
@@ -266,7 +266,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
       }
 
       // Serve original cover (no width requested, or invalid width, or thumbnail generation failed)
-      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.sendFile(resolvedPath);
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
