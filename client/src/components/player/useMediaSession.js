@@ -19,7 +19,7 @@ export function useMediaSession({
         artist: audiobook.author || 'Unknown Author',
         album: audiobook.series || 'Audiobook',
         artwork: audiobook.cover_image ? [
-          { src: getCoverUrl(audiobook.id, null, 600), sizes: '512x512', type: 'image/jpeg' }
+          { src: getCoverUrl(audiobook.id, audiobook.updated_at, 600), sizes: '512x512', type: 'image/jpeg' }
         ] : []
       });
 

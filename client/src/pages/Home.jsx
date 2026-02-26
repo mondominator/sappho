@@ -115,7 +115,7 @@ export default function Home({ onPlay }) {
           <h3>{book.title}</h3>
         </div>
         {book.cover_image && (
-          <img src={getCoverUrl(book.id, null, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
+          <img src={getCoverUrl(book.id, book.updated_at, 300)} alt={book.title} loading="lazy" onError={(e) => e.target.style.display = 'none'} />
         )}
         {book.progress && (book.progress.position > 0 || book.progress.completed === 1) && book.duration && (
           <div className="progress-bar-overlay">

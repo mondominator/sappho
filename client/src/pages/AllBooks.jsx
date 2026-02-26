@@ -408,7 +408,7 @@ export default function AllBooks({ onPlay }) {
             </div>
             {book.cover_image && (
               <img
-                src={getCoverUrl(book.id, null, 300)}
+                src={getCoverUrl(book.id, book.updated_at, 300)}
                 alt={book.title}
                 loading="lazy"
                 onError={(e) => { e.target.style.display = 'none'; }}

@@ -527,7 +527,7 @@ export default function Library({ onPlay }) {
                   >
                     <div className="book-cover">
                       <img
-                        src={getCoverUrl(book.id, null, 300)}
+                        src={getCoverUrl(book.id, book.updated_at, 300)}
                         alt={book.title}
                         loading="lazy"
                         onError={(e) => {
