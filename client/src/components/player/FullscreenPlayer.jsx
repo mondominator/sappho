@@ -74,6 +74,18 @@ export default function FullscreenPlayer({
       const rect = fullBar.getBoundingClientRect();
       const x = clientX - rect.left;
       const percentage = Math.max(0, Math.min(1, x / rect.width));
+
+      // In chapter mode, seek within the current chapter's time range
+      if (chapterProgress && chapters.length > 0) {
+        const chapter = chapters[currentChapter];
+        const nextChapter = chapters[currentChapter + 1];
+        const chapterStart = chapter?.start_time || 0;
+        const chapterEnd = nextChapter ? nextChapter.start_time : duration;
+        const chapterDuration = chapterEnd - chapterStart;
+        const seekTime = chapterStart + (percentage * chapterDuration);
+        return { time: seekTime, percent: percentage * 100 };
+      }
+
       return { time: percentage * duration, percent: percentage * 100 };
     };
 
@@ -122,7 +134,7 @@ export default function FullscreenPlayer({
       fullBar.removeEventListener('touchmove', handleTouchMove);
       fullBar.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [duration, showFullscreen, onSeek]);
+  }, [duration, showFullscreen, onSeek, chapterProgress, chapters, currentChapter]);
 
   // Mouse drag for progress bar
   useEffect(() => {
@@ -134,7 +146,19 @@ export default function FullscreenPlayer({
       const rect = fullBar.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const percentage = Math.max(0, Math.min(1, x / rect.width));
-      const newTime = percentage * duration;
+
+      let newTime;
+      if (chapterProgress && chapters.length > 0) {
+        const chapter = chapters[currentChapter];
+        const nextChapter = chapters[currentChapter + 1];
+        const chapterStart = chapter?.start_time || 0;
+        const chapterEnd = nextChapter ? nextChapter.start_time : duration;
+        const chapterDuration = chapterEnd - chapterStart;
+        newTime = chapterStart + (percentage * chapterDuration);
+      } else {
+        newTime = percentage * duration;
+      }
+
       seekPreviewTimeRef.current = newTime;
       setSeekPreviewTime(newTime);
       setSeekPreviewPercent(percentage * 100);
@@ -159,7 +183,7 @@ export default function FullscreenPlayer({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleEnd);
     };
-  }, [isDraggingProgress, duration, onSeek]);
+  }, [isDraggingProgress, duration, onSeek, chapterProgress, chapters, currentChapter]);
 
   const handleProgressMouseDown = (e) => {
     e.stopPropagation();
@@ -168,8 +192,21 @@ export default function FullscreenPlayer({
     const rect = fullBar.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
-    seekPreviewTimeRef.current = percentage * duration;
-    setSeekPreviewTime(percentage * duration);
+
+    let seekTime;
+    if (chapterProgress && chapters.length > 0) {
+      const chapter = chapters[currentChapter];
+      const nextChapter = chapters[currentChapter + 1];
+      const chapterStart = chapter?.start_time || 0;
+      const chapterEnd = nextChapter ? nextChapter.start_time : duration;
+      const chapterDuration = chapterEnd - chapterStart;
+      seekTime = chapterStart + (percentage * chapterDuration);
+    } else {
+      seekTime = percentage * duration;
+    }
+
+    seekPreviewTimeRef.current = seekTime;
+    setSeekPreviewTime(seekTime);
     setSeekPreviewPercent(percentage * 100);
     setIsDraggingProgress(true);
   };
@@ -259,7 +296,9 @@ export default function FullscreenPlayer({
             <div className="fullscreen-time" aria-live="polite" aria-atomic="true">
               <span>
                 {isDraggingProgress && seekPreviewTime !== null
-                  ? formatTime(seekPreviewTime)
+                  ? formatTime(chapterProgress
+                      ? seekPreviewTime - (chapters[currentChapter]?.start_time || 0)
+                      : seekPreviewTime)
                   : chapterProgress
                     ? formatTime(chapterProgress.position)
                     : formatTime(currentTime)
@@ -291,7 +330,9 @@ export default function FullscreenPlayer({
                   className="fullscreen-seek-tooltip"
                   style={{ left: `${seekPreviewPercent}%` }}
                 >
-                  {formatTime(seekPreviewTime)}
+                  {formatTime(chapterProgress
+                    ? seekPreviewTime - (chapters[currentChapter]?.start_time || 0)
+                    : seekPreviewTime)}
                 </div>
               )}
             </div>
