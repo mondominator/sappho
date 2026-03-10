@@ -712,6 +712,147 @@
   padding: 0.5rem 0;
 }
 
+.reading-list-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+}
+
+.reading-list-header-row h2 {
+  margin: 0;
+}
+
+.reading-list-count {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #9ca3af;
+  margin-left: 0.25rem;
+}
+
+.reading-list-sort select {
+  background: #1a1a2e;
+  color: #e0e7f1;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.reading-list-sort select:focus {
+  border-color: #3b82f6;
+}
+
+.reading-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.reading-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  background: #1a1a2e;
+  border-radius: 10px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.reading-list-row.dragging {
+  background: #252542;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.reading-list-number {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #3b82f6;
+  min-width: 28px;
+  text-align: center;
+}
+
+.reading-list-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.reading-list-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reading-list-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  cursor: pointer;
+}
+
+.reading-list-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #e0e7f1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reading-list-subtitle {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reading-list-remove {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.reading-list-remove:hover {
+  color: #f87171;
+}
+
+.reading-list-drag {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: grab;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.reading-list-drag:active {
+  cursor: grabbing;
+}
+
+/* Keep old classes for other pages that may use them */
 .favorites-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
