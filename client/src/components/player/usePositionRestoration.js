@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * Restores saved playback position when audio metadata loads,
@@ -12,6 +12,7 @@ export function usePositionRestoration({
   setCurrentTime
 }) {
   const [hasRestoredPosition, setHasRestoredPosition] = useState(false);
+  const initialProgressRef = useRef(progress?.position ?? null);
   const [isNewLoad, setIsNewLoad] = useState(() => {
     // Check if this is a page refresh by checking session storage
     // sessionStorage persists during the same tab session but clears on refresh
@@ -149,6 +150,31 @@ export function usePositionRestoration({
       return () => audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
     }
   }, [progress, hasRestoredPosition, isNewLoad]);
+
+  // When server progress arrives after initial restoration and differs
+  // significantly from the initially restored position, re-seek to the
+  // correct position. This handles the case where localStorage had a stale
+  // position and the server has a more recent one.
+  useEffect(() => {
+    if (!hasRestoredPosition || !progress || !audioRef.current) return;
+    if (!audioRef.current.duration) return;
+
+    const serverPosition = progress.position;
+    const initialPosition = initialProgressRef.current ?? 0;
+
+    // Only re-seek if the server position differs significantly from what
+    // was initially restored (meaning localStorage was stale)
+    if (Math.abs(serverPosition - initialPosition) > 10) {
+      const audioDuration = audioRef.current.duration;
+      const isFinished = (audioDuration - serverPosition) < 30;
+      if (!isFinished && serverPosition > 0) {
+        audioRef.current.currentTime = serverPosition;
+        setCurrentTime(serverPosition);
+      }
+      // Update the ref so we don't re-seek on subsequent renders
+      initialProgressRef.current = serverPosition;
+    }
+  }, [progress, hasRestoredPosition]);
 
   return { hasRestoredPosition, isNewLoad };
 }
