@@ -1,11 +1,107 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getAudiobooks, getSeries, getAuthors, getFavorites, getCollections, createCollection, deleteCollection, getCoverUrl, getProfile } from '../api';
+import { getAudiobooks, getSeries, getAuthors, getFavorites, removeFavorite, reorderFavorites, getCollections, createCollection, deleteCollection, getCoverUrl, getProfile } from '../api';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import UploadModal from '../components/UploadModal';
 import { LibrarySkeleton } from '../components/Skeleton';
-import { formatDurationParts } from '../utils/formatting';
+import { formatDurationParts, formatDuration } from '../utils/formatting';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import './Library.css';
+
+function SortableReadingListRow({ book, index, canDrag, navigate, onRemove }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: book.id, disabled: !canDrag });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 'auto',
+  };
+
+  const subtitle = [
+    book.author,
+    book.duration ? formatDuration(book.duration) : null
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <div ref={setNodeRef} style={style} className={`reading-list-row ${isDragging ? 'dragging' : ''}`}>
+      <span className="reading-list-number">#{index + 1}</span>
+      <div className="reading-list-cover" onClick={() => navigate(`/audiobook/${book.id}`)}>
+        <img
+          src={getCoverUrl(book.id, book.updated_at, 120)}
+          alt={book.title}
+          loading="lazy"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      </div>
+      <div className="reading-list-info" onClick={() => navigate(`/audiobook/${book.id}`)}>
+        <span className="reading-list-title">{book.title}</span>
+        {subtitle && <span className="reading-list-subtitle">{subtitle}</span>}
+      </div>
+      <button
+        className="reading-list-remove"
+        onClick={(e) => { e.stopPropagation(); onRemove(book.id); }}
+        title="Remove from reading list"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      {canDrag && (
+        <button className="reading-list-drag" {...attributes} {...listeners} title="Drag to reorder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="18" x2="16" y2="18" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ReadingList({ favorites, readingListSort, navigate, onReorder, onRemove }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const canDrag = readingListSort === 'custom';
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      onReorder(active.id, over.id);
+    }
+  };
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+      <SortableContext items={favorites.map(b => b.id)} strategy={verticalListSortingStrategy}>
+        <div className="reading-list-rows">
+          {favorites.map((book, index) => (
+            <SortableReadingListRow
+              key={book.id}
+              book={book}
+              index={index}
+              canDrag={canDrag}
+              navigate={navigate}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
 
 // Component for rotating collection covers
 function RotatingCover({ bookIds, collectionName }) {
@@ -67,6 +163,7 @@ export default function Library({ onPlay }) {
   // Reading List state
   const [favorites, setFavorites] = useState([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
+  const [readingListSort, setReadingListSort] = useState('custom');
 
   // Collections state
   const [collections, setCollections] = useState([]);
@@ -152,15 +249,44 @@ export default function Library({ onPlay }) {
     }
   }, [activeTab]);
 
-  const loadFavorites = async () => {
+  const loadFavorites = async (sort = readingListSort) => {
     setLoadingFavorites(true);
     try {
-      const response = await getFavorites();
+      const response = await getFavorites(sort);
       setFavorites(response.data);
     } catch (error) {
       console.error('Error loading favorites:', error);
     } finally {
       setLoadingFavorites(false);
+    }
+  };
+
+  const handleReadingListSortChange = (sort) => {
+    setReadingListSort(sort);
+    loadFavorites(sort);
+  };
+
+  const handleRemoveFavorite = async (id) => {
+    setFavorites(prev => prev.filter(b => b.id !== id));
+    try {
+      await removeFavorite(id);
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      loadFavorites();
+    }
+  };
+
+  const handleReorderFavorites = async (activeId, overId) => {
+    const oldIndex = favorites.findIndex(b => b.id === activeId);
+    const newIndex = favorites.findIndex(b => b.id === overId);
+    if (oldIndex === newIndex) return;
+
+    const reordered = arrayMove(favorites, oldIndex, newIndex);
+    setFavorites(reordered);
+    try {
+      await reorderFavorites(reordered.map(b => b.id));
+    } catch (error) {
+      console.error('Error reordering favorites:', error);
     }
   };
 
@@ -504,7 +630,19 @@ export default function Library({ onPlay }) {
                 </svg>
                 Library
               </button>
-              <h2>Reading List</h2>
+              <div className="reading-list-header-row">
+                <h2>Reading List <span className="reading-list-count">{favorites.length}</span></h2>
+                <div className="reading-list-sort">
+                  <select
+                    value={readingListSort}
+                    onChange={(e) => handleReadingListSortChange(e.target.value)}
+                  >
+                    <option value="custom">Custom Order</option>
+                    <option value="title">Title</option>
+                    <option value="date">Date Added</option>
+                  </select>
+                </div>
+              </div>
             </div>
             {loadingFavorites ? (
               <div className="loading">Loading your reading list...</div>
@@ -518,26 +656,13 @@ export default function Library({ onPlay }) {
                 <p className="empty-state-hint">Add books to your reading list by clicking the bookmark icon on any audiobook.</p>
               </div>
             ) : (
-              <div className="favorites-grid">
-                {favorites.map((book) => (
-                  <div
-                    key={book.id}
-                    className="book-card"
-                    onClick={() => navigate(`/audiobook/${book.id}`)}
-                  >
-                    <div className="book-cover">
-                      <img
-                        src={getCoverUrl(book.id, book.updated_at, 300)}
-                        alt={book.title}
-                        loading="lazy"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ReadingList
+                favorites={favorites}
+                readingListSort={readingListSort}
+                navigate={navigate}
+                onReorder={handleReorderFavorites}
+                onRemove={handleRemoveFavorite}
+              />
             )}
           </div>
         )}

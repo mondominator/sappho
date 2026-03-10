@@ -289,12 +289,18 @@ export const uploadAndRestoreBackup = (file, options = {}) => {
   });
 };
 
-// Favorites
-export const getFavorites = () =>
-  api.get('/audiobooks/favorites');
+// Favorites / Reading List
+export const getFavorites = (sort = 'custom') =>
+  api.get(`/audiobooks/favorites?sort=${sort}`);
 
 export const toggleFavorite = (id) =>
   api.post(`/audiobooks/${id}/favorite/toggle`);
+
+export const removeFavorite = (id) =>
+  api.delete(`/audiobooks/${id}/favorite`);
+
+export const reorderFavorites = (order) =>
+  api.put('/audiobooks/favorites/reorder', { order });
 
 // Duplicates
 export const getDuplicates = () =>
