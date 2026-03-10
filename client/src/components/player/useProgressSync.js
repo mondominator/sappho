@@ -133,6 +133,13 @@ export function useProgressSync(audiobookId, playing, audioRef) {
         const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
         const isFinished = progressPercent >= 98;
         updateProgressSafe(audiobookId, currentTime, isFinished ? 1 : 0, 'playing');
+        // Keep localStorage in sync so position survives app restarts
+        try {
+          const saved = localStorage.getItem('currentProgress');
+          const parsed = saved ? JSON.parse(saved) : {};
+          parsed.position = currentTime;
+          localStorage.setItem('currentProgress', JSON.stringify(parsed));
+        } catch (e) { /* ignore */ }
       }
     }, 5000);
 
