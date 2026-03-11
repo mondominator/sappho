@@ -285,10 +285,17 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       await dbRun('DELETE FROM collection_items WHERE audiobook_id = ?', [req.params.id]);
       await dbRun('DELETE FROM audiobooks WHERE id = ?', [req.params.id]);
 
-      // Delete entire audiobook directory (contains audio file, cover, etc.)
+      // Delete audiobook files only if no other entries reference the same directory
       if (audiobook.file_path) {
         const audioDir = path.dirname(audiobook.file_path);
-        if (fs.existsSync(audioDir)) {
+        const othersInSameDir = await dbAll(
+          'SELECT id FROM audiobooks WHERE file_path LIKE ? AND id != ?',
+          [audioDir + '%', req.params.id]
+        );
+
+        if (othersInSameDir.length > 0) {
+          console.log(`Skipping directory delete for ${audioDir} — ${othersInSameDir.length} other audiobook(s) still reference it`);
+        } else if (fs.existsSync(audioDir)) {
           fs.rmSync(audioDir, { recursive: true, force: true });
           console.log(`Deleted audiobook directory: ${audioDir}`);
 
