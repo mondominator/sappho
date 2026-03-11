@@ -978,6 +978,19 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
   // Generate content hash for stable identification
   const contentHash = generateBestHash({ ...metadata, fileSize }, filePath);
 
+  // Check for existing entry with the same file_path to prevent duplicates
+  const existing = await new Promise((resolve, reject) => {
+    db.get('SELECT * FROM audiobooks WHERE file_path = ?', [filePath], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+
+  if (existing) {
+    console.log(`Duplicate prevented: audiobook already exists at file_path "${filePath}" (id=${existing.id})`);
+    return existing;
+  }
+
   return new Promise((resolve, reject) => {
     db.run(
       `INSERT INTO audiobooks
