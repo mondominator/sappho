@@ -44,6 +44,9 @@ export default function Profile() {
   });
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Player settings (local state for immediate UI feedback)
+  const [chapterMode, setChapterMode] = useState(() => localStorage.getItem('progressDisplayMode') === 'chapter');
+
   // MFA state
   const [mfaStatus, setMfaStatus] = useState({ enabled: false, remainingBackupCodes: 0 });
   const [showMFASetup, setShowMFASetup] = useState(false);
@@ -501,33 +504,15 @@ export default function Profile() {
           <span>Show chapter progress</span>
           <input
             type="checkbox"
-            checked={localStorage.getItem('progressDisplayMode') === 'chapter'}
+            checked={chapterMode}
             onChange={(e) => {
-              localStorage.setItem('progressDisplayMode', e.target.checked ? 'chapter' : 'book');
+              const newMode = e.target.checked ? 'chapter' : 'book';
+              localStorage.setItem('progressDisplayMode', newMode);
+              setChapterMode(e.target.checked);
               window.dispatchEvent(new CustomEvent('playerSettingsChanged'));
             }}
           />
         </label>
-        <div className="select-row">
-          <span>Buffer size</span>
-          <select
-            value={localStorage.getItem('audioBufferSize') || '60'}
-            onChange={(e) => {
-              localStorage.setItem('audioBufferSize', e.target.value);
-              window.dispatchEvent(new CustomEvent('playerSettingsChanged'));
-            }}
-          >
-            <option value="30">30 seconds</option>
-            <option value="60">1 minute</option>
-            <option value="120">2 minutes</option>
-            <option value="300">5 minutes</option>
-            <option value="600">10 minutes</option>
-            <option value="1800">30 minutes</option>
-            <option value="3600">1 hour</option>
-            <option value="7200">2 hours</option>
-            <option value="10800">3 hours</option>
-          </select>
-        </div>
       </div>
 
       {/* Spacer for bottom nav */}
