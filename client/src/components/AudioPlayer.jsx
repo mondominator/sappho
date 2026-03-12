@@ -583,6 +583,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
     return () => window.removeEventListener('playerSettingsChanged', handleSettingsChange);
   }, []);
 
+
   // Load and save playback speed per audiobook
   useEffect(() => {
     if (!audiobook?.id) return;
