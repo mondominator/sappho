@@ -1474,32 +1474,23 @@
     display: none !important;
   }
 
-  /* Show mobile seek buttons */
+  /* Show mobile seek buttons as plain icons */
   .player-mobile-controls .mobile-seek-btn {
     display: flex !important;
-    width: 40px;
-    height: 40px;
-    background: rgba(55, 65, 81, 0.5);
-    backdrop-filter: blur(8px);
+    background: none;
     color: #e5e7eb;
-    border: 1px solid rgba(75, 85, 99, 0.3);
-    border-radius: 12px;
+    border: none;
     padding: 0;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
-  }
-
-  /* Remove custom margins on seek buttons - let gap handle spacing */
-  .player-mobile-controls .mobile-seek-btn {
+    transition: opacity 0.2s;
+    opacity: 0.8;
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
 
   .player-mobile-controls .mobile-seek-btn:active {
-    color: #fff;
-    background: rgba(75, 85, 99, 0.7);
-    border-color: rgba(59, 130, 246, 0.5);
+    opacity: 1;
     transform: scale(0.95);
   }
 
