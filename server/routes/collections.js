@@ -7,6 +7,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { createDbHelpers } = require('../utils/db');
+const notificationService = require('../services/notificationService');
 
 /**
  * Default dependencies - used when route is required directly
@@ -52,7 +53,7 @@ function createCollectionsRouter(deps = {}) {
   // Helper to check if user can edit collection (owner OR public collection)
   const canEditCollection = async (collectionId, userId) => {
     const collection = await dbGet(
-      'SELECT id, user_id, is_public FROM user_collections WHERE id = ?',
+      'SELECT id, user_id, is_public, name FROM user_collections WHERE id = ?',
       [collectionId]
     );
     if (!collection) {
@@ -122,6 +123,13 @@ function createCollectionsRouter(deps = {}) {
          WHERE c.id = ?`,
         [req.user.id, lastID]
       );
+
+      // Notify if this is a public collection
+      if (is_public) {
+        const displayName = collection.creator_username || req.user.username;
+        notificationService.notifyNewPublicCollection(collection, displayName);
+      }
+
       res.status(201).json(collection);
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
@@ -288,6 +296,16 @@ function createCollectionsRouter(deps = {}) {
 
       // Update collection's updated_at
       await dbRun('UPDATE user_collections SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [collectionId]);
+
+      // Notify if the collection is public
+      if (result.collection && result.collection.is_public === 1) {
+        const audiobook = await dbGet('SELECT id, title FROM audiobooks WHERE id = ?', [audiobook_id]);
+        const user = await dbGet('SELECT username, display_name FROM users WHERE id = ?', [req.user.id]);
+        if (audiobook && user) {
+          const displayName = user.display_name || user.username;
+          notificationService.notifyCollectionItemAdded(result.collection, audiobook, displayName);
+        }
+      }
 
       res.status(201).json({ success: true, id: lastID });
     } catch (err) {
