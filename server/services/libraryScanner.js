@@ -6,6 +6,7 @@ const websocketManager = require('./websocketManager');
 const { generateBestHash } = require('../utils/contentHash');
 const { organizeAudiobook } = require('./fileOrganizer');
 const emailService = require('./emailService');
+const notificationService = require('./notificationService');
 const { readExternalMetadata, mergeExternalMetadata } = require('../utils/externalMetadata');
 const { scanDirectory, extractM4BChapters, mergeSubdirectories, cleanupAllEmptyDirectories } = require('./fileSystemUtils');
 const { loadPathCache, clearPathCache, fileExistsInDatabase, audiobookExistsInDirectory, audiobookExistsByHash, audiobookExistsByIsbn, audiobookExistsByAsin } = require('./pathCache');
@@ -185,6 +186,7 @@ async function importAudiobook(filePath, userId) {
     emailService.notifyNewAudiobook(audiobook).catch(e =>
       console.error('Error sending new audiobook notification:', e.message)
     );
+    await notificationService.notifyNewAudiobook(audiobook);
     return audiobook;
   } catch (error) {
     console.error(`Error importing ${filePath}:`, error.message);
@@ -389,6 +391,7 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     emailService.notifyNewAudiobook(audiobook).catch(e =>
       console.error('Error sending new audiobook notification:', e.message)
     );
+    await notificationService.notifyNewAudiobook(audiobook);
     return audiobook;
   } catch (error) {
     console.error('Error importing multi-file audiobook:', error.message);

@@ -471,6 +471,142 @@
   color: #fbbf24;
 }
 
+/* Review Input Section */
+.review-input-section {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: fadeInScale 0.2s ease-out;
+}
+
+.review-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 0.75rem;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e0e7f1;
+  font-size: 0.875rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.review-textarea::placeholder {
+  color: #6b7280;
+}
+
+.review-textarea:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.review-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-submit-btn {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.25rem;
+  min-width: 80px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 8px;
+  color: #3b82f6;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.review-submit-btn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+.review-submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Reviews List Section */
+.reviews-list-section {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 0.5rem;
+}
+
+.reviews-header {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e0e7f1;
+  margin: 0 0 0.75rem 0;
+}
+
+.reviews-count {
+  font-weight: 400;
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.review-card {
+  padding: 0.75rem;
+  background: rgba(31, 41, 55, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.review-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.review-author {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #e0e7f1;
+}
+
+.review-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.review-stars svg {
+  flex-shrink: 0;
+}
+
+.review-text {
+  font-size: 0.875rem;
+  color: #d1d5db;
+  line-height: 1.5;
+  margin: 0 0 0.5rem 0;
+  white-space: pre-wrap;
+}
+
+.review-date {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 /* Old detail-rating - hide on desktop, show on mobile as fallback */
 .detail-rating {
   display: none;
