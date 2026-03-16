@@ -84,7 +84,7 @@ export default function NotificationPanel({ notifications, onClose, onNotificati
   const navigate = useNavigate();
 
   const handleNotificationClick = async (notification) => {
-    if (!notification.read_at) {
+    if (!notification.is_read) {
       try {
         await markNotificationRead(notification.id);
         if (onNotificationsUpdated) onNotificationsUpdated();
@@ -109,7 +109,7 @@ export default function NotificationPanel({ notifications, onClose, onNotificati
     }
   };
 
-  const hasUnread = notifications.some(n => !n.read_at);
+  const hasUnread = notifications.some(n => !n.is_read);
 
   return (
     <div className="notification-panel">
@@ -138,7 +138,7 @@ export default function NotificationPanel({ notifications, onClose, onNotificati
           notifications.map(notification => (
             <button
               key={notification.id}
-              className={`notification-item ${!notification.read_at ? 'unread' : ''}`}
+              className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
               onClick={() => handleNotificationClick(notification)}
             >
               <div className="notification-item-icon">
