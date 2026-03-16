@@ -127,6 +127,15 @@ export default function PlaybackControls({
           <StopIcon size={16} />
         </button>
       )}
+      {playing && (
+        <div className="waveform-visualizer" style={{ marginRight: '8px' }}>
+          <div className="waveform-bar"></div>
+          <div className="waveform-bar"></div>
+          <div className="waveform-bar"></div>
+          <div className="waveform-bar"></div>
+          <div className="waveform-bar"></div>
+        </div>
+      )}
       <button className="control-btn" onClick={onSkipBackward} title="Skip back 15 seconds" aria-label="Rewind 15 seconds">
         <RewindIcon size={24} />
         <text style={{ position: 'absolute', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none' }} aria-hidden="true">15</text>
