@@ -361,6 +361,9 @@ export const getAverageRating = (audiobookId) =>
 export const setRating = (audiobookId, rating, review) =>
   api.post(`/ratings/audiobook/${audiobookId}`, { rating, review });
 
+export const getAllRatings = (audiobookId) =>
+  api.get(`/ratings/audiobook/${audiobookId}/all`);
+
 // Batch Actions
 export const batchMarkFinished = (audiobookIds) =>
   api.post('/audiobooks/batch/mark-finished', { audiobook_ids: audiobookIds });
@@ -421,5 +424,18 @@ export const testOidcConnection = (issuerUrl) =>
 
 export const deleteOidcSettings = () =>
   api.delete('/settings/oidc');
+
+// Notifications
+export const getNotifications = (limit = 50) =>
+  api.get(`/notifications?limit=${limit}`);
+
+export const getUnreadNotificationCount = () =>
+  api.get('/notifications/unread-count');
+
+export const markNotificationRead = (id) =>
+  api.post(`/notifications/${id}/read`);
+
+export const markAllNotificationsRead = () =>
+  api.post('/notifications/read-all');
 
 export default api;

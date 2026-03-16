@@ -1,8 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import SearchModal from './SearchModal';
 import JobsIndicator from './JobsIndicator';
+import NotificationPanel from './NotificationPanel';
+import { getNotifications, getUnreadNotificationCount } from '../api';
 import './Navigation.css';
+import './NotificationPanel.css';
 
 export default function Navigation({ onLogout }) {
   const location = useLocation();
@@ -14,6 +17,10 @@ export default function Navigation({ onLogout }) {
   const [castReady, setCastReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [appVersion, setAppVersion] = useState(null);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [showMobileNotificationPanel, setShowMobileNotificationPanel] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   // Check for Cast SDK availability
   useEffect(() => {
@@ -122,6 +129,64 @@ export default function Navigation({ onLogout }) {
     return name.charAt(0).toUpperCase();
   };
 
+  // Fetch unread notification count
+  const fetchUnreadCount = useCallback(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    getUnreadNotificationCount()
+      .then(res => setUnreadNotificationCount(res.data.count || 0))
+      .catch(() => {});
+  }, []);
+
+  // Fetch full notification list
+  const fetchNotifications = useCallback(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    getNotifications(50)
+      .then(res => setNotifications(res.data || []))
+      .catch(() => {});
+  }, []);
+
+  // Poll unread count every 2 minutes + on visibility change
+  useEffect(() => {
+    fetchUnreadCount();
+
+    const intervalId = setInterval(fetchUnreadCount, 2 * 60 * 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUnreadCount();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchUnreadCount]);
+
+  // Fetch notifications when panel opens
+  const handleOpenNotificationPanel = (mobile = false) => {
+    if (mobile) {
+      const newState = !showMobileNotificationPanel;
+      setShowMobileNotificationPanel(newState);
+      setShowNotificationPanel(false);
+      if (newState) fetchNotifications();
+    } else {
+      const newState = !showNotificationPanel;
+      setShowNotificationPanel(newState);
+      setShowMobileNotificationPanel(false);
+      if (newState) fetchNotifications();
+    }
+  };
+
+  // Callback when notifications are updated (mark read, etc.)
+  const handleNotificationsUpdated = () => {
+    fetchUnreadCount();
+    fetchNotifications();
+  };
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -131,10 +196,16 @@ export default function Navigation({ onLogout }) {
       if (showMobileMenu && !event.target.closest('.mobile-menu-container') && !event.target.closest('.user-avatar-button')) {
         setShowMobileMenu(false);
       }
+      if (showNotificationPanel && !event.target.closest('.notification-bell')) {
+        setShowNotificationPanel(false);
+      }
+      if (showMobileNotificationPanel && !event.target.closest('.mobile-notification-bell') && !event.target.closest('.mobile-notification-container')) {
+        setShowMobileNotificationPanel(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserMenu, showMobileMenu]);
+  }, [showUserMenu, showMobileMenu, showNotificationPanel, showMobileNotificationPanel]);
 
   return (
     <>
@@ -226,9 +297,28 @@ export default function Navigation({ onLogout }) {
           </button>
         </div>
 
-        {/* Mobile right section - jobs indicator and user avatar */}
+        {/* Mobile right section - jobs indicator, notifications, and user avatar */}
         <div className="mobile-right-section mobile-only">
           <JobsIndicator user={user} />
+          <div className="mobile-notification-bell">
+            <button
+              className="notification-bell-button"
+              onClick={() => handleOpenNotificationPanel(true)}
+              title="Notifications"
+              aria-label={`Notifications${unreadNotificationCount > 0 ? ` (${unreadNotificationCount} unread)` : ''}`}
+              type="button"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {unreadNotificationCount > 0 && (
+                <span className="notification-badge">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
+              )}
+            </button>
+          </div>
           <button
             className="user-avatar-button"
             onClick={(e) => {
@@ -263,6 +353,35 @@ export default function Navigation({ onLogout }) {
         <div className="nav-actions">
           {/* Jobs indicator - desktop */}
           <JobsIndicator user={user} />
+
+          {/* Desktop notification bell */}
+          <div className="notification-bell desktop-only">
+            <button
+              className="notification-bell-button"
+              onClick={() => handleOpenNotificationPanel(false)}
+              title="Notifications"
+              aria-label={`Notifications${unreadNotificationCount > 0 ? ` (${unreadNotificationCount} unread)` : ''}`}
+              aria-expanded={showNotificationPanel}
+              aria-haspopup="true"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {unreadNotificationCount > 0 && (
+                <span className="notification-badge">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
+              )}
+            </button>
+            {showNotificationPanel && (
+              <NotificationPanel
+                notifications={notifications}
+                onClose={() => setShowNotificationPanel(false)}
+                onNotificationsUpdated={handleNotificationsUpdated}
+              />
+            )}
+          </div>
 
           {/* Desktop user menu */}
           {user && (
@@ -402,6 +521,17 @@ export default function Navigation({ onLogout }) {
               <div className="dropdown-version">v{appVersion}</div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Mobile notification panel dropdown */}
+      {showMobileNotificationPanel && (
+        <div className="mobile-notification-container mobile-only">
+          <NotificationPanel
+            notifications={notifications}
+            onClose={() => setShowMobileNotificationPanel(false)}
+            onNotificationsUpdated={handleNotificationsUpdated}
+          />
         </div>
       )}
     </nav>
