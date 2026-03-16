@@ -68,7 +68,7 @@ export const getConversionJobs = () =>
 export const cancelConversionJob = (jobId) =>
   api.delete(`/audiobooks/jobs/conversion/${jobId}`);
 
-export const uploadAudiobook = (file, metadata, { onProgress, cancelToken } = {}) => {
+export const uploadAudiobook = (file, metadata, { onProgress, signal } = {}) => {
   const formData = new FormData();
   formData.append('audiobook', file);
   if (metadata) {
@@ -81,11 +81,11 @@ export const uploadAudiobook = (file, metadata, { onProgress, cancelToken } = {}
       'Content-Type': 'multipart/form-data',
     },
     onUploadProgress: onProgress,
-    cancelToken,
+    signal,
   });
 };
 
-export const uploadMultiFileAudiobook = (files, bookName = null, { onProgress, cancelToken } = {}) => {
+export const uploadMultiFileAudiobook = (files, bookName = null, { onProgress, signal } = {}) => {
   const formData = new FormData();
   // Sort files by name to maintain order
   const sortedFiles = [...files].sort((a, b) =>
@@ -107,7 +107,7 @@ export const uploadMultiFileAudiobook = (files, bookName = null, { onProgress, c
       'Content-Type': 'multipart/form-data',
     },
     onUploadProgress: onProgress,
-    cancelToken,
+    signal,
   });
 };
 

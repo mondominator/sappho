@@ -1042,6 +1042,21 @@
     transform: translateY(0);
   }
 
+  .player-controls .control-btn.skip-btn {
+    background: none;
+    border: none;
+    width: auto;
+    height: auto;
+    padding: 6px;
+  }
+
+  .player-controls .control-btn.skip-btn:hover {
+    background: none;
+    border: none;
+    transform: none;
+    opacity: 1;
+  }
+
   .player-controls .play-btn {
     width: 56px;
     height: 56px;

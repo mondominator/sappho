@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { uploadAudiobook, uploadMultiFileAudiobook } from '../api';
 import { formatFileSize } from '../utils/formatting';
 import './UploadModal.css';
@@ -15,7 +14,7 @@ export default function UploadModal({ isOpen, onClose }) {
   const [overallProgress, setOverallProgress] = useState(null); // { percent, speed, eta, loaded, total }
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
-  const cancelTokenRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const uploadStartTimeRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -113,7 +112,7 @@ export default function UploadModal({ isOpen, onClose }) {
     setUploading(true);
     setError('');
     uploadStartTimeRef.current = Date.now();
-    cancelTokenRef.current = axios.CancelToken.source();
+    abortControllerRef.current = new AbortController();
 
     try {
       if (uploadMode === 'folder') {
@@ -127,7 +126,7 @@ export default function UploadModal({ isOpen, onClose }) {
         try {
           const response = await uploadMultiFileAudiobook(files, folderName, {
             onProgress: handleProgressUpdate,
-            cancelToken: cancelTokenRef.current.token
+            signal: abortControllerRef.current.signal
           });
           const audiobookId = response.data?.audiobook?.id;
 
@@ -145,7 +144,7 @@ export default function UploadModal({ isOpen, onClose }) {
             navigate('/');
           }
         } catch (err) {
-          if (axios.isCancel(err)) {
+          if (err.name === 'CanceledError' || err.name === 'AbortError') {
             setUploadProgress({
               [folderName]: { status: 'cancelled' }
             });
@@ -198,7 +197,7 @@ export default function UploadModal({ isOpen, onClose }) {
                   total: totalSize
                 });
               },
-              cancelToken: cancelTokenRef.current.token
+              signal: abortControllerRef.current.signal
             });
 
             totalLoaded += file.size;
@@ -209,7 +208,7 @@ export default function UploadModal({ isOpen, onClose }) {
             }));
             results.push({ name: file.name, success: true, audiobookId });
           } catch (err) {
-            if (axios.isCancel(err)) {
+            if (err.name === 'CanceledError' || err.name === 'AbortError') {
               setUploadProgress(prev => ({
                 ...prev,
                 [file.name]: { status: 'cancelled' }
@@ -252,18 +251,18 @@ export default function UploadModal({ isOpen, onClose }) {
         }
       }
     } catch (err) {
-      if (!axios.isCancel(err)) {
+      if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
         setError(err.response?.data?.error || 'Upload failed');
       }
     } finally {
       setUploading(false);
-      cancelTokenRef.current = null;
+      abortControllerRef.current = null;
     }
   };
 
   const handleCancel = () => {
-    if (cancelTokenRef.current) {
-      cancelTokenRef.current.cancel('Upload cancelled by user');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -273,7 +272,7 @@ export default function UploadModal({ isOpen, onClose }) {
 
     setUploading(true);
     uploadStartTimeRef.current = Date.now();
-    cancelTokenRef.current = axios.CancelToken.source();
+    abortControllerRef.current = new AbortController();
 
     setUploadProgress(prev => ({
       ...prev,
@@ -303,7 +302,7 @@ export default function UploadModal({ isOpen, onClose }) {
             total: progressEvent.total
           });
         },
-        cancelToken: cancelTokenRef.current.token
+        signal: abortControllerRef.current.signal
       });
 
       setUploadProgress(prev => ({
@@ -313,7 +312,7 @@ export default function UploadModal({ isOpen, onClose }) {
       setOverallProgress(null);
       setError('');
     } catch (err) {
-      if (axios.isCancel(err)) {
+      if (err.name === 'CanceledError' || err.name === 'AbortError') {
         setUploadProgress(prev => ({
           ...prev,
           [file.name]: { status: 'cancelled' }
@@ -326,19 +325,21 @@ export default function UploadModal({ isOpen, onClose }) {
       }
     } finally {
       setUploading(false);
-      cancelTokenRef.current = null;
+      abortControllerRef.current = null;
     }
   };
 
   const handleClose = () => {
-    if (!uploading) {
-      setFiles([]);
-      setError('');
-      setUploadProgress({});
-      setOverallProgress(null);
-      setUploadMode('files');
-      onClose();
+    if (uploading) {
+      handleCancel();
+      return;
     }
+    setFiles([]);
+    setError('');
+    setUploadProgress({});
+    setOverallProgress(null);
+    setUploadMode('files');
+    onClose();
   };
 
   const removeFile = (index) => {
@@ -364,7 +365,7 @@ export default function UploadModal({ isOpen, onClose }) {
       <div className="modal upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Upload Audiobooks</h2>
-          <button className="close-button" onClick={handleClose} disabled={uploading} aria-label="Close">
+          <button className="close-button" onClick={handleClose} aria-label="Close">
             ×
           </button>
         </div>
