@@ -52,7 +52,7 @@ function RewindIcon({ size, strokeWidth = 2 }) {
       <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
       <path d="M3 3v5h5"/>
       {size >= 40 && (
-        <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
+        <text x="12" y="15.5" fontSize="7" fill="currentColor" stroke="none" textAnchor="middle" fontWeight="500" fontFamily="system-ui, -apple-system, sans-serif">15</text>
       )}
     </svg>
   );
@@ -64,7 +64,7 @@ function ForwardIcon({ size, strokeWidth = 2 }) {
       <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
       <path d="M21 3v5h-5"/>
       {size >= 40 && (
-        <text x="12" y="15.5" fontSize="6" fill="currentColor" textAnchor="middle" fontWeight="100" fontFamily="system-ui, -apple-system, sans-serif">15</text>
+        <text x="12" y="15.5" fontSize="7" fill="currentColor" stroke="none" textAnchor="middle" fontWeight="500" fontFamily="system-ui, -apple-system, sans-serif">15</text>
       )}
     </svg>
   );
