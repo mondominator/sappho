@@ -130,8 +130,6 @@ export default function PlaybackControls({
           <div className="waveform-bar"></div>
           <div className="waveform-bar"></div>
           <div className="waveform-bar"></div>
-          <div className="waveform-bar"></div>
-          <div className="waveform-bar"></div>
         </div>
       )}
       <button className="control-btn skip-btn" onClick={onSkipBackward} title="Skip back 15 seconds" aria-label="Rewind 15 seconds">
