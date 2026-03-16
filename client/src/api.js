@@ -361,6 +361,9 @@ export const getAverageRating = (audiobookId) =>
 export const setRating = (audiobookId, rating, review) =>
   api.post(`/ratings/audiobook/${audiobookId}`, { rating, review });
 
+export const getAllRatings = (audiobookId) =>
+  api.get(`/ratings/audiobook/${audiobookId}/all`);
+
 // Batch Actions
 export const batchMarkFinished = (audiobookIds) =>
   api.post('/audiobooks/batch/mark-finished', { audiobook_ids: audiobookIds });
