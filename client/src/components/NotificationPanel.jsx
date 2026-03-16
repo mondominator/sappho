@@ -109,13 +109,13 @@ export default function NotificationPanel({ notifications, onClose, onNotificati
     }
   };
 
-  const hasUnread = notifications.some(n => !n.is_read);
+  const unreadNotifications = notifications.filter(n => !n.is_read);
 
   return (
     <div className="notification-panel">
       <div className="notification-panel-header">
         <span className="notification-panel-title">Notifications</span>
-        {hasUnread && (
+        {unreadNotifications.length > 0 && (
           <button
             className="notification-mark-all-read"
             onClick={handleMarkAllRead}
@@ -126,19 +126,19 @@ export default function NotificationPanel({ notifications, onClose, onNotificati
       </div>
 
       <div className="notification-panel-list">
-        {notifications.length === 0 ? (
+        {unreadNotifications.length === 0 ? (
           <div className="notification-empty">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
-            <span>No notifications yet</span>
+            <span>No new notifications</span>
           </div>
         ) : (
-          notifications.map(notification => (
+          unreadNotifications.map(notification => (
             <button
               key={notification.id}
-              className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
+              className="notification-item unread"
               onClick={() => handleNotificationClick(notification)}
             >
               <div className="notification-item-icon">
