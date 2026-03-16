@@ -828,7 +828,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           <img
             src={getCoverUrl(audiobook.id, audiobook.updated_at, 120)}
             alt={`${audiobook.title} by ${audiobook.author || 'Unknown Author'}`}
-            className="player-cover"
+            className={`player-cover ${playing ? 'playing' : ''}`}
             onClick={(e) => {
               if (window.innerWidth > 768) {
                 navigate(`/audiobook/${audiobook.id}`);
@@ -883,6 +883,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
           }}>
             {audiobook.author || 'Unknown Author'}
           </div>
+          {chapters.length > 0 && chapters[currentChapter]?.title && (
+            <div className="player-chapter">
+              {chapters[currentChapter].title}
+            </div>
+          )}
           <div className="player-metadata">
             <div className={`metadata-time ${playing ? 'playing' : ''}`} aria-live="polite" aria-atomic="true">
               {chapterProgress
@@ -927,6 +932,15 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 </svg>
               </button>
             </>
+          )}
+          {playing && (
+            <div className="waveform-visualizer">
+              <div className="waveform-bar"></div>
+              <div className="waveform-bar"></div>
+              <div className="waveform-bar"></div>
+              <div className="waveform-bar"></div>
+              <div className="waveform-bar"></div>
+            </div>
           )}
           <button className="control-btn mobile-seek-btn" onClick={skipBackward} title="Rewind 15s" aria-label="Rewind 15 seconds">
             <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round">
@@ -977,7 +991,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
       <div
         ref={progressBarRef}
-        className={`player-progress ${isDraggingProgress && !showFullscreen ? 'dragging' : ''}`}
+        className={`player-progress ${isDraggingProgress && !showFullscreen ? 'dragging' : ''} ${playing ? 'playing' : ''}`}
         style={{
           '--progress-percent': `${chapterProgress ? chapterProgress.percent : (duration ? (currentTime / duration) * 100 : 0)}%`,
           '--preview-percent': `${seekPreviewPercent}%`,

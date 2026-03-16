@@ -3,7 +3,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: #1a1a1a;
+  background: #252525;
   border-top: 1px solid #3b82f6;
   padding: 0 20px 20px 20px;
   padding-top: 0;
@@ -30,6 +30,23 @@
   object-fit: cover;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.player-cover.playing {
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4), 0 0 20px rgba(52, 211, 153, 0.2);
+  animation: coverPulse 3s ease-in-out infinite;
+}
+
+@keyframes coverPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4), 0 0 20px rgba(52, 211, 153, 0.2);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5), 0 0 28px rgba(52, 211, 153, 0.3);
+  }
 }
 
 .player-text {
@@ -46,6 +63,16 @@
 .player-author {
   font-size: 14px;
   color: #9ca3af;
+}
+
+.player-chapter {
+  font-size: 10px;
+  color: rgba(96, 165, 250, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  margin-bottom: 1px;
 }
 
 .chapter-indicator {
@@ -168,7 +195,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 20px;
-  background: #1a1a1a;
+  background: #252525;
   border-bottom: 1px solid #374151;
   z-index: 1;
   pointer-events: auto;
@@ -1214,6 +1241,17 @@
     transform: translate(-50%, -50%) scale(1.2);
   }
 
+  .player-progress.playing::after {
+    background: linear-gradient(90deg, #60a5fa, #34d399, #60a5fa);
+    background-size: 200% 100%;
+    animation: progressGradientShimmer 3s linear infinite;
+  }
+
+  .player-progress.playing .progress-thumb {
+    background: #34d399;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
   .time-display {
     display: none;
   }
@@ -1593,6 +1631,17 @@
     pointer-events: none;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     z-index: 2;
+  }
+
+  .player-progress.playing::after {
+    background: linear-gradient(90deg, #60a5fa, #34d399, #60a5fa);
+    background-size: 200% 100%;
+    animation: progressGradientShimmer 3s linear infinite;
+  }
+
+  .player-progress.playing .progress-thumb {
+    background: #34d399;
+    box-shadow: 0 0 6px rgba(52, 211, 153, 0.6), 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
   .time-display {
@@ -2164,6 +2213,43 @@
   color: #fff;
 }
 
+.speed-fine-tune {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.25rem 1rem;
+}
+
+.speed-current-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  min-width: 80px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-adjust-btn {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.speed-adjust-btn:hover {
+  opacity: 0.8;
+}
+
+.speed-adjust-btn:active {
+  transform: scale(0.9);
+}
+
 .speed-menu-options {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2300,6 +2386,88 @@
 
 .sleep-option.cancel:hover {
   background: rgba(239, 68, 68, 0.3);
+}
+
+/* ========================================
+   WAVEFORM VISUALIZER
+   ======================================== */
+
+.waveform-visualizer {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.waveform-bar {
+  width: 3px;
+  border-radius: 1.5px;
+  background: linear-gradient(180deg, #34d399 0%, #60a5fa 100%);
+  transform-origin: bottom;
+}
+
+.waveform-bar:nth-child(1) {
+  height: 10px;
+  animation: waveform1 0.8s ease-in-out infinite;
+}
+
+.waveform-bar:nth-child(2) {
+  height: 16px;
+  animation: waveform2 0.6s ease-in-out infinite;
+}
+
+.waveform-bar:nth-child(3) {
+  height: 22px;
+  animation: waveform3 0.7s ease-in-out infinite;
+}
+
+.waveform-bar:nth-child(4) {
+  height: 14px;
+  animation: waveform4 0.9s ease-in-out infinite;
+}
+
+.waveform-bar:nth-child(5) {
+  height: 18px;
+  animation: waveform5 0.75s ease-in-out infinite;
+}
+
+@keyframes waveform1 {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes waveform2 {
+  0%, 100% { transform: scaleY(0.6); }
+  50% { transform: scaleY(0.3); }
+}
+
+@keyframes waveform3 {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes waveform4 {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.4); }
+}
+
+@keyframes waveform5 {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(0.9); }
+}
+
+/* ========================================
+   ANIMATED PROGRESS BAR
+   ======================================== */
+
+@keyframes progressGradientShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
 }
 
 /* ========================================
