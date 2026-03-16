@@ -938,8 +938,6 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
               <div className="waveform-bar"></div>
               <div className="waveform-bar"></div>
               <div className="waveform-bar"></div>
-              <div className="waveform-bar"></div>
-              <div className="waveform-bar"></div>
             </div>
           )}
           <button className="mobile-seek-btn" onClick={skipBackward} title="Rewind 15s" aria-label="Rewind 15 seconds">
