@@ -721,6 +721,17 @@
   transition: width 0.1s ease;
 }
 
+.fullscreen-progress-fill.playing {
+  background: linear-gradient(90deg, #60a5fa, #34d399, #60a5fa);
+  background-size: 200% 100%;
+  animation: fullscreenProgressGradient 2s linear infinite;
+}
+
+@keyframes fullscreenProgressGradient {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
 .fullscreen-progress.dragging .fullscreen-progress-fill {
   transition: none;
   opacity: 0.5;
@@ -748,6 +759,12 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
   transition: left 0.1s ease;
+}
+
+.fullscreen-progress-thumb.playing {
+  background: #34d399;
+  border-color: #34d399;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.6), 0 3px 8px rgba(0, 0, 0, 0.4);
 }
 
 .fullscreen-progress.dragging .fullscreen-progress-thumb {

@@ -28,7 +28,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [progressDisplayMode, setProgressDisplayMode] = useState(() => {
-    return localStorage.getItem('progressDisplayMode') || 'book';
+    return localStorage.getItem('progressDisplayMode') || 'chapter';
   });
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [chapters, setChapters] = useState([]);
