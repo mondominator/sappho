@@ -9,6 +9,7 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newIsPublic, setNewIsPublic] = useState(false);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
 
     setCreating(true);
     try {
-      const response = await createCollection(newName.trim(), '');
+      const response = await createCollection(newName.trim(), '', newIsPublic);
       const newCollection = response.data;
 
       // Add the book to the new collection
@@ -86,6 +87,7 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
       setCollections([newCollection, ...collections]);
       setBookCollections(prev => new Set([...prev, newCollection.id]));
       setNewName('');
+      setNewIsPublic(false);
       setShowCreate(false);
     } catch (error) {
       console.error('Error creating collection:', error);
@@ -119,8 +121,17 @@ export default function AddToCollectionModal({ isOpen, onClose, audiobookId, aud
                     placeholder="Collection name"
                     autoFocus
                   />
+                  <label className="public-toggle">
+                    <span>Public</span>
+                    <input
+                      type="checkbox"
+                      checked={newIsPublic}
+                      onChange={(e) => setNewIsPublic(e.target.checked)}
+                    />
+                    <span className={`toggle-switch ${newIsPublic ? 'active' : ''}`}></span>
+                  </label>
                   <div className="create-actions">
-                    <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)}>
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowCreate(false); setNewIsPublic(false); }}>
                       Cancel
                     </button>
                     <button type="submit" className="btn btn-primary" disabled={!newName.trim() || creating}>
