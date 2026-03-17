@@ -312,7 +312,7 @@ export default function FullscreenPlayer({
                 style={{ width: `${bufferedPercent}%` }}
               />
               <div
-                className="fullscreen-progress-fill"
+                className={`fullscreen-progress-fill ${playing ? 'playing' : ''}`}
                 style={{ width: `${progressPercent}%` }}
               />
               {isDraggingProgress && seekPreviewTime !== null && (
@@ -322,7 +322,7 @@ export default function FullscreenPlayer({
                 />
               )}
               <div
-                className="fullscreen-progress-thumb"
+                className={`fullscreen-progress-thumb ${playing ? 'playing' : ''}`}
                 style={{ left: isDraggingProgress && seekPreviewTime !== null ? `${seekPreviewPercent}%` : `${progressPercent}%` }}
               />
               {isDraggingProgress && seekPreviewTime !== null && (
