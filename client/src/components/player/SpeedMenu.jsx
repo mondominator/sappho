@@ -1,12 +1,12 @@
 /**
- * Playback speed selection with presets and fine-tune controls.
+ * Playback speed selection with slider and preset shortcuts.
  */
 import { useState, useEffect } from 'react';
 
 const PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 function formatSpeed(speed) {
-  if (speed === Math.floor(speed)) return `${speed}x`;
+  if (speed === Math.floor(speed)) return `${speed}.0x`;
   // Show at most 2 decimal places, trim trailing zeros
   return `${parseFloat(speed.toFixed(2))}x`;
 }
@@ -23,9 +23,9 @@ export default function SpeedMenu({ currentSpeed, onSelect, onClose }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const adjust = (delta) => {
-    const newSpeed = Math.max(0.25, Math.min(3, speed + delta));
-    const snapped = Math.round(newSpeed * 20) / 20; // Snap to 0.05
+  const handleSliderChange = (e) => {
+    const raw = parseFloat(e.target.value);
+    const snapped = Math.round(raw * 20) / 20; // Snap to 0.05
     setSpeed(snapped);
     onSelect(snapped);
   };
@@ -34,6 +34,9 @@ export default function SpeedMenu({ currentSpeed, onSelect, onClose }) {
     setSpeed(preset);
     onSelect(preset);
   };
+
+  // Calculate slider fill percentage for the gradient track
+  const fillPercent = ((speed - 0.5) / (3.0 - 0.5)) * 100;
 
   return (
     <div className="speed-menu-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Playback speed">
@@ -48,19 +51,28 @@ export default function SpeedMenu({ currentSpeed, onSelect, onClose }) {
           </button>
         </div>
 
-        {/* Fine-tune controls */}
-        <div className="speed-fine-tune">
-          <button className="speed-adjust-btn" onClick={() => adjust(-0.05)} aria-label="Decrease speed">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/>
-            </svg>
-          </button>
+        {/* Current speed display */}
+        <div className="speed-slider-section">
           <span className="speed-current-value">{formatSpeed(speed)}</span>
-          <button className="speed-adjust-btn" onClick={() => adjust(0.05)} aria-label="Increase speed">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
-            </svg>
-          </button>
+
+          {/* Range slider */}
+          <div className="speed-slider-container">
+            <span className="speed-slider-label">0.5x</span>
+            <input
+              type="range"
+              className="speed-slider"
+              min="0.5"
+              max="3.0"
+              step="0.05"
+              value={speed}
+              onChange={handleSliderChange}
+              aria-label="Playback speed slider"
+              style={{
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${fillPercent}%, #374151 ${fillPercent}%, #374151 100%)`
+              }}
+            />
+            <span className="speed-slider-label">3.0x</span>
+          </div>
         </div>
 
         {/* Preset buttons */}
