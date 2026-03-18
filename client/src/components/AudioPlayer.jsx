@@ -906,7 +906,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
                 setShowChapterModal(true);
               }}
             >
-              {chapters[currentChapter]?.title || ''}
+              Chapters
             </button>
           )}
           <div className={`mobile-time-display ${playing ? 'playing' : ''}`}>
