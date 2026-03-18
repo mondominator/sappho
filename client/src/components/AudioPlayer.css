@@ -394,11 +394,12 @@
 }
 
 .fullscreen-player-top {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .fullscreen-player-bottom {
