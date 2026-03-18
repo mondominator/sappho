@@ -1,11 +1,13 @@
 /**
  * Sleep timer selection menu.
  */
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 const DURATIONS = [5, 10, 15, 30, 45, 60, 90, 120];
 
 export default function SleepTimerMenu({ sleepTimer, hasChapters, onSelect, onClose }) {
+  const [customMinutes, setCustomMinutes] = useState('');
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -16,6 +18,21 @@ export default function SleepTimerMenu({ sleepTimer, hasChapters, onSelect, onCl
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  const handleCustomSubmit = () => {
+    const mins = parseInt(customMinutes, 10);
+    if (mins > 0 && mins <= 1440) {
+      onSelect(mins);
+      setCustomMinutes('');
+    }
+  };
+
+  const handleCustomKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCustomSubmit();
+    }
+  };
 
   return (
     <div className="sleep-menu-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Sleep timer">
@@ -55,6 +72,29 @@ export default function SleepTimerMenu({ sleepTimer, hasChapters, onSelect, onCl
               {mins >= 60 ? `${mins / 60} hour${mins > 60 ? 's' : ''}` : `${mins} minutes`}
             </button>
           ))}
+
+          {/* Custom timer input */}
+          <div className="sleep-custom-input">
+            <input
+              type="number"
+              className="sleep-custom-field"
+              placeholder="Custom minutes"
+              min="1"
+              max="1440"
+              value={customMinutes}
+              onChange={(e) => setCustomMinutes(e.target.value)}
+              onKeyDown={handleCustomKeyDown}
+              aria-label="Custom timer in minutes"
+            />
+            <button
+              className="sleep-custom-btn"
+              onClick={handleCustomSubmit}
+              disabled={!customMinutes || parseInt(customMinutes, 10) <= 0}
+              aria-label="Set custom timer"
+            >
+              Set
+            </button>
+          </div>
         </div>
       </div>
     </div>
