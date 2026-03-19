@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const logger = require('./utils/logger');
 
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../data/sappho.db');
 const dbDir = path.dirname(dbPath);
@@ -16,18 +17,14 @@ if (!process.env.DATABASE_PATH) {
   const legacyDbPath = path.join(dbDir, 'sapho.db');
 
   if (!fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
-    console.log('='.repeat(60));
-    console.log('MIGRATING LEGACY DATABASE');
-    console.log('Found old database: sapho.db');
-    console.log('Renaming to: sappho.db');
+    logger.info('Migrating legacy database: sapho.db -> sappho.db');
     try {
       fs.renameSync(legacyDbPath, dbPath);
-      console.log('Migration successful!');
+      logger.info('Legacy database migration successful');
     } catch (err) {
-      console.error('Migration failed:', err.message);
-      console.log('Falling back to legacy database path');
+      logger.error({ err }, 'Legacy database migration failed');
+      logger.info('Falling back to legacy database path');
     }
-    console.log('='.repeat(60));
   }
 }
 
@@ -38,24 +35,24 @@ const dbReady = new Promise((resolve) => {
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
-    console.error('Error opening database:', err);
+    logger.fatal({ err }, 'Error opening database');
     process.exit(1);
   } else {
-    console.log('Connected to SQLite database at:', dbPath);
+    logger.info({ path: dbPath }, 'Connected to SQLite database');
     // Enable foreign key constraint enforcement (off by default in SQLite)
     db.run('PRAGMA foreign_keys = ON', (fkErr) => {
       if (fkErr) {
-        console.error('Error enabling foreign keys:', fkErr);
+        logger.error({ err: fkErr }, 'Error enabling foreign keys');
       } else {
-        console.log('Foreign key constraints enabled');
+        logger.debug('Foreign key constraints enabled');
       }
     });
     // Enable Write-Ahead Logging for better concurrent read performance
     db.run('PRAGMA journal_mode = WAL', (walErr) => {
       if (walErr) {
-        console.error('Error enabling WAL mode:', walErr);
+        logger.error({ err: walErr }, 'Error enabling WAL mode');
       } else {
-        console.log('WAL journal mode enabled');
+        logger.debug('WAL journal mode enabled');
       }
     });
     initializeDatabase();
@@ -160,11 +157,11 @@ function initializeDatabase() {
         const columnNames = columns.map(col => col.name);
         if (!columnNames.includes('display_name')) {
           db.run('ALTER TABLE users ADD COLUMN display_name TEXT');
-          console.log('Added display_name column to users table');
+          logger.info('Added display_name column to users table');
         }
         if (!columnNames.includes('avatar')) {
           db.run('ALTER TABLE users ADD COLUMN avatar TEXT');
-          console.log('Added avatar column to users table');
+          logger.info('Added avatar column to users table');
         }
       }
     });
@@ -176,15 +173,15 @@ function initializeDatabase() {
         if (!columnNames.includes('series_index')) {
           db.run('ALTER TABLE audiobooks ADD COLUMN series_index REAL', (err) => {
             if (err) {
-              console.error('Error adding series_index column:', err);
+              logger.error({ err }, 'Error adding series_index column');
             } else {
-              console.log('Added series_index column to audiobooks table');
+              logger.info('Added series_index column to audiobooks table');
               // Copy series_position values to series_index
               db.run('UPDATE audiobooks SET series_index = series_position WHERE series_position IS NOT NULL', (err) => {
                 if (err) {
-                  console.error('Error migrating series_position to series_index:', err);
+                  logger.error({ err }, 'Error migrating series_position to series_index');
                 } else {
-                  console.log('Migrated series_position to series_index');
+                  logger.info('Migrated series_position to series_index');
                 }
               });
             }
@@ -200,7 +197,7 @@ function initializeDatabase() {
     // db.get() inside serialize ensures the callback fires only after
     // all preceding serialized statements have completed.
     db.get('SELECT 1', [], () => {
-      console.log('Database initialized');
+      logger.info('Database initialized');
       if (dbReadyResolve) {
         dbReadyResolve();
       }
@@ -213,7 +210,7 @@ function runMigrations() {
 
   // Check if migrations directory exists
   if (!fs.existsSync(migrationsDir)) {
-    console.log('No migrations directory found');
+    logger.debug('No migrations directory found');
     return;
   }
 
@@ -222,17 +219,17 @@ function runMigrations() {
     .filter(file => file.endsWith('.js'))
     .sort();
 
-  console.log(`Found ${migrationFiles.length} migration(s)`);
+  logger.info({ count: migrationFiles.length }, 'Found migrations');
 
   // Run each migration
   for (const file of migrationFiles) {
     const migrationPath = path.join(migrationsDir, file);
     try {
       const migration = require(migrationPath);
-      console.log(`Running migration: ${file}`);
+      logger.info({ file }, 'Running migration');
       migration.up(db);
     } catch (error) {
-      console.error(`Error running migration ${file}:`, error);
+      logger.error({ err: error, file }, 'Error running migration');
     }
   }
 }

@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const logger = require('../utils/logger');
 const url = require('url');
 const jwt = require('jsonwebtoken');
 const { isTokenBlacklisted, isUserTokenInvalidated } = require('../auth');
@@ -28,7 +29,7 @@ class WebSocketManager {
     });
 
     this.wss.on('connection', (ws, req) => {
-      console.log('🔌 New WebSocket connection');
+      logger.debug('New WebSocket connection');
 
       // Initialize heartbeat tracking for this client
       ws.isAlive = true;
@@ -48,11 +49,11 @@ class WebSocketManager {
 
       ws.on('close', () => {
         this.clients.delete(ws);
-        console.log('🔌 WebSocket connection closed');
+        logger.debug('WebSocket connection closed');
       });
 
       ws.on('error', (error) => {
-        console.error('WebSocket error:', error.message);
+        logger.error({ err: error }, 'WebSocket error');
       });
     });
 
@@ -73,7 +74,7 @@ class WebSocketManager {
       clearInterval(this.heartbeatInterval);
     });
 
-    console.log('✅ WebSocket server initialized at /ws/notifications');
+    logger.info('WebSocket server initialized at /ws/notifications');
   }
 
   /**
@@ -117,7 +118,7 @@ class WebSocketManager {
           username: user.username,
           authenticated: true,
         });
-        console.log(`✅ WebSocket client authenticated (JWT): ${user.username}`);
+        logger.info({ username: user.username, method: 'JWT' }, 'WebSocket client authenticated');
         this.sendToClient(ws, {
           type: 'connected',
           message: 'Successfully connected to Sappho notifications',
@@ -134,7 +135,7 @@ class WebSocketManager {
 
       db.get('SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1', [keyHash], (err, key) => {
         if (err) {
-          console.error('API key auth error:', err.message);
+          logger.error({ err }, 'WebSocket API key auth error');
           ws.close(1008, 'Authentication error');
           return;
         }
@@ -156,7 +157,7 @@ class WebSocketManager {
             username: user.username,
             authenticated: true,
           });
-          console.log(`✅ WebSocket client authenticated (API Key): ${user.username}`);
+          logger.info({ username: user.username, method: 'API Key' }, 'WebSocket client authenticated');
           this.sendToClient(ws, {
             type: 'connected',
             message: 'Successfully connected to Sappho notifications',
@@ -283,7 +284,7 @@ class WebSocketManager {
     }
 
     if (sentCount > 0) {
-      console.log(`📡 Broadcasted ${message.type} to ${sentCount} client(s)`);
+      logger.debug({ type: message.type, clients: sentCount }, 'Broadcasted message');
     }
   }
 

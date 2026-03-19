@@ -1,4 +1,5 @@
 const fs = require('fs');
+const logger = require('../utils/logger');
 const path = require('path');
 const db = require('../database');
 const { extractFileMetadata } = require('./fileProcessor');
@@ -35,22 +36,22 @@ async function isDuplicateByIdentifier(metadata) {
     try {
       const existing = await audiobookExistsByIsbn(metadata.isbn);
       if (existing) {
-        console.log(`Skipping duplicate: "${metadata.title}" matches existing "${existing.title}" by ISBN ${metadata.isbn}`);
+        logger.debug({ title: metadata.title, existingTitle: existing.title, isbn: metadata.isbn }, 'Skipping duplicate by ISBN');
         return true;
       }
     } catch (err) {
-      console.error(`ISBN dedup check failed for "${metadata.title}" (ISBN: ${metadata.isbn}), proceeding with import:`, err.message);
+      logger.warn({ err, title: metadata.title, isbn: metadata.isbn }, 'ISBN dedup check failed, proceeding with import');
     }
   }
   if (metadata.asin) {
     try {
       const existing = await audiobookExistsByAsin(metadata.asin);
       if (existing) {
-        console.log(`Skipping duplicate: "${metadata.title}" matches existing "${existing.title}" by ASIN ${metadata.asin}`);
+        logger.debug({ title: metadata.title, existingTitle: existing.title, asin: metadata.asin }, 'Skipping duplicate by ASIN');
         return true;
       }
     } catch (err) {
-      console.error(`ASIN dedup check failed for "${metadata.title}" (ASIN: ${metadata.asin}), proceeding with import:`, err.message);
+      logger.warn({ err, title: metadata.title, asin: metadata.asin }, 'ASIN dedup check failed, proceeding with import');
     }
   }
   return false;
@@ -65,21 +66,21 @@ async function importAudiobook(filePath, userId) {
     const dir = path.dirname(filePath);
     const checkConversion = getConversionChecker();
     if (checkConversion && checkConversion(dir)) {
-      console.log(`Skipping ${filePath} - conversion in progress in this directory`);
+      logger.debug({ filePath }, 'Skipping file - conversion in progress');
       return null;
     }
 
     // Check if already in database
     const exists = await fileExistsInDatabase(filePath);
     if (exists) {
-      console.log(`Skipping ${filePath} - already in database`);
+      logger.debug({ filePath }, 'Skipping file - already in database');
       return null;
     }
 
     // Check if another audiobook exists in the same directory (e.g., converted file)
     const existingInDir = await audiobookExistsInDirectory(filePath);
     if (existingInDir) {
-      console.log(`Skipping ${filePath} - another audiobook already exists in this directory: ${existingInDir.file_path}`);
+      logger.debug({ filePath, existingPath: existingInDir.file_path }, 'Skipping file - another audiobook in directory');
       return null;
     }
 
@@ -112,7 +113,7 @@ async function importAudiobook(filePath, userId) {
     // Check if an audiobook with this content hash already exists
     const existingByHash = await audiobookExistsByHash(contentHash);
     if (existingByHash) {
-      console.log(`Skipping ${filePath} - audiobook with same content hash already exists: ${existingByHash.title}`);
+      logger.debug({ filePath, existingTitle: existingByHash.title }, 'Skipping file - duplicate content hash');
       return null;
     }
 
@@ -181,15 +182,15 @@ async function importAudiobook(filePath, userId) {
     });
 
     const chapterCount = hasChapters ? ` (${chapters.length} chapters)` : '';
-    console.log(`Imported: ${metadata.title} by ${metadata.author}${chapterCount}`);
+    logger.info({ title: metadata.title, author: metadata.author, chapters: chapterCount || undefined }, 'Imported audiobook');
     websocketManager.broadcastLibraryUpdate('library.add', audiobook);
     emailService.notifyNewAudiobook(audiobook).catch(e =>
-      console.error('Error sending new audiobook notification:', e.message)
+      logger.error({ err: e }, 'Error sending new audiobook notification')
     );
     await notificationService.notifyNewAudiobook(audiobook);
     return audiobook;
   } catch (error) {
-    console.error(`Error importing ${filePath}:`, error.message);
+    logger.error({ err: error, filePath }, 'Error importing audiobook');
     return null;
   }
 }
@@ -209,7 +210,7 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     const directory = path.dirname(sortedFiles[0]);
     const checkConversion = getConversionChecker();
     if (checkConversion && checkConversion(directory)) {
-      console.log(`Skipping multi-file import in ${directory} - conversion in progress`);
+      logger.debug({ directory }, 'Skipping multi-file import - conversion in progress');
       return null;
     }
 
@@ -292,14 +293,14 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     // Check if already in database (check by first file path or by directory)
     const exists = await fileExistsInDatabase(firstFilePath);
     if (exists) {
-      console.log(`Skipping multi-file audiobook ${metadata.title} - already in database`);
+      logger.debug({ title: metadata.title }, 'Skipping multi-file audiobook - already in database');
       return null;
     }
 
     // Check if another audiobook already exists in the same directory (e.g., converted file)
     const existingInDir = await audiobookExistsInDirectory(firstFilePath);
     if (existingInDir) {
-      console.log(`Skipping multi-file audiobook ${metadata.title} - another audiobook already exists in this directory: ${existingInDir.file_path}`);
+      logger.debug({ title: metadata.title, existingPath: existingInDir.file_path }, 'Skipping multi-file audiobook - another in directory');
       return null;
     }
 
@@ -320,7 +321,7 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     // Check if an audiobook with this content hash already exists
     const existingByHash = await audiobookExistsByHash(contentHash);
     if (existingByHash) {
-      console.log(`Skipping multi-file audiobook ${metadata.title} - audiobook with same content hash already exists: ${existingByHash.title}`);
+      logger.debug({ title: metadata.title, existingTitle: existingByHash.title }, 'Skipping multi-file audiobook - duplicate hash');
       return null;
     }
 
@@ -386,15 +387,15 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       return await dbGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
     });
 
-    console.log(`Imported multi-file audiobook: ${metadata.title} (${chaptersWithStartTimes.length} chapters)`);
+    logger.info({ title: metadata.title, chapters: chaptersWithStartTimes.length }, 'Imported multi-file audiobook');
     websocketManager.broadcastLibraryUpdate('library.add', audiobook);
     emailService.notifyNewAudiobook(audiobook).catch(e =>
-      console.error('Error sending new audiobook notification:', e.message)
+      logger.error({ err: e }, 'Error sending new audiobook notification')
     );
     await notificationService.notifyNewAudiobook(audiobook);
     return audiobook;
   } catch (error) {
-    console.error('Error importing multi-file audiobook:', error.message);
+    logger.error({ err: error }, 'Error importing multi-file audiobook');
     return null;
   }
 }
@@ -403,12 +404,12 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
  * Scan the entire audiobooks library and import any new files
  */
 async function scanLibrary() {
-  console.log('Starting library scan...');
-  console.log('Scanning directory:', audiobooksDir);
+  logger.info('Starting library scan');
+  logger.info({ directory: audiobooksDir }, 'Scanning directory');
 
   // Ensure audiobooks directory exists
   if (!fs.existsSync(audiobooksDir)) {
-    console.log('Audiobooks directory does not exist, creating it...');
+    logger.info({ directory: audiobooksDir }, 'Creating audiobooks directory');
     fs.mkdirSync(audiobooksDir, { recursive: true });
     return { imported: 0, skipped: 0, errors: 0 };
   }
@@ -423,7 +424,7 @@ async function scanLibrary() {
     });
   });
   if (!scanUserId) {
-    console.error('Library scan aborted: no users exist in the database');
+    logger.error('Library scan aborted: no users exist in the database');
     return { imported: 0, skipped: 0, errors: 0 };
   }
 
@@ -432,11 +433,11 @@ async function scanLibrary() {
 
   // Scan files grouped by directory
   const groupedFiles = scanDirectory(audiobooksDir, true);
-  console.log(`Found audio files in ${groupedFiles.size} directories`);
+  logger.info({ directories: groupedFiles.size }, 'Found audio files');
 
   // Merge subdirectories that are part of the same audiobook (e.g., CD1, CD2, Part1, Part2)
   const mergedGroups = mergeSubdirectories(groupedFiles);
-  console.log(`After merging subdirectories: ${mergedGroups.size} audiobook groups`);
+  logger.info({ groups: mergedGroups.size }, 'After merging subdirectories');
 
   let imported = 0;
   let skipped = 0;
@@ -470,7 +471,7 @@ async function scanLibrary() {
 
       if (isMultiFileBook) {
         // Multi-file audiobook - treat all files in directory as chapters
-        console.log(`Processing multi-file audiobook in ${directory} (${files.length} files)`);
+        logger.debug({ directory, fileCount: files.length }, 'Processing multi-file audiobook');
         const result = await importMultiFileAudiobook(files, scanUserId);
         if (result) {
           imported++;
@@ -493,7 +494,7 @@ async function scanLibrary() {
         }
       }
     } catch (error) {
-      console.error(`Failed to import from ${directory}:`, error.message);
+      logger.error({ err: error, directory }, 'Failed to import from directory');
       errors++;
     }
   }
@@ -507,7 +508,7 @@ async function scanLibrary() {
   // Clean up empty directories left behind from moves, deletes, or external changes
   const emptyDirsRemoved = cleanupAllEmptyDirectories(audiobooksDir);
   if (emptyDirsRemoved > 0) {
-    console.log(`Removed ${emptyDirsRemoved} empty directories`);
+    logger.info({ count: emptyDirsRemoved }, 'Removed empty directories');
   }
 
 
@@ -521,7 +522,7 @@ async function scanLibrary() {
     unavailable: availabilityStats.missing,
     emptyDirsRemoved
   };
-  console.log('Library scan complete:', stats);
+  logger.info({ stats }, 'Library scan complete');
 
   return stats;
 }
@@ -609,13 +610,13 @@ function getJobStatus() {
 function startPeriodicScan(intervalMinutes = 5) {
   // Don't start if already running
   if (scanInterval) {
-    console.log('Periodic library scan already running');
+    logger.debug('Periodic library scan already running');
     return;
   }
 
   scanIntervalMinutes = intervalMinutes;
   const intervalMs = intervalMinutes * 60 * 1000;
-  console.log(`Starting periodic library scan every ${intervalMinutes} minutes`);
+  logger.info({ intervalMinutes }, 'Starting periodic library scan');
 
   // Run initial scan in background
   setImmediate(async () => {
@@ -626,7 +627,7 @@ function startPeriodicScan(intervalMinutes = 5) {
         lastScanTime = new Date();
         lastScanResult = result;
       } catch (error) {
-        console.error('Error in initial library scan:', error);
+        logger.error({ err: error }, 'Error in initial library scan');
         lastScanResult = { error: error.message };
       } finally {
         isScanning = false;
@@ -637,18 +638,18 @@ function startPeriodicScan(intervalMinutes = 5) {
   // Set up periodic scanning
   scanInterval = setInterval(async () => {
     if (isScanning || scanningLocked) {
-      console.log('Library scan already in progress or locked, skipping...');
+      logger.debug('Library scan already in progress or locked, skipping');
       return;
     }
 
     isScanning = true;
     try {
-      console.log('Starting periodic library scan...');
+      logger.info('Starting periodic library scan');
       const result = await scanLibrary();
       lastScanTime = new Date();
       lastScanResult = result;
     } catch (error) {
-      console.error('Error in periodic library scan:', error);
+      logger.error({ err: error }, 'Error in periodic library scan');
       lastScanResult = { error: error.message };
     } finally {
       isScanning = false;
@@ -663,7 +664,7 @@ function stopPeriodicScan() {
   if (scanInterval) {
     clearInterval(scanInterval);
     scanInterval = null;
-    console.log('Periodic library scan stopped');
+    logger.info('Periodic library scan stopped');
   }
 }
 

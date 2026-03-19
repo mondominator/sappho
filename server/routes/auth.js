@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 
@@ -152,7 +153,7 @@ function createAuthRouter(deps = {}) {
       const user = await register(username, password, email);
       // Notify admins of new user registration
       emailService.notifyAdminNewUser(user).catch(e =>
-        console.error('Error sending admin notification:', e.message)
+        logger.error({ err: e }, 'Error sending admin notification')
       );
       res.status(201).json({ message: 'User registered successfully', user });
     } catch (_error) {
@@ -182,7 +183,7 @@ function createAuthRouter(deps = {}) {
           msg.startsWith('Your account has been disabled')) {
         return res.status(401).json({ error: msg });
       }
-      console.error('Login error:', error);
+      logger.error({ err: error }, 'Login error');
       res.status(500).json({ error: 'Login failed' });
     }
   });
@@ -285,7 +286,7 @@ function createAuthRouter(deps = {}) {
         must_change_password: !!user.must_change_password
       });
     } catch (error) {
-      console.error('MFA verification error:', error);
+      logger.error({ err: error }, 'MFA verification error');
       res.status(500).json({ error: 'MFA verification failed' });
     }
   });
@@ -313,10 +314,10 @@ function createAuthRouter(deps = {}) {
 
           // Send unlock email (base URL is fetched from env var internally)
           await emailService.sendAccountUnlockEmail(user, token);
-          console.log(`Unlock email sent to: ${email}`);
+          logger.info({ email }, 'Unlock email sent');
         } catch (emailError) {
           // Log but don't reveal to user
-          console.error('Failed to send unlock email:', emailError.message);
+          logger.error({ err: emailError }, 'Failed to send unlock email');
         }
       }
 
@@ -325,7 +326,7 @@ function createAuthRouter(deps = {}) {
         message: 'If an account with that email exists, an unlock link has been sent.'
       });
     } catch (error) {
-      console.error('Unlock request error:', error);
+      logger.error({ err: error }, 'Unlock request error');
       res.status(500).json({ error: 'Failed to process unlock request' });
     }
   });
@@ -350,7 +351,7 @@ function createAuthRouter(deps = {}) {
         username: result.username
       });
     } catch (error) {
-      console.error('Unlock error:', error);
+      logger.error({ err: error }, 'Unlock error');
       res.status(400).json({ error: 'Failed to process unlock request' });
     }
   });

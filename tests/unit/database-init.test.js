@@ -64,6 +64,19 @@ function mockFsExists() {
   };
 }
 
+
+/** Create a mock logger that captures all log calls */
+function createMockLogger() {
+  return {
+    fatal: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+    trace: jest.fn(),
+    child: jest.fn().mockReturnThis(),
+  };
+}
 /** allHandler that returns full columns for users and audiobooks (no ALTER needed) */
 function allColumnsPresent() {
   return jest.fn((sql, ...args) => {
@@ -83,11 +96,14 @@ function allColumnsPresent() {
  * Helper to require database.js with mocks and wait for async initialization.
  * Returns the exported db object after all nextTick callbacks have resolved.
  */
-function requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor) {
+function requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger) {
   jest.doMock('fs', () => fsMock);
   jest.doMock('sqlite3', () => ({
     verbose: () => ({ Database: DatabaseConstructor }),
   }));
+  if (mockLogger) {
+    jest.doMock('../../server/utils/logger', () => mockLogger);
+  }
 
   const db = require('../../server/database');
 
@@ -170,7 +186,7 @@ describe('Database Initialization - Error Paths', () => {
       await jest.isolateModulesAsync(async () => {
         delete process.env.DATABASE_PATH;
 
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const fsMock = {
           existsSync: jest.fn().mockImplementation((p) => {
             if (p.endsWith('sappho.db')) return false;
@@ -187,9 +203,11 @@ describe('Database Initialization - Error Paths', () => {
           allHandler: allColumnsPresent(),
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('Migration failed:', 'Rename failed');
-        consoleSpy.mockRestore();
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Legacy database migration failed'
+        );
       });
     });
 
@@ -257,17 +275,19 @@ describe('Database Initialization - Error Paths', () => {
   describe('Database connection', () => {
     it('handles sqlite3 Database constructor error', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
         const fsMock = mockFsExists();
         const { mockDb, DatabaseConstructor } = createMockSetup({
           openErr: new Error('SQLITE_CANTOPEN'),
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('Error opening database:', expect.any(Error));
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.fatal).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Error opening database'
+        );
         expect(exitSpy).toHaveBeenCalledWith(1);
-        consoleSpy.mockRestore();
         exitSpy.mockRestore();
       });
     });
@@ -276,7 +296,7 @@ describe('Database Initialization - Error Paths', () => {
   describe('PRAGMA errors', () => {
     it('handles PRAGMA foreign_keys error', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const fsMock = mockFsExists();
 
         const runHandler = jest.fn((sql, ...args) => {
@@ -292,15 +312,17 @@ describe('Database Initialization - Error Paths', () => {
           runHandler,
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('Error enabling foreign keys:', expect.any(Error));
-        consoleSpy.mockRestore();
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Error enabling foreign keys'
+        );
       });
     });
 
     it('handles PRAGMA journal_mode WAL error', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const fsMock = mockFsExists();
 
         const runHandler = jest.fn((sql, ...args) => {
@@ -316,9 +338,11 @@ describe('Database Initialization - Error Paths', () => {
           runHandler,
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('Error enabling WAL mode:', expect.any(Error));
-        consoleSpy.mockRestore();
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Error enabling WAL mode'
+        );
       });
     });
   });
@@ -431,7 +455,7 @@ describe('Database Initialization - Error Paths', () => {
 
     it('handles ALTER TABLE series_index error', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const fsMock = mockFsExists();
 
         const runHandler = jest.fn((sql, ...args) => {
@@ -455,15 +479,17 @@ describe('Database Initialization - Error Paths', () => {
         });
         const { mockDb, DatabaseConstructor } = createMockSetup({ allHandler, runHandler });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('Error adding series_index column:', expect.any(Error));
-        consoleSpy.mockRestore();
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Error adding series_index column'
+        );
       });
     });
 
     it('handles UPDATE series_position migration error', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const fsMock = mockFsExists();
 
         const runHandler = jest.fn((sql, ...args) => {
@@ -487,12 +513,11 @@ describe('Database Initialization - Error Paths', () => {
         });
         const { mockDb, DatabaseConstructor } = createMockSetup({ allHandler, runHandler });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith(
-          'Error migrating series_position to series_index:',
-          expect.any(Error)
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Error migrating series_position to series_index'
         );
-        consoleSpy.mockRestore();
       });
     });
 
@@ -528,7 +553,7 @@ describe('Database Initialization - Error Paths', () => {
   describe('Migrations', () => {
     it('handles missing migrations directory', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const fsMock = {
           existsSync: jest.fn().mockImplementation((p) => {
             if (p.includes('migrations')) return false;
@@ -542,15 +567,14 @@ describe('Database Initialization - Error Paths', () => {
           allHandler: allColumnsPresent(),
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('No migrations directory found');
-        consoleSpy.mockRestore();
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.debug).toHaveBeenCalledWith('No migrations directory found');
       });
     });
 
     it('runs migration files in order and filters non-js files', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
         const migrationUp = jest.fn();
 
         const fsMock = {
@@ -573,17 +597,15 @@ describe('Database Initialization - Error Paths', () => {
           allHandler: allColumnsPresent(),
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith('Found 2 migration(s)');
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.info).toHaveBeenCalledWith({ count: 2 }, 'Found migrations');
         expect(migrationUp).toHaveBeenCalledTimes(2);
-        consoleSpy.mockRestore();
       });
     });
 
     it('handles broken migration file gracefully', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-        jest.spyOn(console, 'log').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
 
         const fsMock = {
           existsSync: jest.fn().mockReturnValue(true),
@@ -604,19 +626,17 @@ describe('Database Initialization - Error Paths', () => {
           allHandler: allColumnsPresent(),
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Error running migration 001_broken.js:'),
-          expect.any(Error)
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error), file: '001_broken.js' }),
+          'Error running migration'
         );
-        consoleSpy.mockRestore();
       });
     });
 
     it('handles migration file with missing up function', async () => {
       await jest.isolateModulesAsync(async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-        jest.spyOn(console, 'log').mockImplementation(() => {});
+        const mockLogger = createMockLogger();
 
         const fsMock = {
           existsSync: jest.fn().mockReturnValue(true),
@@ -636,12 +656,11 @@ describe('Database Initialization - Error Paths', () => {
           allHandler: allColumnsPresent(),
         });
 
-        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor);
-        expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Error running migration 001_noup.js:'),
-          expect.any(Error)
+        await requireDatabaseWithMocks(fsMock, mockDb, DatabaseConstructor, mockLogger);
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error), file: '001_noup.js' }),
+          'Error running migration'
         );
-        consoleSpy.mockRestore();
       });
     });
   });

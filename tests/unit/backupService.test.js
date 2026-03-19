@@ -42,6 +42,16 @@ jest.mock('unzipper', () => ({
   Parse: jest.fn()
 }));
 
+// Mock logger
+const mockLogger = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  fatal: jest.fn(),
+};
+jest.mock('../../server/utils/logger', () => mockLogger);
+
 const fs = require('fs');
 const archiver = require('archiver');
 const {
@@ -199,7 +209,10 @@ describe('Backup Service', () => {
 
       deleteBackup('sappho-backup-2024-01-15T10-00-00.zip');
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('deleted'));
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ filename: 'sappho-backup-2024-01-15T10-00-00.zip' }),
+        'Backup deleted'
+      );
     });
   });
 
@@ -248,9 +261,9 @@ describe('Backup Service', () => {
 
       const result = applyRetention(1);
 
-      expect(console.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to delete'),
-        expect.any(String)
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ filename: expect.any(String) }),
+        'Failed to delete old backup'
       );
       expect(result.deleted).toBe(0);
     });
@@ -268,8 +281,9 @@ describe('Backup Service', () => {
     test('logs start message', () => {
       startScheduledBackups(24);
 
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Starting scheduled backups')
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ intervalHours: 24 }),
+        'Starting scheduled backups'
       );
     });
 
@@ -279,7 +293,7 @@ describe('Backup Service', () => {
 
       startScheduledBackups(24);
 
-      expect(console.log).toHaveBeenCalledWith('Scheduled backups already running');
+      expect(mockLogger.debug).toHaveBeenCalledWith('Scheduled backups already running');
     });
   });
 
@@ -290,7 +304,7 @@ describe('Backup Service', () => {
 
       stopScheduledBackups();
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('stopped'));
+      expect(mockLogger.info).toHaveBeenCalledWith('Scheduled backups stopped');
       jest.useRealTimers();
     });
 

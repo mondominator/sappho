@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AudioPlayer from './components/AudioPlayer'
+import ErrorBoundary from './components/ErrorBoundary'
 import Navigation from './components/Navigation'
 import { OfflineBanner } from './components/Skeleton'
 import { WebSocketProvider } from './contexts/WebSocketContext'
@@ -68,19 +69,19 @@ function AppContent({ token, onLogout, currentAudiobook, setCurrentAudiobook, cu
       <main id="main-content" className="main-content">
         <Suspense fallback={<div className="loading-screen">Loading...</div>}>
           <Routes>
-            <Route path="/" element={<Home onPlay={playAudiobook} />} />
-            <Route path="/library" element={<Library onPlay={playAudiobook} />} />
-            <Route path="/all-books" element={<AllBooks onPlay={playAudiobook} />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/audiobook/:id" element={<AudiobookDetail onPlay={playAudiobook} />} />
-            <Route path="/authors" element={<AuthorsList />} />
-            <Route path="/author/:name" element={<AuthorDetail onPlay={playAudiobook} />} />
-            <Route path="/series" element={<SeriesList />} />
-            <Route path="/series/:name" element={<SeriesDetail onPlay={playAudiobook} />} />
-            <Route path="/genres" element={<GenresList />} />
-            <Route path="/collections" element={<Collections />} />
-            <Route path="/collections/:id" element={<CollectionDetail />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/" element={<ErrorBoundary compact section="Home"><Home onPlay={playAudiobook} /></ErrorBoundary>} />
+            <Route path="/library" element={<ErrorBoundary compact section="Library"><Library onPlay={playAudiobook} /></ErrorBoundary>} />
+            <Route path="/all-books" element={<ErrorBoundary compact section="All Books"><AllBooks onPlay={playAudiobook} /></ErrorBoundary>} />
+            <Route path="/profile" element={<ErrorBoundary compact section="Profile"><Profile /></ErrorBoundary>} />
+            <Route path="/audiobook/:id" element={<ErrorBoundary compact section="Audiobook Detail"><AudiobookDetail onPlay={playAudiobook} /></ErrorBoundary>} />
+            <Route path="/authors" element={<ErrorBoundary compact section="Authors"><AuthorsList /></ErrorBoundary>} />
+            <Route path="/author/:name" element={<ErrorBoundary compact section="Author Detail"><AuthorDetail onPlay={playAudiobook} /></ErrorBoundary>} />
+            <Route path="/series" element={<ErrorBoundary compact section="Series"><SeriesList /></ErrorBoundary>} />
+            <Route path="/series/:name" element={<ErrorBoundary compact section="Series Detail"><SeriesDetail onPlay={playAudiobook} /></ErrorBoundary>} />
+            <Route path="/genres" element={<ErrorBoundary compact section="Genres"><GenresList /></ErrorBoundary>} />
+            <Route path="/collections" element={<ErrorBoundary compact section="Collections"><Collections /></ErrorBoundary>} />
+            <Route path="/collections/:id" element={<ErrorBoundary compact section="Collection Detail"><CollectionDetail /></ErrorBoundary>} />
+            <Route path="/settings" element={<ErrorBoundary compact section="Settings"><Settings /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>
