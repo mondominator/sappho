@@ -11,8 +11,6 @@ async function scrapeMetadata(title, author) {
       return googleBooksData;
     }
 
-    // Could add more sources here (Audible, Open Library, etc.)
-
     return null;
   } catch (error) {
     console.error('Metadata scraping error:', error.message);
@@ -50,15 +48,7 @@ async function scrapeGoogleBooks(title, author) {
   }
 }
 
-// Placeholder for future Audible scraping
-async function scrapeAudible(_title, _author) {
-  // This would require web scraping or unofficial API
-  // Not implemented in basic version
-  return null;
-}
-
 module.exports = {
   scrapeMetadata,
   scrapeGoogleBooks,
-  scrapeAudible,
 };

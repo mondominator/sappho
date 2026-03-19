@@ -453,7 +453,7 @@ function createProfileRouter(deps = {}) {
       );
 
       // SECURITY: Invalidate all existing tokens after password change
-      invalidateUserTokens(req.user.id);
+      await invalidateUserTokens(req.user.id);
 
       res.json({
         message: 'Password updated successfully. Please log in again on all devices.'
