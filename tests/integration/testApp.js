@@ -49,6 +49,7 @@ const { createSettingsRouter } = require('../../server/routes/settings');
 const { createUploadRouter } = require('../../server/routes/upload');
 const { createUsersRouter } = require('../../server/routes/users');
 const { createMaintenanceRouter } = require('../../server/routes/maintenance');
+const { createNotificationsRouter } = require('../../server/routes/notifications');
 
 // Create in-memory database
 function createTestDatabase() {
@@ -287,6 +288,30 @@ function createTestDatabase() {
             used_at DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        `);
+
+        // Notifications table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            metadata TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // User notification reads table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS user_notification_reads (
+            user_id INTEGER NOT NULL,
+            notification_id INTEGER NOT NULL,
+            read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, notification_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
           )
         `, (err) => {
           if (err) return reject(err);
@@ -774,6 +799,8 @@ function createTestApp(db) {
     mfaService: mockMfaService,
     bcrypt,
   }));
+
+  app.use('/api/notifications', createNotificationsRouter(baseDeps));
 
   app.use('/api/email', createEmailRouter({
     ...baseDeps,
