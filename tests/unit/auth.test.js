@@ -87,32 +87,57 @@ describe('validatePassword', () => {
 });
 
 describe('Token Blacklist Functions', () => {
-  test('blacklistToken adds token to blacklist', () => {
-    const token = 'test-token-12345';
-    const expiresAt = Date.now() + 3600000;
-    expect(() => blacklistToken(token, expiresAt)).not.toThrow();
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  test('invalidateUserTokens stores invalidation timestamp', () => {
-    const userId = 88888; // Use unique ID to avoid test interference
-    expect(() => invalidateUserTokens(userId)).not.toThrow();
+  test('blacklistToken persists token to database', async () => {
+    const token = 'test-token-12345';
+    const expiresAt = Date.now() + 3600000;
+
+    db.run.mockImplementation(function(_query, _params, callback) {
+      callback.call({ lastID: 1, changes: 1 }, null);
+    });
+
+    await expect(blacklistToken(token, expiresAt)).resolves.not.toThrow();
+    expect(db.run).toHaveBeenCalled();
+  });
+
+  test('invalidateUserTokens persists invalidation to database', async () => {
+    const userId = 88888;
+
+    db.run.mockImplementation(function(_query, _params, callback) {
+      callback.call({ lastID: 1, changes: 1 }, null);
+    });
+
+    await expect(invalidateUserTokens(userId)).resolves.not.toThrow();
+    expect(db.run).toHaveBeenCalled();
   });
 });
 
 describe('logout', () => {
-  test('returns true when token is successfully decoded and blacklisted', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('returns true when token is successfully decoded and blacklisted', async () => {
     const token = jwt.sign({ id: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    const result = logout(token);
+
+    db.run.mockImplementation(function(_query, _params, callback) {
+      callback.call({ lastID: 1, changes: 1 }, null);
+    });
+
+    const result = await logout(token);
     expect(result).toBe(true);
   });
 
-  test('returns false when token cannot be decoded', () => {
-    const result = logout('invalid-token-format');
+  test('returns false when token cannot be decoded', async () => {
+    const result = await logout('invalid-token-format');
     expect(result).toBe(false);
   });
 
-  test('returns false for empty token', () => {
-    const result = logout('');
+  test('returns false for empty token', async () => {
+    const result = await logout('');
     expect(result).toBe(false);
   });
 });
@@ -190,78 +215,103 @@ describe('authenticateToken', () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('returns 403 for invalid JWT token', () => {
+  test('returns 403 for invalid JWT token', async () => {
     mockReq.headers['authorization'] = 'Bearer invalid-token';
-    authenticateToken(mockReq, mockRes, mockNext);
+
+    // Mock: token not in revoked_tokens
+    db.get.mockImplementation((query, params, callback) => {
+      if (query.includes('revoked_tokens')) {
+        callback(null, null);
+      } else {
+        callback(null, null);
+      }
+    });
+
+    await authenticateToken(mockReq, mockRes, mockNext);
+
+    // Wait for async operations
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid or expired token' });
   });
 
-  test('returns 403 for expired JWT token', () => {
+  test('returns 403 for expired JWT token', async () => {
     const expiredToken = jwt.sign({ id: 1 }, process.env.JWT_SECRET, { expiresIn: '-1s' });
     mockReq.headers['authorization'] = `Bearer ${expiredToken}`;
-    authenticateToken(mockReq, mockRes, mockNext);
+
+    // Mock: token not in revoked_tokens
+    db.get.mockImplementation((query, params, callback) => {
+      callback(null, null);
+    });
+
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     expect(mockRes.status).toHaveBeenCalledWith(403);
   });
 
-  test('validates token and fetches user from database', (done) => {
+  test('validates token and fetches user from database', async () => {
     const validToken = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     mockReq.headers['authorization'] = `Bearer ${validToken}`;
 
     db.get.mockImplementation((query, params, callback) => {
-      callback(null, { id: 1, username: 'testuser', is_admin: 0, must_change_password: 0 });
+      if (query.includes('revoked_tokens')) {
+        callback(null, null); // Not revoked
+      } else if (query.includes('user_token_invalidations')) {
+        callback(null, null); // Not invalidated
+      } else {
+        callback(null, { id: 1, username: 'testuser', is_admin: 0, must_change_password: 0 });
+      }
     });
 
-    authenticateToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
-      expect(mockReq.token).toBe(validToken);
-      done();
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
+    expect(mockReq.token).toBe(validToken);
   });
 
-  test('returns 403 when user not found in database', (done) => {
+  test('returns 403 when user not found in database', async () => {
     const validToken = jwt.sign({ id: 999, username: 'deleted' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     mockReq.headers['authorization'] = `Bearer ${validToken}`;
 
     db.get.mockImplementation((query, params, callback) => {
-      callback(null, null); // User not found
+      if (query.includes('revoked_tokens') || query.includes('user_token_invalidations')) {
+        callback(null, null);
+      } else {
+        callback(null, null); // User not found
+      }
     });
 
-    mockRes.status.mockImplementation((code) => {
-      expect(code).toBe(403);
-      return mockRes;
-    });
-    mockRes.json.mockImplementation((body) => {
-      expect(body).toEqual({ error: 'User not found' });
-      done();
-      return mockRes;
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    authenticateToken(mockReq, mockRes, mockNext);
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'User not found' });
   });
 
-  test('returns 500 on database error', (done) => {
+  test('returns 500 on database error', async () => {
     const validToken = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     mockReq.headers['authorization'] = `Bearer ${validToken}`;
 
     db.get.mockImplementation((query, params, callback) => {
-      callback(new Error('Database connection failed'), null);
+      if (query.includes('revoked_tokens') || query.includes('user_token_invalidations')) {
+        callback(null, null);
+      } else {
+        callback(new Error('Database connection failed'), null);
+      }
     });
 
-    mockRes.status.mockImplementation((code) => {
-      expect(code).toBe(500);
-      return mockRes;
-    });
-    mockRes.json.mockImplementation((body) => {
-      expect(body).toEqual({ error: 'Database error' });
-      done();
-      return mockRes;
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    authenticateToken(mockReq, mockRes, mockNext);
+    expect(mockRes.status).toHaveBeenCalledWith(500);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Database error' });
   });
 
-  test('handles API key authentication', (done) => {
+  test('handles API key authentication', async () => {
     const apiKey = 'sapho_test_api_key_12345';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -276,18 +326,19 @@ describe('authenticateToken', () => {
         callback(null, { id: 1, username: 'apiuser', is_admin: 0 });
       });
 
-    db.run.mockImplementation((query, params, callback) => {
-      if (callback) callback(null);
+    db.run.mockImplementation(function(query, params, callback) {
+      if (callback) callback.call({ changes: 1 }, null);
     });
 
-    authenticateToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'apiuser', is_admin: 0 });
-      expect(mockReq.apiKey).toBeDefined();
-      done();
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockReq.user).toEqual({ id: 1, username: 'apiuser', is_admin: 0 });
+    expect(mockReq.apiKey).toBeDefined();
   });
 
-  test('returns 403 for invalid API key', (done) => {
+  test('returns 403 for invalid API key', async () => {
     const apiKey = 'sapho_invalid_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -295,16 +346,14 @@ describe('authenticateToken', () => {
       callback(null, null); // API key not found
     });
 
-    mockRes.json.mockImplementation((body) => {
-      expect(body).toEqual({ error: 'Invalid API key' });
-      done();
-      return mockRes;
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    authenticateToken(mockReq, mockRes, mockNext);
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid API key' });
   });
 
-  test('returns 403 for expired API key', (done) => {
+  test('returns 403 for expired API key', async () => {
     const apiKey = 'sapho_expired_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -312,16 +361,14 @@ describe('authenticateToken', () => {
       callback(null, { id: 1, user_id: 1, is_active: 1, expires_at: '2020-01-01T00:00:00Z' });
     });
 
-    mockRes.json.mockImplementation((body) => {
-      expect(body).toEqual({ error: 'API key has expired' });
-      done();
-      return mockRes;
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    authenticateToken(mockReq, mockRes, mockNext);
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'API key has expired' });
   });
 
-  test('returns 500 on API key database error', (done) => {
+  test('returns 500 on API key database error', async () => {
     const apiKey = 'sapho_test_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -329,16 +376,14 @@ describe('authenticateToken', () => {
       callback(new Error('Database error'), null);
     });
 
-    mockRes.json.mockImplementation((body) => {
-      expect(body).toEqual({ error: 'Database error' });
-      done();
-      return mockRes;
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    authenticateToken(mockReq, mockRes, mockNext);
+    expect(mockRes.status).toHaveBeenCalledWith(500);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Database error' });
   });
 
-  test('returns 403 when API key user not found', (done) => {
+  test('returns 403 when API key user not found', async () => {
     const apiKey = 'sapho_orphan_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -352,26 +397,32 @@ describe('authenticateToken', () => {
         callback(null, null);
       });
 
-    db.run.mockImplementation((query, params, callback) => {
-      if (callback) callback(null);
+    db.run.mockImplementation(function(query, params, callback) {
+      if (callback) callback.call({ changes: 1 }, null);
     });
 
-    mockRes.json.mockImplementation((body) => {
-      expect(body).toEqual({ error: 'Invalid API key user' });
-      done();
-      return mockRes;
-    });
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    authenticateToken(mockReq, mockRes, mockNext);
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid API key user' });
   });
 
-  test('returns 403 for blacklisted token', () => {
+  test('returns 403 for revoked token', async () => {
     const token = jwt.sign({ id: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    // Blacklist the token first
-    blacklistToken(token, Date.now() + 3600000);
-
     mockReq.headers['authorization'] = `Bearer ${token}`;
-    authenticateToken(mockReq, mockRes, mockNext);
+
+    // Mock: token IS in revoked_tokens
+    db.get.mockImplementation((query, params, callback) => {
+      if (query.includes('revoked_tokens')) {
+        callback(null, { 1: 1 }); // Found in revoked table
+      } else {
+        callback(null, null);
+      }
+    });
+
+    await authenticateToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Token has been revoked' });
@@ -399,21 +450,26 @@ describe('authenticateMediaToken', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Access token required' });
   });
 
-  test('accepts token from query string', (done) => {
+  test('accepts token from query string', async () => {
     const validToken = jwt.sign({ id: 1, username: 'testuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     mockReq.query.token = validToken;
 
     db.get.mockImplementation((query, params, callback) => {
-      callback(null, { id: 1, username: 'testuser', is_admin: 0, must_change_password: 0 });
+      if (query.includes('revoked_tokens') || query.includes('user_token_invalidations')) {
+        callback(null, null);
+      } else {
+        callback(null, { id: 1, username: 'testuser', is_admin: 0, must_change_password: 0 });
+      }
     });
 
-    authenticateMediaToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
-      done();
-    });
+    await authenticateMediaToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
   });
 
-  test('prefers header token over query token', (done) => {
+  test('prefers header token over query token', async () => {
     const headerToken = jwt.sign({ id: 1, username: 'headeruser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const queryToken = jwt.sign({ id: 2, username: 'queryuser' }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
@@ -421,21 +477,23 @@ describe('authenticateMediaToken', () => {
     mockReq.query.token = queryToken;
 
     db.get.mockImplementation((query, params, callback) => {
-      // Return user based on which token was used (id in params)
-      if (params[0] === 1) {
+      if (query.includes('revoked_tokens') || query.includes('user_token_invalidations')) {
+        callback(null, null);
+      } else if (params[0] === 1) {
         callback(null, { id: 1, username: 'headeruser', is_admin: 0 });
       } else {
         callback(null, { id: 2, username: 'queryuser', is_admin: 0 });
       }
     });
 
-    authenticateMediaToken(mockReq, mockRes, () => {
-      expect(mockReq.user.username).toBe('headeruser');
-      done();
-    });
+    await authenticateMediaToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockReq.user.username).toBe('headeruser');
   });
 
-  test('accepts API key from query string', (done) => {
+  test('accepts API key from query string', async () => {
     const apiKey = 'sapho_query_api_key';
     mockReq.query.token = apiKey;
 
@@ -447,14 +505,15 @@ describe('authenticateMediaToken', () => {
         callback(null, { id: 1, username: 'apiuser', is_admin: 0 });
       });
 
-    db.run.mockImplementation((query, params, callback) => {
-      if (callback) callback(null);
+    db.run.mockImplementation(function(query, params, callback) {
+      if (callback) callback.call({ changes: 1 }, null);
     });
 
-    authenticateMediaToken(mockReq, mockRes, () => {
-      expect(mockReq.user).toEqual({ id: 1, username: 'apiuser', is_admin: 0 });
-      done();
-    });
+    await authenticateMediaToken(mockReq, mockRes, mockNext);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockReq.user).toEqual({ id: 1, username: 'apiuser', is_admin: 0 });
   });
 });
 
@@ -684,15 +743,19 @@ describe('createDefaultAdmin', () => {
 });
 
 describe('token invalidation', () => {
-  test('returns 403 when token was issued before user invalidation', (done) => {
+  test('returns 403 when token was issued before user invalidation', async () => {
     // Use a unique user ID that won't interfere with other tests
     const testUserId = 99999;
 
+    // Mock the database for invalidateUserTokens
+    db.run.mockImplementation(function(_query, _params, callback) {
+      callback.call({ lastID: 1, changes: 1 }, null);
+    });
+
     // First, invalidate the user's tokens
-    invalidateUserTokens(testUserId);
+    await invalidateUserTokens(testUserId);
 
     // Create a token that was issued "before" the invalidation
-    // by manipulating the iat claim
     const token = jwt.sign(
       { id: testUserId, username: 'testuser', iat: Math.floor(Date.now() / 1000) - 100 },
       process.env.JWT_SECRET,
@@ -705,12 +768,21 @@ describe('token invalidation', () => {
       json: jest.fn().mockReturnThis()
     };
 
-    mockRes.json.mockImplementation((body) => {
-      expect(body.error).toContain('invalidated');
-      done();
-      return mockRes;
+    // Mock database: token not revoked, but user IS invalidated
+    db.get.mockImplementation((query, params, callback) => {
+      if (query.includes('revoked_tokens')) {
+        callback(null, null); // Not revoked
+      } else if (query.includes('user_token_invalidations')) {
+        callback(null, { invalidated_at: Date.now() }); // User invalidated NOW
+      } else {
+        callback(null, null);
+      }
     });
 
-    authenticateToken(mockReq, mockRes, jest.fn());
+    await authenticateToken(mockReq, mockRes, jest.fn());
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Token has been invalidated. Please log in again.' });
   });
 });

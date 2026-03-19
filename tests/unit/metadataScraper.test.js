@@ -9,8 +9,7 @@ jest.mock('axios');
 
 const {
   scrapeMetadata,
-  scrapeGoogleBooks,
-  scrapeAudible
+  scrapeGoogleBooks
 } = require('../../server/services/metadataScraper');
 
 describe('Metadata Scraper Service', () => {
@@ -180,13 +179,6 @@ describe('Metadata Scraper Service', () => {
 
       const result = await scrapeGoogleBooks('Test', '');
       expect(result.published_year).toBe(2020);
-    });
-  });
-
-  describe('scrapeAudible', () => {
-    test('returns null (not implemented)', async () => {
-      const result = await scrapeAudible('Test Book', 'Test Author');
-      expect(result).toBeNull();
     });
   });
 
