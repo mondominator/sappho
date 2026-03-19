@@ -8,6 +8,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { createDbHelpers } = require('../utils/db');
+const logger = require('../utils/logger');
 
 /**
  * Default dependencies - used when route is required directly
@@ -81,6 +82,7 @@ function createApiKeysRouter(deps = {}) {
       );
       res.json(keys);
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to list API keys');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -132,6 +134,7 @@ function createApiKeysRouter(deps = {}) {
       if (err.message.includes('UNIQUE')) {
         return res.status(409).json({ error: 'An API key with this hash already exists' });
       }
+      logger.error({ err }, 'Failed to create API key');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -180,6 +183,7 @@ function createApiKeysRouter(deps = {}) {
       }
       res.json({ message: 'API key updated successfully' });
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to update API key');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -199,6 +203,7 @@ function createApiKeysRouter(deps = {}) {
       }
       res.json({ message: 'API key deleted successfully' });
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to delete API key');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
