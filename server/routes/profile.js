@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const { createDbHelpers } = require('../utils/db');
+const logger = require('../utils/logger');
 
 /**
  * Default dependencies - used when route is required directly
@@ -118,6 +119,7 @@ function createProfileRouter(deps = {}) {
         must_change_password: !!user.must_change_password
       });
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to fetch user profile');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -347,6 +349,7 @@ function createProfileRouter(deps = {}) {
           must_change_password: !!user.must_change_password
         });
       } catch (_err) {
+        logger.error({ err: _err }, 'Failed to update user profile');
         res.status(500).json({ error: 'Internal server error' });
       }
     }); // End of upload callback
@@ -385,6 +388,7 @@ function createProfileRouter(deps = {}) {
 
       res.sendFile(resolvedPath);
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to fetch avatar');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -407,6 +411,7 @@ function createProfileRouter(deps = {}) {
       );
       res.json({ message: 'Avatar removed successfully' });
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to delete avatar');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -459,6 +464,7 @@ function createProfileRouter(deps = {}) {
         message: 'Password updated successfully. Please log in again on all devices.'
       });
     } catch (_err) {
+      logger.error({ err: _err }, 'Failed to change password');
       res.status(500).json({ error: 'Internal server error' });
     }
   });
