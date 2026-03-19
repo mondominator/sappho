@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAudiobook, getCoverUrl, getProgress, getDownloadUrl, deleteAudiobook, markFinished, clearProgress, getChapters, getDirectoryFiles, getProfile, toggleFavorite, refreshMetadata, convertToM4B } from '../api';
 import EditMetadataModal from '../components/EditMetadataModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import AddToCollectionModal from '../components/AddToCollectionModal';
 import RatingSection from '../components/RatingSection';
 import { useRecap, RecapTrigger, RecapContent } from '../components/RecapSection';
@@ -35,7 +36,13 @@ export default function AudiobookDetail({ onPlay }) {
   const descriptionRef = useRef(null);
   const chaptersModalRef = useRef(null);
 
+  // Dialog state
+  const [dialogConfig, setDialogConfig] = useState(null);
+
   const recapState = useRecap({ audiobookId: id, aiConfigured, progress });
+
+  const showDialog = useCallback((config) => setDialogConfig(config), []);
+  const closeDialog = useCallback(() => setDialogConfig(null), []);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -178,15 +185,28 @@ export default function AudiobookDetail({ onPlay }) {
     window.location.href = getDownloadUrl(audiobook.id);
   };
 
-  const handleDelete = async () => {
-    if (!confirm(`Delete "${audiobook.title}"? This action cannot be undone.`)) return;
-    try {
-      await deleteAudiobook(audiobook.id);
-      alert('Audiobook deleted successfully');
-      navigate('/');
-    } catch (error) {
-      alert('Failed to delete audiobook');
-    }
+  const handleDelete = () => {
+    showDialog({
+      title: 'Delete Audiobook',
+      message: `Delete "${audiobook.title}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        closeDialog();
+        try {
+          await deleteAudiobook(audiobook.id);
+          navigate('/');
+        } catch (error) {
+          showDialog({
+            title: 'Error',
+            message: 'Failed to delete audiobook',
+            confirmLabel: 'OK',
+            alertMode: true,
+            onConfirm: closeDialog,
+          });
+        }
+      },
+    });
   };
 
   const handleMarkFinished = async () => {
@@ -194,18 +214,38 @@ export default function AudiobookDetail({ onPlay }) {
       await markFinished(audiobook.id);
       await loadAudiobook();
     } catch (error) {
-      alert('Failed to mark as finished');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to mark as finished',
+        confirmLabel: 'OK',
+        alertMode: true,
+        onConfirm: closeDialog,
+      });
     }
   };
 
-  const handleClearProgress = async () => {
-    if (!confirm('Clear all progress for this audiobook?')) return;
-    try {
-      await clearProgress(audiobook.id);
-      await loadAudiobook();
-    } catch (error) {
-      alert('Failed to clear progress');
-    }
+  const handleClearProgress = () => {
+    showDialog({
+      title: 'Clear Progress',
+      message: 'Clear all progress for this audiobook?',
+      confirmLabel: 'Clear',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        closeDialog();
+        try {
+          await clearProgress(audiobook.id);
+          await loadAudiobook();
+        } catch (error) {
+          showDialog({
+            title: 'Error',
+            message: 'Failed to clear progress',
+            confirmLabel: 'OK',
+            alertMode: true,
+            onConfirm: closeDialog,
+          });
+        }
+      },
+    });
   };
 
   const handlePlay = () => {
@@ -237,32 +277,56 @@ export default function AudiobookDetail({ onPlay }) {
       await loadAudiobook();
       // Show success message with what was updated
       const updatedFields = response.data?.updated_fields || [];
-      if (updatedFields.length > 0) {
-        alert(`Metadata refreshed! Updated: ${updatedFields.join(', ')}`);
-      } else {
-        alert('Metadata refreshed from file');
-      }
+      const msg = updatedFields.length > 0
+        ? `Metadata refreshed! Updated: ${updatedFields.join(', ')}`
+        : 'Metadata refreshed from file';
+      showDialog({
+        title: 'Metadata Refreshed',
+        message: msg,
+        confirmLabel: 'OK',
+        alertMode: true,
+        onConfirm: closeDialog,
+      });
     } catch (error) {
       console.error('Error refreshing metadata:', error);
-      alert('Failed to refresh metadata: ' + (error.response?.data?.error || error.message));
+      showDialog({
+        title: 'Error',
+        message: 'Failed to refresh metadata: ' + (error.response?.data?.error || error.message),
+        confirmLabel: 'OK',
+        alertMode: true,
+        onConfirm: closeDialog,
+      });
     } finally {
       setRefreshingMetadata(false);
     }
   };
 
-  const handleConvertToM4B = async () => {
+  const handleConvertToM4B = () => {
     const ext = audiobook.file_path?.split('.').pop()?.toUpperCase() || 'audio';
-    if (!confirm(`Convert this ${ext} file to M4B format? This will replace the original file.`)) return;
-    setConverting(true);
-    try {
-      await convertToM4B(audiobook.id);
-      // Conversion runs asynchronously on the server.
-      // The JobsIndicator panel shows progress via WebSocket.
-      // We listen for completion below via handleJobUpdate.
-    } catch (err) {
-      alert('Failed to start conversion: ' + (err.response?.data?.error || err.message));
-      setConverting(false);
-    }
+    showDialog({
+      title: 'Convert to M4B',
+      message: `Convert this ${ext} file to M4B format? This will replace the original file.`,
+      confirmLabel: 'Convert',
+      onConfirm: async () => {
+        closeDialog();
+        setConverting(true);
+        try {
+          await convertToM4B(audiobook.id);
+          // Conversion runs asynchronously on the server.
+          // The JobsIndicator panel shows progress via WebSocket.
+          // We listen for completion below via handleJobUpdate.
+        } catch (err) {
+          showDialog({
+            title: 'Error',
+            message: 'Failed to start conversion: ' + (err.response?.data?.error || err.message),
+            confirmLabel: 'OK',
+            alertMode: true,
+            onConfirm: closeDialog,
+          });
+          setConverting(false);
+        }
+      },
+    });
   };
 
   // Listen for conversion job completion for this audiobook
@@ -808,6 +872,19 @@ export default function AudiobookDetail({ onPlay }) {
         audiobookId={audiobook.id}
         audiobookTitle={audiobook.title}
       />
+
+      {dialogConfig && (
+        <ConfirmDialog
+          isOpen={true}
+          title={dialogConfig.title}
+          message={dialogConfig.message}
+          confirmLabel={dialogConfig.confirmLabel}
+          confirmVariant={dialogConfig.confirmVariant}
+          alertMode={dialogConfig.alertMode}
+          onConfirm={dialogConfig.onConfirm}
+          onCancel={closeDialog}
+        />
+      )}
     </div>
   );
 }
