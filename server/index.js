@@ -1,4 +1,9 @@
 require('dotenv').config();
+const { validateEnv } = require('./utils/validateEnv');
+
+// Validate environment variables before anything else
+validateEnv();
+
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pinoHttp = require('pino-http');
@@ -32,7 +37,7 @@ const corsOptions = {
     if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
-      console.error(`CORS rejected origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
+      logger.warn({ origin, allowed: allowedOrigins }, 'CORS rejected origin');
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -153,7 +158,7 @@ const indexPath = path.join(distPath, 'index.html');
 // Check if built frontend exists
 const fs = require('fs');
 if (fs.existsSync(distPath)) {
-  console.log('Serving static frontend from:', distPath);
+  logger.info({ path: distPath }, 'Serving static frontend');
 
   // Serve static files with proper cache control
   app.use(express.static(distPath, {
@@ -186,7 +191,7 @@ if (fs.existsSync(distPath)) {
     }
   });
 } else {
-  console.warn('Frontend dist directory not found. Frontend will not be served.');
+  logger.warn('Frontend dist directory not found. Frontend will not be served.');
   app.get('*', (req, res) => {
     res.status(404).json({
       error: 'Frontend not available',
@@ -206,8 +211,7 @@ async function initialize() {
 
     // Start server immediately (don't wait for library scan)
     const server = app.listen(PORT, () => {
-      console.log(`Sappho server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Sappho server started');
     });
 
     // Initialize WebSocket server for real-time notifications
@@ -232,11 +236,11 @@ async function initialize() {
     function gracefulShutdown(signal) {
       if (shuttingDown) return;
       shuttingDown = true;
-      console.log(`\n${signal} received, shutting down gracefully...`);
+      logger.info({ signal }, 'Shutting down gracefully');
 
       // Stop accepting new connections
       server.close(() => {
-        console.log('HTTP server closed');
+        logger.info('HTTP server closed');
       });
 
       // Stop background services
@@ -246,14 +250,14 @@ async function initialize() {
 
       // Close database connection
       db.close((err) => {
-        if (err) console.error('Error closing database:', err.message);
-        else console.log('Database connection closed');
+        if (err) logger.error({ err }, 'Error closing database');
+        else logger.info('Database connection closed');
         process.exit(err ? 1 : 0);
       });
 
       // Force exit after 30 seconds if graceful shutdown stalls
       setTimeout(() => {
-        console.error('Forced shutdown after 30s timeout');
+        logger.error('Forced shutdown after 30s timeout');
         process.exit(1);
       }, 30000).unref();
     }
@@ -261,7 +265,7 @@ async function initialize() {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   } catch (error) {
-    console.error('Failed to initialize server:', error);
+    logger.fatal({ err: error }, 'Failed to initialize server');
     process.exit(1);
   }
 }

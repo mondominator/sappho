@@ -1,3 +1,4 @@
+const logger = require('./utils/logger');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -8,13 +9,13 @@ const { dbGet, dbRun } = createDbHelpers(db);
 // SECURITY: JWT_SECRET must be explicitly configured - no default fallback
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is not set.');
-  console.error('Please set a strong secret: export JWT_SECRET=$(openssl rand -base64 32)');
+  logger.fatal('JWT_SECRET environment variable is not set');
+  logger.fatal('Set a strong secret: export JWT_SECRET=$(openssl rand -base64 32)');
   process.exit(1);
 }
 
 if (JWT_SECRET.length < 32) {
-  console.error('FATAL: JWT_SECRET must be at least 32 characters long.');
+  logger.fatal('JWT_SECRET must be at least 32 characters long');
   process.exit(1);
 }
 
@@ -71,7 +72,7 @@ async function blacklistToken(token, expiresAt) {
     );
   } catch (_err) {
     // If the table doesn't exist yet (pre-migration), log and continue
-    console.warn('Could not persist revoked token (migration pending?)');
+    logger.warn('Could not persist revoked token (migration pending?)');
   }
 }
 
@@ -85,7 +86,7 @@ async function invalidateUserTokens(userId) {
       [userId, Date.now()]
     );
   } catch (_err) {
-    console.warn('Could not persist user token invalidation (migration pending?)');
+    logger.warn('Could not persist user token invalidation (migration pending?)');
   }
 }
 
@@ -127,7 +128,7 @@ function recordFailedAttempt(username) {
   record.count++;
   if (record.count >= MAX_FAILED_ATTEMPTS) {
     record.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
-    console.warn(`SECURITY: Account "${username}" locked for 15 minutes after ${MAX_FAILED_ATTEMPTS} failed attempts`);
+    logger.warn({ username, maxAttempts: MAX_FAILED_ATTEMPTS }, 'Account locked after too many failed attempts');
   }
   failedAttempts.set(username, record);
 }
@@ -297,7 +298,7 @@ async function authenticateApiKey(apiKey, req, res, next) {
       'UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
       [key.id]
     ).catch(updateErr => {
-      console.error('Failed to update API key last_used_at:', updateErr);
+      logger.error({ err: updateErr }, 'Failed to update API key last_used_at');
     });
 
     // Get user information
@@ -462,16 +463,7 @@ async function createDefaultAdmin() {
       'INSERT INTO users (username, password_hash, is_admin, must_change_password) VALUES (?, ?, 1, 1)',
       ['admin', passwordHash]
     );
-    console.log('');
-    console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║           DEFAULT ADMIN ACCOUNT CREATED                    ║');
-    console.log('╠════════════════════════════════════════════════════════════╣');
-    console.log('║  Username: admin                                           ║');
-    console.log('║  Password: admin                                           ║');
-    console.log('╠════════════════════════════════════════════════════════════╣');
-    console.log('║  ⚠️  You will be required to change this on first login!  ║');
-    console.log('╚════════════════════════════════════════════════════════════╝');
-    console.log('');
+    logger.warn({ username: 'admin', password: 'admin' }, 'DEFAULT ADMIN ACCOUNT CREATED - change password on first login');
   }
 }
 
