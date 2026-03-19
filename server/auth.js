@@ -18,18 +18,13 @@ if (JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
-// SECURITY: Token blacklist for logout/revocation (in-memory, clears on restart)
-// For production, consider using Redis for persistence across restarts
-const tokenBlacklist = new Map();
-
-// Clean up expired tokens from blacklist every hour
+// Clean up expired revoked tokens from the database every hour
 // .unref() allows Node to exit even if this timer is still active (fixes Jest warning)
-setInterval(() => {
-  const now = Date.now();
-  for (const [tokenHash, expiry] of tokenBlacklist.entries()) {
-    if (expiry < now) {
-      tokenBlacklist.delete(tokenHash);
-    }
+setInterval(async () => {
+  try {
+    await dbRun('DELETE FROM revoked_tokens WHERE expires_at < ?', [Date.now()]);
+  } catch (_err) {
+    // Table may not exist yet during startup; ignore
   }
 }, 60 * 60 * 1000).unref();
 
@@ -45,29 +40,71 @@ const BCRYPT_ROUNDS = 12;
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-safety', BCRYPT_ROUNDS);
 
 /**
- * Check if a token is blacklisted
+ * Check if a token is revoked (database-backed, survives restarts)
  */
-function isTokenBlacklisted(token) {
+async function isTokenBlacklisted(token) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  return tokenBlacklist.has(tokenHash);
+  try {
+    const row = await dbGet(
+      'SELECT 1 FROM revoked_tokens WHERE token_hash = ? AND expires_at > ?',
+      [tokenHash, Date.now()]
+    );
+    return !!row;
+  } catch (_err) {
+    // If the table doesn't exist yet (pre-migration), fall through
+    return false;
+  }
 }
 
 /**
- * Add a token to the blacklist
+ * Revoke a token (database-backed, survives restarts)
  */
-function blacklistToken(token, expiresAt) {
+async function blacklistToken(token, expiresAt) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  tokenBlacklist.set(tokenHash, expiresAt);
+  try {
+    // Decode to get user_id for audit trail
+    const decoded = jwt.decode(token);
+    const userId = decoded?.id || null;
+    await dbRun(
+      'INSERT OR IGNORE INTO revoked_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
+      [tokenHash, userId, expiresAt]
+    );
+  } catch (_err) {
+    // If the table doesn't exist yet (pre-migration), log and continue
+    console.warn('Could not persist revoked token (migration pending?)');
+  }
 }
 
 /**
- * Invalidate all tokens for a user by adding a marker
- * This is checked during token verification
+ * Invalidate all tokens for a user (database-backed, survives restarts)
  */
-function invalidateUserTokens(userId) {
-  // Store the invalidation timestamp
-  const key = `user_invalidation_${userId}`;
-  tokenBlacklist.set(key, Date.now());
+async function invalidateUserTokens(userId) {
+  try {
+    await dbRun(
+      'INSERT OR REPLACE INTO user_token_invalidations (user_id, invalidated_at) VALUES (?, ?)',
+      [userId, Date.now()]
+    );
+  } catch (_err) {
+    console.warn('Could not persist user token invalidation (migration pending?)');
+  }
+}
+
+/**
+ * Check if a user's tokens have been invalidated after a given token issuance time
+ */
+async function isUserTokenInvalidated(userId, tokenIat) {
+  try {
+    const row = await dbGet(
+      'SELECT invalidated_at FROM user_token_invalidations WHERE user_id = ?',
+      [userId]
+    );
+    if (row && tokenIat * 1000 < row.invalidated_at) {
+      return true;
+    }
+  } catch (_err) {
+    // Table may not exist yet; treat as not invalidated
+  }
+  return false;
 }
 
 /**
@@ -195,8 +232,8 @@ function authenticateMediaToken(req, res, next) {
 // Shared token verification logic
 async function verifyToken(token, req, res, next) {
 
-  // SECURITY: Check if token is blacklisted (logged out)
-  if (isTokenBlacklisted(token)) {
+  // SECURITY: Check if token is revoked
+  if (await isTokenBlacklisted(token)) {
     return res.status(403).json({ error: 'Token has been revoked' });
   }
 
@@ -208,9 +245,7 @@ async function verifyToken(token, req, res, next) {
   }
 
   // SECURITY: Check if user's tokens were invalidated after this token was issued
-  const invalidationKey = `user_invalidation_${decoded.id}`;
-  const invalidationTime = tokenBlacklist.get(invalidationKey);
-  if (invalidationTime && decoded.iat * 1000 < invalidationTime) {
+  if (await isUserTokenInvalidated(decoded.id, decoded.iat)) {
     return res.status(403).json({ error: 'Token has been invalidated. Please log in again.' });
   }
 
@@ -401,12 +436,12 @@ async function login(username, password) {
 }
 
 // Logout - invalidate the current token
-function logout(token) {
+async function logout(token) {
   try {
     const decoded = jwt.decode(token);
     if (decoded && decoded.exp) {
-      // Add to blacklist until expiry
-      blacklistToken(token, decoded.exp * 1000);
+      // Persist revocation in database until token expiry
+      await blacklistToken(token, decoded.exp * 1000);
       return true;
     }
   } catch (_e) {
@@ -449,18 +484,6 @@ function requirePasswordChanged(req, res, next) {
     });
   }
   next();
-}
-
-/**
- * Check if a user's tokens have been invalidated after a given token issuance time
- */
-function isUserTokenInvalidated(userId, tokenIat) {
-  const key = `user_invalidation_${userId}`;
-  const invalidationTime = tokenBlacklist.get(key);
-  if (invalidationTime && tokenIat * 1000 < invalidationTime) {
-    return true;
-  }
-  return false;
 }
 
 module.exports = {

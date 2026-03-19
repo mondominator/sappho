@@ -79,7 +79,7 @@ class WebSocketManager {
   /**
    * Authenticate WebSocket client
    */
-  authenticateClient(ws, token) {
+  async authenticateClient(ws, token) {
     // Try JWT first
     let decoded;
     try {
@@ -89,14 +89,14 @@ class WebSocketManager {
     }
 
     if (decoded) {
-      // SECURITY: Check if token is blacklisted (logged out)
-      if (isTokenBlacklisted(token)) {
+      // SECURITY: Check if token is revoked (database-backed)
+      if (await isTokenBlacklisted(token)) {
         ws.close(1008, 'Token has been revoked');
         return;
       }
 
       // SECURITY: Check if user's tokens were invalidated after this token was issued
-      if (isUserTokenInvalidated(decoded.id, decoded.iat)) {
+      if (await isUserTokenInvalidated(decoded.id, decoded.iat)) {
         ws.close(1008, 'Token has been invalidated');
         return;
       }

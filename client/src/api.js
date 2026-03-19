@@ -1,13 +1,9 @@
 import axios from 'axios';
 
 const API_BASE = '/api';
-const BUILD_ID = 'v20251112171700';
 
 const api = axios.create({
   baseURL: API_BASE,
-  headers: {
-    'X-Build-Version': BUILD_ID
-  }
 });
 
 // Add auth token to requests

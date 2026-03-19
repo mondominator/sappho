@@ -11,8 +11,8 @@ jest.mock('../../server/database', () => ({
 }));
 
 // Mock auth module before requiring websocketManager
-const mockIsTokenBlacklisted = jest.fn().mockReturnValue(false);
-const mockIsUserTokenInvalidated = jest.fn().mockReturnValue(false);
+const mockIsTokenBlacklisted = jest.fn().mockResolvedValue(false);
+const mockIsUserTokenInvalidated = jest.fn().mockResolvedValue(false);
 jest.mock('../../server/auth', () => ({
   isTokenBlacklisted: mockIsTokenBlacklisted,
   isUserTokenInvalidated: mockIsUserTokenInvalidated,
@@ -28,8 +28,8 @@ describe('WebSocketManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockIsTokenBlacklisted.mockReturnValue(false);
-    mockIsUserTokenInvalidated.mockReturnValue(false);
+    mockIsTokenBlacklisted.mockResolvedValue(false);
+    mockIsUserTokenInvalidated.mockResolvedValue(false);
     wsManager = new WebSocketManager();
   });
 
@@ -391,7 +391,7 @@ describe('WebSocketManager', () => {
       testManager.close();
     });
 
-    test('authenticates and sets up handlers when token provided', () => {
+    test('authenticates and sets up handlers when token provided', async () => {
       const mockServer = {};
       let connectionHandler = null;
       const mockWss = {
@@ -431,6 +431,9 @@ describe('WebSocketManager', () => {
       expect(mockWs.on).toHaveBeenCalledWith('close', expect.any(Function));
       expect(mockWs.on).toHaveBeenCalledWith('error', expect.any(Function));
 
+      // Wait for async authenticateClient to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       // Should send connection message after auth completes
       expect(mockWs.send).toHaveBeenCalledWith(
         expect.stringContaining('connected')
@@ -440,7 +443,7 @@ describe('WebSocketManager', () => {
       testManager.close();
     });
 
-    test('removes client on close event', () => {
+    test('removes client on close event', async () => {
       const mockServer = {};
       let connectionHandler = null;
       const mockWss = {
@@ -476,6 +479,7 @@ describe('WebSocketManager', () => {
       const mockReq = { url: `/ws/notifications?token=${validToken}` };
 
       connectionHandler(mockWs, mockReq);
+      await new Promise(resolve => setTimeout(resolve, 50));
       expect(testManager.clients.has(mockWs)).toBe(true);
 
       // Trigger close handler
@@ -486,7 +490,7 @@ describe('WebSocketManager', () => {
       testManager.close();
     });
 
-    test('handles error event gracefully', () => {
+    test('handles error event gracefully', async () => {
       const mockServer = {};
       let connectionHandler = null;
       const mockWss = {
@@ -532,7 +536,7 @@ describe('WebSocketManager', () => {
   });
 
   describe('authenticateClient', () => {
-    test('authenticates valid JWT token after DB check', () => {
+    test('authenticates valid JWT token after DB check', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -550,7 +554,7 @@ describe('WebSocketManager', () => {
         { expiresIn: '1h' }
       );
 
-      wsManager.authenticateClient(mockWs, validToken);
+      await wsManager.authenticateClient(mockWs, validToken);
 
       expect(wsManager.clients.has(mockWs)).toBe(true);
       const clientInfo = wsManager.clients.get(mockWs);
@@ -562,14 +566,14 @@ describe('WebSocketManager', () => {
       expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('connected'));
     });
 
-    test('rejects blacklisted JWT token', () => {
+    test('rejects blacklisted JWT token', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
         close: jest.fn()
       };
 
-      mockIsTokenBlacklisted.mockReturnValue(true);
+      mockIsTokenBlacklisted.mockResolvedValue(true);
 
       const validToken = jwt.sign(
         { id: 1, username: 'testuser' },
@@ -577,20 +581,20 @@ describe('WebSocketManager', () => {
         { expiresIn: '1h' }
       );
 
-      wsManager.authenticateClient(mockWs, validToken);
+      await wsManager.authenticateClient(mockWs, validToken);
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Token has been revoked');
       expect(wsManager.clients.has(mockWs)).toBe(false);
     });
 
-    test('rejects JWT when user tokens have been invalidated', () => {
+    test('rejects JWT when user tokens have been invalidated', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
         close: jest.fn()
       };
 
-      mockIsUserTokenInvalidated.mockReturnValue(true);
+      mockIsUserTokenInvalidated.mockResolvedValue(true);
 
       const validToken = jwt.sign(
         { id: 1, username: 'testuser' },
@@ -598,13 +602,13 @@ describe('WebSocketManager', () => {
         { expiresIn: '1h' }
       );
 
-      wsManager.authenticateClient(mockWs, validToken);
+      await wsManager.authenticateClient(mockWs, validToken);
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Token has been invalidated');
       expect(wsManager.clients.has(mockWs)).toBe(false);
     });
 
-    test('rejects JWT when user account is disabled', () => {
+    test('rejects JWT when user account is disabled', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -621,13 +625,13 @@ describe('WebSocketManager', () => {
         { expiresIn: '1h' }
       );
 
-      wsManager.authenticateClient(mockWs, validToken);
+      await wsManager.authenticateClient(mockWs, validToken);
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Account is disabled');
       expect(wsManager.clients.has(mockWs)).toBe(false);
     });
 
-    test('rejects JWT when user not found in DB', () => {
+    test('rejects JWT when user not found in DB', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -644,24 +648,24 @@ describe('WebSocketManager', () => {
         { expiresIn: '1h' }
       );
 
-      wsManager.authenticateClient(mockWs, validToken);
+      await wsManager.authenticateClient(mockWs, validToken);
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'User not found');
     });
 
-    test('closes connection for invalid JWT token', () => {
+    test('closes connection for invalid JWT token', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
         close: jest.fn()
       };
 
-      wsManager.authenticateClient(mockWs, 'invalid-token');
+      await wsManager.authenticateClient(mockWs, 'invalid-token');
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
     });
 
-    test('closes connection for expired JWT token', () => {
+    test('closes connection for expired JWT token', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -674,12 +678,12 @@ describe('WebSocketManager', () => {
         { expiresIn: '-1s' }
       );
 
-      wsManager.authenticateClient(mockWs, expiredToken);
+      await wsManager.authenticateClient(mockWs, expiredToken);
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid authentication token');
     });
 
-    test('attempts API key auth when JWT fails and token starts with sapho_', () => {
+    test('attempts API key auth when JWT fails and token starts with sapho_', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -691,13 +695,13 @@ describe('WebSocketManager', () => {
         callback(null, null);
       });
 
-      wsManager.authenticateClient(mockWs, 'sapho_test_api_key');
+      await wsManager.authenticateClient(mockWs, 'sapho_test_api_key');
 
       // Should close because API key lookup returns null
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid or expired API key');
     });
 
-    test('authenticates valid API key', () => {
+    test('authenticates valid API key', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -715,7 +719,7 @@ describe('WebSocketManager', () => {
         }
       });
 
-      wsManager.authenticateClient(mockWs, 'sapho_valid_api_key');
+      await wsManager.authenticateClient(mockWs, 'sapho_valid_api_key');
 
       expect(wsManager.clients.has(mockWs)).toBe(true);
       const clientInfo = wsManager.clients.get(mockWs);
@@ -726,7 +730,7 @@ describe('WebSocketManager', () => {
       expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('connected'));
     });
 
-    test('rejects API key when user account is disabled', () => {
+    test('rejects API key when user account is disabled', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -743,13 +747,13 @@ describe('WebSocketManager', () => {
         }
       });
 
-      wsManager.authenticateClient(mockWs, 'sapho_disabled_user_key');
+      await wsManager.authenticateClient(mockWs, 'sapho_disabled_user_key');
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Account is disabled');
       expect(wsManager.clients.has(mockWs)).toBe(false);
     });
 
-    test('rejects expired API key', () => {
+    test('rejects expired API key', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -766,12 +770,12 @@ describe('WebSocketManager', () => {
         });
       });
 
-      wsManager.authenticateClient(mockWs, 'sapho_expired_api_key');
+      await wsManager.authenticateClient(mockWs, 'sapho_expired_api_key');
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Invalid or expired API key');
     });
 
-    test('handles API key lookup errors gracefully', () => {
+    test('handles API key lookup errors gracefully', async () => {
       const mockWs = {
         readyState: 1,
         send: jest.fn(),
@@ -783,7 +787,7 @@ describe('WebSocketManager', () => {
         callback(new Error('Database connection failed'), null);
       });
 
-      wsManager.authenticateClient(mockWs, 'sapho_error_key');
+      await wsManager.authenticateClient(mockWs, 'sapho_error_key');
 
       expect(mockWs.close).toHaveBeenCalledWith(1008, 'Authentication error');
     });

@@ -134,7 +134,6 @@ app.use('/api/ratings', require('./routes/ratings'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/mfa', require('./routes/mfa'));
 app.use('/api/email', require('./routes/email'));
-app.use('/api/auth/oidc', require('./routes/oidcAuth'));
 app.use('/api/settings/oidc', require('./routes/oidcSettings'));
 
 // Health check

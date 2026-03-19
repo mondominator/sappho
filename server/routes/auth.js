@@ -191,10 +191,10 @@ function createAuthRouter(deps = {}) {
    * POST /api/auth/logout
    * Invalidate current session token
    */
-  router.post('/logout', authenticateToken, (req, res) => {
+  router.post('/logout', authenticateToken, async (req, res) => {
     try {
       if (req.token) {
-        logout(req.token);
+        await logout(req.token);
       }
       res.json({ message: 'Logged out successfully' });
     } catch (_error) {
@@ -206,9 +206,9 @@ function createAuthRouter(deps = {}) {
    * POST /api/auth/logout-all
    * Logout from all devices by invalidating all tokens
    */
-  router.post('/logout-all', authenticateToken, (req, res) => {
+  router.post('/logout-all', authenticateToken, async (req, res) => {
     try {
-      invalidateUserTokens(req.user.id);
+      await invalidateUserTokens(req.user.id);
       res.json({ message: 'Logged out from all devices successfully' });
     } catch (_error) {
       res.status(500).json({ error: 'Failed to logout from all devices' });
