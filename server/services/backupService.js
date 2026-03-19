@@ -1,4 +1,5 @@
 const fs = require('fs');
+const logger = require('../utils/logger');
 const path = require('path');
 const archiver = require('archiver');
 const unzipper = require('unzipper');
@@ -57,7 +58,7 @@ async function createBackup(includeCovers = true) {
         timestamp: lastBackupTime.toISOString(),
       };
 
-      console.log(`✅ Backup created: ${filename} (${formatBytes(stats.size)})`);
+      logger.info({ filename, size: formatBytes(stats.size) }, 'Backup created');
       resolve(lastBackupResult);
     });
 
@@ -149,7 +150,7 @@ function getBackupPath(filename) {
 function deleteBackup(filename) {
   const backupPath = getBackupPath(filename);
   fs.unlinkSync(backupPath);
-  console.log(`🗑️ Backup deleted: ${filename}`);
+  logger.info({ filename }, 'Backup deleted');
   return { success: true, filename };
 }
 
@@ -219,7 +220,7 @@ async function extractBackupToTemp(backupPath, options) {
               results.coverFiles.push(coverName);
             } else {
               if (coverName) {
-                console.warn(`⚠️ Skipping invalid cover path: ${fileName}`);
+                logger.warn({ fileName }, 'Skipping invalid cover path');
               }
               entry.autodrain();
             }
@@ -276,23 +277,23 @@ async function restoreBackup(backupPath, options = {}) {
       if (fs.existsSync(DATABASE_PATH)) {
         const preRestorePath = DATABASE_PATH + '.pre-restore';
         fs.copyFileSync(DATABASE_PATH, preRestorePath);
-        console.log(`📦 Backed up current database to ${preRestorePath}`);
+        logger.info({ path: preRestorePath }, 'Backed up current database before restore');
       }
 
       // Checkpoint and close the active database connection
       const db = require('../database');
       try {
         await db.checkpoint();
-        console.log('📦 WAL checkpoint complete');
+        logger.debug('WAL checkpoint complete');
       } catch (err) {
-        console.warn('⚠️ WAL checkpoint failed (may not be in WAL mode):', err.message);
+        logger.warn({ err }, 'WAL checkpoint failed (may not be in WAL mode)');
       }
 
       try {
         await db.closeDatabase();
-        console.log('📦 Database connection closed');
+        logger.debug('Database connection closed for restore');
       } catch (err) {
-        console.warn('⚠️ Failed to close database connection:', err.message);
+        logger.warn({ err }, 'Failed to close database connection');
       }
 
       // Remove stale WAL and SHM journal files
@@ -309,7 +310,7 @@ async function restoreBackup(backupPath, options = {}) {
       // Copy the validated backup database over the live database
       fs.copyFileSync(extracted.tempDbPath, DATABASE_PATH);
       results.database = true;
-      console.log('✅ Database restored');
+      logger.info('Database restored');
     }
 
     // Phase 3: Restore covers
@@ -325,7 +326,7 @@ async function restoreBackup(backupPath, options = {}) {
         // SECURITY: Validate resolved path is within COVERS_DIR
         const resolvedDest = path.resolve(destPath);
         if (!resolvedDest.startsWith(path.resolve(COVERS_DIR) + path.sep)) {
-          console.warn(`⚠️ Skipping suspicious cover path: ${coverName}`);
+          logger.warn({ coverName }, 'Skipping suspicious cover path');
           continue;
         }
 
@@ -334,7 +335,7 @@ async function restoreBackup(backupPath, options = {}) {
       }
     }
 
-    console.log(`✅ Restore complete: database=${results.database}, covers=${results.covers}`);
+    logger.info({ database: results.database, covers: results.covers }, 'Restore complete');
     return results;
   } finally {
     // Clean up temp directory
@@ -362,11 +363,11 @@ function applyRetention(keepCount = DEFAULT_RETENTION) {
       deleteBackup(backup.filename);
       deleted++;
     } catch (err) {
-      console.error(`Failed to delete old backup ${backup.filename}:`, err.message);
+      logger.error({ err, filename: backup.filename }, 'Failed to delete old backup');
     }
   }
 
-  console.log(`🧹 Retention applied: deleted ${deleted} old backup(s)`);
+  logger.info({ deleted }, 'Backup retention applied');
   return { deleted };
 }
 
@@ -375,12 +376,12 @@ function applyRetention(keepCount = DEFAULT_RETENTION) {
  */
 function startScheduledBackups(intervalHours = 24, retention = DEFAULT_RETENTION) {
   if (backupInterval) {
-    console.log('Scheduled backups already running');
+    logger.debug('Scheduled backups already running');
     return;
   }
 
   const intervalMs = intervalHours * 60 * 60 * 1000;
-  console.log(`📅 Starting scheduled backups every ${intervalHours} hours`);
+  logger.info({ intervalHours }, 'Starting scheduled backups');
 
   // Run first backup after a short delay
   setTimeout(async () => {
@@ -388,7 +389,7 @@ function startScheduledBackups(intervalHours = 24, retention = DEFAULT_RETENTION
       await createBackup(true);
       applyRetention(retention);
     } catch (err) {
-      console.error('Scheduled backup failed:', err.message);
+      logger.error({ err }, 'Scheduled backup failed');
     }
   }, 60000).unref(); // 1 minute after startup
 
@@ -398,7 +399,7 @@ function startScheduledBackups(intervalHours = 24, retention = DEFAULT_RETENTION
       await createBackup(true);
       applyRetention(retention);
     } catch (err) {
-      console.error('Scheduled backup failed:', err.message);
+      logger.error({ err }, 'Scheduled backup failed');
     }
   }, intervalMs).unref();
 }
@@ -410,7 +411,7 @@ function stopScheduledBackups() {
   if (backupInterval) {
     clearInterval(backupInterval);
     backupInterval = null;
-    console.log('📅 Scheduled backups stopped');
+    logger.info('Scheduled backups stopped');
   }
 }
 
