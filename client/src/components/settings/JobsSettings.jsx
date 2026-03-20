@@ -6,7 +6,9 @@ import {
   getOrganizationPreview,
   organizeLibrary as apiOrganizeLibrary,
   getDuplicates,
+  getFlaggedDuplicates,
   mergeDuplicates,
+  dismissDuplicate,
   getCoverUrl,
   getOrphanDirectories,
   deleteOrphanDirectories
@@ -25,6 +27,10 @@ export default function JobsSettings() {
   const [selectedKeep, setSelectedKeep] = useState({});
   const [deleteFiles, setDeleteFiles] = useState(false);
 
+  // Flagged duplicates (auto-detected during import)
+  const [flaggedGroups, setFlaggedGroups] = useState([]);
+  const [flaggedLoading, setFlaggedLoading] = useState(true);
+
   // Orphans
   const [orphanDirs, setOrphanDirs] = useState([]);
   const [orphansScanned, setOrphansScanned] = useState(false);
@@ -41,8 +47,20 @@ export default function JobsSettings() {
     }
   };
 
+  const loadFlaggedDuplicates = async () => {
+    try {
+      const response = await getFlaggedDuplicates();
+      setFlaggedGroups(response.data.flaggedGroups || []);
+    } catch (error) {
+      console.error('Error loading flagged duplicates:', error);
+    } finally {
+      setFlaggedLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadJobs();
+    loadFlaggedDuplicates();
     const interval = setInterval(loadJobs, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -107,6 +125,34 @@ export default function JobsSettings() {
     try {
       await mergeDuplicates(keepId, deleteIds, deleteFiles);
       setDuplicateGroups(prev => prev.filter(g => g.id !== group.id));
+    } catch (error) {
+      alert('Merge failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDismiss = async (flagId) => {
+    setActionLoading(`dismiss-${flagId}`);
+    try {
+      await dismissDuplicate(flagId);
+      setFlaggedGroups(prev => prev.filter(g => g.flagId !== flagId));
+    } catch (error) {
+      alert('Dismiss failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleFlaggedMerge = async (group) => {
+    const keepId = group.suggestedKeep;
+    const deleteIds = group.books.filter(b => b.id !== keepId).map(b => b.id);
+    if (!confirm(`Merge and remove ${deleteIds.length} copies?`)) return;
+
+    setActionLoading(`fmerge-${group.flagId}`);
+    try {
+      await mergeDuplicates(keepId, deleteIds, deleteFiles);
+      setFlaggedGroups(prev => prev.filter(g => g.flagId !== group.flagId));
     } catch (error) {
       alert('Merge failed');
     } finally {
@@ -213,6 +259,57 @@ export default function JobsSettings() {
 
       {activeTab === 'duplicates' && (
         <div className="scan-section">
+          {/* Auto-flagged duplicates from import */}
+          {flaggedGroups.length > 0 && (
+            <>
+              <h3 className="section-label">Flagged During Import</h3>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={deleteFiles}
+                  onChange={(e) => setDeleteFiles(e.target.checked)}
+                />
+                <span>Also delete files on merge</span>
+              </label>
+              <div className="duplicate-list">
+                {flaggedGroups.map(group => (
+                  <div key={group.flagId} className="dup-item flagged">
+                    <div className="dup-info">
+                      <span className="dup-title">{group.books[0].title}</span>
+                      <span className="dup-author">{group.books[0].author}</span>
+                      <span className="dup-meta">
+                        <span className="dup-count">{group.books.length} copies</span>
+                        <span className="dup-match-type">{group.matchType === 'content_hash' ? 'Same content' : group.matchType === 'isbn' ? 'Same ISBN' : 'Same ASIN'}</span>
+                      </span>
+                    </div>
+                    <div className="dup-actions">
+                      <button
+                        className="merge-btn"
+                        onClick={() => handleFlaggedMerge(group)}
+                        disabled={actionLoading === `fmerge-${group.flagId}`}
+                      >
+                        Merge
+                      </button>
+                      <button
+                        className="dismiss-btn"
+                        onClick={() => handleDismiss(group.flagId)}
+                        disabled={actionLoading === `dismiss-${group.flagId}`}
+                      >
+                        Not a Duplicate
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {flaggedGroups.length === 0 && !flaggedLoading && (
+            <p className="no-results">No flagged duplicates</p>
+          )}
+
+          {/* Manual duplicate scan */}
+          <h3 className="section-label" style={{marginTop: '1.5rem'}}>Manual Scan</h3>
           <button
             className="scan-btn"
             onClick={scanDuplicates}
@@ -227,14 +324,6 @@ export default function JobsSettings() {
                 <p className="no-results">No duplicates found</p>
               ) : (
                 <>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={deleteFiles}
-                      onChange={(e) => setDeleteFiles(e.target.checked)}
-                    />
-                    <span>Also delete files</span>
-                  </label>
                   <div className="duplicate-list">
                     {duplicateGroups.map(group => (
                       <div key={group.id} className="dup-item">

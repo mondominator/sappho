@@ -27,17 +27,17 @@ const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../
 
 /**
  * Check if a book with the same ISBN or ASIN already exists.
- * Returns true if a duplicate was found (caller should skip import).
- * Fails open: if the DB query errors, logs a warning and returns false
+ * Returns the existing book info and match type if found, null otherwise.
+ * Fails open: if the DB query errors, logs a warning and returns null
  * so the import proceeds (a duplicate is better than a lost book).
  */
-async function isDuplicateByIdentifier(metadata) {
+async function findDuplicateByIdentifier(metadata) {
   if (metadata.isbn) {
     try {
       const existing = await audiobookExistsByIsbn(metadata.isbn);
       if (existing) {
-        logger.debug({ title: metadata.title, existingTitle: existing.title, isbn: metadata.isbn }, 'Skipping duplicate by ISBN');
-        return true;
+        logger.info({ title: metadata.title, existingTitle: existing.title, isbn: metadata.isbn }, 'Potential duplicate by ISBN - flagging for review');
+        return { existing, matchType: 'isbn' };
       }
     } catch (err) {
       logger.warn({ err, title: metadata.title, isbn: metadata.isbn }, 'ISBN dedup check failed, proceeding with import');
@@ -47,14 +47,32 @@ async function isDuplicateByIdentifier(metadata) {
     try {
       const existing = await audiobookExistsByAsin(metadata.asin);
       if (existing) {
-        logger.debug({ title: metadata.title, existingTitle: existing.title, asin: metadata.asin }, 'Skipping duplicate by ASIN');
-        return true;
+        logger.info({ title: metadata.title, existingTitle: existing.title, asin: metadata.asin }, 'Potential duplicate by ASIN - flagging for review');
+        return { existing, matchType: 'asin' };
       }
     } catch (err) {
       logger.warn({ err, title: metadata.title, asin: metadata.asin }, 'ASIN dedup check failed, proceeding with import');
     }
   }
-  return false;
+  return null;
+}
+
+/**
+ * Record a duplicate flag for admin review instead of auto-skipping.
+ */
+async function flagDuplicate(newAudiobookId, existingAudiobookId, matchType) {
+  const { createDbHelpers: createHelpers } = require('../utils/db');
+  const { dbRun: flagRun } = createHelpers(db);
+  try {
+    await flagRun(
+      `INSERT INTO duplicate_flags (audiobook_id, existing_audiobook_id, match_type, status)
+       VALUES (?, ?, ?, 'pending')`,
+      [newAudiobookId, existingAudiobookId, matchType]
+    );
+    logger.info({ newId: newAudiobookId, existingId: existingAudiobookId, matchType }, 'Flagged potential duplicate for review');
+  } catch (err) {
+    logger.warn({ err, newId: newAudiobookId, existingId: existingAudiobookId }, 'Failed to create duplicate flag');
+  }
 }
 
 /**
@@ -110,15 +128,9 @@ async function importAudiobook(filePath, userId) {
       return restoredBook;
     }
 
-    // Check if an audiobook with this content hash already exists
+    // Check for potential duplicates (will flag for review instead of skipping)
     const existingByHash = await audiobookExistsByHash(contentHash);
-    if (existingByHash) {
-      logger.debug({ filePath, existingTitle: existingByHash.title }, 'Skipping file - duplicate content hash');
-      return null;
-    }
-
-    // Skip if an audiobook with same ISBN or ASIN already exists
-    if (await isDuplicateByIdentifier(metadata)) return null;
+    const identifierMatch = await findDuplicateByIdentifier(metadata);
 
     // Try to extract embedded chapters using ffprobe (works on all formats, not just M4B/M4A)
     let chapters = null;
@@ -183,6 +195,15 @@ async function importAudiobook(filePath, userId) {
 
     const chapterCount = hasChapters ? ` (${chapters.length} chapters)` : '';
     logger.info({ title: metadata.title, author: metadata.author, chapters: chapterCount || undefined }, 'Imported audiobook');
+
+    // Flag as potential duplicate if hash or identifier matched an existing book
+    if (existingByHash) {
+      await flagDuplicate(audiobook.id, existingByHash.id, 'content_hash');
+    }
+    if (identifierMatch) {
+      await flagDuplicate(audiobook.id, identifierMatch.existing.id, identifierMatch.matchType);
+    }
+
     websocketManager.broadcastLibraryUpdate('library.add', audiobook);
     emailService.notifyNewAudiobook(audiobook).catch(e =>
       logger.error({ err: e }, 'Error sending new audiobook notification')
@@ -318,15 +339,9 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
       return restoredBook;
     }
 
-    // Check if an audiobook with this content hash already exists
+    // Check for potential duplicates (will flag for review instead of skipping)
     const existingByHash = await audiobookExistsByHash(contentHash);
-    if (existingByHash) {
-      logger.debug({ title: metadata.title, existingTitle: existingByHash.title }, 'Skipping multi-file audiobook - duplicate hash');
-      return null;
-    }
-
-    // Skip if an audiobook with same ISBN or ASIN already exists
-    if (await isDuplicateByIdentifier(metadata)) return null;
+    const identifierMatch = await findDuplicateByIdentifier(metadata);
 
     // Save audiobook and chapters in a single transaction
     const { dbTransaction } = createDbHelpers(db);
@@ -388,6 +403,15 @@ async function importMultiFileAudiobook(chapterFiles, userId) {
     });
 
     logger.info({ title: metadata.title, chapters: chaptersWithStartTimes.length }, 'Imported multi-file audiobook');
+
+    // Flag as potential duplicate if hash or identifier matched an existing book
+    if (existingByHash) {
+      await flagDuplicate(audiobook.id, existingByHash.id, 'content_hash');
+    }
+    if (identifierMatch) {
+      await flagDuplicate(audiobook.id, identifierMatch.existing.id, identifierMatch.matchType);
+    }
+
     websocketManager.broadcastLibraryUpdate('library.add', audiobook);
     emailService.notifyNewAudiobook(audiobook).catch(e =>
       logger.error({ err: e }, 'Error sending new audiobook notification')
