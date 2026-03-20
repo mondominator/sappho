@@ -15,6 +15,7 @@ const progress = require('./progress');
 const aggregates = require('./aggregates');
 const batch = require('./batch');
 const metadata = require('./metadata');
+const sessions = require('./sessions');
 
 /**
  * Default dependencies - used when route is required directly
@@ -77,6 +78,7 @@ function createAudiobooksRouter(deps = {}) {
   crud.register(router, sharedDeps);        // /, /favorites, /:id (catch-all)
   stream.register(router, sharedDeps);      // /:id/stream, /:id/cover
   progress.register(router, sharedDeps);    // /:id/progress
+  sessions.register(router, sharedDeps);    // /:id/sessions
   metadata.register(router, sharedDeps);    // /:id/chapters, /:id/embed-metadata
 
   return router;
