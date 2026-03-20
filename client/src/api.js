@@ -434,4 +434,8 @@ export const markNotificationRead = (id) =>
 export const markAllNotificationsRead = () =>
   api.post('/notifications/read-all');
 
+// Listening Sessions
+export const getListeningSessions = (audiobookId, limit = 50) =>
+  api.get(`/audiobooks/${audiobookId}/sessions`, { params: { limit } });
+
 export default api;
