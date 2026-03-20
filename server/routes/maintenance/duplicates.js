@@ -311,7 +311,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
             cover_image: f.existing_cover_image, cover_path: f.existing_cover_path,
             created_at: f.existing_created_at,
             progress: progressMap.get(f.existing_id) || { userCount: 0, maxPosition: 0 },
-            hasCover: \!\!(f.existing_cover_image || f.existing_cover_path),
+            hasCover: !!(f.existing_cover_image || f.existing_cover_path),
           },
           {
             id: f.new_id, title: f.new_title, author: f.new_author,
@@ -321,7 +321,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
             cover_image: f.new_cover_image, cover_path: f.new_cover_path,
             created_at: f.new_created_at,
             progress: progressMap.get(f.new_id) || { userCount: 0, maxPosition: 0 },
-            hasCover: \!\!(f.new_cover_image || f.new_cover_path),
+            hasCover: !!(f.new_cover_image || f.new_cover_path),
           },
         ],
         suggestedKeep: f.existing_id,
