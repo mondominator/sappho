@@ -339,3 +339,52 @@
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+/* Flagged duplicates */
+.section-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.dup-item.flagged {
+  border-left: 3px solid #f59e0b;
+}
+
+.dup-match-type {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.dup-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.dismiss-btn {
+  padding: 0.4rem 0.75rem;
+  background: rgba(107, 114, 128, 0.2);
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dismiss-btn:hover {
+  background: rgba(107, 114, 128, 0.3);
+}
+
+.dismiss-btn:disabled {
+  opacity: 0.6;
+}

@@ -254,6 +254,107 @@ function register(router, { db, authenticateToken, requireAdmin }) {
     }
   });
 
+  // Get auto-flagged duplicate pairs (detected during import)
+  router.get('/duplicates/flagged', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const flags = await dbAll(
+        `SELECT df.id as flag_id, df.match_type, df.status, df.created_at as flagged_at,
+                a1.id as new_id, a1.title as new_title, a1.author as new_author,
+                a1.narrator as new_narrator, a1.duration as new_duration,
+                a1.file_size as new_file_size, a1.file_path as new_file_path,
+                a1.isbn as new_isbn, a1.asin as new_asin, a1.cover_image as new_cover_image,
+                a1.cover_path as new_cover_path, a1.created_at as new_created_at,
+                a2.id as existing_id, a2.title as existing_title, a2.author as existing_author,
+                a2.narrator as existing_narrator, a2.duration as existing_duration,
+                a2.file_size as existing_file_size, a2.file_path as existing_file_path,
+                a2.isbn as existing_isbn, a2.asin as existing_asin, a2.cover_image as existing_cover_image,
+                a2.cover_path as existing_cover_path, a2.created_at as existing_created_at
+         FROM duplicate_flags df
+         JOIN audiobooks a1 ON df.audiobook_id = a1.id
+         JOIN audiobooks a2 ON df.existing_audiobook_id = a2.id
+         WHERE df.status = 'pending'
+         ORDER BY df.created_at DESC`
+      );
+
+      // Build progress map for flagged books
+      const allIds = new Set();
+      for (const f of flags) {
+        allIds.add(f.new_id);
+        allIds.add(f.existing_id);
+      }
+
+      let progressMap = new Map();
+      if (allIds.size > 0) {
+        const progressData = await dbAll(
+          `SELECT audiobook_id, COUNT(*) as user_count, MAX(position) as max_position
+           FROM playback_progress
+           WHERE audiobook_id IN (${[...allIds].map(() => '?').join(',')})
+           GROUP BY audiobook_id`,
+          [...allIds]
+        );
+        for (const p of progressData) {
+          progressMap.set(p.audiobook_id, { userCount: p.user_count, maxPosition: p.max_position });
+        }
+      }
+
+      // Group flags by pair
+      const groups = flags.map(f => ({
+        flagId: f.flag_id,
+        matchType: f.match_type,
+        flaggedAt: f.flagged_at,
+        books: [
+          {
+            id: f.existing_id, title: f.existing_title, author: f.existing_author,
+            narrator: f.existing_narrator, duration: f.existing_duration,
+            file_size: f.existing_file_size, file_path: f.existing_file_path,
+            isbn: f.existing_isbn, asin: f.existing_asin,
+            cover_image: f.existing_cover_image, cover_path: f.existing_cover_path,
+            created_at: f.existing_created_at,
+            progress: progressMap.get(f.existing_id) || { userCount: 0, maxPosition: 0 },
+            hasCover: \!\!(f.existing_cover_image || f.existing_cover_path),
+          },
+          {
+            id: f.new_id, title: f.new_title, author: f.new_author,
+            narrator: f.new_narrator, duration: f.new_duration,
+            file_size: f.new_file_size, file_path: f.new_file_path,
+            isbn: f.new_isbn, asin: f.new_asin,
+            cover_image: f.new_cover_image, cover_path: f.new_cover_path,
+            created_at: f.new_created_at,
+            progress: progressMap.get(f.new_id) || { userCount: 0, maxPosition: 0 },
+            hasCover: \!\!(f.new_cover_image || f.new_cover_path),
+          },
+        ],
+        suggestedKeep: f.existing_id,
+      }));
+
+      res.json({ flaggedGroups: groups, totalFlagged: groups.length });
+    } catch (error) {
+      console.error('Error fetching flagged duplicates:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Dismiss a flagged duplicate (mark as false positive)
+  router.post('/duplicates/dismiss', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
+    const { flagId } = req.body;
+
+    if (\!flagId) {
+      return res.status(400).json({ error: 'Must specify flagId' });
+    }
+
+    try {
+      await dbRun(
+        `UPDATE duplicate_flags SET status = 'dismissed', resolved_at = datetime('now') WHERE id = ?`,
+        [flagId]
+      );
+      console.log(`Dismissed duplicate flag ${flagId}`);
+      res.json({ success: true, flagId });
+    } catch (error) {
+      console.error('Error dismissing duplicate:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Merge duplicate audiobooks
   router.post('/duplicates/merge', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { keepId, deleteIds, deleteFiles } = req.body;
@@ -346,6 +447,16 @@ function register(router, { db, authenticateToken, requireAdmin }) {
           }
         }
       }
+
+      // Mark any related duplicate flags as resolved
+      const allMergedIds = [keepId, ...deleteIds];
+      const flagPlaceholders = allMergedIds.map(() => '?').join(',');
+      await dbRun(
+        `UPDATE duplicate_flags SET status = 'merged', resolved_at = datetime('now')
+         WHERE status = 'pending'
+           AND (audiobook_id IN (${flagPlaceholders}) OR existing_audiobook_id IN (${flagPlaceholders}))`,
+        [...allMergedIds, ...allMergedIds]
+      );
 
       console.log(`Merge complete: ${deleteBooks.length} duplicates removed, ${progressTransferred} progress records transferred`);
 
