@@ -2716,3 +2716,136 @@
   background: rgba(245, 158, 11, 0.9);
   color: #fff;
 }
+
+/* ========================================
+   LISTENING HISTORY MODAL
+   ======================================== */
+
+.listening-history-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.listening-history-content {
+  width: 100%;
+  max-width: 500px;
+  max-height: 60vh;
+  background: #1f2937;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  animation: scaleIn 0.2s ease-out;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.listening-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid #374151;
+  flex-shrink: 0;
+}
+
+.listening-history-header h3 {
+  color: #fff;
+  font-size: 1.125rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.listening-history-close {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.listening-history-close:hover {
+  color: #fff;
+}
+
+.listening-history-list {
+  overflow-y: auto;
+  padding: 0.5rem;
+  flex: 1;
+}
+
+.listening-history-entry {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.listening-history-entry:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.listening-history-entry:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.listening-history-date {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 0.25rem;
+}
+
+.listening-history-positions {
+  font-size: 0.95rem;
+  color: #E0E7F1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.25rem;
+}
+
+.listening-history-in-progress {
+  color: #3B82F6;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.listening-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.listening-history-duration {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.listening-history-device {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.listening-history-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
