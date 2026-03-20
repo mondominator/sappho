@@ -102,6 +102,31 @@ function register(router, { db, authenticateToken }) {
         queueNextInSeries(userId, audiobookId);
       }
 
+      // Track listening session (fire-and-forget)
+      try {
+        if (state === 'playing') {
+          // Check if there's already an open session
+          const openSession = await dbGet(
+            'SELECT id FROM listening_sessions WHERE user_id = ? AND audiobook_id = ? AND stopped_at IS NULL',
+            [userId, audiobookId]
+          );
+          if (!openSession) {
+            await dbRun(
+              'INSERT INTO listening_sessions (user_id, audiobook_id, start_position, device_name) VALUES (?, ?, ?, ?)',
+              [userId, audiobookId, Math.floor(position), clientInfo.name || 'Unknown']
+            );
+          }
+        } else if (state === 'stopped' || state === 'paused' || completed) {
+          await dbRun(
+            'UPDATE listening_sessions SET stopped_at = CURRENT_TIMESTAMP, end_position = ? WHERE user_id = ? AND audiobook_id = ? AND stopped_at IS NULL',
+            [Math.floor(position), userId, audiobookId]
+          );
+        }
+      } catch (_sessionErr) {
+        // Don't fail progress updates if session tracking errors
+        // Table may not exist if migration hasn't run yet
+      }
+
       // Update session tracking
       const sessionManager = require('../../services/sessionManager');
       const websocketManager = require('../../services/websocketManager');
