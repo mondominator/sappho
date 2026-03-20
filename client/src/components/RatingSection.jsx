@@ -69,6 +69,7 @@ export default function RatingSection({ audiobookId }) {
   const [reviews, setReviews] = useState([]);
   const [reviewText, setReviewText] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [showReviewsList, setShowReviewsList] = useState(false);
 
   const loadReviews = useCallback(async () => {
     if (!audiobookId) return;
@@ -126,6 +127,7 @@ export default function RatingSection({ audiobookId }) {
     try {
       await apiSetRating(audiobookId, userRating, reviewText || null);
       setUserReview(reviewText);
+      setReviewText('');
       // Reload the user's own rating data
       const ratingRes = await getRating(audiobookId).catch(() => ({ data: null }));
       setUserRatingData(ratingRes.data);
@@ -139,11 +141,11 @@ export default function RatingSection({ audiobookId }) {
 
   // Filter reviews: only those with non-empty review text, excluding current user
   const currentUserId = userRatingData?.user_id;
-  const otherReviews = reviews.filter(
-    (r) => r.review && r.review.trim() !== '' && r.user_id !== currentUserId
+  const allReviewsWithText = reviews.filter(
+    (r) => r.review && r.review.trim() !== ''
   );
 
-  const showReviewInput = userRating !== null;
+  const showReviewInput = showRatingPicker && userRating !== null;
 
   return (
     <div className="detail-rating-section">
@@ -154,7 +156,7 @@ export default function RatingSection({ audiobookId }) {
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
             <span className="average-value">{averageRating.average?.toFixed(1)}</span>
-            <span className="average-count">({averageRating.count})</span>
+
           </div>
         )}
 
@@ -178,6 +180,19 @@ export default function RatingSection({ audiobookId }) {
             </>
           )}
         </button>
+
+        {reviews.length > 0 && (
+          <button
+            className={`rate-button ${showReviewsList ? 'rated' : ''}`}
+            onClick={() => setShowReviewsList(!showReviewsList)}
+            style={{ marginLeft: '8px' }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={showReviewsList ? '#3B82F6' : 'none'} stroke={showReviewsList ? '#3B82F6' : '#9ca3af'} strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span style={{ color: showReviewsList ? '#3B82F6' : '#9ca3af' }}>{reviews.length}</span>
+          </button>
+        )}
       </div>
 
       {showRatingPicker && (
@@ -235,13 +250,10 @@ export default function RatingSection({ audiobookId }) {
         </div>
       )}
 
-      {otherReviews.length > 0 && (
+      {showReviewsList && allReviewsWithText.length > 0 && (
         <div className="reviews-list-section">
-          <h3 className="reviews-header">
-            Reviews <span className="reviews-count">({otherReviews.length})</span>
-          </h3>
           <div className="reviews-list">
-            {otherReviews.map((review) => (
+            {allReviewsWithText.map((review) => (
               <div key={review.user_id} className="review-card">
                 <div className="review-card-header">
                   <span className="review-author">
