@@ -283,7 +283,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         allIds.add(f.existing_id);
       }
 
-      let progressMap = new Map();
+      const progressMap = new Map();
       if (allIds.size > 0) {
         const progressData = await dbAll(
           `SELECT audiobook_id, COUNT(*) as user_count, MAX(position) as max_position
@@ -338,13 +338,13 @@ function register(router, { db, authenticateToken, requireAdmin }) {
   router.post('/duplicates/dismiss', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     const { flagId } = req.body;
 
-    if (\!flagId) {
+    if (!flagId) {
       return res.status(400).json({ error: 'Must specify flagId' });
     }
 
     try {
       await dbRun(
-        `UPDATE duplicate_flags SET status = 'dismissed', resolved_at = datetime('now') WHERE id = ?`,
+        'UPDATE duplicate_flags SET status = \'dismissed\', resolved_at = datetime(\'now\') WHERE id = ?',
         [flagId]
       );
       console.log(`Dismissed duplicate flag ${flagId}`);
