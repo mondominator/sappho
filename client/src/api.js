@@ -302,8 +302,14 @@ export const reorderFavorites = (order) =>
 export const getDuplicates = () =>
   api.get('/maintenance/duplicates');
 
+export const getFlaggedDuplicates = () =>
+  api.get('/maintenance/duplicates/flagged');
+
 export const mergeDuplicates = (keepId, deleteIds, deleteFiles = false) =>
   api.post('/maintenance/duplicates/merge', { keepId, deleteIds, deleteFiles });
+
+export const dismissDuplicate = (flagId) =>
+  api.post('/maintenance/duplicates/dismiss', { flagId });
 
 // Orphan Directories
 export const getOrphanDirectories = () =>
