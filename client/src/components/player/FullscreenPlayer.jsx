@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl } from '../../api';
 import PlaybackControls from './PlaybackControls';
+import ListeningHistoryModal from './ListeningHistoryModal';
 
 export default function FullscreenPlayer({
   audiobook, audioRef, playing, currentTime, duration,
@@ -27,6 +28,7 @@ export default function FullscreenPlayer({
   const [seekPreviewTime, setSeekPreviewTime] = useState(null);
   const [seekPreviewPercent, setSeekPreviewPercent] = useState(0);
   const seekPreviewTimeRef = useRef(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Title overflow detection
   useEffect(() => {
@@ -390,7 +392,28 @@ export default function FullscreenPlayer({
           </svg>
           <span>{formatSleepTimer() || 'Sleep'}</span>
         </button>
+
+        <button
+          className="fullscreen-bottom-btn"
+          onClick={() => setShowHistory(true)}
+          aria-label="Listening history"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M12 7v5l4 2"/>
+          </svg>
+          <span>History</span>
+        </button>
       </div>
+
+      {showHistory && (
+        <ListeningHistoryModal
+          audiobookId={audiobook.id}
+          onSeek={onSeek}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }
