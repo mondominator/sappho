@@ -198,25 +198,6 @@ function cleanupEmptyDirectories(dir) {
 }
 
 /**
- * Get all chapter file paths for a multi-file audiobook
- *
- * @param {number} audiobookId - Audiobook ID
- * @returns {Promise<string[]>} Array of chapter file paths
- */
-function getChapterFiles(audiobookId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT file_path FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number',
-      [audiobookId],
-      (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows ? rows.map(r => r.file_path) : []);
-      }
-    );
-  });
-}
-
-/**
  * Update chapter file paths in the database
  *
  * @param {number} audiobookId - Audiobook ID
@@ -279,18 +260,23 @@ async function organizeAudiobook(audiobook) {
     let newFilePath;
 
     if (audiobook.is_multi_file) {
-      // Multi-file: move all chapter files preserving their original filenames.
-      // The audiobook's file_path references the first chapter — don't rename it.
-      const chapterFiles = await getChapterFiles(audiobook.id);
-      for (const chapterPath of chapterFiles) {
-        if (fs.existsSync(chapterPath) && path.normalize(path.dirname(chapterPath)) === path.normalize(currentDir)) {
-          const chapterFileName = path.basename(chapterPath);
-          const targetChapterPath = path.join(targetDir, chapterFileName);
-          moveFile(chapterPath, targetChapterPath);
+      // Multi-file: move all audio files in the source directory, not just
+      // those in the chapters table (which may have been overwritten by
+      // Audnexus chapter fetch). This ensures all MP3s move together.
+      const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma'];
+      try {
+        const dirFiles = fs.readdirSync(currentDir)
+          .filter(f => audioExtensions.includes(path.extname(f).toLowerCase()));
+        for (const fileName of dirFiles) {
+          const srcPath = path.join(currentDir, fileName);
+          const destPath = path.join(targetDir, fileName);
+          moveFile(srcPath, destPath);
         }
+      } catch (e) {
+        console.warn(`  Could not scan source directory for audio files: ${e.message}`);
       }
 
-      // Move the main file_path reference if it wasn't already moved as a chapter
+      // Also move the main file_path reference if it wasn't in the directory scan
       newFilePath = path.join(targetDir, originalFilename);
       if (fs.existsSync(audiobook.file_path)) {
         moveFile(audiobook.file_path, newFilePath);
