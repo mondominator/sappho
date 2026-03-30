@@ -127,7 +127,6 @@ export default function RatingSection({ audiobookId }) {
     try {
       await apiSetRating(audiobookId, userRating, reviewText || null);
       setUserReview(reviewText);
-      setReviewText('');
       // Reload the user's own rating data
       const ratingRes = await getRating(audiobookId).catch(() => ({ data: null }));
       setUserRatingData(ratingRes.data);
