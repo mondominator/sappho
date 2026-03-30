@@ -198,25 +198,6 @@ function cleanupEmptyDirectories(dir) {
 }
 
 /**
- * Get all chapter file paths for a multi-file audiobook
- *
- * @param {number} audiobookId - Audiobook ID
- * @returns {Promise<string[]>} Array of chapter file paths
- */
-function getChapterFiles(audiobookId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT file_path FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number',
-      [audiobookId],
-      (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows ? rows.map(r => r.file_path) : []);
-      }
-    );
-  });
-}
-
-/**
  * Update chapter file paths in the database
  *
  * @param {number} audiobookId - Audiobook ID
