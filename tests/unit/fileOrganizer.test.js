@@ -514,13 +514,10 @@ describe('File Organizer Service', () => {
       });
       fs.renameSync.mockImplementation((src) => { movedFiles.add(src); });
       fs.mkdirSync.mockImplementation(() => {});
-      fs.readdirSync.mockReturnValue(['remaining-file.txt']);
-      db.all.mockImplementation((query, params, callback) => {
-        callback(null, [
-          { file_path: '/old/path/01 - Chapter One.mp3' },
-          { file_path: '/old/path/02 - Chapter Two.mp3' }
-        ]);
-      });
+      // First call: directory scan for audio files; second call: cleanup empty dir check
+      fs.readdirSync
+        .mockReturnValueOnce(['01 - Chapter One.mp3', '02 - Chapter Two.mp3'])
+        .mockReturnValue([]);
       db.run.mockImplementation((query, params, callback) => {
         callback(null);
       });
@@ -537,7 +534,7 @@ describe('File Organizer Service', () => {
 
       const result = await organizeAudiobook(audiobook);
       expect(result.moved).toBe(true);
-      // 2 chapter moves (main file_path is same as first chapter, already moved)
+      // 2 audio file moves from directory scan
       expect(fs.renameSync).toHaveBeenCalledTimes(2);
 
       // Verify chapter filenames are preserved (not renamed to Book Title.mp3)
