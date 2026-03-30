@@ -86,8 +86,8 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     }
 
     try {
-      // Get the audiobook's file path (needed for chapter records)
-      const audiobook = await dbGet('SELECT file_path FROM audiobooks WHERE id = ?', [req.params.id]);
+      // Get the audiobook's file path and multi-file status
+      const audiobook = await dbGet('SELECT file_path, is_multi_file FROM audiobooks WHERE id = ?', [req.params.id]);
 
       if (!audiobook || !audiobook.file_path) {
         return res.status(404).json({ error: 'Audiobook not found' });
@@ -116,24 +116,45 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         return res.status(404).json({ error: 'No chapters found' });
       }
 
-      // Delete existing chapters for this audiobook
-      await dbRun('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id]);
-
-      // Insert new chapters (use audiobook's file_path for all chapters)
-      for (let i = 0; i < data.chapters.length; i++) {
-        const chapter = data.chapters[i];
-        await dbRun(
-          `INSERT INTO audiobook_chapters (audiobook_id, chapter_number, file_path, title, start_time, duration)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            req.params.id,
-            i + 1,
-            audiobook.file_path,
-            chapter.title || `Chapter ${i + 1}`,
-            Math.floor(chapter.startOffsetMs / 1000), // Convert ms to seconds
-            Math.floor(chapter.lengthMs / 1000) // Convert ms to seconds
-          ]
+      if (audiobook.is_multi_file) {
+        // Multi-file: update titles on existing per-file chapter records
+        // but preserve the file_path mapping (one file per chapter)
+        const existingChapters = await dbAll(
+          'SELECT id, chapter_number FROM audiobook_chapters WHERE audiobook_id = ? ORDER BY chapter_number',
+          [req.params.id]
         );
+
+        for (let i = 0; i < data.chapters.length && i < existingChapters.length; i++) {
+          const chapter = data.chapters[i];
+          await dbRun(
+            'UPDATE audiobook_chapters SET title = ?, start_time = ?, duration = ? WHERE id = ?',
+            [
+              chapter.title || `Chapter ${i + 1}`,
+              Math.floor(chapter.startOffsetMs / 1000),
+              Math.floor(chapter.lengthMs / 1000),
+              existingChapters[i].id
+            ]
+          );
+        }
+      } else {
+        // Single file: replace chapters entirely (all point to same file)
+        await dbRun('DELETE FROM audiobook_chapters WHERE audiobook_id = ?', [req.params.id]);
+
+        for (let i = 0; i < data.chapters.length; i++) {
+          const chapter = data.chapters[i];
+          await dbRun(
+            `INSERT INTO audiobook_chapters (audiobook_id, chapter_number, file_path, title, start_time, duration)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              req.params.id,
+              i + 1,
+              audiobook.file_path,
+              chapter.title || `Chapter ${i + 1}`,
+              Math.floor(chapter.startOffsetMs / 1000),
+              Math.floor(chapter.lengthMs / 1000)
+            ]
+          );
+        }
       }
 
       // Update the ASIN in the audiobook record if not already set
