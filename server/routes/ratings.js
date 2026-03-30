@@ -75,7 +75,7 @@ function createRatingsRouter(deps = {}) {
         `SELECT ur.*, u.username, u.display_name
          FROM user_ratings ur
          JOIN users u ON ur.user_id = u.id
-         WHERE ur.audiobook_id = ?
+         WHERE ur.audiobook_id = ? AND (ur.rating IS NOT NULL OR (ur.review IS NOT NULL AND ur.review != ''))
          ORDER BY ur.updated_at DESC`,
         [req.params.audiobookId]
       );
@@ -122,6 +122,13 @@ function createRatingsRouter(deps = {}) {
       if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
         return res.status(400).json({ error: 'Rating must be between 1 and 5' });
       }
+    }
+
+    // Must provide at least a rating or a review
+    const hasRating = rating !== undefined && rating !== null;
+    const hasReview = review && typeof review === 'string' && review.trim() !== '';
+    if (!hasRating && !hasReview) {
+      return res.status(400).json({ error: 'Rating or review is required' });
     }
 
     try {
