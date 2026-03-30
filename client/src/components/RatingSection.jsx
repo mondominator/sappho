@@ -107,9 +107,6 @@ export default function RatingSection({ audiobookId }) {
       setUserRating(newRating);
       const avgResponse = await getAverageRating(audiobookId);
       setAverageRating(avgResponse.data);
-      if (newRating !== null) {
-        setShowRatingPicker(false);
-      }
       // Reload the user's own rating data to get the user_id
       const ratingRes = await getRating(audiobookId).catch(() => ({ data: null }));
       setUserRatingData(ratingRes.data);
