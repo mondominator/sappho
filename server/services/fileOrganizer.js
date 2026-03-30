@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../database');
 const websocketManager = require('./websocketManager');
+const { updatePathCacheEntry } = require('./pathCache');
 
 const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../data/audiobooks');
 
@@ -339,6 +340,9 @@ async function organizeAudiobook(audiobook) {
         }
       );
     });
+
+    // Update scanner's path cache so a concurrent scan doesn't re-import at the new location
+    updatePathCacheEntry(audiobook.file_path, newFilePath, audiobook.id);
 
     // Clean up empty directories
     cleanupEmptyDirectories(currentDir);
