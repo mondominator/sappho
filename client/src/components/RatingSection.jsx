@@ -180,7 +180,7 @@ export default function RatingSection({ audiobookId }) {
           )}
         </button>
 
-        {reviews.length > 0 && (
+        {allReviewsWithText.length > 0 && (
           <button
             className={`rate-button ${showReviewsList ? 'rated' : ''}`}
             onClick={() => setShowReviewsList(!showReviewsList)}
@@ -189,7 +189,7 @@ export default function RatingSection({ audiobookId }) {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={showReviewsList ? '#3B82F6' : 'none'} stroke={showReviewsList ? '#3B82F6' : '#9ca3af'} strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
-            <span style={{ color: showReviewsList ? '#3B82F6' : '#9ca3af' }}>{reviews.length}</span>
+            <span style={{ color: showReviewsList ? '#3B82F6' : '#9ca3af' }}>{allReviewsWithText.length}</span>
           </button>
         )}
       </div>
