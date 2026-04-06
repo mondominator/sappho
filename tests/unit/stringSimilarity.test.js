@@ -1,4 +1,8 @@
-const { levenshteinSimilarity, normalizeTitle } = require('../../server/utils/stringSimilarity');
+const {
+  levenshteinSimilarity,
+  normalizeTitle,
+  isChapterStyleTitle,
+} = require('../../server/utils/stringSimilarity');
 
 describe('stringSimilarity', () => {
   describe('levenshteinSimilarity', () => {
@@ -70,6 +74,37 @@ describe('stringSimilarity', () => {
 
     it('handles numbers-only titles', () => {
       expect(normalizeTitle('1984')).toBe('1984');
+    });
+  });
+
+  describe('isChapterStyleTitle', () => {
+    test.each([
+      ['Chapter 1', true],
+      ['chapter_2', true],
+      ['Chapter-3', true],
+      ['CHAPTER 1', true],
+      ['Ch 1', true],
+      ['Ch. 5', true],
+      ['Part 1', true],
+      ['Pt 2', true],
+      ['Pt. 3', true],
+      ['Track 1', true],
+      ['Disc 2', true],
+      ['CD 1', true],
+      ['  Chapter 1  ', true], // leading/trailing whitespace
+    ])('"%s" → matches', (input, expected) => {
+      expect(isChapterStyleTitle(input)).toBe(expected);
+    });
+
+    test.each([
+      ['The Hobbit', false],
+      ['A Song of Ice and Fire', false],
+      ['Chapterhouse: Dune', false], // word starting with "chapter" but not chapter marker
+      ['', false],
+      [null, false],
+      [undefined, false],
+    ])('"%s" → no match', (input, expected) => {
+      expect(isChapterStyleTitle(input)).toBe(expected);
     });
   });
 });

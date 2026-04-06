@@ -5,6 +5,7 @@
  * - GET /:id (single audiobook)
  * - DELETE /:id (admin delete)
  */
+const logger = require('../../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const { sanitizeFtsQuery } = require('../../utils/ftsSearch');
@@ -17,8 +18,8 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
   /**
    * Execute the audiobooks list query. When a search term is provided,
-   * attempts FTS5 first for speed, then falls back to LIKE if FTS5 fails
-   * (e.g. missing table on first run before migration completes).
+   * attempts FTS5 first for speed and falls back to LIKE if the FTS query
+   * fails to parse (e.g. malformed user input).
    */
   async function executeListQuery(req, res, { useFts = true } = {}) {
     const { genre, author, series, search, favorites, includeUnavailable, limit: rawLimit = 50, offset: rawOffset = 0 } = req.query;
@@ -232,7 +233,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       res.json(transformedAudiobooks);
     } catch (err) {
-      console.error('Error fetching favorites:', err);
+      logger.error('Error fetching favorites:', err);
       res.status(500).json({ error: 'Failed to fetch favorites' });
     }
   });
@@ -294,10 +295,10 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         );
 
         if (othersInSameDir.length > 0) {
-          console.log(`Skipping directory delete for ${audioDir} — ${othersInSameDir.length} other audiobook(s) still reference it`);
+          logger.info(`Skipping directory delete for ${audioDir} — ${othersInSameDir.length} other audiobook(s) still reference it`);
         } else if (fs.existsSync(audioDir)) {
           fs.rmSync(audioDir, { recursive: true, force: true });
-          console.log(`Deleted audiobook directory: ${audioDir}`);
+          logger.info(`Deleted audiobook directory: ${audioDir}`);
 
           // Remove empty parent directory (e.g., author folder)
           const parentDir = path.dirname(audioDir);
@@ -305,7 +306,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
             const parentContents = fs.readdirSync(parentDir);
             if (parentContents.length === 0) {
               fs.rmdirSync(parentDir);
-              console.log(`Removed empty parent directory: ${parentDir}`);
+              logger.info(`Removed empty parent directory: ${parentDir}`);
             }
           } catch (_parentErr) {
             // Parent not empty or can't remove - that's fine

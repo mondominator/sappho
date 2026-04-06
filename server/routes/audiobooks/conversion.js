@@ -2,6 +2,7 @@
  * Audiobook conversion route handlers
  * Handles M4B conversion jobs: start, status, list, cancel
  */
+const logger = require('../../utils/logger');
 const { jobStatusLimiter, jobCancelLimiter } = require('./helpers');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
 
@@ -31,7 +32,7 @@ function register(router, { db, authenticateToken, requireAdmin, conversionServi
       });
 
     } catch (error) {
-      console.error('Error starting conversion:', error);
+      logger.error('Error starting conversion:', error);
       res.status(500).json({ error: 'Failed to start conversion' });
     }
   });

@@ -4,6 +4,7 @@
  * Handles audio streaming, downloading, cover art serving,
  * and directory file management for audiobooks.
  */
+const logger = require('../../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -54,7 +55,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
 
       res.json(allFiles);
     } catch (error) {
-      console.error('Error reading directory:', error);
+      logger.error('Error reading directory:', error);
       res.status(500).json({ error: 'Failed to read directory' });
     }
   });
@@ -88,10 +89,10 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
       }
 
       fs.unlinkSync(targetPath);
-      console.log('Deleted audiobook file in directory:', audiobookDir);
+      logger.info('Deleted audiobook file in directory:', audiobookDir);
       res.json({ message: 'File deleted successfully' });
     } catch (error) {
-      console.error('Error deleting file:', error);
+      logger.error('Error deleting file:', error);
       res.status(500).json({ error: 'Failed to delete files' });
     }
   });
@@ -148,7 +149,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         const chunksize = (end - start) + 1;
         const file = fs.createReadStream(filePath, { start, end });
         file.on('error', (streamErr) => {
-          console.error('Stream read error:', streamErr.message);
+          logger.error('Stream read error:', streamErr.message);
           if (!res.headersSent) res.status(500).end();
           else res.end();
         });
@@ -167,7 +168,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         res.writeHead(200, head);
         const file = fs.createReadStream(filePath);
         file.on('error', (streamErr) => {
-          console.error('Stream read error:', streamErr.message);
+          logger.error('Stream read error:', streamErr.message);
           if (!res.headersSent) res.status(500).end();
           else res.end();
         });
@@ -253,7 +254,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         resolvedPath.startsWith(realAudiobooksDir + path.sep);
 
       if (!isInCoversDir && !isInAudiobooksDir) {
-        console.warn(`Cover path escapes allowed directories: ${coverPath} → ${resolvedPath}`);
+        logger.warn(`Cover path escapes allowed directories: ${coverPath} → ${resolvedPath}`);
         return res.status(403).json({ error: 'Invalid cover path' });
       }
 
@@ -277,7 +278,7 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
           res.setHeader('Content-Type', 'image/jpeg');
           return res.sendFile(path.resolve(thumbPath));
         } catch (thumbErr) {
-          console.error(`Thumbnail generation failed for audiobook ${audiobookId} at width ${requestedWidth}:`, thumbErr.message);
+          logger.error(`Thumbnail generation failed for audiobook ${audiobookId} at width ${requestedWidth}:`, thumbErr.message);
           // Fall through to serve the original cover on thumbnail failure
         }
       }

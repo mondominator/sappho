@@ -4,6 +4,7 @@
  * Embeds audiobook metadata into audio files using tone (M4B/M4A)
  * or ffmpeg (MP3, FLAC, OGG, etc.).
  */
+const logger = require('../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -105,9 +106,9 @@ async function embedWithTone(audiobook, chapters, coverFile) {
           mimetype: mimetype,
           data: base64Cover
         }];
-        console.log(`Including cover art from ${coverFile}`);
+        logger.info(`Including cover art from ${coverFile}`);
       } catch (coverErr) {
-        console.log(`Could not read cover art: ${coverErr.message}`);
+        logger.info(`Could not read cover art: ${coverErr.message}`);
       }
     }
 
@@ -134,8 +135,8 @@ async function embedWithTone(audiobook, chapters, coverFile) {
     // Write JSON file
     const jsonContent = JSON.stringify(toneMetadata, null, 2);
     fs.writeFileSync(metadataJsonFile, jsonContent, 'utf8');
-    console.log(`Created tone metadata JSON file with ${chapters.length} chapters`);
-    console.log(`Tone metadata JSON (without cover data): ${JSON.stringify({
+    logger.info(`Created tone metadata JSON file with ${chapters.length} chapters`);
+    logger.info(`Tone metadata JSON (without cover data): ${JSON.stringify({
       ...toneMetadata,
       meta: {
         ...toneMetadata.meta,
@@ -146,25 +147,25 @@ async function embedWithTone(audiobook, chapters, coverFile) {
     // Build tone command with JSON file
     const args = ['tag', audiobook.file_path, `--meta-tone-json-file=${metadataJsonFile}`];
 
-    console.log(`Embedding metadata with tone into ${audiobook.file_path}${chapters.length > 0 ? ` with ${chapters.length} chapters` : ''}`);
+    logger.info(`Embedding metadata with tone into ${audiobook.file_path}${chapters.length > 0 ? ` with ${chapters.length} chapters` : ''}`);
 
     // Run tone
     try {
       const result = await execFileAsync('tone', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 });
-      console.log('Tone output:', result.stdout);
+      logger.info('Tone output:', result.stdout);
 
       // Tone prints errors to stdout and exits with code 0, so we need to check the output
       if (result.stdout && result.stdout.includes('Could not')) {
-        console.error('Tone reported an error:', result.stdout);
+        logger.error('Tone reported an error:', result.stdout);
         throw new Error(`Tone failed: ${result.stdout}`);
       }
     } catch (toneError) {
-      console.error('Tone stderr:', toneError.stderr);
-      console.error('Tone stdout:', toneError.stdout);
+      logger.error('Tone stderr:', toneError.stderr);
+      logger.error('Tone stdout:', toneError.stdout);
       throw new Error(`Tone failed: ${toneError.stderr || toneError.stdout || toneError.message}`);
     }
 
-    console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
+    logger.info(`Successfully embedded metadata into ${audiobook.file_path}`);
     return {
       message: `Metadata embedded successfully with tone${chapters.length > 0 ? ` (${chapters.length} chapters)` : ''}`
     };
@@ -272,7 +273,7 @@ async function embedWithFfmpeg(audiobook, chapters, coverFile) {
         // FLAC uses METADATA_BLOCK_PICTURE for embedded cover art
         args.push('-disposition:v', 'attached_pic');
       }
-      console.log(`Including cover art from ${coverFile}`);
+      logger.info(`Including cover art from ${coverFile}`);
     } else {
       // No cover - just copy all streams
       args.push('-c', 'copy');
@@ -280,19 +281,19 @@ async function embedWithFfmpeg(audiobook, chapters, coverFile) {
 
     args.push('-y', tempPath);
 
-    console.log(`Embedding metadata with ffmpeg into ${audiobook.file_path}${hasCover ? ' (with cover)' : ''}`);
+    logger.info(`Embedding metadata with ffmpeg into ${audiobook.file_path}${hasCover ? ' (with cover)' : ''}`);
 
     try {
       await execFileAsync('ffmpeg', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 });
     } catch (ffmpegError) {
-      console.error('FFmpeg stderr:', ffmpegError.stderr);
+      logger.error('FFmpeg stderr:', ffmpegError.stderr);
       throw new Error(`FFmpeg failed: ${ffmpegError.stderr || ffmpegError.message}`);
     }
 
     // Replace original with temp file
     fs.renameSync(tempPath, audiobook.file_path);
 
-    console.log(`Successfully embedded metadata into ${audiobook.file_path}`);
+    logger.info(`Successfully embedded metadata into ${audiobook.file_path}`);
     return {
       message: `Metadata embedded successfully with ffmpeg${hasCover ? ' (with cover)' : ''}`
     };

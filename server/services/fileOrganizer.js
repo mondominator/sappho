@@ -5,6 +5,7 @@
  * - With series: {AUDIOBOOKS_DIR}/{Author}/{Series}/{Position} - {Title}/
  * - Without series: {AUDIOBOOKS_DIR}/{Author}/{Title}/
  */
+const logger = require('../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -138,7 +139,7 @@ function moveFile(source, destination) {
   try {
     // Try atomic rename first (fast, same filesystem)
     fs.renameSync(source, destination);
-    console.log(`Moved file (rename): ${path.basename(source)}`);
+    logger.info(`Moved file (rename): ${path.basename(source)}`);
     return true;
   } catch (_renameErr) {
     // Rename failed (likely cross-filesystem), use copy+delete
@@ -158,14 +159,14 @@ function moveFile(source, destination) {
         fs.unlinkSync(source);
       } catch (deleteErr) {
         // Source couldn't be deleted - remove the copy to avoid duplicates
-        console.error(`Failed to delete source ${source}: ${deleteErr.message}, removing copy`);
+        logger.error(`Failed to delete source ${source}: ${deleteErr.message}, removing copy`);
         fs.unlinkSync(destination);
         return false;
       }
-      console.log(`Moved file (copy+delete): ${path.basename(source)}`);
+      logger.info(`Moved file (copy+delete): ${path.basename(source)}`);
       return true;
     } catch (copyErr) {
-      console.error(`Failed to move file ${source}:`, copyErr.message);
+      logger.error(`Failed to move file ${source}:`, copyErr.message);
       // Clean up destination if it was created
       try { if (fs.existsSync(destination)) fs.unlinkSync(destination); } catch (_e) { /* ignore */ }
       return false;
@@ -188,7 +189,7 @@ function cleanupEmptyDirectories(dir) {
     const contents = fs.readdirSync(dir);
     if (contents.length === 0) {
       fs.rmdirSync(dir);
-      console.log(`Removed empty directory: ${dir}`);
+      logger.info(`Removed empty directory: ${dir}`);
       // Recursively check parent
       cleanupEmptyDirectories(path.dirname(dir));
     }
@@ -236,7 +237,7 @@ async function organizeAudiobook(audiobook) {
     // Skip if directory has an active conversion (don't move files ffmpeg is reading)
     const currentDir = path.dirname(audiobook.file_path);
     if (isDirectoryBeingConverted(currentDir)) {
-      console.log(`Skipping organization of "${audiobook.title}" - conversion in progress`);
+      logger.info(`Skipping organization of "${audiobook.title}" - conversion in progress`);
       return { moved: false };
     }
 
@@ -248,9 +249,9 @@ async function organizeAudiobook(audiobook) {
     const targetDir = getTargetDirectory(audiobook);
     const originalFilename = path.basename(audiobook.file_path);
 
-    console.log(`Organizing: "${audiobook.title}" by ${audiobook.author}`);
-    console.log(`  From: ${currentDir}`);
-    console.log(`  To: ${targetDir}`);
+    logger.info(`Organizing: "${audiobook.title}" by ${audiobook.author}`);
+    logger.info(`  From: ${currentDir}`);
+    logger.info(`  To: ${targetDir}`);
 
     // Create target directory
     if (!fs.existsSync(targetDir)) {
@@ -273,7 +274,7 @@ async function organizeAudiobook(audiobook) {
           moveFile(srcPath, destPath);
         }
       } catch (e) {
-        console.warn(`  Could not scan source directory for audio files: ${e.message}`);
+        logger.warn(`  Could not scan source directory for audio files: ${e.message}`);
       }
 
       // Also move the main file_path reference if it wasn't in the directory scan
@@ -291,7 +292,7 @@ async function organizeAudiobook(audiobook) {
 
       // If target already exists and isn't the source file, skip the move
       if (fs.existsSync(newFilePath) && path.normalize(newFilePath) !== path.normalize(audiobook.file_path)) {
-        console.log(`  Skipping move: target already exists at ${newFilePath}`);
+        logger.info(`  Skipping move: target already exists at ${newFilePath}`);
         return { moved: false };
       }
 
@@ -336,11 +337,11 @@ async function organizeAudiobook(audiobook) {
     // Broadcast update to connected clients
     websocketManager.broadcastLibraryUpdate('library.update', { id: audiobook.id, file_path: newFilePath });
 
-    console.log(`  Successfully organized to: ${newFilePath}`);
+    logger.info(`  Successfully organized to: ${newFilePath}`);
     return { moved: true, newPath: newFilePath };
 
   } catch (error) {
-    console.error(`Error organizing audiobook ${audiobook.id}:`, error.message);
+    logger.error(`Error organizing audiobook ${audiobook.id}:`, error.message);
     return { moved: false, error: error.message };
   }
 }
@@ -351,7 +352,7 @@ async function organizeAudiobook(audiobook) {
  * @returns {Promise<{moved: number, skipped: number, errors: number}>}
  */
 async function organizeLibrary() {
-  console.log('Starting library organization...');
+  logger.info('Starting library organization...');
 
   const stats = { moved: 0, skipped: 0, errors: 0 };
 
@@ -367,7 +368,7 @@ async function organizeLibrary() {
     );
   });
 
-  console.log(`Found ${audiobooks.length} audiobooks to check`);
+  logger.info(`Found ${audiobooks.length} audiobooks to check`);
 
   for (const audiobook of audiobooks) {
     const result = await organizeAudiobook(audiobook);
@@ -381,7 +382,7 @@ async function organizeLibrary() {
     }
   }
 
-  console.log('Library organization complete:', stats);
+  logger.info('Library organization complete:', stats);
   return stats;
 }
 

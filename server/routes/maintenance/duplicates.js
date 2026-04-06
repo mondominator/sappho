@@ -2,6 +2,7 @@
  * Duplicate Detection & Merge Routes
  * Find duplicate audiobooks and merge them.
  */
+const logger = require('../../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const { maintenanceLimiter, maintenanceWriteLimiter } = require('./helpers');
@@ -16,7 +17,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
   // Detect duplicate audiobooks
   router.get('/duplicates', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
-      console.log('Scanning for duplicate audiobooks...');
+      logger.info('Scanning for duplicate audiobooks...');
 
       // Build progress map
       const progressData = await dbAll(
@@ -242,14 +243,14 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         });
       }
 
-      console.log(`Found ${duplicateGroups.length} duplicate groups`);
+      logger.info(`Found ${duplicateGroups.length} duplicate groups`);
 
       res.json({
         duplicateGroups,
         totalDuplicates: duplicateGroups.reduce((sum, g) => sum + g.books.length - 1, 0),
       });
     } catch (error) {
-      console.error('Error detecting duplicates:', error);
+      logger.error('Error detecting duplicates:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -329,7 +330,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
 
       res.json({ flaggedGroups: groups, totalFlagged: groups.length });
     } catch (error) {
-      console.error('Error fetching flagged duplicates:', error);
+      logger.error('Error fetching flagged duplicates:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -347,10 +348,10 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         'UPDATE duplicate_flags SET status = \'dismissed\', resolved_at = datetime(\'now\') WHERE id = ?',
         [flagId]
       );
-      console.log(`Dismissed duplicate flag ${flagId}`);
+      logger.info(`Dismissed duplicate flag ${flagId}`);
       res.json({ success: true, flagId });
     } catch (error) {
-      console.error('Error dismissing duplicate:', error);
+      logger.error('Error dismissing duplicate:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -368,7 +369,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
     }
 
     try {
-      console.log(`Merging duplicates: keeping ${keepId}, deleting ${deleteIds.join(', ')}`);
+      logger.info(`Merging duplicates: keeping ${keepId}, deleting ${deleteIds.join(', ')}`);
 
       const keepBook = await getAudiobookById(keepId);
       if (!keepBook) {
@@ -435,15 +436,15 @@ function register(router, { db, authenticateToken, requireAdmin }) {
 
               if (audioFiles.length === 1) {
                 fs.rmSync(dir, { recursive: true, force: true });
-                console.log(`Deleted directory: ${dir}`);
+                logger.info(`Deleted directory: ${dir}`);
               } else {
                 fs.unlinkSync(deleteBook.file_path);
-                console.log(`Deleted file: ${deleteBook.file_path}`);
+                logger.info(`Deleted file: ${deleteBook.file_path}`);
               }
               filesDeleted++;
             }
           } catch (error) {
-            console.error(`Failed to delete file ${deleteBook.file_path}:`, error.message);
+            logger.error(`Failed to delete file ${deleteBook.file_path}:`, error.message);
           }
         }
       }
@@ -458,7 +459,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         [...allMergedIds, ...allMergedIds]
       );
 
-      console.log(`Merge complete: ${deleteBooks.length} duplicates removed, ${progressTransferred} progress records transferred`);
+      logger.info(`Merge complete: ${deleteBooks.length} duplicates removed, ${progressTransferred} progress records transferred`);
 
       res.json({
         success: true,
@@ -468,7 +469,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         filesDeleted,
       });
     } catch (error) {
-      console.error('Error merging duplicates:', error);
+      logger.error('Error merging duplicates:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

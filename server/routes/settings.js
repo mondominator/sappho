@@ -3,6 +3,7 @@
  *
  * API endpoints for server settings management (admin only)
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const path = require('path');
@@ -433,7 +434,7 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
         response: data.candidates?.[0]?.content?.parts?.[0]?.text
       });
     } catch (error) {
-      console.error('Gemini test error:', error);
+      logger.error('Gemini test error:', error);
       res.status(500).json({ error: 'Failed to connect to Gemini API' });
     } finally {
       clearTimeout(timeout);
@@ -480,7 +481,7 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
         response: data.choices[0]?.message?.content
       });
     } catch (error) {
-      console.error('OpenAI test error:', error);
+      logger.error('OpenAI test error:', error);
       res.status(500).json({ error: 'Failed to connect to OpenAI API' });
     } finally {
       clearTimeout(timeout);

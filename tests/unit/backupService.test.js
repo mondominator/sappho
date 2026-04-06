@@ -70,13 +70,9 @@ const {
 describe('Backup Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
   });
 
   afterEach(() => {
-    console.log.mockRestore();
-    console.error.mockRestore();
     stopScheduledBackups();
   });
 
@@ -803,7 +799,7 @@ describe('Backup Service', () => {
         return 16;
       });
 
-      jest.spyOn(console, 'warn').mockImplementation();
+      mockLogger.warn.mockClear();
 
       let entryCallback;
       let closeCallback;
@@ -828,7 +824,6 @@ describe('Backup Service', () => {
 
       const result = await resultPromise;
       expect(result.database).toBe(true);
-      console.warn.mockRestore();
     });
   });
 });

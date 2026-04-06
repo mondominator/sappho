@@ -2,6 +2,7 @@
  * Unit tests for Conversion Service
  * Tests conversion logic, job management, and status tracking
  */
+const logger = require('../../server/utils/logger');
 
 // Mock dependencies before requiring the module
 jest.mock('child_process', () => ({
@@ -47,9 +48,9 @@ describe('Conversion Service', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     // Suppress console output during tests
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-    jest.spyOn(console, 'warn').mockImplementation();
+    jest.spyOn(logger, 'info').mockImplementation();
+    jest.spyOn(logger, 'error').mockImplementation();
+    jest.spyOn(logger, 'warn').mockImplementation();
     // Clear internal state
     conversionService.jobs.clear();
     conversionService.activeConversions.clear();
@@ -62,9 +63,9 @@ describe('Conversion Service', () => {
 
   afterEach(() => {
     jest.useRealTimers();
-    console.log.mockRestore();
-    console.error.mockRestore();
-    console.warn.mockRestore();
+    logger.info.mockRestore();
+    logger.error.mockRestore();
+    logger.warn.mockRestore();
   });
 
   describe('getJobStatus', () => {
@@ -465,7 +466,7 @@ describe('Conversion Service', () => {
 
       // Should not throw
       expect(() => conversionService.cleanupJobFiles(job)).not.toThrow();
-      expect(console.error).toHaveBeenCalledWith(
+      expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to clean up'),
         expect.any(String)
       );
@@ -667,7 +668,7 @@ describe('Conversion Service', () => {
       const result = await conversionService.startConversion(audiobook, mockDb);
 
       expect(result.jobId).toBeDefined();
-      expect(console.log).toHaveBeenCalledWith(
+      expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('will check filesystem')
       );
     });
@@ -960,7 +961,7 @@ describe('Conversion Service', () => {
       closeCallback(0);
 
       await promise;
-      expect(console.log).toHaveBeenCalledWith('Conversion duration: 5400s');
+      expect(logger.info).toHaveBeenCalledWith('Conversion duration: 5400s');
     });
 
     test('parses progress from stdout', async () => {

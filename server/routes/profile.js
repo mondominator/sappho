@@ -51,9 +51,9 @@ const passwordChangeLimiter = rateLimit({
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, '../../data/avatars');
-    console.log('[Avatar] Upload directory:', uploadDir);
+    logger.info('[Avatar] Upload directory:', uploadDir);
     if (!fs.existsSync(uploadDir)) {
-      console.log('[Avatar] Creating directory:', uploadDir);
+      logger.info('[Avatar] Creating directory:', uploadDir);
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
@@ -63,7 +63,7 @@ const storage = multer.diskStorage({
     const mimeToExt = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp' };
     const ext = mimeToExt[file.mimetype] || '.jpg';
     const filename = `user-${req.user.id}${ext}`;
-    console.log('[Avatar] Saving file:', filename, 'original:', file.originalname, 'mimetype:', file.mimetype);
+    logger.info('[Avatar] Saving file:', filename, 'original:', file.originalname, 'mimetype:', file.mimetype);
     cb(null, filename);
   }
 });
@@ -280,7 +280,7 @@ function createProfileRouter(deps = {}) {
         avgSessionLength: avgRow?.avgPosition || 0
       });
     } catch (error) {
-      console.error('Error fetching user stats:', error);
+      logger.error('Error fetching user stats:', error);
       res.status(500).json({ error: 'Failed to fetch stats' });
     }
   });
@@ -289,15 +289,15 @@ function createProfileRouter(deps = {}) {
   router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
     upload.single('avatar')(req, res, async function (err) {
       if (err instanceof multer.MulterError) {
-        console.error('[Profile Update] Multer error:', err.message);
+        logger.error('[Profile Update] Multer error:', err.message);
         return res.status(400).json({ error: 'Upload failed' });
       } else if (err) {
-        console.error('[Profile Update] Upload error:', err.message);
+        logger.error('[Profile Update] Upload error:', err.message);
         return res.status(400).json({ error: 'Upload failed' });
       }
 
-      console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
-      console.log('[Profile Update] req.body:', req.body);
+      logger.info('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
+      logger.info('[Profile Update] req.body:', req.body);
 
       // SECURITY: Validate the uploaded file is actually an image by checking
       // the magic bytes. Multer's fileFilter only looks at the client-supplied
@@ -413,7 +413,7 @@ function createProfileRouter(deps = {}) {
 
       // SECURITY: Validate avatar filename pattern to prevent path traversal
       if (!/^user-\d+\.(jpg|jpeg|png|gif|webp)$/i.test(user.avatar)) {
-        console.warn(`⚠️ Invalid avatar filename pattern: ${user.avatar}`);
+        logger.warn(`⚠️ Invalid avatar filename pattern: ${user.avatar}`);
         return res.status(404).json({ error: 'Invalid avatar' });
       }
 
@@ -423,7 +423,7 @@ function createProfileRouter(deps = {}) {
 
       // SECURITY: Ensure resolved path is within avatars directory
       if (!resolvedPath.startsWith(avatarsDir + path.sep)) {
-        console.warn(`⚠️ Avatar path escapes avatars directory: ${user.avatar}`);
+        logger.warn(`⚠️ Avatar path escapes avatars directory: ${user.avatar}`);
         return res.status(403).json({ error: 'Invalid avatar path' });
       }
 

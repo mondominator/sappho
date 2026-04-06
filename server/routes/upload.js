@@ -3,6 +3,7 @@
  *
  * API endpoints for audiobook file uploads
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -11,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const { createDbHelpers } = require('../utils/db');
 const { sanitizeName } = require('../services/fileOrganizer');
+const { isChapterStyleTitle } = require('../utils/stringSimilarity');
 
 // SECURITY: Sanitize uploaded filename to prevent path traversal
 function sanitizeFilename(name) {
@@ -131,7 +133,7 @@ function createUploadRouter(deps = {}) {
       audiobook: audiobook,
     });
   } catch (error) {
-    console.error('Upload error:', error);
+    logger.error('Upload error:', error);
     // Clean up the uploaded file if processing failed
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
@@ -155,7 +157,7 @@ router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks
         const audiobook = await processAudiobook(file.path, userId);
         results.push({ success: true, filename: sanitizeFilename(file.originalname), audiobook });
       } catch (error) {
-        console.error('Error processing uploaded file:', error);
+        logger.error('Error processing uploaded file:', error);
         results.push({ success: false, filename: sanitizeFilename(file.originalname), error: 'Failed to process file' });
         // Clean up failed file
         if (fs.existsSync(file.path)) {
@@ -169,7 +171,7 @@ router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks
       results: results,
     });
   } catch (error) {
-    console.error('Batch upload error:', error);
+    logger.error('Batch upload error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -196,7 +198,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
       sanitizeFilename(a.originalname).localeCompare(sanitizeFilename(b.originalname), undefined, { numeric: true, sensitivity: 'base' })
     );
 
-    console.log(`Processing multi-file upload: ${sortedFiles.length} files`);
+    logger.info(`Processing multi-file upload: ${sortedFiles.length} files`);
 
     // Extract metadata from first file to get book info
     const firstFileMetadata = await extractFileMetadata(sortedFiles[0].path);
@@ -207,7 +209,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
     let seriesPosition = firstFileMetadata.series_position || null;
 
     // If title looks like a chapter/part name, try to get a better title
-    if (title && /^(chapter|part|track|disc|cd)[\s_-]*\d+/i.test(title)) {
+    if (isChapterStyleTitle(title)) {
       // Try to extract from the first file's original path
       const originalPath = sanitizeFilename(sortedFiles[0].originalname);
       const pathParts = originalPath.split('/');
@@ -292,7 +294,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
         fs.unlinkSync(file.path);
         movedFiles.push(newPath);
       } catch (moveError) {
-        console.error('Failed to move uploaded file:', moveError.message);
+        logger.error('Failed to move uploaded file:', moveError.message);
         // Clean up already moved files
         for (const movedFile of movedFiles) {
           if (fs.existsSync(movedFile)) fs.unlinkSync(movedFile);
@@ -324,7 +326,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
         fs.copyFileSync(coverPath, newCoverPath);
         coverPath = newCoverPath;
       } catch (e) {
-        console.log('Could not move cover:', e.message);
+        logger.info('Could not move cover:', e.message);
       }
     }
 
@@ -415,7 +417,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
       return await txGet('SELECT * FROM audiobooks WHERE id = ?', [audiobookId]);
     });
 
-    console.log(`Created multi-file audiobook: ${title} (${chapterMetadata.length} chapters)`);
+    logger.info(`Created multi-file audiobook: ${title} (${chapterMetadata.length} chapters)`);
 
     // Broadcast to connected clients
     websocketManager.broadcastLibraryUpdate('library.add', audiobook);
@@ -426,7 +428,7 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
     });
 
   } catch (error) {
-    console.error('Multi-file upload error:', error);
+    logger.error('Multi-file upload error:', error);
     // Clean up any uploaded temp files that haven't been moved yet
     if (req.files) {
       for (const file of req.files) {

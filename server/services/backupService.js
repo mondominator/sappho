@@ -461,16 +461,23 @@ async function restoreBackup(backupPath, options = {}) {
 }
 
 /**
- * Apply retention policy - delete old backups
+ * Apply retention policy - delete old backups.
+ *
+ * Returns a structured result with both `deleted` count and a per-file
+ * `errors` array so callers (and the audit log) can see exactly which
+ * backups failed to delete and why. Previously errors were swallowed
+ * with only a logger.error call, leaving the API response unable to
+ * surface partial failures.
  */
 function applyRetention(keepCount = DEFAULT_RETENTION) {
   const backups = listBackups();
 
   if (backups.length <= keepCount) {
-    return { deleted: 0 };
+    return { deleted: 0, errors: [], total: backups.length };
   }
 
   const toDelete = backups.slice(keepCount);
+  const errors = [];
   let deleted = 0;
 
   for (const backup of toDelete) {
@@ -479,11 +486,12 @@ function applyRetention(keepCount = DEFAULT_RETENTION) {
       deleted++;
     } catch (err) {
       logger.error({ err, filename: backup.filename }, 'Failed to delete old backup');
+      errors.push({ filename: backup.filename, error: err.message });
     }
   }
 
-  logger.info({ deleted }, 'Backup retention applied');
-  return { deleted };
+  logger.info({ deleted, failed: errors.length, kept: keepCount }, 'Backup retention applied');
+  return { deleted, errors, kept: keepCount, total: backups.length };
 }
 
 /**

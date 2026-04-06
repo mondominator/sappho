@@ -6,6 +6,7 @@
  * - Token verification
  * - Backup code generation and validation
  */
+const logger = require('../utils/logger');
 
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
@@ -44,7 +45,7 @@ function verifyToken(token, secret) {
   try {
     return authenticator.verify({ token, secret });
   } catch (error) {
-    console.error('TOTP verification error:', error);
+    logger.error('TOTP verification error:', error);
     return false;
   }
 }
@@ -90,7 +91,7 @@ async function verifyBackupCode(userId, code) {
   try {
     hashedCodes = JSON.parse(user.mfa_backup_codes);
   } catch (parseError) {
-    console.error('Error parsing backup codes:', parseError);
+    logger.error('Error parsing backup codes:', parseError);
     return false;
   }
 
@@ -115,7 +116,7 @@ async function verifyBackupCode(userId, code) {
       'UPDATE users SET mfa_backup_codes = ? WHERE id = ?',
       [JSON.stringify(hashedCodes), userId],
       (updateErr) => {
-        if (updateErr) console.error('Error updating backup codes:', updateErr);
+        if (updateErr) logger.error('Error updating backup codes:', updateErr);
         resolve();
       }
     );

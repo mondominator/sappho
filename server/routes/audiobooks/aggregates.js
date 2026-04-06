@@ -2,6 +2,7 @@
  * Aggregate/meta route handlers for audiobooks
  * Handles series, authors, genres, recent, in-progress, up-next, and finished queries
  */
+const logger = require('../../utils/logger');
 
 const { createDbHelpers } = require('../../utils/db');
 
@@ -309,7 +310,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       res.json(result);
     } catch (err) {
-      console.error('Error in up-next query:', err);
+      logger.error('Error in up-next query:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

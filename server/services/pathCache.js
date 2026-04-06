@@ -5,6 +5,7 @@
  * cleared after scan completes. Provides O(1) lookup for file existence
  * and directory-level dedup instead of per-file database queries.
  */
+const logger = require('../utils/logger');
 
 const path = require('path');
 const db = require('../database');
@@ -44,7 +45,7 @@ function loadPathCache() {
         }
       }
 
-      console.log(`Path cache loaded: ${knownFilePaths.size} files in ${knownDirectories.size} directories`);
+      logger.info(`Path cache loaded: ${knownFilePaths.size} files in ${knownDirectories.size} directories`);
       resolve();
     });
   });

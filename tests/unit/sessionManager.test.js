@@ -4,6 +4,7 @@
 
 // Create a fresh instance for testing (don't use the singleton)
 const SessionManager = require('../../server/services/sessionManager').constructor;
+const logger = require('../../server/utils/logger');
 
 describe('SessionManager', () => {
   let sessionManager;
@@ -481,7 +482,7 @@ describe('SessionManager', () => {
     });
 
     test('logs cleanup message for stale sessions', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const loggerSpy = jest.spyOn(logger, 'info').mockImplementation();
 
       sessionManager.updateSession({
         sessionId: 'logged-session',
@@ -495,11 +496,11 @@ describe('SessionManager', () => {
       jest.advanceTimersByTime(sessionManager.SESSION_TIMEOUT + 1000);
       sessionManager.cleanupStaleSessions();
 
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(loggerSpy).toHaveBeenCalledWith(
         expect.stringContaining('Cleaning up stale session: logged-session')
       );
 
-      consoleSpy.mockRestore();
+      loggerSpy.mockRestore();
     });
   });
 });

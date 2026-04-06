@@ -3,6 +3,7 @@
  *
  * API endpoints for user audiobook collections
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -267,7 +268,7 @@ function createCollectionsRouter(deps = {}) {
       await dbRun('DELETE FROM user_collections WHERE id = ?', [collection.id]);
       res.json({ success: true });
     } catch (err) {
-      console.error(`Failed to delete collection ${req.params.id}:`, err);
+      logger.error(`Failed to delete collection ${req.params.id}:`, err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

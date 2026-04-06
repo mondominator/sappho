@@ -46,4 +46,24 @@ function normalizeTitle(title) {
     .trim();
 }
 
-module.exports = { levenshteinSimilarity, normalizeTitle };
+/**
+ * Detect titles that look like a chapter/part marker rather than a real
+ * book title. Used by upload + consolidation flows to decide whether to
+ * fall back to a directory name as the canonical title.
+ *
+ * Matches:
+ *   - "Chapter 1", "chapter_2", "Chapter-3"
+ *   - "Part 4", "Part5"
+ *   - "Track 1", "Disc 1", "CD 2"
+ *   - Bare numeric or punctuated chapter labels ("01.", "Ch 1", "Pt. 2")
+ */
+function isChapterStyleTitle(title) {
+  if (!title) return false;
+  return /^(chapter|ch|part|pt|track|disc|cd)[\s._-]*\d+/i.test(title.trim());
+}
+
+module.exports = {
+  levenshteinSimilarity,
+  normalizeTitle,
+  isChapterStyleTitle,
+};

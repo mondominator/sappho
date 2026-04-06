@@ -4,6 +4,7 @@
  * Generates and caches resized cover image thumbnails using sharp.
  * Thumbnails are stored in a dedicated directory keyed by audiobook ID and width.
  */
+const logger = require('../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -119,7 +120,7 @@ function invalidateThumbnails(audiobookId) {
         fs.unlinkSync(thumbPath);
       }
     } catch (err) {
-      console.error(`Failed to remove thumbnail ${thumbPath}:`, err.message);
+      logger.error(`Failed to remove thumbnail ${thumbPath}:`, err.message);
     }
   }
 }
@@ -132,10 +133,10 @@ function clearAllThumbnails() {
   try {
     if (fs.existsSync(THUMBNAILS_DIR)) {
       fs.rmSync(THUMBNAILS_DIR, { recursive: true, force: true });
-      console.log('Cleared all cached thumbnails');
+      logger.info('Cleared all cached thumbnails');
     }
   } catch (err) {
-    console.error('Failed to clear thumbnails directory:', err.message);
+    logger.error('Failed to clear thumbnails directory:', err.message);
   }
 }
 

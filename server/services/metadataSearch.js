@@ -4,6 +4,7 @@
  * External API search functions for audiobook metadata:
  * Audible (via Audnexus), Google Books, and Open Library.
  */
+const logger = require('../utils/logger');
 
 /**
  * Search Audible and get details from Audnexus
@@ -31,7 +32,7 @@ async function searchAudible(title, author, asin, normalizeGenres) {
       if (author) queryParams.append('author', author);
 
       const searchUrl = `https://api.audible.com/1.0/catalog/products?${queryParams.toString()}`;
-      console.log(`[Audible Search] ${searchUrl}`);
+      logger.info(`[Audible Search] ${searchUrl}`);
 
       const searchController = new AbortController();
       const searchTimeout = setTimeout(() => searchController.abort(), 10000);
@@ -91,11 +92,11 @@ async function searchAudible(title, author, asin, normalizeGenres) {
           });
         }
       } catch (err) {
-        console.log(`[Audible] Failed to get details for ${bookAsin}:`, err.message);
+        logger.info(`[Audible] Failed to get details for ${bookAsin}:`, err.message);
       }
     }
   } catch (err) {
-    console.log('[Audible] Search error:', err.message);
+    logger.info('[Audible] Search error:', err.message);
   }
 
   return results;
@@ -113,7 +114,7 @@ async function searchGoogleBooks(title, author, normalizeGenres) {
     if (author) query += `${query ? '+' : ''}inauthor:${author}`;
 
     const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10`;
-    console.log(`[Google Books] ${searchUrl}`);
+    logger.info(`[Google Books] ${searchUrl}`);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -168,7 +169,7 @@ async function searchGoogleBooks(title, author, normalizeGenres) {
       }
     }
   } catch (err) {
-    console.log('[Google Books] Search error:', err.message);
+    logger.info('[Google Books] Search error:', err.message);
   }
 
   return results;
@@ -186,7 +187,7 @@ async function searchOpenLibrary(title, author, normalizeGenres) {
     if (author) queryParts.push(`author=${encodeURIComponent(author)}`);
 
     const searchUrl = `https://openlibrary.org/search.json?${queryParts.join('&')}&limit=10`;
-    console.log(`[Open Library] ${searchUrl}`);
+    logger.info(`[Open Library] ${searchUrl}`);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -236,7 +237,7 @@ async function searchOpenLibrary(title, author, normalizeGenres) {
       }
     }
   } catch (err) {
-    console.log('[Open Library] Search error:', err.message);
+    logger.info('[Open Library] Search error:', err.message);
   }
 
   return results;

@@ -1,8 +1,8 @@
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 const https = require('https');
 const http = require('http');
-const dns = require('dns').promises;
-const net = require('net');
+const { isPrivateIp, resolvePublicHost } = require('../utils/networkSecurity');
 
 // Constants for hardening the OIDC service against abuse
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
@@ -26,82 +26,6 @@ function validateHttpUrl(url) {
     throw new Error('Only HTTP(S) URLs are supported');
   }
   return parsed;
-}
-
-/**
- * Returns true if the given IP literal is RFC1918 private, loopback, link-local,
- * or any other address we don't want the server to fetch from (SSRF defense).
- */
-function isPrivateIp(ip) {
-  if (!ip) return true;
-  if (net.isIPv4(ip)) {
-    const parts = ip.split('.').map(Number);
-    // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8
-    if (parts[0] === 0 || parts[0] === 10 || parts[0] === 127) return true;
-    // 169.254.0.0/16 (link-local, incl. 169.254.169.254 cloud metadata)
-    if (parts[0] === 169 && parts[1] === 254) return true;
-    // 172.16.0.0/12
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-    // 192.168.0.0/16
-    if (parts[0] === 192 && parts[1] === 168) return true;
-    // 100.64.0.0/10 (CGNAT)
-    if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) return true;
-    return false;
-  }
-  if (net.isIPv6(ip)) {
-    const lower = ip.toLowerCase();
-    // loopback, unspecified, link-local, unique local, IPv4-mapped private
-    if (lower === '::1' || lower === '::') return true;
-    if (lower.startsWith('fe80:') || lower.startsWith('fc') || lower.startsWith('fd')) return true;
-    // IPv4-mapped (::ffff:x.x.x.x) — recurse on the mapped v4
-    if (lower.startsWith('::ffff:')) {
-      const v4 = lower.slice(7);
-      if (net.isIPv4(v4)) return isPrivateIp(v4);
-    }
-    return false;
-  }
-  return true; // not a valid IP → treat as unsafe
-}
-
-/**
- * Resolve a hostname to its public addresses, refusing hostnames that resolve
- * to any private/loopback/link-local address. This blocks SSRF via private IPs
- * and basic DNS rebinding where the hostname resolves to a public + private mix.
- *
- * Allows `localhost`/private targets when `allowPrivate === true` — used only
- * for tests and when the operator explicitly sets OIDC_ALLOW_PRIVATE_ISSUER=1.
- */
-async function resolvePublicHost(hostname, { allowPrivate = false } = {}) {
-  if (allowPrivate) {
-    // Still resolve so callers can use the returned addresses, but skip checks.
-    if (net.isIP(hostname)) return [hostname];
-    const addrs = await dns.lookup(hostname, { all: true, verbatim: true });
-    return addrs.map((a) => a.address);
-  }
-
-  // IP literal — validate directly
-  if (net.isIP(hostname)) {
-    if (isPrivateIp(hostname)) {
-      throw new Error(`Refusing to connect to private/loopback IP: ${hostname}`);
-    }
-    return [hostname];
-  }
-
-  let addrs;
-  try {
-    addrs = await dns.lookup(hostname, { all: true, verbatim: true });
-  } catch (err) {
-    throw new Error(`DNS lookup failed for ${hostname}: ${err.message}`);
-  }
-  if (!addrs || addrs.length === 0) {
-    throw new Error(`DNS lookup returned no addresses for ${hostname}`);
-  }
-  for (const { address } of addrs) {
-    if (isPrivateIp(address)) {
-      throw new Error(`Refusing to connect to ${hostname}: resolves to private IP ${address}`);
-    }
-  }
-  return addrs.map((a) => a.address);
 }
 
 class OidcService {
@@ -173,7 +97,7 @@ class OidcService {
     if (!discovery || !discovery.jwks_uri) {
       // Provider is non-compliant; fall back to decode-only + claim checks,
       // logged so operators can see why no crypto check happened.
-      console.warn('OIDC: provider discovery missing jwks_uri; verifying claims only');
+      logger.warn('OIDC: provider discovery missing jwks_uri; verifying claims only');
       const claims = this.decodeIdToken(idToken);
       this.validateIdTokenClaims(claims, { issuer, clientId, nonce });
       return claims;

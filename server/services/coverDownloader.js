@@ -6,72 +6,28 @@
 
 const fs = require('fs');
 const path = require('path');
-const dns = require('dns');
-const { isPrivateHostname } = require('../routes/audiobooks/helpers');
+const logger = require('../utils/logger');
+const {
+  isPrivateIp,
+  isPrivateHostname,
+  resolvePublicHost,
+} = require('../utils/networkSecurity');
 
 const MAX_REDIRECTS = 5;
 
 /**
- * Check if a resolved IP address is private/internal
+ * Resolve hostname and return the first safe IP to connect to. Delegates
+ * to the shared `resolvePublicHost` helper in utils/networkSecurity so
+ * coverDownloader, oidcService, etc. all share the exact same allowlist.
  */
-function isPrivateIP(ip) {
-  if (!ip) return true;
-
-  // IPv4 private ranges
-  if (ip === '127.0.0.1' || ip === '0.0.0.0') return true;
-  if (ip.startsWith('10.')) return true;
-  if (ip.startsWith('192.168.')) return true;
-  if (ip.startsWith('169.254.')) return true;
-
-  const match172 = ip.match(/^172\.(\d+)\./);
-  if (match172) {
-    const secondOctet = parseInt(match172[1], 10);
-    if (secondOctet >= 16 && secondOctet <= 31) return true;
-  }
-
-  // IPv6 private
-  if (ip === '::1') return true;
-  const lower = ip.toLowerCase();
-  if (/^f[cd][0-9a-f]{2}:/.test(lower)) return true;
-  if (/^fe[89ab][0-9a-f]:/.test(lower)) return true;
-
-  return false;
+async function resolveAndValidate(hostname) {
+  const addresses = await resolvePublicHost(hostname);
+  return addresses[0];
 }
 
-/**
- * Resolve hostname and validate every returned address is public.
- *
- * Returns the first safe IP to connect to. We pin the connection to this
- * exact IP to defeat DNS rebinding: the attacker can't swap in a private
- * address for the second lookup that Node's http client would otherwise
- * perform at request time.
- *
- * Using `all: true` is important — a naive one-shot lookup can miss the
- * case where the hostname has multiple A records, one public and one
- * private, and Node happens to pick the public one during validation
- * but the private one during the actual connection.
- */
-function resolveAndValidate(hostname) {
-  return new Promise((resolve, reject) => {
-    dns.lookup(hostname, { all: true, verbatim: true }, (err, addresses) => {
-      if (err) {
-        reject(new Error(`DNS resolution failed for ${hostname}: ${err.message}`));
-        return;
-      }
-      if (!addresses || addresses.length === 0) {
-        reject(new Error(`DNS resolution returned no addresses for ${hostname}`));
-        return;
-      }
-      for (const { address } of addresses) {
-        if (isPrivateIP(address)) {
-          reject(new Error(`Hostname ${hostname} resolves to private IP ${address}`));
-          return;
-        }
-      }
-      resolve(addresses[0].address);
-    });
-  });
-}
+// Backwards-compat alias — older callers/tests imported `isPrivateIP`
+// from this module, so re-export it here while we migrate.
+const isPrivateIP = isPrivateIp;
 
 /**
  * Download cover image from URL to local covers directory.
@@ -175,7 +131,7 @@ async function downloadCover(url, audiobookId, redirectCount = 0) {
         response.pipe(fileStream);
         fileStream.on('finish', () => {
           fileStream.close();
-          console.log(`Downloaded cover to: ${coverPath}`);
+          logger.info(`Downloaded cover to: ${coverPath}`);
           resolve(coverPath);
         });
         fileStream.on('error', (err) => {
@@ -191,7 +147,7 @@ async function downloadCover(url, audiobookId, redirectCount = 0) {
       });
     });
   } catch (error) {
-    console.error('Error downloading cover:', error);
+    logger.error('Error downloading cover:', error);
     return null;
   }
 }

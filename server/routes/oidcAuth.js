@@ -3,6 +3,7 @@
  *
  * Provides OpenID Connect SSO flow: config check, authorization redirect, and callback handling.
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -69,7 +70,7 @@ function createOidcAuthRouter(deps = {}) {
         provider_name: config.provider_name,
       });
     } catch (error) {
-      console.error('OIDC config check error:', error);
+      logger.error('OIDC config check error:', error);
       res.json({ enabled: false });
     }
   });
@@ -94,7 +95,7 @@ function createOidcAuthRouter(deps = {}) {
       try {
         clientSecret = decryptSecret(config.client_secret, JWT_SECRET);
       } catch (_err) {
-        console.error('Failed to decrypt OIDC client secret');
+        logger.error('Failed to decrypt OIDC client secret');
         return res.status(500).json({ error: 'OIDC configuration error' });
       }
 
@@ -103,7 +104,7 @@ function createOidcAuthRouter(deps = {}) {
       try {
         discovery = await oidcService.discover(config.issuer_url);
       } catch (err) {
-        console.error('OIDC discovery failed:', err.message);
+        logger.error('OIDC discovery failed:', err.message);
         return res.status(502).json({ error: 'Failed to contact identity provider' });
       }
 
@@ -145,7 +146,7 @@ function createOidcAuthRouter(deps = {}) {
 
       res.redirect(authUrl);
     } catch (error) {
-      console.error('OIDC authorize error:', error);
+      logger.error('OIDC authorize error:', error);
       res.status(500).json({ error: 'Failed to initiate OIDC login' });
     }
   });
@@ -165,7 +166,7 @@ function createOidcAuthRouter(deps = {}) {
 
       // Handle provider-side errors
       if (oidcError) {
-        console.error('OIDC provider error:', oidcError, req.query.error_description);
+        logger.error('OIDC provider error:', oidcError, req.query.error_description);
         return frontendRedirect({ error: 'oidc_provider_error' });
       }
 
@@ -186,7 +187,7 @@ function createOidcAuthRouter(deps = {}) {
       try {
         discovery = await oidcService.discover(issuerUrl);
       } catch (err) {
-        console.error('OIDC discovery failed in callback:', err.message);
+        logger.error('OIDC discovery failed in callback:', err.message);
         return frontendRedirect({ error: 'oidc_discovery_failed' });
       }
 
@@ -200,12 +201,12 @@ function createOidcAuthRouter(deps = {}) {
           redirectUri,
         });
       } catch (err) {
-        console.error('OIDC token exchange failed:', err.message);
+        logger.error('OIDC token exchange failed:', err.message);
         return frontendRedirect({ error: 'oidc_token_exchange_failed' });
       }
 
       if (!tokenResponse.id_token) {
-        console.error('OIDC token response missing id_token');
+        logger.error('OIDC token response missing id_token');
         return frontendRedirect({ error: 'oidc_no_id_token' });
       }
 
@@ -221,7 +222,7 @@ function createOidcAuthRouter(deps = {}) {
           discovery,
         });
       } catch (err) {
-        console.error('OIDC ID token verification failed:', err.message);
+        logger.error('OIDC ID token verification failed:', err.message);
         return frontendRedirect({ error: 'oidc_invalid_token' });
       }
 
@@ -291,7 +292,7 @@ function createOidcAuthRouter(deps = {}) {
 
       frontendRedirect({ token });
     } catch (error) {
-      console.error('OIDC callback error:', error);
+      logger.error('OIDC callback error:', error);
       frontendRedirect({ error: 'oidc_internal_error' });
     }
   });

@@ -1,6 +1,7 @@
 /**
  * Unit tests for MFA Service
  */
+const logger = require('../../server/utils/logger');
 
 // Mock database before requiring mfaService
 jest.mock('../../server/database', () => ({
@@ -106,14 +107,14 @@ describe('MFA Service', () => {
     });
 
     test('handles undefined secret by catching error', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation();
       const result = verifyToken('123456', undefined);
       expect(result).toBe(false);
       consoleSpy.mockRestore();
     });
 
     test('handles null token by catching error', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation();
       const result = verifyToken(null, 'JBSWY3DPEHPK3PXP');
       expect(result).toBe(false);
       consoleSpy.mockRestore();
@@ -250,7 +251,7 @@ describe('MFA Service', () => {
 
     test('logs error but still returns true when db.run fails to update used code', async () => {
       const { plainCodes, hashedCodes } = await generateBackupCodes(1);
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation();
 
       db.get.mockImplementation((query, params, callback) => {
         callback(null, { mfa_backup_codes: JSON.stringify(hashedCodes) });

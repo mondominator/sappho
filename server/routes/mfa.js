@@ -3,6 +3,7 @@
  *
  * API endpoints for multi-factor authentication management
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -64,7 +65,7 @@ function createMfaRouter(deps = {}) {
       const status = await mfaService.getMFAStatus(req.user.id);
       res.json(status);
     } catch (error) {
-      console.error('Error getting MFA status:', error);
+      logger.error('Error getting MFA status:', error);
       res.status(500).json({ error: 'Failed to get MFA status' });
     }
   });
@@ -94,7 +95,7 @@ function createMfaRouter(deps = {}) {
         message: 'Scan the QR code with your authenticator app, then verify with a code'
       });
     } catch (error) {
-      console.error('Error setting up MFA:', error);
+      logger.error('Error setting up MFA:', error);
       res.status(500).json({ error: 'Failed to setup MFA' });
     }
   });
@@ -130,7 +131,7 @@ function createMfaRouter(deps = {}) {
         warning: 'Save these backup codes securely. They will not be shown again!'
       });
     } catch (error) {
-      console.error('Error verifying MFA setup:', error);
+      logger.error('Error verifying MFA setup:', error);
       res.status(500).json({ error: 'Failed to enable MFA' });
     }
   });
@@ -179,7 +180,7 @@ function createMfaRouter(deps = {}) {
         message: 'MFA disabled successfully'
       });
     } catch (error) {
-      console.error('Error disabling MFA:', error);
+      logger.error('Error disabling MFA:', error);
       res.status(500).json({ error: 'Failed to disable MFA' });
     }
   });
@@ -216,7 +217,7 @@ function createMfaRouter(deps = {}) {
         warning: 'Save these backup codes securely. Old codes are now invalid!'
       });
     } catch (error) {
-      console.error('Error regenerating backup codes:', error);
+      logger.error('Error regenerating backup codes:', error);
       res.status(500).json({ error: 'Failed to regenerate backup codes' });
     }
   });

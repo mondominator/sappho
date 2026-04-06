@@ -4,6 +4,7 @@
  * Handles favorite toggling, AI-powered book recaps,
  * and batch operations (mark finished, clear progress, reading list, collections, delete).
  */
+const logger = require('../../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -32,7 +33,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       );
       res.json({ is_favorite: !!row });
     } catch (err) {
-      console.error('Error checking favorite status:', err);
+      logger.error('Error checking favorite status:', err);
       res.status(500).json({ error: 'Failed to check favorite status' });
     }
   });
@@ -61,7 +62,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       );
       res.json({ success: true, is_favorite: true });
     } catch (err) {
-      console.error('Error adding favorite:', err);
+      logger.error('Error adding favorite:', err);
       res.status(500).json({ error: 'Failed to add favorite' });
     }
   });
@@ -77,7 +78,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       );
       res.json({ success: true, is_favorite: false });
     } catch (err) {
-      console.error('Error removing favorite:', err);
+      logger.error('Error removing favorite:', err);
       res.status(500).json({ error: 'Failed to remove favorite' });
     }
   });
@@ -120,7 +121,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
         res.json({ success: true, is_favorite: true });
       }
     } catch (err) {
-      console.error('Error toggling favorite:', err);
+      logger.error('Error toggling favorite:', err);
       res.status(500).json({ error: 'Failed to toggle favorite' });
     }
   });
@@ -155,7 +156,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
       );
       res.json({ success: true, priority });
     } catch (err) {
-      console.error('Error updating favorite priority:', err);
+      logger.error('Error updating favorite priority:', err);
       res.status(500).json({ error: 'Failed to update priority' });
     }
   });
@@ -192,7 +193,7 @@ function register(router, { db, authenticateToken, requireAdmin }) {
 
       res.json({ success: true });
     } catch (err) {
-      console.error('Error reordering favorites:', err);
+      logger.error('Error reordering favorites:', err);
       res.status(500).json({ error: 'Failed to reorder reading list' });
     }
   });
@@ -327,7 +328,7 @@ The reader has started this book and wants to remember what it's about and any k
       });
 
     } catch (error) {
-      console.error('Error generating book recap:', error);
+      logger.error('Error generating book recap:', error);
       res.status(500).json({
         error: 'Failed to generate recap',
         message: error.message
@@ -347,7 +348,7 @@ The reader has started this book and wants to remember what it's about and any k
       );
       res.json({ message: 'Recap cache cleared' });
     } catch (error) {
-      console.error('Error clearing recap cache:', error);
+      logger.error('Error clearing recap cache:', error);
       res.status(500).json({ error: 'Failed to clear cache' });
     }
   });
@@ -389,7 +390,7 @@ The reader has started this book and wants to remember what it's about and any k
 
       res.json({ success: true, count: audiobook_ids.length });
     } catch (error) {
-      console.error('Error in batch mark finished:', error);
+      logger.error('Error in batch mark finished:', error);
       res.status(500).json({ error: 'Failed to mark audiobooks as finished' });
     }
   });
@@ -415,7 +416,7 @@ The reader has started this book and wants to remember what it's about and any k
       );
       res.json({ success: true, count: audiobook_ids.length });
     } catch (error) {
-      console.error('Error in batch clear progress:', error);
+      logger.error('Error in batch clear progress:', error);
       res.status(500).json({ error: 'Failed to clear progress' });
     }
   });
@@ -456,7 +457,7 @@ The reader has started this book and wants to remember what it's about and any k
 
       res.json({ success: true, count: successCount });
     } catch (error) {
-      console.error('Error in batch add to reading list:', error);
+      logger.error('Error in batch add to reading list:', error);
       res.status(500).json({ error: 'Failed to add to reading list' });
     }
   });
@@ -482,7 +483,7 @@ The reader has started this book and wants to remember what it's about and any k
       );
       res.json({ success: true, count: changes });
     } catch (error) {
-      console.error('Error in batch remove from reading list:', error);
+      logger.error('Error in batch remove from reading list:', error);
       res.status(500).json({ error: 'Failed to remove from reading list' });
     }
   });
@@ -535,7 +536,7 @@ The reader has started this book and wants to remember what it's about and any k
 
       res.json({ success: true, count: successCount });
     } catch (error) {
-      console.error('Error in batch add to collection:', error);
+      logger.error('Error in batch add to collection:', error);
       res.status(500).json({ error: 'Failed to add to collection' });
     }
   });
@@ -547,7 +548,7 @@ The reader has started this book and wants to remember what it's about and any k
     const delete_files = req.body.delete_files !== undefined ? req.body.delete_files : req.body.deleteFiles;
 
     if (!Array.isArray(audiobook_ids) || audiobook_ids.length === 0) {
-      console.error('Batch delete validation failed. req.body keys:', Object.keys(req.body), 'audiobook_ids type:', typeof audiobook_ids);
+      logger.error('Batch delete validation failed. req.body keys:', Object.keys(req.body), 'audiobook_ids type:', typeof audiobook_ids);
       return res.status(400).json({ error: 'audiobook_ids must be a non-empty array' });
     }
 
@@ -582,7 +583,7 @@ The reader has started this book and wants to remember what it's about and any k
               // Delete entire audiobook directory (contains audio file, cover, etc.)
               if (fs.existsSync(audioDir)) {
                 fs.rmSync(audioDir, { recursive: true, force: true });
-                console.log(`Deleted audiobook directory: ${audioDir}`);
+                logger.info(`Deleted audiobook directory: ${audioDir}`);
 
                 // Also try to remove empty parent directories (author folder if empty)
                 const parentDir = path.dirname(audioDir);
@@ -590,14 +591,14 @@ The reader has started this book and wants to remember what it's about and any k
                   const parentContents = fs.readdirSync(parentDir);
                   if (parentContents.length === 0) {
                     fs.rmdirSync(parentDir);
-                    console.log(`Removed empty parent directory: ${parentDir}`);
+                    logger.info(`Removed empty parent directory: ${parentDir}`);
                   }
                 } catch (_parentErr) {
                   // Parent not empty or can't remove - that's fine
                 }
               }
             } catch (fileErr) {
-              console.error('Failed to delete files for audiobook:', audiobookId, fileErr.message);
+              logger.error('Failed to delete files for audiobook:', audiobookId, fileErr.message);
             }
           }
 
@@ -609,7 +610,7 @@ The reader has started this book and wants to remember what it's about and any k
 
       res.json({ success: true, count: successCount, errors: errors.length > 0 ? errors : undefined });
     } catch (error) {
-      console.error('Error in batch delete:', error);
+      logger.error('Error in batch delete:', error);
       res.status(500).json({ error: 'Failed to delete audiobooks' });
     }
   });
