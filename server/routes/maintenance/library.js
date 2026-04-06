@@ -241,69 +241,6 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
     }
   });
 
-  // Run database migrations
-  router.post('/migrate', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      console.log('Running database migrations...');
-
-      // __dirname is server/routes/maintenance, so migrations is ../../migrations
-      const migrationsDir = path.join(__dirname, '../../migrations');
-
-      await dbRun(
-        `CREATE TABLE IF NOT EXISTS migrations (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          filename TEXT NOT NULL UNIQUE,
-          applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`
-      );
-
-      const appliedRows = await dbAll('SELECT filename FROM migrations');
-      const appliedMigrations = appliedRows.map(r => r.filename);
-
-      const files = fs.readdirSync(migrationsDir)
-        .filter(f => f.endsWith('.js'))
-        .sort();
-
-      const results = {
-        applied: [],
-        skipped: [],
-        errors: [],
-      };
-
-      for (const file of files) {
-        if (appliedMigrations.includes(file)) {
-          results.skipped.push(file);
-          continue;
-        }
-
-        try {
-          console.log(`Applying migration: ${file}`);
-          const migration = require(path.join(migrationsDir, file));
-
-          await migration.up(db);
-
-          await dbRun('INSERT INTO migrations (filename) VALUES (?)', [file]);
-
-          results.applied.push(file);
-          console.log(`Migration ${file} applied successfully`);
-        } catch (error) {
-          console.error(`Error applying migration ${file}:`, error);
-          results.errors.push({ file, error: error.message });
-          break;
-        }
-      }
-
-      console.log('Migration results:', results);
-      res.json({
-        success: results.errors.length === 0,
-        ...results,
-      });
-    } catch (error) {
-      console.error('Migration error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
-
   // Force rescan - re-extract metadata for all audiobooks while preserving IDs
   router.post('/force-rescan', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     if (getForceRescanInProgress()) {

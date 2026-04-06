@@ -259,31 +259,6 @@ describe('Maintenance Routes', () => {
     });
   });
 
-  describe('POST /api/maintenance/migrate', () => {
-    it('returns 401 without authentication', async () => {
-      const res = await request(app).post('/api/maintenance/migrate');
-      expect(res.status).toBe(401);
-    });
-
-    it('returns 403 for non-admin users', async () => {
-      const res = await request(app)
-        .post('/api/maintenance/migrate')
-        .set('Authorization', `Bearer ${userToken}`);
-
-      expect(res.status).toBe(403);
-    });
-
-    it('runs migrations for admin', async () => {
-      const res = await request(app)
-        .post('/api/maintenance/migrate')
-        .set('Authorization', `Bearer ${adminToken}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.applied).toBeDefined();
-    });
-  });
-
   describe('POST /api/maintenance/force-rescan', () => {
     it('returns 401 without authentication', async () => {
       const res = await request(app).post('/api/maintenance/force-rescan');
