@@ -101,10 +101,9 @@ podman-compose down
 
 3. **Database Layer** (`server/database.js`):
    - SQLite with async callback API (sqlite3 package, not better-sqlite3)
-   - Tables: `users`, `audiobooks`, `progress`, `api_keys`, `sessions`, `migrations`
-   - Migration system: `server/migrations/` directory with numbered .js files
-   - Migrations run automatically on startup (via `runMigrations()` in database.js)
-   - Manual trigger available via POST `/api/maintenance/migrate` endpoint
+   - Complete schema defined in `initializeDatabase()` — all CREATE TABLE / INDEX / TRIGGER statements use `IF NOT EXISTS` so it's safe to run on every startup
+   - Schema changes: add to `initializeDatabase()` directly. For additive columns, use the `addColumnIfMissing()` helper which ALTERs existing tables safely
+   - No migrations directory — schema was consolidated after the ghost cleanup of April 2026
 
 4. **Authentication** (`server/auth.js`):
    - JWT-based authentication with configurable secret (`JWT_SECRET` env var)
@@ -149,7 +148,7 @@ podman-compose down
    - `/api/users` - User management (admin only)
    - `/api/profile` - Current user profile and settings
    - `/api/settings` - Server settings
-   - `/api/maintenance` - Database migrations, cleanup tasks
+   - `/api/maintenance` - Library cleanup, force rescan, backup/restore
 
 ### Library Import Flow
 
@@ -233,14 +232,16 @@ const getUserById = (userId) => {
 };
 ```
 
-### Migrations
+### Schema Changes
 
-Located in `server/migrations/`:
-- Numbered files: `001_create_chapters.js`, `002_add_columns.js`, `003_clean_descriptions.js`
-- Run automatically on startup via `runMigrations()` in `database.js`
-- Manual trigger available via POST `/api/maintenance/migrate` endpoint
-- Tracks applied migrations in `migrations` table
-- Each migration exports `up(db)` and `down(db)` functions
+The complete schema lives in `server/database.js` → `initializeDatabase()`. All statements use `IF NOT EXISTS` so it's safe to run on every startup.
+
+**For schema changes:**
+1. Add a `CREATE TABLE IF NOT EXISTS` or `CREATE INDEX IF NOT EXISTS` statement to `initializeDatabase()`
+2. For adding a column to an existing table, use `addColumnIfMissing(table, column, definition)` — it safely ALTERs only if the column is missing
+3. For data backfills, write a one-off script, run it manually, then fold the schema change into `initializeDatabase()`
+
+Previous migration files (001-034) were consolidated in April 2026 after prod/dev were both confirmed on the latest schema.
 
 ### Authentication Middleware
 
