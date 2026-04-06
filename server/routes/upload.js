@@ -176,6 +176,12 @@ router.post('/batch', uploadLimiter, authenticateToken, upload.array('audiobooks
 
 // Upload multiple files as a single audiobook (multi-file book with chapters)
 router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiobooks', 500), async (req, res) => {
+  // Track everything we created on disk so we can roll it back if the DB
+  // transaction fails. Previously an orphaned file tree was left behind
+  // whenever the INSERT failed mid-flow.
+  const movedFiles = [];
+  let bookDir = null;
+  let createdBookDir = false;
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
@@ -259,17 +265,17 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
 
     // Create organized directory structure (use sanitizeName for consistency with file organizer)
     const authorDir = path.join(audiobooksDir, sanitizeName(author) || 'Unknown Author');
-    const bookDir = path.join(authorDir, sanitizeName(title) || 'Unknown Title');
+    bookDir = path.join(authorDir, sanitizeName(title) || 'Unknown Title');
 
     if (!fs.existsSync(bookDir)) {
       fs.mkdirSync(bookDir, { recursive: true });
+      createdBookDir = true;
     }
 
     // Move all files to the book directory and collect chapter info
     const chapterMetadata = [];
     let totalDuration = 0;
     let totalSize = 0;
-    const movedFiles = [];
 
     for (let i = 0; i < sortedFiles.length; i++) {
       const file = sortedFiles[i];
@@ -329,6 +335,30 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
       duration: totalDuration,
       fileSize: totalSize,
     }, movedFiles[0]);
+
+    // SECURITY/UX: reject duplicate uploads. Previously the same book could be
+    // uploaded an arbitrary number of times, producing duplicate rows and
+    // wasting disk. A matching content_hash means the library already has
+    // this book (identity is derived from title/author/duration/file size).
+    const { dbGet: preTxDbGet } = createDbHelpers(db);
+    const existingByHash = await preTxDbGet(
+      'SELECT id, title FROM audiobooks WHERE content_hash = ? LIMIT 1',
+      [contentHash]
+    );
+    if (existingByHash) {
+      // Roll back the files we just moved in — caller gets a clean 409.
+      for (const movedFile of movedFiles) {
+        try { if (fs.existsSync(movedFile)) fs.unlinkSync(movedFile); } catch (_e) { /* ignore */ }
+      }
+      if (createdBookDir && bookDir && fs.existsSync(bookDir)) {
+        try { fs.rmdirSync(bookDir); } catch (_e) { /* non-empty is fine */ }
+      }
+      movedFiles.length = 0; // prevent the catch handler from re-cleaning
+      return res.status(409).json({
+        error: 'Duplicate upload: this audiobook already exists in the library',
+        existing: existingByHash,
+      });
+    }
 
     // Save audiobook and chapters in a single transaction
     const { dbTransaction } = createDbHelpers(db);
@@ -397,13 +427,26 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
 
   } catch (error) {
     console.error('Multi-file upload error:', error);
-    // Clean up any uploaded files on error
+    // Clean up any uploaded temp files that haven't been moved yet
     if (req.files) {
       for (const file of req.files) {
         if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
+          try { fs.unlinkSync(file.path); } catch (_e) { /* ignore */ }
         }
       }
+    }
+    // Clean up files that were already moved into the library — otherwise
+    // a failed DB insert leaves orphan files on disk that the user can't
+    // see through the UI.
+    for (const movedFile of movedFiles) {
+      if (fs.existsSync(movedFile)) {
+        try { fs.unlinkSync(movedFile); } catch (_e) { /* ignore */ }
+      }
+    }
+    // If we created the book directory for this upload and it's now empty,
+    // remove it so failed uploads don't litter the library with empty dirs.
+    if (createdBookDir && bookDir && fs.existsSync(bookDir)) {
+      try { fs.rmdirSync(bookDir); } catch (_e) { /* non-empty is fine */ }
     }
     res.status(500).json({ error: 'Internal server error' });
   }

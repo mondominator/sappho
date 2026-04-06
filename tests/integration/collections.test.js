@@ -779,14 +779,17 @@ describe('Collections Routes', () => {
         expect(res.body.error).toBe('Collection not found');
       });
 
-      it('non-owner can add to public collection', async () => {
+      it('non-owner cannot add to public collection', async () => {
+        // Public collections are readable by everyone but writable only by
+        // the owner (or an admin). Previously any authenticated user could
+        // vandalise a public collection by adding junk entries.
         const res = await request(app)
           .post(`/api/collections/${publicCollection.id}/items`)
           .set('Authorization', `Bearer ${user2Token}`)
           .send({ audiobook_id: book1.id })
-          .expect(201);
+          .expect(404);
 
-        expect(res.body.success).toBe(true);
+        expect(res.body.error).toBe('Collection not found');
       });
     });
 
@@ -888,13 +891,13 @@ describe('Collections Routes', () => {
         expect(res.body.error).toBe('Collection not found');
       });
 
-      it('non-owner can remove from public collection', async () => {
+      it('non-owner cannot remove from public collection', async () => {
         const res = await request(app)
           .delete(`/api/collections/${publicCollection.id}/items/${book2.id}`)
           .set('Authorization', `Bearer ${user2Token}`)
-          .expect(200);
+          .expect(404);
 
-        expect(res.body.success).toBe(true);
+        expect(res.body.error).toBe('Collection not found');
       });
     });
 
@@ -987,8 +990,10 @@ describe('Collections Routes', () => {
         expect(res.body.error).toBe('Collection not found');
       });
 
-      it('non-owner can reorder public collection', async () => {
-        // Make collection public
+      it('non-owner cannot reorder public collection', async () => {
+        // Public = readable by everyone, not writable. Previously the
+        // reorder endpoint let any user shuffle another user's public
+        // list (#480).
         await new Promise((resolve, reject) => {
           db.run(
             'UPDATE user_collections SET is_public = 1 WHERE id = ?',
@@ -1001,9 +1006,9 @@ describe('Collections Routes', () => {
           .put(`/api/collections/${collection.id}/items/reorder`)
           .set('Authorization', `Bearer ${user2Token}`)
           .send({ order: [book3.id, book1.id, book2.id] })
-          .expect(200);
+          .expect(404);
 
-        expect(res.body.success).toBe(true);
+        expect(res.body.error).toBe('Collection not found');
       });
     });
 

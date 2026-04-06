@@ -155,27 +155,102 @@ function deleteBackup(filename) {
 }
 
 /**
- * Validate that a file has a valid SQLite header.
+ * Validate that a file has a valid SQLite header AND that the whole file opens
+ * cleanly with an integrity check. The header-only check used previously would
+ * happily accept a truncated file whose first 16 bytes are intact.
+ *
+ * The integrity check is best-effort: if sqlite3 can't be loaded (e.g. in a
+ * unit test where `fs` is mocked out and the bindings resolver can't find the
+ * native addon), we fall back to the header check alone and log a warning.
  */
-function validateSqliteFile(filePath) {
+async function validateSqliteFile(filePath) {
+  // Header check first — cheap way to reject obvious junk before opening sqlite
   const fd = fs.openSync(filePath, 'r');
   try {
     const header = Buffer.alloc(16);
     fs.readSync(fd, header, 0, 16, 0);
-    return header.toString('utf8', 0, 15) === 'SQLite format 3';
+    if (header.toString('utf8', 0, 15) !== 'SQLite format 3') {
+      return false;
+    }
   } finally {
     fs.closeSync(fd);
   }
+
+  // Full integrity check — opens the DB read-only and runs `PRAGMA integrity_check`.
+  // This catches truncated/corrupt files that still have a valid header.
+  let sqlite3;
+  try {
+    sqlite3 = require('sqlite3');
+  } catch (err) {
+    logger.warn({ err: err.message }, 'sqlite3 unavailable, skipping integrity check');
+    return true;
+  }
+
+  return new Promise((resolve) => {
+    const testDb = new sqlite3.Database(filePath, sqlite3.OPEN_READONLY, (err) => {
+      if (err) {
+        resolve(false);
+        return;
+      }
+      testDb.get('PRAGMA integrity_check', (pragmaErr, row) => {
+        testDb.close(() => {
+          if (pragmaErr) { resolve(false); return; }
+          resolve(row && row.integrity_check === 'ok');
+        });
+      });
+    });
+  });
+}
+
+/**
+ * Safe path join: refuses any path that escapes `baseDir` after resolution.
+ * Returns the absolute path or throws.
+ */
+function safeJoin(baseDir, relativePath) {
+  const normalized = path.normalize(relativePath).replace(/^(\.\.[/\\])+/, '');
+  const resolved = path.resolve(baseDir, normalized);
+  const baseResolved = path.resolve(baseDir);
+  if (resolved !== baseResolved && !resolved.startsWith(baseResolved + path.sep)) {
+    throw new Error(`Path traversal attempt: ${relativePath}`);
+  }
+  return resolved;
+}
+
+/**
+ * Drain a zip entry to a file, resolving only once the write stream fully
+ * flushes. Rejects on write-side errors.
+ *
+ * Listeners attach to the write stream rather than the entry because the
+ * test suite mocks entry as a plain object with just `.pipe`. Production
+ * entry streams bubble errors to the destination through the pipe chain.
+ */
+function streamEntryToFile(entry, destPath) {
+  return new Promise((resolve, reject) => {
+    entry.pipe(fs.createWriteStream(destPath))
+      .on('finish', resolve)
+      .on('error', reject);
+  });
 }
 
 /**
  * Extract zip entries to a temp directory, then apply the restore.
- * This separates extraction from file replacement to avoid race conditions.
+ *
+ * Key safety properties:
+ * - Each entry is fully written to disk *before* we advance to the next one.
+ *   The previous implementation fired an async handler per entry without
+ *   awaiting it, so the unzipper stream could emit 'close' before writes
+ *   completed. That race could leave a truncated temp DB that later passed
+ *   the (header-only) validator and got copied over the live database.
+ * - All paths are resolved via `safeJoin`, which blocks traversal even if
+ *   the zip contains an absolute or `..`-laden entry name.
+ * - Stream or per-entry errors reject the outer promise immediately; the
+ *   caller is responsible for removing the temp dir on failure.
  */
 async function extractBackupToTemp(backupPath, options) {
   const { restoreDatabase = true, restoreCovers = true } = options;
   const os = require('os');
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sappho-restore-'));
+  const tempCoversDir = path.join(tempDir, 'covers');
 
   const results = {
     database: false,
@@ -186,54 +261,81 @@ async function extractBackupToTemp(backupPath, options) {
     coverFiles: [],
   };
 
-  await new Promise((resolve, reject) => {
-    fs.createReadStream(backupPath)
-      .pipe(unzipper.Parse())
-      .on('entry', async (entry) => {
-        try {
-          const fileName = entry.path;
+  // Buffer entries and await each one serially. We can't await inside the
+  // 'entry' listener because unzipper fires them back-to-back; we push work
+  // into a queue and drain it via a chain of promises.
+  let chain = Promise.resolve();
 
+  await new Promise((resolve, reject) => {
+    // Chain off the pipe return value — keeps the same shape the tests mock
+    // (fs.createReadStream(...).pipe(unzipper.Parse()) → parser)
+    const parser = fs.createReadStream(backupPath).pipe(unzipper.Parse());
+    let streamError = null;
+
+    parser.on('entry', (entry) => {
+      const fileName = entry.path;
+
+      chain = chain.then(async () => {
+        if (streamError) { entry.autodrain(); return; }
+
+        try {
           if (fileName === 'manifest.json') {
             const content = await entry.buffer();
             results.manifest = JSON.parse(content.toString());
-          } else if ((fileName === 'sappho.db' || fileName === 'sapho.db') && restoreDatabase) {
-            const tempDbPath = path.join(tempDir, 'sappho.db');
-            await new Promise((res, rej) => {
-              entry.pipe(fs.createWriteStream(tempDbPath))
-                .on('finish', res)
-                .on('error', rej);
-            });
-            results.tempDbPath = tempDbPath;
-          } else if (fileName.startsWith('covers/') && restoreCovers) {
-            const coverName = fileName.replace('covers/', '');
-            if (coverName && !coverName.includes('..') && !coverName.startsWith('/') && !path.isAbsolute(coverName)) {
-              const tempCoverPath = path.join(tempDir, 'covers', coverName);
-              const tempCoverDir = path.dirname(tempCoverPath);
-              if (!fs.existsSync(tempCoverDir)) {
-                fs.mkdirSync(tempCoverDir, { recursive: true });
-              }
-              await new Promise((res, rej) => {
-                entry.pipe(fs.createWriteStream(tempCoverPath))
-                  .on('finish', res)
-                  .on('error', rej);
-              });
-              results.coverFiles.push(coverName);
-            } else {
-              if (coverName) {
-                logger.warn({ fileName }, 'Skipping invalid cover path');
-              }
-              entry.autodrain();
-            }
-          } else {
-            entry.autodrain();
+            return;
           }
-        } catch (err) {
+
+          if ((fileName === 'sappho.db' || fileName === 'sapho.db') && restoreDatabase) {
+            const tempDbPath = path.join(tempDir, 'sappho.db');
+            await streamEntryToFile(entry, tempDbPath);
+            results.tempDbPath = tempDbPath;
+            return;
+          }
+
+          if (fileName.startsWith('covers/') && restoreCovers) {
+            const coverName = fileName.slice('covers/'.length);
+            if (!coverName) { entry.autodrain(); return; }
+
+            let tempCoverPath;
+            try {
+              tempCoverPath = safeJoin(tempCoversDir, coverName);
+            } catch (err) {
+              logger.warn({ fileName, err: err.message }, 'Skipping cover with unsafe path');
+              entry.autodrain();
+              return;
+            }
+
+            fs.mkdirSync(path.dirname(tempCoverPath), { recursive: true });
+            await streamEntryToFile(entry, tempCoverPath);
+            results.coverFiles.push(coverName);
+            return;
+          }
+
           entry.autodrain();
-          reject(err);
+        } catch (err) {
+          streamError = err;
+          try { entry.autodrain(); } catch (_e) { /* already drained */ }
+          throw err;
         }
-      })
-      .on('close', resolve)
-      .on('error', reject);
+      }).catch((err) => {
+        if (!streamError) streamError = err;
+      });
+    });
+
+    parser.on('close', async () => {
+      try {
+        await chain;
+        if (streamError) reject(streamError);
+        else resolve();
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    parser.on('error', (err) => {
+      streamError = err;
+      reject(err);
+    });
   });
 
   return results;
@@ -268,9 +370,12 @@ async function restoreBackup(backupPath, options = {}) {
   try {
     // Phase 2: Restore database
     if (extracted.tempDbPath) {
-      // Validate the extracted database file
-      if (!validateSqliteFile(extracted.tempDbPath)) {
-        throw new Error('Invalid backup: extracted file is not a valid SQLite database');
+      // Validate the extracted database file — header AND integrity check.
+      // We do this BEFORE touching the live database so a corrupt backup
+      // fails fast without taking down the running server.
+      const valid = await validateSqliteFile(extracted.tempDbPath);
+      if (!valid) {
+        throw new Error('Invalid backup: extracted file failed SQLite integrity check');
       }
 
       // Backup current database
@@ -320,16 +425,17 @@ async function restoreBackup(backupPath, options = {}) {
       }
 
       for (const coverName of extracted.coverFiles) {
-        const srcPath = path.join(extracted.tempDir, 'covers', coverName);
-        const destPath = path.join(COVERS_DIR, coverName);
-
-        // SECURITY: Validate resolved path is within COVERS_DIR
-        const resolvedDest = path.resolve(destPath);
-        if (!resolvedDest.startsWith(path.resolve(COVERS_DIR) + path.sep)) {
-          logger.warn({ coverName }, 'Skipping suspicious cover path');
+        let srcPath;
+        let destPath;
+        try {
+          srcPath = safeJoin(path.join(extracted.tempDir, 'covers'), coverName);
+          destPath = safeJoin(COVERS_DIR, coverName);
+        } catch (err) {
+          logger.warn({ coverName, err: err.message }, 'Skipping cover with unsafe path');
           continue;
         }
 
+        fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.copyFileSync(srcPath, destPath);
         results.covers++;
       }

@@ -233,6 +233,14 @@ function createUsersRouter(deps = {}) {
     }
 
     if (password !== undefined && password !== '') {
+      // SECURITY: Enforce password complexity even on admin updates. The
+      // previous version would happily set a weak password if an admin
+      // supplied one, bypassing the validation applied on self-service
+      // password changes in the profile route.
+      const passwordErrors = validatePassword(password);
+      if (passwordErrors.length > 0) {
+        return res.status(400).json({ error: passwordErrors.join('. ') });
+      }
       updates.push('password_hash = ?');
       params.push(bcrypt.hashSync(password, 12));
     }

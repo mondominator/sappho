@@ -2,7 +2,10 @@ FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app/client
 COPY client/package*.json ./
-RUN npm install
+# npm ci — install exactly what package-lock.json specifies. `npm install`
+# can silently drift or update the lockfile at image-build time, defeating
+# reproducibility.
+RUN npm ci
 COPY client/ ./
 RUN npm run build
 
@@ -27,7 +30,7 @@ RUN apk add --no-cache ffmpeg
 COPY --from=tone /usr/local/bin/tone /usr/local/bin/tone
 
 COPY package*.json ./
-RUN npm install --only=production
+RUN npm ci --omit=dev
 
 COPY server/ ./server/
 COPY --from=frontend-builder /app/client/dist ./client/dist
@@ -38,9 +41,9 @@ RUN mkdir -p /app/data/uploads /app/data/watch /app/data/audiobooks /app/data/co
 RUN chown -R node:node /app /app/data
 USER node
 
-EXPOSE 3002
+EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "const http = require('http'); const port = process.env.PORT || 3002; http.get('http://localhost:' + port + '/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "const http = require('http'); const port = process.env.PORT || 3001; http.get('http://localhost:' + port + '/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "server/index.js"]

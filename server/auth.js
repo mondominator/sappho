@@ -45,16 +45,11 @@ const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-safety', BCRYPT_RO
  */
 async function isTokenBlacklisted(token) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  try {
-    const row = await dbGet(
-      'SELECT 1 FROM revoked_tokens WHERE token_hash = ? AND expires_at > ?',
-      [tokenHash, Date.now()]
-    );
-    return !!row;
-  } catch (_err) {
-    // If the table doesn't exist yet (pre-migration), fall through
-    return false;
-  }
+  const row = await dbGet(
+    'SELECT 1 FROM revoked_tokens WHERE token_hash = ? AND expires_at > ?',
+    [tokenHash, Date.now()]
+  );
+  return !!row;
 }
 
 /**
@@ -62,48 +57,35 @@ async function isTokenBlacklisted(token) {
  */
 async function blacklistToken(token, expiresAt) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  try {
-    // Decode to get user_id for audit trail
-    const decoded = jwt.decode(token);
-    const userId = decoded?.id || null;
-    await dbRun(
-      'INSERT OR IGNORE INTO revoked_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
-      [tokenHash, userId, expiresAt]
-    );
-  } catch (_err) {
-    // If the table doesn't exist yet (pre-migration), log and continue
-    logger.warn('Could not persist revoked token (migration pending?)');
-  }
+  // Decode to get user_id for audit trail
+  const decoded = jwt.decode(token);
+  const userId = decoded?.id || null;
+  await dbRun(
+    'INSERT OR IGNORE INTO revoked_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
+    [tokenHash, userId, expiresAt]
+  );
 }
 
 /**
  * Invalidate all tokens for a user (database-backed, survives restarts)
  */
 async function invalidateUserTokens(userId) {
-  try {
-    await dbRun(
-      'INSERT OR REPLACE INTO user_token_invalidations (user_id, invalidated_at) VALUES (?, ?)',
-      [userId, Date.now()]
-    );
-  } catch (_err) {
-    logger.warn('Could not persist user token invalidation (migration pending?)');
-  }
+  await dbRun(
+    'INSERT OR REPLACE INTO user_token_invalidations (user_id, invalidated_at) VALUES (?, ?)',
+    [userId, Date.now()]
+  );
 }
 
 /**
  * Check if a user's tokens have been invalidated after a given token issuance time
  */
 async function isUserTokenInvalidated(userId, tokenIat) {
-  try {
-    const row = await dbGet(
-      'SELECT invalidated_at FROM user_token_invalidations WHERE user_id = ?',
-      [userId]
-    );
-    if (row && tokenIat * 1000 < row.invalidated_at) {
-      return true;
-    }
-  } catch (_err) {
-    // Table may not exist yet; treat as not invalidated
+  const row = await dbGet(
+    'SELECT invalidated_at FROM user_token_invalidations WHERE user_id = ?',
+    [userId]
+  );
+  if (row && tokenIat * 1000 < row.invalidated_at) {
+    return true;
   }
   return false;
 }
@@ -189,6 +171,24 @@ function getFailedAttemptsInfo(username) {
   };
 }
 
+/**
+ * Paths that a user with `must_change_password=1` is allowed to hit without
+ * first completing the password change flow. Keep this list tight — anything
+ * not here will receive a 403 until the password is updated.
+ */
+function isPasswordChangeExempt(req) {
+  // `req.path` inside a router is relative to the router mount. We check
+  // `originalUrl` so this works regardless of where authenticateToken runs.
+  const url = req.originalUrl || req.url || '';
+  // Strip query string for comparison
+  const path = url.split('?')[0];
+  if (path === '/api/health') return true;
+  if (req.method === 'POST' && path === '/api/auth/logout') return true;
+  if (req.method === 'PUT' && path === '/api/profile/password') return true;
+  if (req.method === 'GET' && (path === '/api/profile' || path === '/api/profile/')) return true;
+  return false;
+}
+
 // Middleware to verify JWT token or API key
 function authenticateToken(req, res, next) {
   // SECURITY: Only accept token from Authorization header, not query string
@@ -266,6 +266,21 @@ async function verifyToken(token, req, res, next) {
       auth_method: user.auth_method || 'local'
     };
     req.token = token;
+
+    // SECURITY: Block authenticated routes if user must change their password.
+    // We enforce this here (inside verifyToken) rather than at the /api/* level
+    // because the previous middleware ran BEFORE authenticateToken, so req.user
+    // was always undefined and the check was a no-op.
+    //
+    // Exempt paths: the password-change flow itself, logout, and the profile
+    // lookup that tells the client who they are.
+    if (req.user.must_change_password && !isPasswordChangeExempt(req)) {
+      return res.status(403).json({
+        error: 'Password change required',
+        must_change_password: true,
+      });
+    }
+
     next();
   } catch (_err) {
     return res.status(500).json({ error: 'Database error' });
@@ -467,22 +482,10 @@ async function createDefaultAdmin() {
   }
 }
 
-// SECURITY: Block access for users who must change their password
-function requirePasswordChanged(req, res, next) {
-  if (req.user && req.user.must_change_password) {
-    return res.status(403).json({
-      error: 'Password change required',
-      must_change_password: true
-    });
-  }
-  next();
-}
-
 module.exports = {
   authenticateToken,
   authenticateMediaToken,
   requireAdmin,
-  requirePasswordChanged,
   register,
   login,
   logout,

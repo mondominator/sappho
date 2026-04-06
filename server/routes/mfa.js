@@ -118,7 +118,7 @@ function createMfaRouter(deps = {}) {
       }
 
       // Generate backup codes
-      const { plainCodes, hashedCodes } = mfaService.generateBackupCodes();
+      const { plainCodes, hashedCodes } = await mfaService.generateBackupCodes();
 
       // Enable MFA
       await mfaService.enableMFA(req.user.id, secret, hashedCodes);

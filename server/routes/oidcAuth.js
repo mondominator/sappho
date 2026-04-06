@@ -111,10 +111,14 @@ function createOidcAuthRouter(deps = {}) {
       const state = oidcService.generateState();
       const nonce = oidcService.generateNonce();
 
-      // Build the redirect URI from the current request
-      const protocol = req.protocol;
-      const host = req.get('host');
-      const redirectUri = `${protocol}://${host}/api/auth/oidc/callback`;
+      // Build the redirect URI from the trusted BASE_URL env var — NEVER
+      // from req.headers.host, which an attacker can spoof to get the IdP
+      // to redirect back to a host they control with a real auth code.
+      // Falls back to the request host only when BASE_URL is unset (local dev).
+      const baseUrl = process.env.BASE_URL
+        ? process.env.BASE_URL.replace(/\/$/, '')
+        : `${req.protocol}://${req.get('host')}`;
+      const redirectUri = `${baseUrl}/api/auth/oidc/callback`;
 
       // Store state for validation in callback
       oidcService.storeState(state, {
@@ -205,17 +209,19 @@ function createOidcAuthRouter(deps = {}) {
         return frontendRedirect({ error: 'oidc_no_id_token' });
       }
 
-      // Decode and validate the ID token
+      // Verify the ID token's signature against the provider's JWKS and
+      // validate its claims (iss/aud/exp/nonce). decodeIdToken alone does
+      // not check the signature and is vulnerable to forged tokens.
       let claims;
       try {
-        claims = oidcService.decodeIdToken(tokenResponse.id_token);
-        oidcService.validateIdTokenClaims(claims, {
+        claims = await oidcService.verifyIdToken(tokenResponse.id_token, {
           issuer: issuerUrl,
           clientId,
           nonce,
+          discovery,
         });
       } catch (err) {
-        console.error('OIDC ID token validation failed:', err.message);
+        console.error('OIDC ID token verification failed:', err.message);
         return frontendRedirect({ error: 'oidc_invalid_token' });
       }
 
@@ -265,7 +271,7 @@ function createOidcAuthRouter(deps = {}) {
         const isAdmin = defaultAdmin ? 1 : 0;
 
         const result = await dbRun(
-          `INSERT INTO users (username, password, email, display_name, is_admin, auth_method)
+          `INSERT INTO users (username, password_hash, email, display_name, is_admin, auth_method)
            VALUES (?, ?, ?, ?, ?, 'oidc')`,
           [userInfo.username, passwordHash, userInfo.email, userInfo.name, isAdmin]
         );

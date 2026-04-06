@@ -32,31 +32,61 @@ class ConversionService {
   }
 
   /**
-   * Acquire a concurrency slot. Resolves immediately if a slot is available,
-   * otherwise queues the request until a slot opens up.
+   * Acquire a concurrency slot for a specific job. Resolves immediately if a
+   * slot is available, otherwise queues the request. The job reference is
+   * stored alongside the resolver so cancelling a queued job can remove its
+   * entry from the queue directly instead of waiting for a slot to drain.
+   *
+   * Passing `job` is optional for callers that don't care about cancellation
+   * (tests, one-off scripts) — those will behave like the original API.
    */
-  acquireSlot() {
+  acquireSlot(job = null) {
     return new Promise(resolve => {
       if (this.runningConversions < this.MAX_CONCURRENT) {
         this.runningConversions++;
         resolve();
       } else {
-        this.conversionQueue.push(resolve);
+        this.conversionQueue.push({ job, resolve });
       }
     });
   }
 
   /**
-   * Release a concurrency slot. If there are queued conversions waiting,
-   * the next one is started immediately.
+   * Release a concurrency slot. If there are queued conversions waiting, the
+   * next non-cancelled one is started. Cancelled entries are skipped without
+   * consuming the released slot, so cancelling queued jobs never blocks
+   * subsequent work.
    */
   releaseSlot() {
     this.runningConversions--;
-    if (this.conversionQueue.length > 0) {
+    while (this.conversionQueue.length > 0) {
+      const entry = this.conversionQueue.shift();
+      // Skip entries whose job was cancelled while queued — they would
+      // otherwise bump runningConversions and then immediately release it,
+      // creating pointless churn.
+      if (entry.job && entry.job.status === 'cancelled') {
+        continue;
+      }
       this.runningConversions++;
-      const next = this.conversionQueue.shift();
-      next();
+      entry.resolve();
+      return;
     }
+  }
+
+  /**
+   * Remove all cancelled entries from the front of the queue. Used by
+   * cancelJob() so we don't leave stale resolvers hanging around.
+   */
+  _pruneQueue() {
+    this.conversionQueue = this.conversionQueue.filter(entry => {
+      if (entry.job && entry.job.status === 'cancelled') {
+        // Resolve the pending promise so the awaiter doesn't leak;
+        // runConversionWithLimit re-checks job.status and exits cleanly.
+        entry.resolve();
+        return false;
+      }
+      return true;
+    });
   }
 
   /**
@@ -215,11 +245,16 @@ class ConversionService {
       console.log(`Conversion queued for "${audiobook.title}" (${this.runningConversions}/${this.MAX_CONCURRENT} active, ${this.conversionQueue.length + 1} waiting)`);
     }
 
-    await this.acquireSlot();
+    await this.acquireSlot(job);
 
-    // Check if job was cancelled while waiting in queue
+    // Check if job was cancelled while waiting in queue. If cancelJob ran
+    // _pruneQueue, this branch never consumed a slot; if the cancel happened
+    // between dequeuing and this check, releaseSlot gives the slot back.
     if (job.status === 'cancelled') {
-      this.releaseSlot();
+      // Only decrement if we actually got a slot (skipped entries never ++'d)
+      if (this.runningConversions > 0) {
+        this.releaseSlot();
+      }
       return;
     }
 
@@ -817,8 +852,10 @@ class ConversionService {
     this.cleanupJobFiles(job);
     this.activeConversions.delete(job.dir);
 
-    // Note: if the job was queued, the acquireSlot promise will resolve eventually
-    // and runConversionWithLimit checks for cancellation before proceeding.
+    // If the job was still sitting in the queue, pull it out now so the
+    // queue doesn't hand it a slot later. runConversionWithLimit also
+    // re-checks `job.status` as a belt-and-braces guard.
+    this._pruneQueue();
 
     return { success: true };
   }

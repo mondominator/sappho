@@ -979,16 +979,32 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
   const contentHash = generateBestHash({ ...metadata, fileSize }, filePath);
 
   // Check for existing entry with the same file_path to prevent duplicates
-  const existing = await new Promise((resolve, reject) => {
+  const existingByPath = await new Promise((resolve, reject) => {
     db.get('SELECT * FROM audiobooks WHERE file_path = ?', [filePath], (err, row) => {
       if (err) reject(err);
       else resolve(row);
     });
   });
 
-  if (existing) {
-    console.log(`Duplicate prevented: audiobook already exists at file_path "${filePath}" (id=${existing.id})`);
-    return existing;
+  if (existingByPath) {
+    console.log(`Duplicate prevented: audiobook already exists at file_path "${filePath}" (id=${existingByPath.id})`);
+    return existingByPath;
+  }
+
+  // Also dedupe by content_hash — the same book uploaded under a different
+  // filename still matches (title+author+duration+size). Without this check
+  // a user could upload the same audiobook repeatedly and fill the library
+  // with duplicates.
+  const existingByHash = await new Promise((resolve, reject) => {
+    db.get('SELECT * FROM audiobooks WHERE content_hash = ?', [contentHash], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+
+  if (existingByHash) {
+    console.log(`Duplicate prevented: audiobook with content_hash already exists (id=${existingByHash.id})`);
+    return existingByHash;
   }
 
   return new Promise((resolve, reject) => {

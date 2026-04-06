@@ -50,8 +50,13 @@ function createCollectionsRouter(deps = {}) {
     legacyHeaders: false,
   });
 
-  // Helper to check if user can edit collection (owner OR public collection)
-  const canEditCollection = async (collectionId, userId) => {
+  // Helper to check if user can edit a collection.
+  //
+  // The previous implementation allowed ANY authenticated user to edit any
+  // `is_public` collection — public collections are meant to be *readable*
+  // by everyone, not writable. The fix is: only the owner or an admin may
+  // modify a collection. Public visibility controls read access only.
+  const canEditCollection = async (collectionId, user) => {
     const collection = await dbGet(
       'SELECT id, user_id, is_public, name FROM user_collections WHERE id = ?',
       [collectionId]
@@ -59,8 +64,9 @@ function createCollectionsRouter(deps = {}) {
     if (!collection) {
       return { allowed: false, reason: 'Collection not found' };
     }
-    const allowed = collection.user_id === userId || collection.is_public === 1;
-    return { allowed, collection };
+    const isOwner = collection.user_id === user.id;
+    const isAdmin = user.is_admin === 1;
+    return { allowed: isOwner || isAdmin, collection };
   };
 
   /**
@@ -268,7 +274,7 @@ function createCollectionsRouter(deps = {}) {
 
   /**
    * POST /api/collections/:id/items
-   * Add a book to a collection (owner or anyone for public collections)
+   * Add a book to a collection (owner or admin only)
    */
   router.post('/:id/items', collectionWriteLimiter, authenticateToken, async (req, res) => {
     const collectionId = req.params.id;
@@ -279,7 +285,7 @@ function createCollectionsRouter(deps = {}) {
     }
 
     try {
-      const result = await canEditCollection(collectionId, req.user.id);
+      const result = await canEditCollection(collectionId, req.user);
       if (!result.allowed) {
         return res.status(404).json({ error: result.reason || 'Collection not found' });
       }
@@ -318,13 +324,13 @@ function createCollectionsRouter(deps = {}) {
 
   /**
    * DELETE /api/collections/:id/items/:bookId
-   * Remove a book from a collection (owner or anyone for public collections)
+   * Remove a book from a collection (owner or admin only)
    */
   router.delete('/:id/items/:bookId', collectionWriteLimiter, authenticateToken, async (req, res) => {
     const { id: collectionId, bookId } = req.params;
 
     try {
-      const result = await canEditCollection(collectionId, req.user.id);
+      const result = await canEditCollection(collectionId, req.user);
       if (!result.allowed) {
         return res.status(404).json({ error: result.reason || 'Collection not found' });
       }
@@ -348,7 +354,7 @@ function createCollectionsRouter(deps = {}) {
 
   /**
    * PUT /api/collections/:id/items/reorder
-   * Reorder books in a collection (owner or anyone for public collections)
+   * Reorder books in a collection (owner or admin only)
    */
   router.put('/:id/items/reorder', collectionWriteLimiter, authenticateToken, async (req, res) => {
     const collectionId = req.params.id;
@@ -359,7 +365,7 @@ function createCollectionsRouter(deps = {}) {
     }
 
     try {
-      const result = await canEditCollection(collectionId, req.user.id);
+      const result = await canEditCollection(collectionId, req.user);
       if (!result.allowed) {
         return res.status(404).json({ error: result.reason || 'Collection not found' });
       }

@@ -43,8 +43,19 @@ export default function AuthorDetail({ onPlay }) {
     return Array.from(seriesMap.entries()).map(([series, count]) => ({ series, count }));
   };
 
+  // The server returns `progress` as an object `{ position, completed, ... }`
+  // or null — never a number. Compute the percentage here so this component
+  // can reuse the same logic for both the "completed" count and the per-card
+  // progress bar below.
+  const progressPercent = (book) => {
+    if (!book.progress || !book.duration || book.duration <= 0) return 0;
+    if (book.progress.completed) return 100;
+    const pct = (book.progress.position / book.duration) * 100;
+    return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
+  };
+
   const getCompletedCount = () => {
-    return audiobooks.filter(book => book.progress >= 98).length;
+    return audiobooks.filter(book => progressPercent(book) >= 98).length;
   };
 
   const handlePlayBook = async (e, book) => {
@@ -197,14 +208,17 @@ export default function AuthorDetail({ onPlay }) {
                   )}
 
                   {/* Progress bar */}
-                  {book.progress > 0 && (
-                    <div className="book-progress-bar">
-                      <div
-                        className={`book-progress-fill ${book.progress >= 98 ? 'complete' : ''}`}
-                        style={{ width: `${Math.min(book.progress, 100)}%` }}
-                      ></div>
-                    </div>
-                  )}
+                  {(() => {
+                    const pct = progressPercent(book);
+                    return pct > 0 && (
+                      <div className="book-progress-bar">
+                        <div
+                          className={`book-progress-fill ${pct >= 98 ? 'complete' : ''}`}
+                          style={{ width: `${pct}%` }}
+                        ></div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
               </div>

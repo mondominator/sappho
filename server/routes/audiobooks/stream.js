@@ -224,19 +224,36 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
         return res.status(404).json({ error: 'Cover image not found' });
       }
 
-      // SECURITY: Validate that cover path is within allowed directories
+      // SECURITY: Validate that cover path is within allowed directories.
+      // `path.resolve` collapses `..` but does not follow symlinks. A
+      // symlink inside the covers dir pointing at `/etc/passwd` would have
+      // passed the old string-prefix check. `fs.realpathSync` resolves
+      // symlinks so the comparison is against the actual file location.
       const dataDir = path.resolve(process.env.DATA_DIR || path.join(__dirname, '../../../data'));
       const audiobooksDir = path.resolve(process.env.AUDIOBOOKS_DIR || path.join(dataDir, 'audiobooks'));
       const coversDir = path.resolve(path.join(dataDir, 'covers'));
 
-      const resolvedPath = path.resolve(coverPath);
+      let resolvedPath;
+      try {
+        resolvedPath = fs.realpathSync(coverPath);
+      } catch (_err) {
+        return res.status(404).json({ error: 'Cover image not found' });
+      }
 
-      // Cover must be within covers directory OR audiobooks directory
-      const isInCoversDir = resolvedPath.startsWith(coversDir + path.sep);
-      const isInAudiobooksDir = resolvedPath.startsWith(audiobooksDir + path.sep);
+      // Also resolve symlinks on the allowlist directories so comparison is
+      // consistent when DATA_DIR itself is a symlink.
+      let realCoversDir = coversDir;
+      let realAudiobooksDir = audiobooksDir;
+      try { realCoversDir = fs.realpathSync(coversDir); } catch (_e) { /* dir may not exist yet */ }
+      try { realAudiobooksDir = fs.realpathSync(audiobooksDir); } catch (_e) { /* dir may not exist yet */ }
+
+      const isInCoversDir = resolvedPath === realCoversDir ||
+        resolvedPath.startsWith(realCoversDir + path.sep);
+      const isInAudiobooksDir = resolvedPath === realAudiobooksDir ||
+        resolvedPath.startsWith(realAudiobooksDir + path.sep);
 
       if (!isInCoversDir && !isInAudiobooksDir) {
-        console.warn(`Cover path escapes allowed directories: ${coverPath}`);
+        console.warn(`Cover path escapes allowed directories: ${coverPath} → ${resolvedPath}`);
         return res.status(403).json({ error: 'Invalid cover path' });
       }
 

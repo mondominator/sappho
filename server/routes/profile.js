@@ -299,6 +299,39 @@ function createProfileRouter(deps = {}) {
       console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
       console.log('[Profile Update] req.body:', req.body);
 
+      // SECURITY: Validate the uploaded file is actually an image by checking
+      // the magic bytes. Multer's fileFilter only looks at the client-supplied
+      // Content-Type, which the attacker fully controls. If the body isn't a
+      // real image we delete the file and bail out — otherwise the attacker
+      // could ship HTML/JS to the browser via our <img> endpoint.
+      if (req.file) {
+        let isImage = false;
+        try {
+          const fd = fs.openSync(req.file.path, 'r');
+          try {
+            const buf = Buffer.alloc(16);
+            fs.readSync(fd, buf, 0, 16, 0);
+            // JPEG: FF D8 FF
+            if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) isImage = true;
+            // PNG: 89 50 4E 47 0D 0A 1A 0A
+            else if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) isImage = true;
+            // GIF: 47 49 46 38 (GIF8)
+            else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) isImage = true;
+            // WebP: 52 49 46 46 xx xx xx xx 57 45 42 50 (RIFF....WEBP)
+            else if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+                     buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) isImage = true;
+          } finally {
+            fs.closeSync(fd);
+          }
+        } catch (_e) {
+          isImage = false;
+        }
+        if (!isImage) {
+          try { fs.unlinkSync(req.file.path); } catch (_e) { /* ignore */ }
+          return res.status(400).json({ error: 'Uploaded file is not a supported image format' });
+        }
+      }
+
       const { displayName, email } = req.body;
       const updates = [];
       const params = [];

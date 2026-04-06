@@ -370,21 +370,24 @@ The reader has started this book and wants to remember what it's about and any k
     }
 
     try {
-      let successCount = 0;
-
-      for (const audiobookId of audiobook_ids) {
-        await dbRun(
-          `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
-           VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
-           ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
-             completed = 1,
-             updated_at = CURRENT_TIMESTAMP`,
-          [userId, audiobookId]
-        );
-        successCount++;
+      // Single multi-row upsert instead of a loop of N round-trips.
+      // SQLite serializes writes anyway; batching them into one statement
+      // cuts wall-clock time dramatically on a 100-book batch.
+      const rowClauses = audiobook_ids.map(() => '(?, ?, 0, 1, CURRENT_TIMESTAMP)').join(', ');
+      const params = [];
+      for (const id of audiobook_ids) {
+        params.push(userId, id);
       }
+      await dbRun(
+        `INSERT INTO playback_progress (user_id, audiobook_id, position, completed, updated_at)
+         VALUES ${rowClauses}
+         ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+           completed = 1,
+           updated_at = CURRENT_TIMESTAMP`,
+        params
+      );
 
-      res.json({ success: true, count: successCount });
+      res.json({ success: true, count: audiobook_ids.length });
     } catch (error) {
       console.error('Error in batch mark finished:', error);
       res.status(500).json({ error: 'Failed to mark audiobooks as finished' });
