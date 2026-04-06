@@ -1,6 +1,6 @@
 {
   "name": "sappho",
-  "version": "0.3.0",
+  "version": "0.8.0",
   "description": "Audiobook server with streaming, metadata scraping, and library management",
   "main": "server/index.js",
   "scripts": {
