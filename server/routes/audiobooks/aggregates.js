@@ -44,7 +44,8 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
             AND (a2.is_available = 1 OR a2.is_available IS NULL)) as rating_count
          FROM audiobooks a
          LEFT JOIN playback_progress p ON a.id = p.audiobook_id AND p.user_id = ?
-         WHERE a.series IS NOT NULL AND (a.is_available = 1 OR a.is_available IS NULL)
+         WHERE a.series IS NOT NULL AND a.series != ''
+           AND (a.is_available = 1 OR a.is_available IS NULL)
          GROUP BY a.series
          ORDER BY a.series ASC`,
         [req.user.id]

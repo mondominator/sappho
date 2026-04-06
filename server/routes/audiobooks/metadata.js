@@ -626,10 +626,17 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     const {
       title, subtitle, author: rawAuthor, narrator, description, genre, tags,
-      series, series_position, published_year, copyright_year,
+      series: rawSeries, series_position, published_year, copyright_year,
       publisher, isbn, asin, language, rating, abridged, cover_url
     } = req.body;
     const author = normalizeAuthor(rawAuthor);
+
+    // Normalize empty strings to null for fields that the series-list query
+    // groups by — an empty-string series collapses every standalone book
+    // into a single untitled-series bucket on the /series page. We do the
+    // same for any future field whose grouping behaviour depends on NULL
+    // vs empty.
+    const series = rawSeries === '' ? null : rawSeries;
 
     try {
       // Get current audiobook to check if author/title changed
