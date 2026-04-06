@@ -354,12 +354,21 @@ async function extractBackupToTemp(backupPath, options) {
  * 7. Backs up current database before overwriting
  */
 async function restoreBackup(backupPath, options = {}) {
-  if (!fs.existsSync(backupPath)) {
+  // Defence in depth: even though callers pre-sanitize via getBackupPath(),
+  // confirm the resolved path is inside BACKUP_DIR before we hand it to
+  // fs.createReadStream. This keeps CodeQL/static analysers happy and
+  // defeats any future caller that forgets to sanitize.
+  const resolvedBackupPath = path.resolve(backupPath);
+  const resolvedBackupDir = path.resolve(BACKUP_DIR);
+  if (!resolvedBackupPath.startsWith(resolvedBackupDir + path.sep)) {
+    throw new Error('Backup path must be inside BACKUP_DIR');
+  }
+  if (!fs.existsSync(resolvedBackupPath)) {
     throw new Error('Backup file not found');
   }
 
   // Phase 1: Extract zip to temp directory
-  const extracted = await extractBackupToTemp(backupPath, options);
+  const extracted = await extractBackupToTemp(resolvedBackupPath, options);
 
   const results = {
     database: false,

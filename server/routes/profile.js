@@ -304,10 +304,22 @@ function createProfileRouter(deps = {}) {
       // Content-Type, which the attacker fully controls. If the body isn't a
       // real image we delete the file and bail out — otherwise the attacker
       // could ship HTML/JS to the browser via our <img> endpoint.
+      //
+      // We pin the path to the avatars directory and reject anything that
+      // doesn't resolve inside it — multer already gives us a safe path, but
+      // this explicit containment check keeps static analysers happy and
+      // fail-safes the code against any future change to multer's storage.
       if (req.file) {
+        const avatarsDir = path.resolve(path.join(__dirname, '../../data/avatars'));
+        const uploadedPath = path.resolve(req.file.path);
+        if (!uploadedPath.startsWith(avatarsDir + path.sep)) {
+          // Should be impossible given multer's disk storage, but stay safe.
+          return res.status(400).json({ error: 'Invalid upload path' });
+        }
+
         let isImage = false;
         try {
-          const fd = fs.openSync(req.file.path, 'r');
+          const fd = fs.openSync(uploadedPath, 'r');
           try {
             const buf = Buffer.alloc(16);
             fs.readSync(fd, buf, 0, 16, 0);
@@ -327,7 +339,7 @@ function createProfileRouter(deps = {}) {
           isImage = false;
         }
         if (!isImage) {
-          try { fs.unlinkSync(req.file.path); } catch (_e) { /* ignore */ }
+          try { fs.unlinkSync(uploadedPath); } catch (_e) { /* ignore */ }
           return res.status(400).json({ error: 'Uploaded file is not a supported image format' });
         }
       }

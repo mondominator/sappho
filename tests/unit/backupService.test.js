@@ -500,7 +500,7 @@ describe('Backup Service', () => {
     test('throws error if backup file not found', async () => {
       fs.existsSync.mockReturnValue(false);
 
-      await expect(restoreBackup('/path/to/nonexistent.zip')).rejects.toThrow('Backup file not found');
+      await expect(restoreBackup(`${BACKUP_DIR}/nonexistent.zip`)).rejects.toThrow('Backup file not found');
     });
 
     test('extracts backup to temp directory before applying', async () => {
@@ -513,7 +513,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const result = await resultPromise;
@@ -534,7 +534,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip', { restoreDatabase: false, restoreCovers: true });
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`, { restoreDatabase: false, restoreCovers: true });
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const result = await resultPromise;
@@ -554,7 +554,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (errorCallback) {
         errorCallback(new Error('Stream error'));
@@ -574,7 +574,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
@@ -615,7 +615,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
@@ -659,7 +659,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
@@ -700,7 +700,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
@@ -729,7 +729,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
@@ -755,7 +755,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
@@ -778,7 +778,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
       await new Promise(resolve => setTimeout(resolve, 10));
       await resultPromise;
 
@@ -813,7 +813,7 @@ describe('Backup Service', () => {
         return mockParseStream;
       });
 
-      const resultPromise = restoreBackup('/path/to/backup.zip');
+      const resultPromise = restoreBackup(`${BACKUP_DIR}/backup.zip`);
 
       if (entryCallback) {
         const mockEntry = {
