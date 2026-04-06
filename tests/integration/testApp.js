@@ -313,6 +313,90 @@ function createTestDatabase() {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
           )
+        `);
+
+        // Tags tables
+        db.run(`
+          CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+          )
+        `);
+
+        db.run(`
+          CREATE TABLE IF NOT EXISTS audiobook_tags (
+            audiobook_id INTEGER,
+            tag_id INTEGER,
+            PRIMARY KEY (audiobook_id, tag_id),
+            FOREIGN KEY (audiobook_id) REFERENCES audiobooks(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+          )
+        `);
+
+        // Duplicate flags (used by merge endpoint)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS duplicate_flags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            audiobook_id INTEGER NOT NULL,
+            existing_audiobook_id INTEGER NOT NULL,
+            match_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved_at TEXT,
+            FOREIGN KEY (audiobook_id) REFERENCES audiobooks(id) ON DELETE CASCADE,
+            FOREIGN KEY (existing_audiobook_id) REFERENCES audiobooks(id) ON DELETE CASCADE
+          )
+        `);
+
+        // Listening sessions (OpsDec integration)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS listening_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            audiobook_id INTEGER NOT NULL,
+            started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            stopped_at DATETIME,
+            start_position INTEGER NOT NULL DEFAULT 0,
+            end_position INTEGER,
+            device_name TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (audiobook_id) REFERENCES audiobooks(id) ON DELETE CASCADE
+          )
+        `);
+
+        // Revoked tokens (JWT invalidation)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS revoked_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_hash TEXT NOT NULL UNIQUE,
+            user_id INTEGER,
+            expires_at INTEGER NOT NULL,
+            revoked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        `);
+
+        db.run(`
+          CREATE TABLE IF NOT EXISTS user_token_invalidations (
+            user_id INTEGER PRIMARY KEY,
+            invalidated_at INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        `);
+
+        // OIDC config
+        db.run(`
+          CREATE TABLE IF NOT EXISTS oidc_config (
+            id INTEGER PRIMARY KEY,
+            provider_name TEXT NOT NULL,
+            issuer_url TEXT NOT NULL,
+            client_id TEXT NOT NULL,
+            client_secret TEXT NOT NULL,
+            auto_provision INTEGER DEFAULT 1,
+            default_admin INTEGER DEFAULT 0,
+            enabled INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
         `, (err) => {
           if (err) return reject(err);
           resolve(db);
