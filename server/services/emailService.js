@@ -7,6 +7,7 @@
  * - Queued email sending
  * - Notification triggers
  */
+const logger = require('../utils/logger');
 
 const nodemailer = require('nodemailer');
 const db = require('../database');
@@ -92,9 +93,9 @@ async function initializeTransporter() {
       } : undefined,
     });
 
-    console.log('Email transporter initialized');
+    logger.info('Email transporter initialized');
   } catch (error) {
-    console.error('Failed to initialize email transporter:', error);
+    logger.error('Failed to initialize email transporter:', error);
     transporter = null;
   }
 }
@@ -171,13 +172,13 @@ async function processEmailQueue() {
     try {
       await sendEmail(email);
     } catch (error) {
-      console.error('Failed to send email:', error);
+      logger.error('Failed to send email:', error);
 
       // Re-queue if under max attempts
       if (email.attempts < 3) {
         emailQueue.push(email);
       } else {
-        console.error('Email permanently failed after 3 attempts:', email.subject);
+        logger.error('Email permanently failed after 3 attempts:', email.subject);
       }
     }
 
@@ -217,7 +218,7 @@ async function sendEmail({ to, subject, html, text }) {
     html
   });
 
-  console.log('Email sent:', info.messageId);
+  logger.info('Email sent:', info.messageId);
   return { success: true, messageId: info.messageId };
 }
 

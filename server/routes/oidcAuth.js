@@ -3,6 +3,7 @@
  *
  * Provides OpenID Connect SSO flow: config check, authorization redirect, and callback handling.
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -69,7 +70,7 @@ function createOidcAuthRouter(deps = {}) {
         provider_name: config.provider_name,
       });
     } catch (error) {
-      console.error('OIDC config check error:', error);
+      logger.error('OIDC config check error:', error);
       res.json({ enabled: false });
     }
   });
@@ -94,7 +95,7 @@ function createOidcAuthRouter(deps = {}) {
       try {
         clientSecret = decryptSecret(config.client_secret, JWT_SECRET);
       } catch (_err) {
-        console.error('Failed to decrypt OIDC client secret');
+        logger.error('Failed to decrypt OIDC client secret');
         return res.status(500).json({ error: 'OIDC configuration error' });
       }
 
@@ -103,7 +104,7 @@ function createOidcAuthRouter(deps = {}) {
       try {
         discovery = await oidcService.discover(config.issuer_url);
       } catch (err) {
-        console.error('OIDC discovery failed:', err.message);
+        logger.error('OIDC discovery failed:', err.message);
         return res.status(502).json({ error: 'Failed to contact identity provider' });
       }
 
@@ -111,10 +112,14 @@ function createOidcAuthRouter(deps = {}) {
       const state = oidcService.generateState();
       const nonce = oidcService.generateNonce();
 
-      // Build the redirect URI from the current request
-      const protocol = req.protocol;
-      const host = req.get('host');
-      const redirectUri = `${protocol}://${host}/api/auth/oidc/callback`;
+      // Build the redirect URI from the trusted BASE_URL env var — NEVER
+      // from req.headers.host, which an attacker can spoof to get the IdP
+      // to redirect back to a host they control with a real auth code.
+      // Falls back to the request host only when BASE_URL is unset (local dev).
+      const baseUrl = process.env.BASE_URL
+        ? process.env.BASE_URL.replace(/\/$/, '')
+        : `${req.protocol}://${req.get('host')}`;
+      const redirectUri = `${baseUrl}/api/auth/oidc/callback`;
 
       // Store state for validation in callback
       oidcService.storeState(state, {
@@ -141,7 +146,7 @@ function createOidcAuthRouter(deps = {}) {
 
       res.redirect(authUrl);
     } catch (error) {
-      console.error('OIDC authorize error:', error);
+      logger.error('OIDC authorize error:', error);
       res.status(500).json({ error: 'Failed to initiate OIDC login' });
     }
   });
@@ -161,7 +166,7 @@ function createOidcAuthRouter(deps = {}) {
 
       // Handle provider-side errors
       if (oidcError) {
-        console.error('OIDC provider error:', oidcError, req.query.error_description);
+        logger.error('OIDC provider error:', oidcError, req.query.error_description);
         return frontendRedirect({ error: 'oidc_provider_error' });
       }
 
@@ -182,7 +187,7 @@ function createOidcAuthRouter(deps = {}) {
       try {
         discovery = await oidcService.discover(issuerUrl);
       } catch (err) {
-        console.error('OIDC discovery failed in callback:', err.message);
+        logger.error('OIDC discovery failed in callback:', err.message);
         return frontendRedirect({ error: 'oidc_discovery_failed' });
       }
 
@@ -196,26 +201,28 @@ function createOidcAuthRouter(deps = {}) {
           redirectUri,
         });
       } catch (err) {
-        console.error('OIDC token exchange failed:', err.message);
+        logger.error('OIDC token exchange failed:', err.message);
         return frontendRedirect({ error: 'oidc_token_exchange_failed' });
       }
 
       if (!tokenResponse.id_token) {
-        console.error('OIDC token response missing id_token');
+        logger.error('OIDC token response missing id_token');
         return frontendRedirect({ error: 'oidc_no_id_token' });
       }
 
-      // Decode and validate the ID token
+      // Verify the ID token's signature against the provider's JWKS and
+      // validate its claims (iss/aud/exp/nonce). decodeIdToken alone does
+      // not check the signature and is vulnerable to forged tokens.
       let claims;
       try {
-        claims = oidcService.decodeIdToken(tokenResponse.id_token);
-        oidcService.validateIdTokenClaims(claims, {
+        claims = await oidcService.verifyIdToken(tokenResponse.id_token, {
           issuer: issuerUrl,
           clientId,
           nonce,
+          discovery,
         });
       } catch (err) {
-        console.error('OIDC ID token validation failed:', err.message);
+        logger.error('OIDC ID token verification failed:', err.message);
         return frontendRedirect({ error: 'oidc_invalid_token' });
       }
 
@@ -265,7 +272,7 @@ function createOidcAuthRouter(deps = {}) {
         const isAdmin = defaultAdmin ? 1 : 0;
 
         const result = await dbRun(
-          `INSERT INTO users (username, password, email, display_name, is_admin, auth_method)
+          `INSERT INTO users (username, password_hash, email, display_name, is_admin, auth_method)
            VALUES (?, ?, ?, ?, ?, 'oidc')`,
           [userInfo.username, passwordHash, userInfo.email, userInfo.name, isAdmin]
         );
@@ -285,7 +292,7 @@ function createOidcAuthRouter(deps = {}) {
 
       frontendRedirect({ token });
     } catch (error) {
-      console.error('OIDC callback error:', error);
+      logger.error('OIDC callback error:', error);
       frontendRedirect({ error: 'oidc_internal_error' });
     }
   });

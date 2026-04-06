@@ -65,10 +65,14 @@ const callGemini = async (prompt, systemPrompt) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    // Pass the API key via x-goog-api-key header rather than ?key= query
+    // string. Query strings are routinely logged by proxies, CDNs, and our
+    // own access logs; headers are not. Google's API accepts either.
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
       },
       signal: controller.signal,
       body: JSON.stringify({

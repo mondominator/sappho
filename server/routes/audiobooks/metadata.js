@@ -4,6 +4,7 @@
  * Handles audiobook metadata operations: chapters, metadata search,
  * metadata refresh, metadata embedding, and audiobook updates.
  */
+const logger = require('../../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -67,7 +68,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       res.json({ message: 'Chapters updated successfully' });
     } catch (error) {
-      console.error('Error updating chapters:', error);
+      logger.error('Error updating chapters:', error);
       res.status(500).json({ error: 'Failed to update chapters' });
     }
   });
@@ -168,7 +169,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         chapterCount: data.chapters.length
       });
     } catch (error) {
-      console.error('Error fetching chapters:', error);
+      logger.error('Error fetching chapters:', error);
       res.status(500).json({ error: 'Failed to fetch chapters' });
     }
   });
@@ -189,7 +190,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         searchOpenLibrary(title, author, normalizeGenres),
       ]);
 
-      console.log(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}`);
+      logger.info(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}`);
 
       // Combine results - Audible first (best for audiobooks), then others
       const results = [
@@ -214,7 +215,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         }
       });
     } catch (error) {
-      console.error('Multi-source search error:', error);
+      logger.error('Multi-source search error:', error);
       res.status(500).json({ error: 'Metadata search failed' });
     }
   });
@@ -329,7 +330,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       res.json({ results });
     } catch (error) {
-      console.error('Open Library search error:', error);
+      logger.error('Open Library search error:', error);
       res.status(500).json({ error: 'Failed to search Open Library' });
     }
   });
@@ -378,7 +379,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
             }
           }
 
-          console.log(`Refreshed ${existingChapters.length} chapter files for multifile audiobook: ${audiobook.title}`);
+          logger.info(`Refreshed ${existingChapters.length} chapter files for multifile audiobook: ${audiobook.title}`);
         }
       } else {
         // Single file: check for embedded chapters (M4B)
@@ -408,7 +409,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
               }));
             }
           } catch (error) {
-            console.log(`No chapters found in ${path.basename(audiobook.file_path)} or ffprobe failed:`, error.message);
+            logger.info(`No chapters found in ${path.basename(audiobook.file_path)} or ffprobe failed:`, error.message);
           }
         }
 
@@ -433,7 +434,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
               ]
             );
           }
-          console.log(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
+          logger.info(`Extracted ${chapters.length} chapters from ${path.basename(audiobook.file_path)}`);
         }
       }
 
@@ -538,7 +539,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         fileReorganized
       });
     } catch (error) {
-      console.error('Error refreshing metadata:', error);
+      logger.error('Error refreshing metadata:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -595,9 +596,9 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         }
         backupPath = path.join(backupDir, path.basename(audiobook.file_path));
         fs.copyFileSync(audiobook.file_path, backupPath);
-        console.log(`Created backup at ${backupPath}`);
+        logger.info(`Created backup at ${backupPath}`);
       } catch (backupErr) {
-        console.warn(`Could not create backup: ${backupErr.message} — proceeding anyway`);
+        logger.warn(`Could not create backup: ${backupErr.message} — proceeding anyway`);
         backupPath = null;
       }
 
@@ -608,7 +609,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       res.json({ message: result.message, backup: backupPath });
     } catch (error) {
-      console.error('Error embedding metadata:', error.message || error);
+      logger.error('Error embedding metadata:', error.message || error);
       const message = error.message && error.message.includes('Permission denied')
         ? 'Permission denied — the audiobook directory is read-only'
         : 'Failed to embed metadata';
@@ -649,14 +650,14 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       let newCoverImage = currentBook.cover_image;
       if (cover_url) {
         try {
-          console.log(`Downloading cover from URL: ${cover_url}`);
+          logger.info(`Downloading cover from URL: ${cover_url}`);
           const downloadedCover = await downloadCover(cover_url, id);
           if (downloadedCover) {
             newCoverImage = downloadedCover;
             newCoverPath = downloadedCover;
           }
         } catch (coverErr) {
-          console.error('Failed to download cover:', coverErr.message);
+          logger.error('Failed to download cover:', coverErr.message);
           // Continue with update even if cover download fails
         }
       }
@@ -698,7 +699,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
             fileReorganized = true;
             newFilePath = result.newPath;
           } else if (result.error) {
-            console.error('File reorganization failed:', result.error);
+            logger.error('File reorganization failed:', result.error);
           }
         }
       }
@@ -712,7 +713,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
       });
 
     } catch (error) {
-      console.error('Error updating audiobook:', error);
+      logger.error('Error updating audiobook:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

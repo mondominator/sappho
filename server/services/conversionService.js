@@ -3,6 +3,7 @@ const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 const websocketManager = require('./websocketManager');
 const { createDbHelpers } = require('../utils/db');
 const { updatePathCacheEntry } = require('./pathCache');
@@ -32,31 +33,61 @@ class ConversionService {
   }
 
   /**
-   * Acquire a concurrency slot. Resolves immediately if a slot is available,
-   * otherwise queues the request until a slot opens up.
+   * Acquire a concurrency slot for a specific job. Resolves immediately if a
+   * slot is available, otherwise queues the request. The job reference is
+   * stored alongside the resolver so cancelling a queued job can remove its
+   * entry from the queue directly instead of waiting for a slot to drain.
+   *
+   * Passing `job` is optional for callers that don't care about cancellation
+   * (tests, one-off scripts) — those will behave like the original API.
    */
-  acquireSlot() {
+  acquireSlot(job = null) {
     return new Promise(resolve => {
       if (this.runningConversions < this.MAX_CONCURRENT) {
         this.runningConversions++;
         resolve();
       } else {
-        this.conversionQueue.push(resolve);
+        this.conversionQueue.push({ job, resolve });
       }
     });
   }
 
   /**
-   * Release a concurrency slot. If there are queued conversions waiting,
-   * the next one is started immediately.
+   * Release a concurrency slot. If there are queued conversions waiting, the
+   * next non-cancelled one is started. Cancelled entries are skipped without
+   * consuming the released slot, so cancelling queued jobs never blocks
+   * subsequent work.
    */
   releaseSlot() {
     this.runningConversions--;
-    if (this.conversionQueue.length > 0) {
+    while (this.conversionQueue.length > 0) {
+      const entry = this.conversionQueue.shift();
+      // Skip entries whose job was cancelled while queued — they would
+      // otherwise bump runningConversions and then immediately release it,
+      // creating pointless churn.
+      if (entry.job && entry.job.status === 'cancelled') {
+        continue;
+      }
       this.runningConversions++;
-      const next = this.conversionQueue.shift();
-      next();
+      entry.resolve();
+      return;
     }
+  }
+
+  /**
+   * Remove all cancelled entries from the front of the queue. Used by
+   * cancelJob() so we don't leave stale resolvers hanging around.
+   */
+  _pruneQueue() {
+    this.conversionQueue = this.conversionQueue.filter(entry => {
+      if (entry.job && entry.job.status === 'cancelled') {
+        // Resolve the pending promise so the awaiter doesn't leak;
+        // runConversionWithLimit re-checks job.status and exits cleanly.
+        entry.resolve();
+        return false;
+      }
+      return true;
+    });
   }
 
   /**
@@ -71,7 +102,7 @@ class ConversionService {
     // Check if multifile audiobook
     let sourceFiles = [];
     let isMultiFile = !!audiobook.is_multi_file;
-    console.log(`Conversion: audiobook ${audiobook.id}, is_multi_file=${audiobook.is_multi_file}, isMultiFile=${isMultiFile}`);
+    logger.info(`Conversion: audiobook ${audiobook.id}, is_multi_file=${audiobook.is_multi_file}, isMultiFile=${isMultiFile}`);
 
     if (isMultiFile) {
       // Fetch chapter files from database
@@ -85,7 +116,7 @@ class ConversionService {
           }
         );
       });
-      console.log(`Conversion: found ${chapters.length} chapters in database`);
+      logger.info(`Conversion: found ${chapters.length} chapters in database`);
 
       if (chapters.length > 0) {
         sourceFiles = chapters.map(ch => ({
@@ -93,11 +124,11 @@ class ConversionService {
           duration: ch.duration,
           title: ch.title
         }));
-        console.log(`Conversion: multifile with ${sourceFiles.length} source files`);
+        logger.info(`Conversion: multifile with ${sourceFiles.length} source files`);
       } else {
         // No chapters in DB — fall through to filesystem detection below
         isMultiFile = false;
-        console.log('Conversion: no chapters in DB, will check filesystem');
+        logger.info('Conversion: no chapters in DB, will check filesystem');
       }
     }
 
@@ -113,7 +144,7 @@ class ConversionService {
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
         if (dirFiles.length > 1) {
-          console.log(`Conversion: found ${dirFiles.length} audio files in directory, treating as multi-file`);
+          logger.info(`Conversion: found ${dirFiles.length} audio files in directory, treating as multi-file`);
           isMultiFile = true;
           sourceFiles = dirFiles.map(f => ({
             path: f,
@@ -122,7 +153,7 @@ class ConversionService {
           }));
         }
       } catch (e) {
-        console.warn(`Conversion: could not scan directory ${dir}:`, e.message);
+        logger.warn(`Conversion: could not scan directory ${dir}:`, e.message);
       }
     }
 
@@ -212,14 +243,19 @@ class ConversionService {
       job.status = 'queued';
       job.message = `Waiting for available slot (${this.runningConversions}/${this.MAX_CONCURRENT} running)...`;
       this.broadcastJobStatus(job);
-      console.log(`Conversion queued for "${audiobook.title}" (${this.runningConversions}/${this.MAX_CONCURRENT} active, ${this.conversionQueue.length + 1} waiting)`);
+      logger.info(`Conversion queued for "${audiobook.title}" (${this.runningConversions}/${this.MAX_CONCURRENT} active, ${this.conversionQueue.length + 1} waiting)`);
     }
 
-    await this.acquireSlot();
+    await this.acquireSlot(job);
 
-    // Check if job was cancelled while waiting in queue
+    // Check if job was cancelled while waiting in queue. If cancelJob ran
+    // _pruneQueue, this branch never consumed a slot; if the cancel happened
+    // between dequeuing and this check, releaseSlot gives the slot back.
     if (job.status === 'cancelled') {
-      this.releaseSlot();
+      // Only decrement if we actually got a slot (skipped entries never ++'d)
+      if (this.runningConversions > 0) {
+        this.releaseSlot();
+      }
       return;
     }
 
@@ -269,7 +305,7 @@ class ConversionService {
               totalDuration += dur;
             }
           } catch (probeErr) {
-            console.warn(`Failed to probe duration for ${path.basename(file.path)}:`, probeErr.message);
+            logger.warn(`Failed to probe duration for ${path.basename(file.path)}:`, probeErr.message);
           }
         }
       }
@@ -328,10 +364,10 @@ class ConversionService {
         const probeData = JSON.parse(stdout);
         if (probeData.format && probeData.format.duration) {
           newDuration = Math.round(parseFloat(probeData.format.duration));
-          console.log(`Conversion: probed new duration ${newDuration}s for "${audiobook.title}"`);
+          logger.info(`Conversion: probed new duration ${newDuration}s for "${audiobook.title}"`);
         }
       } catch (probeErr) {
-        console.warn('Failed to probe new M4B duration, keeping original:', probeErr.message);
+        logger.warn('Failed to probe new M4B duration, keeping original:', probeErr.message);
       }
 
       // Extract chapters from the new M4B (ffmpeg embeds chapter markers during concat)
@@ -339,7 +375,7 @@ class ConversionService {
       try {
         newChapters = await extractM4BChapters(job.finalPath);
       } catch (chapterErr) {
-        console.warn('Failed to extract chapters from new M4B:', chapterErr.message);
+        logger.warn('Failed to extract chapters from new M4B:', chapterErr.message);
       }
 
       // Recalculate content hash with new file size and duration so rescans don't create duplicates
@@ -392,7 +428,7 @@ class ConversionService {
           try {
             fs.unlinkSync(file.path);
           } catch (e) {
-            console.warn(`Failed to delete source file: ${file.path}`, e.message);
+            logger.warn(`Failed to delete source file: ${file.path}`, e.message);
           }
         }
       }
@@ -414,7 +450,7 @@ class ConversionService {
       job.completedAt = new Date().toISOString();
       this.broadcastJobStatus(job);
 
-      console.log(`Successfully converted to M4B: ${job.finalPath}${job.isMultiFile ? ` (merged ${job.sourceFiles.length} files)` : ''}`);
+      logger.info(`Successfully converted to M4B: ${job.finalPath}${job.isMultiFile ? ` (merged ${job.sourceFiles.length} files)` : ''}`);
 
       // Broadcast library update
       websocketManager.broadcastLibraryUpdate('library.update', {
@@ -424,7 +460,7 @@ class ConversionService {
       });
 
     } catch (error) {
-      console.error('Conversion error:', error);
+      logger.error('Conversion error:', error);
       job.status = 'failed';
       job.error = error.message;
       job.message = `Conversion failed: ${error.message}`;
@@ -443,7 +479,7 @@ class ConversionService {
    * For multifile, uses concat filter with separate inputs (handles MP4 containers properly)
    */
   async buildFFmpegArgs(job) {
-    console.log(`buildFFmpegArgs: isMultiFile=${job.isMultiFile}, sourceFiles.length=${job.sourceFiles.length}, ext=${job.ext}`);
+    logger.info(`buildFFmpegArgs: isMultiFile=${job.isMultiFile}, sourceFiles.length=${job.sourceFiles.length}, ext=${job.ext}`);
     if (job.isMultiFile && job.sourceFiles.length > 1) {
       const n = job.sourceFiles.length;
 
@@ -453,7 +489,7 @@ class ConversionService {
 
       if (uniquePaths.size === 1) {
         // Single file with chapter markers — re-encode with chapter metadata
-        console.log(`buildFFmpegArgs: all ${n} chapters reference same file, converting as single file with chapters`);
+        logger.info(`buildFFmpegArgs: all ${n} chapters reference same file, converting as single file with chapters`);
 
         // Generate FFMETADATA chapter markers
         let metadataContent = ';FFMETADATA1\n';
@@ -468,7 +504,7 @@ class ConversionService {
           cumulativeMs = endMs;
         }
         fs.writeFileSync(job.chapterMetadataPath, metadataContent);
-        console.log(`buildFFmpegArgs: generated chapter metadata for ${n} chapters`);
+        logger.info(`buildFFmpegArgs: generated chapter metadata for ${n} chapters`);
 
         return [
           '-i', job.sourceFiles[0].path,
@@ -502,7 +538,7 @@ class ConversionService {
         cumulativeMs = endMs;
       }
       fs.writeFileSync(job.chapterMetadataPath, metadataContent);
-      console.log(`buildFFmpegArgs: generated chapter metadata for ${n} chapters`);
+      logger.info(`buildFFmpegArgs: generated chapter metadata for ${n} chapters`);
 
       // Build concat filter: each source file is a separate -i, then filter_complex concatenates audio streams
       const inputArgs = [];
@@ -515,7 +551,7 @@ class ConversionService {
       // Build filter_complex string: [0:a][1:a]...[N-1:a]concat=n=N:v=0:a=1[out]
       const filterInputs = job.sourceFiles.map((_, i) => `[${i}:a]`).join('');
       const filterComplex = `${filterInputs}concat=n=${n}:v=0:a=1[out]`;
-      console.log(`buildFFmpegArgs: using concat filter with ${n} inputs`);
+      logger.info(`buildFFmpegArgs: using concat filter with ${n} inputs`);
 
       // Multifile - concatenate with concat filter, chapter markers, and re-encode
       return [
@@ -583,7 +619,7 @@ class ConversionService {
           const minutes = parseInt(durationMatch[2]);
           const seconds = parseInt(durationMatch[3]);
           duration = hours * 3600 + minutes * 60 + seconds;
-          console.log(`Conversion duration: ${duration}s`);
+          logger.info(`Conversion duration: ${duration}s`);
         }
       });
 
@@ -655,7 +691,7 @@ class ConversionService {
           fs.existsSync(job.tempCoverPath) &&
           fs.statSync(job.tempCoverPath).size > 0;
         if (hasCover) {
-          console.log(`Extracted cover art from ${job.ext} file`);
+          logger.info(`Extracted cover art from ${job.ext} file`);
         }
         resolve(hasCover);
       });
@@ -696,7 +732,7 @@ class ConversionService {
         }
 
         if (code === 0) {
-          console.log('Cover art embedded successfully');
+          logger.info('Cover art embedded successfully');
         }
         resolve(code === 0);
       });
@@ -716,9 +752,9 @@ class ConversionService {
     if (job.tempPath && fs.existsSync(job.tempPath)) {
       try {
         fs.unlinkSync(job.tempPath);
-        console.log('Cleaned up temp M4B file');
+        logger.info('Cleaned up temp M4B file');
       } catch (e) {
-        console.error('Failed to clean up temp M4B:', e.message);
+        logger.error('Failed to clean up temp M4B:', e.message);
       }
     }
     if (job.tempCoverPath && fs.existsSync(job.tempCoverPath)) {
@@ -817,8 +853,10 @@ class ConversionService {
     this.cleanupJobFiles(job);
     this.activeConversions.delete(job.dir);
 
-    // Note: if the job was queued, the acquireSlot promise will resolve eventually
-    // and runConversionWithLimit checks for cancellation before proceeding.
+    // If the job was still sitting in the queue, pull it out now so the
+    // queue doesn't hand it a slot later. runConversionWithLimit also
+    // re-checks `job.status` as a belt-and-braces guard.
+    this._pruneQueue();
 
     return { success: true };
   }
@@ -849,7 +887,7 @@ class ConversionService {
       // Check for stuck jobs (running or queued for more than 2 hours)
       if ((job.status === 'starting' || job.status === 'converting' || job.status === 'queued')
           && startTime < Date.now() - 2 * 60 * 60 * 1000) {
-        console.log(`Cleaning up stuck conversion job: ${jobId}`);
+        logger.info(`Cleaning up stuck conversion job: ${jobId}`);
         if (job.process) {
           job.process.kill('SIGTERM');
         }

@@ -4,6 +4,7 @@
  * Database operations for audiobook availability tracking:
  * finding, marking, and restoring audiobooks.
  */
+const logger = require('../utils/logger');
 
 const fs = require('fs');
 const db = require('../database');
@@ -42,7 +43,7 @@ function markAvailable(audiobookId, filePath = null) {
       (err) => {
         if (err) reject(err);
         else {
-          console.log(`Marked audiobook ${audiobookId} as available`);
+          logger.info(`Marked audiobook ${audiobookId} as available`);
           resolve();
         }
       }
@@ -62,7 +63,7 @@ function markUnavailable(audiobookId) {
       (err) => {
         if (err) reject(err);
         else {
-          console.log(`Marked audiobook ${audiobookId} as unavailable (file missing)`);
+          logger.info(`Marked audiobook ${audiobookId} as unavailable (file missing)`);
           // Broadcast to connected clients
           websocketManager.broadcastLibraryUpdate('library.unavailable', { id: audiobookId });
           resolve();
@@ -104,7 +105,7 @@ function getAllAudiobooks() {
  * Check file availability for all audiobooks and update status
  */
 async function checkAvailability() {
-  console.log('Checking file availability...');
+  logger.info('Checking file availability...');
   const audiobooks = await getAllAudiobooks();
   let restored = 0;
   let missing = 0;
@@ -146,7 +147,7 @@ async function checkAvailability() {
   }
 
   if (restored > 0 || missing > 0) {
-    console.log(`Availability check: ${restored} restored, ${missing} marked unavailable`);
+    logger.info(`Availability check: ${restored} restored, ${missing} marked unavailable`);
   }
 
   return { restored, missing };
@@ -156,7 +157,7 @@ async function checkAvailability() {
  * Restore an unavailable audiobook with a new file path
  */
 async function restoreAudiobook(existingBook, newFilePath, _metadata) {
-  console.log(`Restoring previously unavailable book: ${existingBook.title}`);
+  logger.info(`Restoring previously unavailable book: ${existingBook.title}`);
 
   // Update the existing record with new file path and mark as available
   return new Promise((resolve, reject) => {
@@ -174,7 +175,7 @@ async function restoreAudiobook(existingBook, newFilePath, _metadata) {
             if (err) {
               reject(err);
             } else {
-              console.log(`Restored: ${existingBook.title} - user data preserved`);
+              logger.info(`Restored: ${existingBook.title} - user data preserved`);
               websocketManager.broadcastLibraryUpdate('library.restored', audiobook);
               resolve(audiobook);
             }

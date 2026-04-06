@@ -51,9 +51,9 @@ const passwordChangeLimiter = rateLimit({
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, '../../data/avatars');
-    console.log('[Avatar] Upload directory:', uploadDir);
+    logger.info('[Avatar] Upload directory:', uploadDir);
     if (!fs.existsSync(uploadDir)) {
-      console.log('[Avatar] Creating directory:', uploadDir);
+      logger.info('[Avatar] Creating directory:', uploadDir);
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
@@ -63,7 +63,7 @@ const storage = multer.diskStorage({
     const mimeToExt = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp' };
     const ext = mimeToExt[file.mimetype] || '.jpg';
     const filename = `user-${req.user.id}${ext}`;
-    console.log('[Avatar] Saving file:', filename, 'original:', file.originalname, 'mimetype:', file.mimetype);
+    logger.info('[Avatar] Saving file:', filename, 'original:', file.originalname, 'mimetype:', file.mimetype);
     cb(null, filename);
   }
 });
@@ -280,7 +280,7 @@ function createProfileRouter(deps = {}) {
         avgSessionLength: avgRow?.avgPosition || 0
       });
     } catch (error) {
-      console.error('Error fetching user stats:', error);
+      logger.error('Error fetching user stats:', error);
       res.status(500).json({ error: 'Failed to fetch stats' });
     }
   });
@@ -289,15 +289,60 @@ function createProfileRouter(deps = {}) {
   router.put('/', profileWriteLimiter, authenticateToken, (req, res) => {
     upload.single('avatar')(req, res, async function (err) {
       if (err instanceof multer.MulterError) {
-        console.error('[Profile Update] Multer error:', err.message);
+        logger.error('[Profile Update] Multer error:', err.message);
         return res.status(400).json({ error: 'Upload failed' });
       } else if (err) {
-        console.error('[Profile Update] Upload error:', err.message);
+        logger.error('[Profile Update] Upload error:', err.message);
         return res.status(400).json({ error: 'Upload failed' });
       }
 
-      console.log('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
-      console.log('[Profile Update] req.body:', req.body);
+      logger.info('[Profile Update] req.file:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'none');
+      logger.info('[Profile Update] req.body:', req.body);
+
+      // SECURITY: Validate the uploaded file is actually an image by checking
+      // the magic bytes. Multer's fileFilter only looks at the client-supplied
+      // Content-Type, which the attacker fully controls. If the body isn't a
+      // real image we delete the file and bail out — otherwise the attacker
+      // could ship HTML/JS to the browser via our <img> endpoint.
+      //
+      // We pin the path to the avatars directory and reject anything that
+      // doesn't resolve inside it — multer already gives us a safe path, but
+      // this explicit containment check keeps static analysers happy and
+      // fail-safes the code against any future change to multer's storage.
+      if (req.file) {
+        const avatarsDir = path.resolve(path.join(__dirname, '../../data/avatars'));
+        const uploadedPath = path.resolve(req.file.path);
+        if (!uploadedPath.startsWith(avatarsDir + path.sep)) {
+          // Should be impossible given multer's disk storage, but stay safe.
+          return res.status(400).json({ error: 'Invalid upload path' });
+        }
+
+        let isImage = false;
+        try {
+          const fd = fs.openSync(uploadedPath, 'r');
+          try {
+            const buf = Buffer.alloc(16);
+            fs.readSync(fd, buf, 0, 16, 0);
+            // JPEG: FF D8 FF
+            if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) isImage = true;
+            // PNG: 89 50 4E 47 0D 0A 1A 0A
+            else if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) isImage = true;
+            // GIF: 47 49 46 38 (GIF8)
+            else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) isImage = true;
+            // WebP: 52 49 46 46 xx xx xx xx 57 45 42 50 (RIFF....WEBP)
+            else if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+                     buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) isImage = true;
+          } finally {
+            fs.closeSync(fd);
+          }
+        } catch (_e) {
+          isImage = false;
+        }
+        if (!isImage) {
+          try { fs.unlinkSync(uploadedPath); } catch (_e) { /* ignore */ }
+          return res.status(400).json({ error: 'Uploaded file is not a supported image format' });
+        }
+      }
 
       const { displayName, email } = req.body;
       const updates = [];
@@ -368,7 +413,7 @@ function createProfileRouter(deps = {}) {
 
       // SECURITY: Validate avatar filename pattern to prevent path traversal
       if (!/^user-\d+\.(jpg|jpeg|png|gif|webp)$/i.test(user.avatar)) {
-        console.warn(`⚠️ Invalid avatar filename pattern: ${user.avatar}`);
+        logger.warn(`⚠️ Invalid avatar filename pattern: ${user.avatar}`);
         return res.status(404).json({ error: 'Invalid avatar' });
       }
 
@@ -378,7 +423,7 @@ function createProfileRouter(deps = {}) {
 
       // SECURITY: Ensure resolved path is within avatars directory
       if (!resolvedPath.startsWith(avatarsDir + path.sep)) {
-        console.warn(`⚠️ Avatar path escapes avatars directory: ${user.avatar}`);
+        logger.warn(`⚠️ Avatar path escapes avatars directory: ${user.avatar}`);
         return res.status(403).json({ error: 'Invalid avatar path' });
       }
 

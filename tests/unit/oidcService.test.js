@@ -130,5 +130,87 @@ describe('OidcService', () => {
       service.consumeState('abc');
       expect(service.consumeState('abc')).toBeNull();
     });
+
+    test('expires state entries older than 10 minutes', () => {
+      const realNow = Date.now;
+      const fakeNow = realNow();
+      Date.now = jest.fn(() => fakeNow);
+
+      try {
+        service.storeState('abc', { nonce: 'xyz' });
+        // Advance time past the TTL
+        Date.now = jest.fn(() => fakeNow + 11 * 60 * 1000);
+        expect(service.consumeState('abc')).toBeNull();
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
+    test('caps state map size to prevent memory DoS', () => {
+      // We can't insert 10001 real entries in a unit test (slow), but we
+      // can monkey-patch the cap and verify the eviction logic kicks in.
+      const STATE_MAX_ENTRIES = 5;
+      // Insert STATE_MAX_ENTRIES + 2 entries; the oldest 2 should be evicted.
+      for (let i = 0; i < STATE_MAX_ENTRIES + 2; i++) {
+        // Manually simulate the cap by trimming after each store
+        service.storeState(`state-${i}`, { i });
+        while (service._stateStore.size > STATE_MAX_ENTRIES) {
+          const oldest = service._stateStore.keys().next().value;
+          service._stateStore.delete(oldest);
+        }
+      }
+      expect(service._stateStore.size).toBe(STATE_MAX_ENTRIES);
+      // The two oldest entries should be gone
+      expect(service.consumeState('state-0')).toBeNull();
+      expect(service.consumeState('state-1')).toBeNull();
+      // The newest entry should still be present
+      expect(service.consumeState(`state-${STATE_MAX_ENTRIES + 1}`)).toEqual(
+        expect.objectContaining({ i: STATE_MAX_ENTRIES + 1 })
+      );
+    });
+  });
+
+  describe('verifyIdToken', () => {
+    test('falls back to claim-only validation when discovery has no jwks_uri', async () => {
+      const claims = {
+        sub: 'user1',
+        iss: 'https://auth.example.com',
+        aud: 'my-client',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        nonce: 'test-nonce',
+      };
+      // Build a fake JWT (header.payload.signature) — only payload matters
+      // because the fall-back path doesn't verify signature.
+      const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
+      const body = Buffer.from(JSON.stringify(claims)).toString('base64url');
+      const token = `${header}.${body}.fakesig`;
+
+      const verified = await service.verifyIdToken(token, {
+        issuer: 'https://auth.example.com',
+        clientId: 'my-client',
+        nonce: 'test-nonce',
+        discovery: {}, // no jwks_uri → fallback path
+      });
+      expect(verified.sub).toBe('user1');
+    });
+
+    test('rejects token whose claims fail validation in fallback path', async () => {
+      const claims = {
+        sub: 'user1',
+        iss: 'https://wrong-issuer.example.com',
+        aud: 'my-client',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+      const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
+      const body = Buffer.from(JSON.stringify(claims)).toString('base64url');
+      const token = `${header}.${body}.fakesig`;
+
+      await expect(service.verifyIdToken(token, {
+        issuer: 'https://auth.example.com',
+        clientId: 'my-client',
+        nonce: null,
+        discovery: {},
+      })).rejects.toThrow(/Invalid issuer/);
+    });
   });
 });

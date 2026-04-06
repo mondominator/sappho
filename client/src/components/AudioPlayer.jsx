@@ -500,14 +500,34 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
 
 
-  // Global event listeners for mini player progress bar dragging
-  useEffect(() => {
-    if (!isDraggingProgress || showFullscreen) return;
+  // Global event listeners for mini player progress bar dragging.
+  //
+  // Two races that the previous version had:
+  // 1. If `showFullscreen` flips to true while the user is mid-drag, the
+  //    effect's early return removes the listeners without calling the
+  //    end handler — leaving `isDraggingProgress` stuck at true and the
+  //    `.dragging` class permanently on the progress bar.
+  // 2. `duration` changing mid-drag (e.g. metadata loads) re-ran the effect,
+  //    reinstalling listeners with a fresh closure and leaving the old
+  //    end-handler references dangling.
+  //
+  // Fix: the effect only runs on the start/stop of a drag; mid-drag state
+  // is read from refs so `duration`/`showFullscreen` changes don't reset
+  // the listener set. If we unmount or lose focus while the drag is live,
+  // we still flush the final state via the cleanup.
+  const fullscreenRef = useRef(showFullscreen);
+  useEffect(() => { fullscreenRef.current = showFullscreen; }, [showFullscreen]);
+  const durationRef = useRef(duration);
+  useEffect(() => { durationRef.current = duration; }, [duration]);
 
-    const currentDuration = duration;
-    const miniBar = progressBarRef.current;
+  useEffect(() => {
+    if (!isDraggingProgress) return;
 
     const updatePreview = (clientX) => {
+      // Mini bar only — fullscreen has its own bar.
+      if (fullscreenRef.current) return;
+      const miniBar = progressBarRef.current;
+      const currentDuration = durationRef.current;
       if (!miniBar || !currentDuration) return;
       const rect = miniBar.getBoundingClientRect();
       const x = clientX - rect.left;
@@ -532,7 +552,7 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
 
     const handleEnd = () => {
       const previewTime = seekPreviewTimeRef.current;
-      if (previewTime !== null && audioRef.current) {
+      if (previewTime !== null && audioRef.current && !fullscreenRef.current) {
         audioRef.current.currentTime = previewTime;
         setCurrentTime(previewTime);
       }
@@ -551,8 +571,11 @@ const AudioPlayer = forwardRef(({ audiobook, progress, onClose }, ref) => {
       document.removeEventListener('mouseup', handleEnd);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleEnd);
+      // Flush drag state on unmount / effect cleanup so we never leave
+      // the progress bar stuck in its dragging state.
+      seekPreviewTimeRef.current = null;
     };
-  }, [isDraggingProgress, duration, showFullscreen]);
+  }, [isDraggingProgress]);
 
   // Pull-to-refresh prevention is now handled via inline handlers on the fullscreen element
   // This avoids global document listeners that could interfere with page scrolling

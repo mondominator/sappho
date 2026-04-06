@@ -1,6 +1,7 @@
 /**
  * Unit tests for MFA Service
  */
+const logger = require('../../server/utils/logger');
 
 // Mock database before requiring mfaService
 jest.mock('../../server/database', () => ({
@@ -27,7 +28,7 @@ const {
 
 describe('MFA Service', () => {
   describe('generateSecret', () => {
-    test('generates a base32 encoded secret', () => {
+    test('generates a base32 encoded secret', async () => {
       const secret = generateSecret();
       expect(secret).toBeDefined();
       expect(typeof secret).toBe('string');
@@ -35,7 +36,7 @@ describe('MFA Service', () => {
       expect(/^[A-Z2-7]+$/.test(secret)).toBe(true);
     });
 
-    test('generates unique secrets', () => {
+    test('generates unique secrets', async () => {
       const secrets = new Set();
       for (let i = 0; i < 100; i++) {
         secrets.add(generateSecret());
@@ -43,7 +44,7 @@ describe('MFA Service', () => {
       expect(secrets.size).toBe(100);
     });
 
-    test('generates secret of appropriate length', () => {
+    test('generates secret of appropriate length', async () => {
       const secret = generateSecret();
       // OTPLib generates 20-byte secrets by default, base32 encoded = 32 chars
       expect(secret.length).toBeGreaterThanOrEqual(16);
@@ -69,7 +70,7 @@ describe('MFA Service', () => {
   });
 
   describe('verifyToken', () => {
-    test('verifies valid TOTP token', () => {
+    test('verifies valid TOTP token', async () => {
       // Generate a secret
       const secret = generateSecret();
 
@@ -82,38 +83,38 @@ describe('MFA Service', () => {
       expect(result).toBe(true);
     });
 
-    test('rejects invalid token', () => {
+    test('rejects invalid token', async () => {
       const secret = generateSecret();
       const result = verifyToken('000000', secret);
       expect(result).toBe(false);
     });
 
-    test('rejects malformed token', () => {
+    test('rejects malformed token', async () => {
       const secret = generateSecret();
       const result = verifyToken('invalid', secret);
       expect(result).toBe(false);
     });
 
-    test('rejects empty token', () => {
+    test('rejects empty token', async () => {
       const secret = generateSecret();
       const result = verifyToken('', secret);
       expect(result).toBe(false);
     });
 
-    test('handles invalid secret gracefully', () => {
+    test('handles invalid secret gracefully', async () => {
       const result = verifyToken('123456', 'invalid-secret');
       expect(result).toBe(false);
     });
 
-    test('handles undefined secret by catching error', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    test('handles undefined secret by catching error', async () => {
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation();
       const result = verifyToken('123456', undefined);
       expect(result).toBe(false);
       consoleSpy.mockRestore();
     });
 
-    test('handles null token by catching error', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    test('handles null token by catching error', async () => {
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation();
       const result = verifyToken(null, 'JBSWY3DPEHPK3PXP');
       expect(result).toBe(false);
       consoleSpy.mockRestore();
@@ -121,28 +122,28 @@ describe('MFA Service', () => {
   });
 
   describe('generateBackupCodes', () => {
-    test('generates requested number of codes', () => {
-      const { plainCodes, hashedCodes } = generateBackupCodes(10);
+    test('generates requested number of codes', async () => {
+      const { plainCodes, hashedCodes } = await generateBackupCodes(10);
       expect(plainCodes.length).toBe(10);
       expect(hashedCodes.length).toBe(10);
     });
 
-    test('generates 8-character alphanumeric codes', () => {
-      const { plainCodes } = generateBackupCodes(5);
+    test('generates 8-character alphanumeric codes', async () => {
+      const { plainCodes } = await generateBackupCodes(5);
       for (const code of plainCodes) {
         expect(code.length).toBe(8);
         expect(/^[A-F0-9]+$/.test(code)).toBe(true);
       }
     });
 
-    test('generates unique codes', () => {
-      const { plainCodes } = generateBackupCodes(10);
+    test('generates unique codes', async () => {
+      const { plainCodes } = await generateBackupCodes(10);
       const uniqueCodes = new Set(plainCodes);
       expect(uniqueCodes.size).toBe(10);
     });
 
-    test('hashes codes with bcrypt', () => {
-      const { plainCodes, hashedCodes } = generateBackupCodes(3);
+    test('hashes codes with bcrypt', async () => {
+      const { plainCodes, hashedCodes } = await generateBackupCodes(3);
       const bcrypt = require('bcryptjs');
 
       for (let i = 0; i < plainCodes.length; i++) {
@@ -151,19 +152,19 @@ describe('MFA Service', () => {
       }
     });
 
-    test('uses different hash for each code', () => {
-      const { hashedCodes } = generateBackupCodes(10);
+    test('uses different hash for each code', async () => {
+      const { hashedCodes } = await generateBackupCodes(10);
       const uniqueHashes = new Set(hashedCodes);
       expect(uniqueHashes.size).toBe(10);
     });
 
-    test('defaults to 10 codes', () => {
-      const { plainCodes } = generateBackupCodes();
+    test('defaults to 10 codes', async () => {
+      const { plainCodes } = await generateBackupCodes();
       expect(plainCodes.length).toBe(10);
     });
 
-    test('can generate custom number of codes', () => {
-      const { plainCodes } = generateBackupCodes(5);
+    test('can generate custom number of codes', async () => {
+      const { plainCodes } = await generateBackupCodes(5);
       expect(plainCodes.length).toBe(5);
     });
   });
@@ -174,7 +175,7 @@ describe('MFA Service', () => {
     });
 
     test('returns true for valid backup code', async () => {
-      const { plainCodes, hashedCodes } = generateBackupCodes(1);
+      const { plainCodes, hashedCodes } = await generateBackupCodes(1);
 
       db.get.mockImplementation((query, params, callback) => {
         callback(null, { mfa_backup_codes: JSON.stringify(hashedCodes) });
@@ -234,7 +235,7 @@ describe('MFA Service', () => {
     });
 
     test('normalizes backup code input', async () => {
-      const { plainCodes, hashedCodes } = generateBackupCodes(1);
+      const { plainCodes, hashedCodes } = await generateBackupCodes(1);
 
       db.get.mockImplementation((query, params, callback) => {
         callback(null, { mfa_backup_codes: JSON.stringify(hashedCodes) });
@@ -249,8 +250,8 @@ describe('MFA Service', () => {
     });
 
     test('logs error but still returns true when db.run fails to update used code', async () => {
-      const { plainCodes, hashedCodes } = generateBackupCodes(1);
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const { plainCodes, hashedCodes } = await generateBackupCodes(1);
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation();
 
       db.get.mockImplementation((query, params, callback) => {
         callback(null, { mfa_backup_codes: JSON.stringify(hashedCodes) });

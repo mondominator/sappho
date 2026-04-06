@@ -6,6 +6,7 @@
  * - Token verification
  * - Backup code generation and validation
  */
+const logger = require('../utils/logger');
 
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
@@ -44,74 +45,83 @@ function verifyToken(token, secret) {
   try {
     return authenticator.verify({ token, secret });
   } catch (error) {
-    console.error('TOTP verification error:', error);
+    logger.error('TOTP verification error:', error);
     return false;
   }
 }
 
 /**
- * Generate backup codes for account recovery
- * Returns both plain codes (to show user) and hashed codes (to store)
+ * Generate backup codes for account recovery.
+ * Returns both plain codes (to show user) and hashed codes (to store).
+ *
+ * Hashing runs concurrently via bcrypt.hash() rather than bcrypt.hashSync —
+ * the sync version blocks the event loop for ~300ms per code × 10 codes =
+ * ~3 seconds of blocking, during which the whole server is frozen.
  */
-function generateBackupCodes(count = 10) {
+async function generateBackupCodes(count = 10) {
   const plainCodes = [];
-  const hashedCodes = [];
-
   for (let i = 0; i < count; i++) {
-    // Generate 8-character alphanumeric code
-    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-    plainCodes.push(code);
-    hashedCodes.push(bcrypt.hashSync(code, 12));
+    plainCodes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
   }
-
+  // Parallel hashing: ~300ms total instead of 3s.
+  const hashedCodes = await Promise.all(plainCodes.map(code => bcrypt.hash(code, 12)));
   return { plainCodes, hashedCodes };
 }
 
 /**
- * Verify a backup code and mark it as used if valid
+ * Verify a backup code and mark it as used if valid.
+ *
+ * Uses bcrypt.compare (async) and awaits every comparison — the previous
+ * version used compareSync in a for-loop, blocking the event loop for
+ * ~300ms × 10 codes on every backup-code login attempt. That's a trivial
+ * DoS vector even without bad intent.
  */
 async function verifyBackupCode(userId, code) {
-  return new Promise((resolve, reject) => {
+  const user = await new Promise((resolve, reject) => {
     db.get(
       'SELECT mfa_backup_codes FROM users WHERE id = ?',
       [userId],
-      async (err, user) => {
-        if (err) return reject(err);
-        if (!user || !user.mfa_backup_codes) return resolve(false);
+      (err, row) => (err ? reject(err) : resolve(row))
+    );
+  });
 
-        try {
-          const hashedCodes = JSON.parse(user.mfa_backup_codes);
-          const upperCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!user || !user.mfa_backup_codes) return false;
 
-          // Find matching code
-          for (let i = 0; i < hashedCodes.length; i++) {
-            if (hashedCodes[i] && bcrypt.compareSync(upperCode, hashedCodes[i])) {
-              // Mark code as used (set to null)
-              hashedCodes[i] = null;
+  let hashedCodes;
+  try {
+    hashedCodes = JSON.parse(user.mfa_backup_codes);
+  } catch (parseError) {
+    logger.error('Error parsing backup codes:', parseError);
+    return false;
+  }
 
-              // Update database
-              db.run(
-                'UPDATE users SET mfa_backup_codes = ? WHERE id = ?',
-                [JSON.stringify(hashedCodes), userId],
-                (updateErr) => {
-                  if (updateErr) {
-                    console.error('Error updating backup codes:', updateErr);
-                  }
-                }
-              );
+  const upperCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-              return resolve(true);
-            }
-          }
+  // Compare against every non-null stored hash in parallel, then find a
+  // match. Parallel execution means we don't scale with the number of
+  // unused codes, and awaiting means we don't freeze the event loop.
+  const activeHashes = hashedCodes
+    .map((hash, idx) => ({ hash, idx }))
+    .filter(entry => entry.hash);
+  const comparisons = await Promise.all(
+    activeHashes.map(entry => bcrypt.compare(upperCode, entry.hash))
+  );
+  const matchIndex = comparisons.findIndex(matched => matched);
+  if (matchIndex === -1) return false;
 
-          resolve(false);
-        } catch (parseError) {
-          console.error('Error parsing backup codes:', parseError);
-          resolve(false);
-        }
+  // Mark the matched code as used (set to null) and persist.
+  hashedCodes[activeHashes[matchIndex].idx] = null;
+  await new Promise((resolve) => {
+    db.run(
+      'UPDATE users SET mfa_backup_codes = ? WHERE id = ?',
+      [JSON.stringify(hashedCodes), userId],
+      (updateErr) => {
+        if (updateErr) logger.error('Error updating backup codes:', updateErr);
+        resolve();
       }
     );
   });
+  return true;
 }
 
 /**
@@ -225,7 +235,7 @@ async function userHasMFA(userId) {
  * Regenerate backup codes for a user
  */
 async function regenerateBackupCodes(userId) {
-  const { plainCodes, hashedCodes } = generateBackupCodes();
+  const { plainCodes, hashedCodes } = await generateBackupCodes();
 
   return new Promise((resolve, reject) => {
     db.run(

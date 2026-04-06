@@ -3,6 +3,7 @@
  *
  * API endpoints for backup management (admin only)
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -75,7 +76,7 @@ function createBackupRouter(deps = {}) {
       status,
     });
   } catch (error) {
-    console.error('Error listing backups:', error);
+    logger.error('Error listing backups:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -87,11 +88,11 @@ router.post('/', backupWriteLimiter, authenticateToken, requireAdmin, async (req
   const { includeCovers = true } = req.body;
 
   try {
-    console.log('Creating manual backup...');
+    logger.info('Creating manual backup...');
     const result = await backupService.createBackup(includeCovers);
     res.json(result);
   } catch (error) {
-    console.error('Error creating backup:', error);
+    logger.error('Error creating backup:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -104,7 +105,7 @@ router.get('/:filename', backupLimiter, authenticateToken, requireAdmin, (req, r
     const backupPath = backupService.getBackupPath(req.params.filename);
     res.download(backupPath, req.params.filename);
   } catch (error) {
-    console.error('Error downloading backup:', error);
+    logger.error('Error downloading backup:', error);
     res.status(404).json({ error: 'Internal server error' });
   }
 });
@@ -117,7 +118,7 @@ router.delete('/:filename', backupWriteLimiter, authenticateToken, requireAdmin,
     const result = backupService.deleteBackup(req.params.filename);
     res.json(result);
   } catch (error) {
-    console.error('Error deleting backup:', error);
+    logger.error('Error deleting backup:', error);
     res.status(404).json({ error: 'Internal server error' });
   }
 });
@@ -130,7 +131,7 @@ router.post('/restore/:filename', backupWriteLimiter, authenticateToken, require
 
   try {
     const backupPath = backupService.getBackupPath(req.params.filename);
-    console.log(`Restoring from backup: ${req.params.filename}`);
+    logger.info(`Restoring from backup: ${req.params.filename}`);
 
     const result = await backupService.restoreBackup(backupPath, {
       restoreDatabase,
@@ -143,7 +144,7 @@ router.post('/restore/:filename', backupWriteLimiter, authenticateToken, require
       ...result,
     });
   } catch (error) {
-    console.error('Error restoring backup:', error);
+    logger.error('Error restoring backup:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -159,7 +160,7 @@ router.post('/upload', backupWriteLimiter, authenticateToken, requireAdmin, uplo
   const { restoreDatabase = true, restoreCovers = true } = req.body;
 
   try {
-    console.log(`Restoring from uploaded backup: ${req.file.originalname}`);
+    logger.info(`Restoring from uploaded backup: ${req.file.originalname}`);
 
     const result = await backupService.restoreBackup(req.file.path, {
       restoreDatabase: restoreDatabase === 'true' || restoreDatabase === true,
@@ -180,7 +181,7 @@ router.post('/upload', backupWriteLimiter, authenticateToken, requireAdmin, uplo
       fs.unlinkSync(req.file.path);
     }
 
-    console.error('Error restoring backup:', error);
+    logger.error('Error restoring backup:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -195,7 +196,7 @@ router.post('/retention', backupWriteLimiter, authenticateToken, requireAdmin, (
     const result = backupService.applyRetention(keepCount);
     res.json(result);
   } catch (error) {
-    console.error('Error applying retention:', error);
+    logger.error('Error applying retention:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
