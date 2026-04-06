@@ -15,18 +15,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401/403 responses and redirect to login
+// Handle expired/invalid token responses by clearing credentials and
+// kicking back to login. We key on 401 specifically — 403 means the
+// caller IS authenticated but the route is forbidden (admin-only,
+// password-change-required, etc.) and should NOT log the user out.
+//
+// Server convention (server/auth.js):
+//   401 = token missing/expired/revoked/invalidated → log out
+//   403 = authenticated but forbidden (admin/password change/etc.) → leave session alone
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      // Clear local storage
+    if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('currentAudiobook');
       localStorage.removeItem('currentProgress');
       localStorage.removeItem('playerPlaying');
-
-      // Redirect to login by navigating to root (App will detect no token and show login)
       window.location.href = '/';
     }
     return Promise.reject(error);

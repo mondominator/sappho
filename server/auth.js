@@ -230,31 +230,45 @@ function authenticateMediaToken(req, res, next) {
   return verifyToken(token, req, res, next);
 }
 
-// Shared token verification logic
+// Shared token verification logic.
+//
+// HTTP status codes used here:
+//   401 — token is missing, expired, revoked, invalidated, or maps to a
+//         user that no longer exists. The client should clear its stored
+//         credentials and prompt the user to log in again. This matches
+//         RFC 7235: "the request requires authentication".
+//   403 — token is valid AND a real user, but the request is forbidden by
+//         a downstream policy (admin-only route, must_change_password,
+//         disabled account, etc.). The client should NOT log the user out.
+//
+// The Android app keys its logout-on-auth-error logic on 401 specifically
+// (NetworkModule.kt) so an expired token returning 403 leaves it stuck on
+// an empty library screen. Sticking to the RFC fixes that without any
+// client change.
 async function verifyToken(token, req, res, next) {
 
   // SECURITY: Check if token is revoked
   if (await isTokenBlacklisted(token)) {
-    return res.status(403).json({ error: 'Token has been revoked' });
+    return res.status(401).json({ error: 'Token has been revoked' });
   }
 
   let decoded;
   try {
     decoded = jwt.verify(token, JWT_SECRET);
   } catch (_err) {
-    return res.status(403).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
   // SECURITY: Check if user's tokens were invalidated after this token was issued
   if (await isUserTokenInvalidated(decoded.id, decoded.iat)) {
-    return res.status(403).json({ error: 'Token has been invalidated. Please log in again.' });
+    return res.status(401).json({ error: 'Token has been invalidated. Please log in again.' });
   }
 
   try {
     // SECURITY: Fetch current user state from database instead of trusting JWT claims
     const user = await dbGet('SELECT id, username, is_admin, must_change_password, auth_method FROM users WHERE id = ?', [decoded.id]);
     if (!user) {
-      return res.status(403).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'User not found' });
     }
 
     // Use fresh data from DB, not stale JWT claims
@@ -300,12 +314,12 @@ async function authenticateApiKey(apiKey, req, res, next) {
     );
 
     if (!key) {
-      return res.status(403).json({ error: 'Invalid API key' });
+      return res.status(401).json({ error: 'Invalid API key' });
     }
 
     // Check if key is expired
     if (key.expires_at && new Date(key.expires_at) < new Date()) {
-      return res.status(403).json({ error: 'API key has expired' });
+      return res.status(401).json({ error: 'API key has expired' });
     }
 
     // Update last_used_at timestamp (fire-and-forget)
@@ -319,7 +333,7 @@ async function authenticateApiKey(apiKey, req, res, next) {
     // Get user information
     const user = await dbGet('SELECT id, username, is_admin FROM users WHERE id = ?', [key.user_id]);
     if (!user) {
-      return res.status(403).json({ error: 'Invalid API key user' });
+      return res.status(401).json({ error: 'Invalid API key user' });
     }
 
     // Set user on request object

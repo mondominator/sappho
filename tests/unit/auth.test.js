@@ -215,7 +215,7 @@ describe('authenticateToken', () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('returns 403 for invalid JWT token', async () => {
+  test('returns 401 for invalid JWT token', async () => {
     mockReq.headers['authorization'] = 'Bearer invalid-token';
 
     // Mock: token not in revoked_tokens
@@ -232,11 +232,11 @@ describe('authenticateToken', () => {
     // Wait for async operations
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid or expired token' });
   });
 
-  test('returns 403 for expired JWT token', async () => {
+  test('returns 401 for expired JWT token', async () => {
     const expiredToken = jwt.sign({ id: 1 }, process.env.JWT_SECRET, { expiresIn: '-1s' });
     mockReq.headers['authorization'] = `Bearer ${expiredToken}`;
 
@@ -248,7 +248,7 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
   });
 
   test('validates token and fetches user from database', async () => {
@@ -273,7 +273,7 @@ describe('authenticateToken', () => {
     expect(mockReq.token).toBe(validToken);
   });
 
-  test('returns 403 when user not found in database', async () => {
+  test('returns 401 when user not found in database', async () => {
     const validToken = jwt.sign({ id: 999, username: 'deleted' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     mockReq.headers['authorization'] = `Bearer ${validToken}`;
 
@@ -288,7 +288,7 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'User not found' });
   });
 
@@ -338,7 +338,7 @@ describe('authenticateToken', () => {
     expect(mockReq.apiKey).toBeDefined();
   });
 
-  test('returns 403 for invalid API key', async () => {
+  test('returns 401 for invalid API key', async () => {
     const apiKey = 'sapho_invalid_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -349,11 +349,11 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid API key' });
   });
 
-  test('returns 403 for expired API key', async () => {
+  test('returns 401 for expired API key', async () => {
     const apiKey = 'sapho_expired_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -364,7 +364,7 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'API key has expired' });
   });
 
@@ -383,7 +383,7 @@ describe('authenticateToken', () => {
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Database error' });
   });
 
-  test('returns 403 when API key user not found', async () => {
+  test('returns 401 when API key user not found', async () => {
     const apiKey = 'sapho_orphan_key';
     mockReq.headers['authorization'] = `Bearer ${apiKey}`;
 
@@ -404,11 +404,11 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid API key user' });
   });
 
-  test('returns 403 for revoked token', async () => {
+  test('returns 401 for revoked token', async () => {
     const token = jwt.sign({ id: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
     mockReq.headers['authorization'] = `Bearer ${token}`;
 
@@ -424,7 +424,7 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Token has been revoked' });
   });
 });
@@ -743,7 +743,7 @@ describe('createDefaultAdmin', () => {
 });
 
 describe('token invalidation', () => {
-  test('returns 403 when token was issued before user invalidation', async () => {
+  test('returns 401 when token was issued before user invalidation', async () => {
     // Use a unique user ID that won't interfere with other tests
     const testUserId = 99999;
 
@@ -782,7 +782,7 @@ describe('token invalidation', () => {
     await authenticateToken(mockReq, mockRes, jest.fn());
     await new Promise(process.nextTick);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Token has been invalidated. Please log in again.' });
   });
 });
