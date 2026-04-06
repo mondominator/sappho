@@ -73,8 +73,12 @@ jobs:
         id: audit-server
         run: |
           echo "## Server Dependencies" >> "$GITHUB_STEP_SUMMARY"
-          npm audit --audit-level=high --json > server-audit.json 2>&1 || true
-          VULNS=$(jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' server-audit.json 2>/dev/null || echo "0")
+          # Capture JSON only on stdout — redirecting stderr into the file
+          # would mix warnings in and confuse jq, producing false positives.
+          npm audit --audit-level=high --json > server-audit.json || true
+          VULNS=$(jq -r '(.metadata.vulnerabilities.high // 0) + (.metadata.vulnerabilities.critical // 0)' server-audit.json 2>/dev/null || echo "0")
+          # jq can return "null" if the file is malformed; coerce to 0.
+          if [ -z "$VULNS" ] || [ "$VULNS" = "null" ]; then VULNS=0; fi
           echo "high_critical=$VULNS" >> "$GITHUB_OUTPUT"
           if [ "$VULNS" -gt "0" ]; then
             echo "::error::Server has $VULNS high/critical vulnerabilities"
@@ -87,8 +91,9 @@ jobs:
         run: |
           cd client
           echo "## Client Dependencies" >> "$GITHUB_STEP_SUMMARY"
-          npm audit --audit-level=high --json > ../client-audit.json 2>&1 || true
-          VULNS=$(jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' ../client-audit.json 2>/dev/null || echo "0")
+          npm audit --audit-level=high --json > ../client-audit.json || true
+          VULNS=$(jq -r '(.metadata.vulnerabilities.high // 0) + (.metadata.vulnerabilities.critical // 0)' ../client-audit.json 2>/dev/null || echo "0")
+          if [ -z "$VULNS" ] || [ "$VULNS" = "null" ]; then VULNS=0; fi
           echo "high_critical=$VULNS" >> "$GITHUB_OUTPUT"
           if [ "$VULNS" -gt "0" ]; then
             echo "::error::Client has $VULNS high/critical vulnerabilities"
