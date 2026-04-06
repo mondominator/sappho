@@ -4,6 +4,7 @@
  * Generates in-app notifications for library and collection events.
  * Notifications are non-critical — errors are logged but never thrown.
  */
+const logger = require('../utils/logger');
 
 const db = require('../database');
 const { createDbHelpers } = require('../utils/db');
@@ -25,7 +26,7 @@ async function createNotification(type, title, message, metadata) {
       [type, title, message, metadata ? JSON.stringify(metadata) : null]
     );
   } catch (err) {
-    console.error('Failed to create notification:', err.message);
+    logger.error('Failed to create notification:', err.message);
   }
 }
 

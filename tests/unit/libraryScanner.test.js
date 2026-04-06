@@ -2,6 +2,7 @@
  * Unit tests for Library Scanner Service
  * Tests audio file detection, path handling, and scanning logic
  */
+const logger = require('../../server/utils/logger');
 
 describe('Library Scanner - Utility Functions', () => {
   describe('Audio file detection', () => {
@@ -388,8 +389,8 @@ describe('Library Scanner - Module Exports', () => {
     }));
 
     // Suppress console output
-    jest.spyOn(console, 'log').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(logger, 'info').mockImplementation(() => {});
+    jest.spyOn(logger, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {

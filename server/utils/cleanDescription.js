@@ -1,10 +1,24 @@
 /**
  * Clean chapter listings from description text
- * Extracts meaningful audiobook descriptions by removing chapter/track lists
+ * Extracts meaningful audiobook descriptions by removing chapter/track lists.
+ *
+ * Several of the regexes below use nested quantifiers (`(...)+` containing
+ * `*`/`+`/`?`) which are theoretically vulnerable to catastrophic backtracking
+ * on hostile input. Real-world audiobook descriptions are well under 10 KB,
+ * so we cap the input here. Anything longer is truncated before the regex
+ * pass — the truncated portion is appended back at the end so the user
+ * doesn't lose data.
  */
+const MAX_DESCRIPTION_LENGTH_FOR_CLEANING = 10000;
 
 function cleanDescription(description) {
   if (!description) return '';
+
+  let suffix = '';
+  if (description.length > MAX_DESCRIPTION_LENGTH_FOR_CLEANING) {
+    suffix = description.slice(MAX_DESCRIPTION_LENGTH_FOR_CLEANING);
+    description = description.slice(0, MAX_DESCRIPTION_LENGTH_FOR_CLEANING);
+  }
 
   let cleaned = description;
 
@@ -88,7 +102,7 @@ function cleanDescription(description) {
   // Remove "Dedication" if it's still at the start
   cleaned = cleaned.replace(/^(\s*Dedication\s*)+/i, '');
 
-  return cleaned.trim();
+  return (cleaned + suffix).trim();
 }
 
 module.exports = { cleanDescription };

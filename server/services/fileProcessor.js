@@ -1,4 +1,5 @@
 const fs = require('fs');
+const logger = require('../utils/logger');
 const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
@@ -55,7 +56,7 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
           ...metadata,
         };
       } catch (error) {
-        console.log('Metadata scraping failed, continuing with file metadata:', error.message);
+        logger.info('Metadata scraping failed, continuing with file metadata:', error.message);
       }
     }
 
@@ -105,16 +106,16 @@ async function processAudiobook(filePath, userId, manualMetadata = {}) {
             // set by importMultiFileAudiobook and the multifile upload endpoint.
           });
 
-          console.log(`Extracted ${data.chapters.length} chapters from uploaded ${path.basename(finalPath)}`);
+          logger.info(`Extracted ${data.chapters.length} chapters from uploaded ${path.basename(finalPath)}`);
         }
       } catch (_error) {
-        console.log(`No chapters found in uploaded ${path.basename(finalPath)} or ffprobe not available`);
+        logger.info(`No chapters found in uploaded ${path.basename(finalPath)} or ffprobe not available`);
       }
     }
 
     return audiobook;
   } catch (error) {
-    console.error('Error processing audiobook:', error);
+    logger.error('Error processing audiobook:', error);
     throw error;
   }
 }
@@ -785,7 +786,7 @@ async function extractFileMetadata(filePath) {
     if (common.picture && common.picture.length > 0) {
       coverImagePath = await saveCoverArt(common.picture[0], filePath);
       if (coverImagePath) {
-        console.log(`Extracted embedded cover to: ${coverImagePath}`);
+        logger.info(`Extracted embedded cover to: ${coverImagePath}`);
       }
     }
 
@@ -800,7 +801,7 @@ async function extractFileMetadata(filePath) {
           const potentialCover = path.join(audioDir, `${name}${ext}`);
           if (fs.existsSync(potentialCover)) {
             coverImagePath = potentialCover;
-            console.log(`Found external cover: ${coverImagePath}`);
+            logger.info(`Found external cover: ${coverImagePath}`);
             break;
           }
         }
@@ -875,7 +876,7 @@ async function extractFileMetadata(filePath) {
       subtitle: extended.subtitle,
     };
   } catch (error) {
-    console.error('Error extracting file metadata:', error);
+    logger.error('Error extracting file metadata:', error);
     // Return basic metadata from filename
     return {
       title: path.basename(filePath, path.extname(filePath)),
@@ -911,7 +912,7 @@ async function saveCoverArt(picture, audioFilePath) {
 
     return coverPath;
   } catch (error) {
-    console.error('Error saving cover art:', error);
+    logger.error('Error saving cover art:', error);
     return null;
   }
 }
@@ -952,7 +953,7 @@ async function organizeFile(sourcePath, metadata) {
     try {
       fs.renameSync(sourcePath, actualPath);
     } catch (renameError) {
-      console.error('Failed to move file:', error, renameError);
+      logger.error('Failed to move file:', error, renameError);
       throw new Error(`Failed to move file: ${error.message}`);
     }
   }
@@ -967,7 +968,7 @@ async function organizeFile(sourcePath, metadata) {
       // Update metadata to point to new cover location
       metadata.cover_image = newCoverPath;
     } catch (error) {
-      console.error('Error moving cover art:', error);
+      logger.error('Error moving cover art:', error);
     }
   }
 
@@ -979,16 +980,32 @@ async function saveToDatabase(metadata, filePath, fileSize, userId) {
   const contentHash = generateBestHash({ ...metadata, fileSize }, filePath);
 
   // Check for existing entry with the same file_path to prevent duplicates
-  const existing = await new Promise((resolve, reject) => {
+  const existingByPath = await new Promise((resolve, reject) => {
     db.get('SELECT * FROM audiobooks WHERE file_path = ?', [filePath], (err, row) => {
       if (err) reject(err);
       else resolve(row);
     });
   });
 
-  if (existing) {
-    console.log(`Duplicate prevented: audiobook already exists at file_path "${filePath}" (id=${existing.id})`);
-    return existing;
+  if (existingByPath) {
+    logger.info(`Duplicate prevented: audiobook already exists at file_path "${filePath}" (id=${existingByPath.id})`);
+    return existingByPath;
+  }
+
+  // Also dedupe by content_hash — the same book uploaded under a different
+  // filename still matches (title+author+duration+size). Without this check
+  // a user could upload the same audiobook repeatedly and fill the library
+  // with duplicates.
+  const existingByHash = await new Promise((resolve, reject) => {
+    db.get('SELECT * FROM audiobooks WHERE content_hash = ?', [contentHash], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+
+  if (existingByHash) {
+    logger.info(`Duplicate prevented: audiobook with content_hash already exists (id=${existingByHash.id})`);
+    return existingByHash;
   }
 
   return new Promise((resolve, reject) => {

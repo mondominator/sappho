@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 // This is a basic implementation using Google Books API
 // You can extend this to use Audible or other audiobook-specific APIs
@@ -13,7 +14,7 @@ async function scrapeMetadata(title, author) {
 
     return null;
   } catch (error) {
-    console.error('Metadata scraping error:', error.message);
+    logger.error('Metadata scraping error:', error.message);
     return null;
   }
 }
@@ -43,7 +44,7 @@ async function scrapeGoogleBooks(title, author) {
 
     return null;
   } catch (error) {
-    console.error('Google Books API error:', error.message);
+    logger.error('Google Books API error:', error.message);
     return null;
   }
 }

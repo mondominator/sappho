@@ -216,4 +216,19 @@ describe('cleanDescription', () => {
     const result = cleanDescription(input);
     expect(result).toBe('Rest of description.');
   });
+
+  test('truncates pre-cleaning at 10 KB to avoid catastrophic backtracking', () => {
+    // Build a description larger than the cleaning cap. Use simple text so
+    // the regexes don't actually rewrite anything in either segment — we
+    // just want to verify that the suffix (post-truncation) is preserved
+    // and re-appended at the end.
+    const head = 'A '.repeat(5000); // ~10000 chars
+    const tail = 'TAIL';
+    const input = head + tail;
+    const result = cleanDescription(input);
+    // The full text should be preserved (the 10 KB prefix passes through
+    // the regex pass unchanged for plain ASCII content).
+    expect(result.length).toBeGreaterThan(9000);
+    expect(result.endsWith('TAIL')).toBe(true);
+  });
 });

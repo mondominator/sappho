@@ -2,6 +2,7 @@
  * Unit tests for File Processor Service
  * Tests metadata extraction logic, filename sanitization, and file organization patterns
  */
+const logger = require('../../server/utils/logger');
 
 describe('File Processor - Utility Functions', () => {
   describe('Genre filtering (looksLikeGenres)', () => {
@@ -640,8 +641,8 @@ describe('File Processor - Module Exports', () => {
     fileProcessor._setParseFile(mockParseFile);
 
     // Suppress console
-    jest.spyOn(console, 'log').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(logger, 'info').mockImplementation(() => {});
+    jest.spyOn(logger, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {

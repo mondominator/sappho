@@ -2,6 +2,7 @@
  * Cleanup & Organization Routes
  * Detect orphan directories, clean them up, and organize audiobook files.
  */
+const logger = require('../../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const { maintenanceLimiter, maintenanceWriteLimiter } = require('./helpers');
@@ -15,7 +16,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
   // GET /orphan-directories - Scan for orphan directories
   router.get('/orphan-directories', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
-      console.log('Scanning for orphan directories...');
+      logger.info('Scanning for orphan directories...');
 
       const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../../data/audiobooks');
 
@@ -122,7 +123,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
 
       scanDirectory(audiobooksDir);
 
-      console.log(`Found ${orphanDirs.length} orphan directories`);
+      logger.info(`Found ${orphanDirs.length} orphan directories`);
 
       res.json({
         orphanDirectories: orphanDirs,
@@ -130,7 +131,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
         totalSize: orphanDirs.reduce((sum, d) => sum + d.totalSize, 0),
       });
     } catch (error) {
-      console.error('Error scanning for orphan directories:', error);
+      logger.error('Error scanning for orphan directories:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -146,7 +147,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
     const audiobooksDir = process.env.AUDIOBOOKS_DIR || path.join(__dirname, '../../../data/audiobooks');
 
     try {
-      console.log(`Deleting ${paths.length} orphan directories...`);
+      logger.info(`Deleting ${paths.length} orphan directories...`);
 
       const results = {
         deleted: [],
@@ -172,7 +173,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
         try {
           if (fs.existsSync(fullPath)) {
             fs.rmSync(fullPath, { recursive: true, force: true });
-            console.log(`Deleted orphan directory: ${fullPath}`);
+            logger.info(`Deleted orphan directory: ${fullPath}`);
             results.deleted.push(dirPath);
 
             // Clean up empty parent directories
@@ -182,7 +183,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
                 const contents = fs.readdirSync(parentDir);
                 if (contents.length === 0) {
                   fs.rmdirSync(parentDir);
-                  console.log(`Removed empty parent directory: ${parentDir}`);
+                  logger.info(`Removed empty parent directory: ${parentDir}`);
                   parentDir = path.dirname(parentDir);
                 } else {
                   break;
@@ -199,14 +200,14 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
         }
       }
 
-      console.log(`Deleted ${results.deleted.length} directories, ${results.failed.length} failed`);
+      logger.info(`Deleted ${results.deleted.length} directories, ${results.failed.length} failed`);
 
       res.json({
         success: true,
         ...results,
       });
     } catch (error) {
-      console.error('Error deleting orphan directories:', error);
+      logger.error('Error deleting orphan directories:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -214,7 +215,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
   // GET /organize/preview - Preview what would be organized (dry run)
   router.get('/organize/preview', maintenanceLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
-      console.log('Getting organization preview...');
+      logger.info('Getting organization preview...');
       const preview = await getOrganizationPreview();
 
       res.json({
@@ -222,7 +223,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
         books: preview,
       });
     } catch (error) {
-      console.error('Error getting organization preview:', error);
+      logger.error('Error getting organization preview:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -237,7 +238,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
     lockScanning(); // Lock scans while organizing
 
     try {
-      console.log('Starting manual library organization...');
+      logger.info('Starting manual library organization...');
       const stats = await organizeLibrary();
 
       res.json({
@@ -246,7 +247,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
         stats,
       });
     } catch (error) {
-      console.error('Error organizing library:', error);
+      logger.error('Error organizing library:', error);
       res.status(500).json({ error: 'Internal server error' });
     } finally {
       unlockScanning();
@@ -281,7 +282,7 @@ function register(router, { db, authenticateToken, requireAdmin, organizeLibrary
         });
       }
     } catch (error) {
-      console.error('Error organizing audiobook:', error);
+      logger.error('Error organizing audiobook:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

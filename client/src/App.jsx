@@ -5,6 +5,8 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Navigation from './components/Navigation'
 import { OfflineBanner } from './components/Skeleton'
 import { WebSocketProvider } from './contexts/WebSocketContext'
+import { ToastProvider } from './contexts/ToastContext'
+import { ConfirmProvider } from './contexts/ConfirmContext'
 import { getProgress, getProfile } from './api'
 import './App.css'
 
@@ -281,6 +283,8 @@ function App() {
   // Wrap everything in BrowserRouter to support public routes like /unlock
   return (
     <BrowserRouter>
+      <ToastProvider>
+      <ConfirmProvider>
       <ScrollToTop />
       <Suspense fallback={<div className="loading-screen">Loading...</div>}>
         <Routes>
@@ -309,6 +313,8 @@ function App() {
           } />
         </Routes>
       </Suspense>
+      </ConfirmProvider>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

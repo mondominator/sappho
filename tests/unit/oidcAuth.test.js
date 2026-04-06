@@ -64,6 +64,16 @@ function createMockOidcService(overrides = {}) {
       nonce: 'test-nonce',
     }),
     validateIdTokenClaims: jest.fn(),
+    verifyIdToken: jest.fn().mockResolvedValue({
+      sub: '123',
+      preferred_username: 'alice',
+      email: 'alice@test.com',
+      name: 'Alice Smith',
+      iss: 'https://auth.example.com',
+      aud: 'test-client',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce: 'test-nonce',
+    }),
     extractUserInfo: jest.fn().mockReturnValue({
       sub: '123',
       username: 'alice',
@@ -271,9 +281,9 @@ describe('OIDC Auth Routes', () => {
       expect(res.headers.location).toContain('error=oidc_no_id_token');
     });
 
-    test('redirects with error when ID token validation fails', async () => {
+    test('redirects with error when ID token verification fails', async () => {
       const { app } = buildApp({}, {
-        validateIdTokenClaims: jest.fn(() => { throw new Error('Invalid issuer'); }),
+        verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid issuer')),
       });
 
       const res = await supertest(app).get('/callback?code=abc&state=valid');

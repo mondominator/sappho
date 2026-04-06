@@ -7,6 +7,7 @@
  * - Clear account lockouts
  * - Admin account enable/disable
  */
+const logger = require('../utils/logger');
 
 const crypto = require('crypto');
 const db = require('../database');
@@ -95,7 +96,7 @@ async function consumeUnlockToken(token) {
         // Clear the in-memory lockout
         clearFailedAttempts(tokenData.username);
 
-        console.log(`Account unlocked via email token: ${tokenData.username}`);
+        logger.info(`Account unlocked via email token: ${tokenData.username}`);
         resolve({
           success: true,
           username: tokenData.username
@@ -206,7 +207,7 @@ async function cleanupExpiredTokens() {
           return reject(err);
         }
         if (this.changes > 0) {
-          console.log(`Cleaned up ${this.changes} expired unlock tokens`);
+          logger.info(`Cleaned up ${this.changes} expired unlock tokens`);
         }
         resolve(this.changes);
       }
@@ -218,7 +219,7 @@ async function cleanupExpiredTokens() {
 // .unref() allows Node to exit even if this timer is still active (fixes Jest warning)
 setInterval(() => {
   cleanupExpiredTokens().catch(err => {
-    console.error('Failed to cleanup expired unlock tokens:', err);
+    logger.error('Failed to cleanup expired unlock tokens:', err);
   });
 }, 60 * 60 * 1000).unref();
 

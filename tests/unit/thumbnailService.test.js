@@ -1,6 +1,7 @@
 /**
  * Unit tests for ThumbnailService
  */
+const logger = require('../../server/utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -181,7 +182,7 @@ describe('ThumbnailService', () => {
     });
 
     test('logs error but does not throw when unlink fails', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
       jest.spyOn(fs, 'existsSync').mockReturnValue(true);
       jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {
         throw new Error('permission denied');
@@ -200,7 +201,7 @@ describe('ThumbnailService', () => {
     test('removes entire thumbnails directory', () => {
       jest.spyOn(fs, 'existsSync').mockReturnValue(true);
       const rmSyncSpy = jest.spyOn(fs, 'rmSync').mockImplementation(() => {});
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
 
       clearAllThumbnails();
 
@@ -229,7 +230,7 @@ describe('ThumbnailService', () => {
       jest.spyOn(fs, 'rmSync').mockImplementation(() => {
         throw new Error('rm failed');
       });
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
 
       expect(() => clearAllThumbnails()).not.toThrow();
       expect(consoleSpy).toHaveBeenCalled();

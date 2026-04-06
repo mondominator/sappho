@@ -1,6 +1,7 @@
 /**
  * Shared helpers for maintenance route modules
  */
+const logger = require('../../utils/logger');
 const rateLimit = require('express-rate-limit');
 
 // SECURITY: Rate limiting for maintenance endpoints
@@ -140,7 +141,7 @@ function clearLogBuffer() {
   const cleared = logBuffer.length;
   logBuffer.length = 0;
   logRotationCount = 0;
-  console.log('Log buffer cleared');
+  logger.info('Log buffer cleared');
   return cleared;
 }
 

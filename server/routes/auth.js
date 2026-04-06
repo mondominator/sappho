@@ -51,8 +51,6 @@ function createAuthRouter(deps = {}) {
     authenticateToken,
     validatePassword,
     invalidateUserTokens,
-    isAccountLocked,
-    getLockoutRemaining
   } = auth;
 
   const JWT_SECRET = process.env.JWT_SECRET;
@@ -358,26 +356,14 @@ function createAuthRouter(deps = {}) {
 
   /**
    * POST /api/auth/check-lockout
-   * Check lockout status (for login page to show unlock option)
+   * Check lockout status. Always reports `locked: false` to unauthenticated
+   * callers — the previous version revealed whether an arbitrary username
+   * was currently locked, turning this endpoint into a username enumeration
+   * oracle. The real lockout signal still flows through the login response
+   * body (which is only visible after submitting credentials).
    */
-  router.post('/check-lockout', loginLimiter, async (req, res) => {
-    try {
-      const { username } = req.body;
-
-      if (!username) {
-        return res.status(400).json({ error: 'Username is required' });
-      }
-
-      const locked = isAccountLocked(username);
-      const remaining = locked ? getLockoutRemaining(username) : 0;
-
-      res.json({
-        locked,
-        remaining_seconds: remaining
-      });
-    } catch (_error) {
-      res.status(500).json({ error: 'Failed to check lockout status' });
-    }
+  router.post('/check-lockout', loginLimiter, async (_req, res) => {
+    res.json({ locked: false, remaining_seconds: 0 });
   });
 
   return router;

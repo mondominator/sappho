@@ -4,6 +4,7 @@
  * Recursive directory scanning, chapter extraction, subdirectory merging,
  * and empty directory cleanup for the library scanner.
  */
+const logger = require('../utils/logger');
 
 const fs = require('fs');
 const path = require('path');
@@ -56,7 +57,7 @@ function scanDirectory(dir, groupByDirectory = false) {
       }
     }
   } catch (error) {
-    console.error(`Error scanning directory ${dir}:`, error.message);
+    logger.error(`Error scanning directory ${dir}:`, error.message);
   }
 
   return groupByDirectory ? groupedFiles : audioFiles;
@@ -88,7 +89,7 @@ async function extractM4BChapters(filePath) {
       duration: (parseFloat(chapter.end_time) || 0) - (parseFloat(chapter.start_time) || 0)
     }));
   } catch (_error) {
-    console.log(`No chapters found in ${path.basename(filePath)} or ffprobe not available`);
+    logger.info(`No chapters found in ${path.basename(filePath)} or ffprobe not available`);
     return null;
   }
 }
@@ -133,7 +134,7 @@ function mergeSubdirectories(groupedFiles) {
 
     if (looksLikeMultiPart) {
       // Merge all files from subdirectories into parent
-      console.log(`Merging ${children.length} subdirectories under ${parent}`);
+      logger.info(`Merging ${children.length} subdirectories under ${parent}`);
       mergedGroups.set(parent, allFiles);
       children.forEach(c => processedDirs.add(c.dir));
     } else {
@@ -179,7 +180,7 @@ function cleanupAllEmptyDirectories(audiobooksDir) {
         const visibleEntries = currentEntries.filter(e => !e.startsWith('.'));
         if (visibleEntries.length === 0) {
           fs.rmdirSync(dir);
-          console.log(`Removed empty directory: ${dir}`);
+          logger.info(`Removed empty directory: ${dir}`);
           removed++;
         }
       } catch (_err) {

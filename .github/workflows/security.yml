@@ -72,29 +72,29 @@ jobs:
       - name: Run npm audit (Server)
         id: audit-server
         run: |
-          echo "## Server Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "## Server Dependencies" >> "$GITHUB_STEP_SUMMARY"
           npm audit --audit-level=high --json > server-audit.json 2>&1 || true
-          VULNS=$(cat server-audit.json | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
-          echo "high_critical=$VULNS" >> $GITHUB_OUTPUT
+          VULNS=$(jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' server-audit.json 2>/dev/null || echo "0")
+          echo "high_critical=$VULNS" >> "$GITHUB_OUTPUT"
           if [ "$VULNS" -gt "0" ]; then
-            echo "::warning::Server has $VULNS high/critical vulnerabilities"
-            npm audit --audit-level=high || true
+            echo "::error::Server has $VULNS high/critical vulnerabilities"
+            npm audit --audit-level=high
+            exit 1
           fi
-        continue-on-error: true
 
       - name: Run npm audit (Client)
         id: audit-client
         run: |
           cd client
-          echo "## Client Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "## Client Dependencies" >> "$GITHUB_STEP_SUMMARY"
           npm audit --audit-level=high --json > ../client-audit.json 2>&1 || true
-          VULNS=$(cat ../client-audit.json | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
-          echo "high_critical=$VULNS" >> $GITHUB_OUTPUT
+          VULNS=$(jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' ../client-audit.json 2>/dev/null || echo "0")
+          echo "high_critical=$VULNS" >> "$GITHUB_OUTPUT"
           if [ "$VULNS" -gt "0" ]; then
-            echo "::warning::Client has $VULNS high/critical vulnerabilities"
-            npm audit --audit-level=high || true
+            echo "::error::Client has $VULNS high/critical vulnerabilities"
+            npm audit --audit-level=high
+            exit 1
           fi
-        continue-on-error: true
 
       - name: Upload Audit Reports
         uses: actions/upload-artifact@v4
@@ -121,7 +121,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   # Job 4: CodeQL Analysis
   codeql-analysis:

@@ -2,6 +2,7 @@ node_modules
 client/node_modules
 .git
 .env
+.env.*
 *.log
 coverage
 data
@@ -12,3 +13,8 @@ ios
 docker-compose.yml
 CLAUDE.md
 README.md
+# Stray dev/test databases — never ship these inside the image
+*.db
+*.db-shm
+*.db-wal
+server/*.db

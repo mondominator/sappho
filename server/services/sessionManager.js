@@ -2,6 +2,7 @@
  * Session Manager - Tracks active playback sessions
  * Similar to how Plex/Emby track active streams
  */
+const logger = require('../utils/logger');
 class SessionManager {
   constructor() {
     this.sessions = new Map(); // sessionId -> session data
@@ -26,12 +27,12 @@ class SessionManager {
     } = sessionData;
 
     if (!audiobook) {
-      console.error('Audiobook data is required for session tracking');
+      logger.error('Audiobook data is required for session tracking');
       return null;
     }
 
     if (!userId || !username) {
-      console.error('User ID and username are required for session tracking');
+      logger.error('User ID and username are required for session tracking');
       return null;
     }
 
@@ -136,7 +137,7 @@ class SessionManager {
     const now = Date.now();
     for (const [sessionId, session] of this.sessions.entries()) {
       if (now - session.lastUpdated > this.SESSION_TIMEOUT) {
-        console.log(`Cleaning up stale session: ${sessionId} (${session.title})`);
+        logger.info(`Cleaning up stale session: ${sessionId} (${session.title})`);
         this.stopSession(sessionId);
       }
     }

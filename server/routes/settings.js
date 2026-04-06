@@ -3,6 +3,7 @@
  *
  * API endpoints for server settings management (admin only)
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const path = require('path');
@@ -83,8 +84,12 @@ function createSettingsRouter(deps = {}) {
   res.json({ settings, lockedFields });
 });
 
-// Update all settings
-router.put('/all', authenticateToken, requireAdmin, (req, res) => {
+// Shared handler for /all and /server — both accept the same body shape
+// and produce the same effect. Previously `/server` called
+// `router.handle(req, res, next)` after rewriting `req.url`, which is
+// brittle (it re-runs middleware stacks, can re-enter rate limiters,
+// and bypasses the express router's own invariants).
+function handleUpdateAllSettings(req, res) {
   const {
     port,
     nodeEnv,
@@ -210,7 +215,9 @@ router.put('/all', authenticateToken, requireAdmin, (req, res) => {
     updated: Object.keys(updates),
     requiresRestart: requiresRestart.length > 0 ? requiresRestart : undefined,
   });
-});
+}
+
+router.put('/all', authenticateToken, requireAdmin, handleUpdateAllSettings);
 
 // Legacy endpoints for backwards compatibility
 
@@ -286,11 +293,8 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
   res.json({ settings, lockedFields });
 });
 
-// Update server settings (redirect to /all)
-router.put('/server', authenticateToken, requireAdmin, (req, res, next) => {
-  req.url = '/all';
-  router.handle(req, res, next);
-});
+// Update server settings — same handler as /all for backwards compatibility.
+router.put('/server', authenticateToken, requireAdmin, handleUpdateAllSettings);
 
 // Get AI settings
 router.get('/ai', authenticateToken, requireAdmin, (req, res) => {
@@ -397,10 +401,12 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      // Pass key via header so it doesn't leak into logs.
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -428,7 +434,7 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
         response: data.candidates?.[0]?.content?.parts?.[0]?.text
       });
     } catch (error) {
-      console.error('Gemini test error:', error);
+      logger.error('Gemini test error:', error);
       res.status(500).json({ error: 'Failed to connect to Gemini API' });
     } finally {
       clearTimeout(timeout);
@@ -475,7 +481,7 @@ router.post('/ai/test', authenticateToken, requireAdmin, async (req, res) => {
         response: data.choices[0]?.message?.content
       });
     } catch (error) {
-      console.error('OpenAI test error:', error);
+      logger.error('OpenAI test error:', error);
       res.status(500).json({ error: 'Failed to connect to OpenAI API' });
     } finally {
       clearTimeout(timeout);

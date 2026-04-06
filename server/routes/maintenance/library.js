@@ -2,11 +2,13 @@
  * Library Operation Routes
  * Consolidate multi-file books, clear library, scan, migrate, force rescan.
  */
+const logger = require('../../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const { maintenanceWriteLimiter, getForceRescanInProgress, setForceRescanInProgress } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { clearAllThumbnails, invalidateThumbnails } = require('../../services/thumbnailService');
+const { isChapterStyleTitle } = require('../../utils/stringSimilarity');
 
 function register(router, { db, authenticateToken, requireAdmin, extractFileMetadata, scanLibrary, lockScanning, unlockScanning, isScanningLocked }) {
   const { dbGet, dbAll, dbRun, dbTransaction } = createDbHelpers(db);
@@ -14,7 +16,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
   // Consolidate multi-file audiobooks
   router.post('/consolidate-multifile', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
-      console.log('Starting multi-file audiobook consolidation...');
+      logger.info('Starting multi-file audiobook consolidation...');
 
       const audiobooks = await dbAll(
         `SELECT id, title, author, file_path, duration, file_size, cover_image,
@@ -28,7 +30,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
       const groups = new Map();
       for (const book of audiobooks) {
         if (!fs.existsSync(book.file_path)) {
-          console.log(`Skipping missing file: ${book.file_path}`);
+          logger.info(`Skipping missing file: ${book.file_path}`);
           continue;
         }
 
@@ -47,7 +49,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
         }
       }
 
-      console.log(`Found ${multiFileGroups.length} directories with multiple files`);
+      logger.info(`Found ${multiFileGroups.length} directories with multiple files`);
 
       const results = {
         consolidated: 0,
@@ -68,12 +70,15 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
             totalSize += book.file_size || 0;
           }
 
+          // Use the directory name as the canonical title when the file's
+          // own title looks like a chapter marker (the typical case for
+          // multi-file audiobooks where each file is named "Chapter 01" etc.)
           let title = primaryBook.title;
-          if (title && /chapter|part|\d+/i.test(title)) {
+          if (isChapterStyleTitle(title)) {
             title = dirName;
           }
 
-          console.log(`Consolidating ${sortedBooks.length} files into: ${title}`);
+          logger.info(`Consolidating ${sortedBooks.length} files into: ${title}`);
 
           await dbRun(
             `UPDATE audiobooks
@@ -103,18 +108,18 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
           results.consolidated++;
           results.totalChapters += sortedBooks.length;
         } catch (error) {
-          console.error(`Error consolidating ${dir}:`, error);
+          logger.error(`Error consolidating ${dir}:`, error);
           results.errors.push({ dir, error: error.message });
         }
       }
 
-      console.log('Consolidation complete:', results);
+      logger.info('Consolidation complete:', results);
       res.json({
         success: true,
         ...results,
       });
     } catch (error) {
-      console.error('Consolidation error:', error);
+      logger.error('Consolidation error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -122,20 +127,20 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
   // Clear all audiobooks from database
   router.post('/clear-library', maintenanceWriteLimiter, authenticateToken, requireAdmin, async (req, res) => {
     try {
-      console.log('Clearing library database...');
+      logger.info('Clearing library database...');
 
       await dbRun('DELETE FROM audiobook_chapters');
       await dbRun('DELETE FROM playback_progress');
       await dbRun('DELETE FROM collection_items');
       await dbRun('DELETE FROM audiobooks');
 
-      console.log('Library database cleared successfully');
+      logger.info('Library database cleared successfully');
       res.json({
         success: true,
         message: 'Library database cleared. Audiobooks will be reimported on next scan.',
       });
     } catch (error) {
-      console.error('Error clearing library:', error);
+      logger.error('Error clearing library:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -146,7 +151,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
 
     try {
       if (refreshMetadata) {
-        console.log('Starting metadata refresh for all audiobooks in background...');
+        logger.info('Starting metadata refresh for all audiobooks in background...');
 
         res.json({
           success: true,
@@ -168,12 +173,12 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
             let updated = 0;
             let errors = 0;
 
-            console.log(`Refreshing metadata for ${audiobooks.length} audiobooks...`);
+            logger.info(`Refreshing metadata for ${audiobooks.length} audiobooks...`);
 
             for (const audiobook of audiobooks) {
               try {
                 if (!fs.existsSync(audiobook.file_path)) {
-                  console.log(`File not found: ${audiobook.file_path}`);
+                  logger.info(`File not found: ${audiobook.file_path}`);
                   errors++;
                   continue;
                 }
@@ -183,9 +188,9 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
                 let finalCoverImage = metadata.cover_image;
                 if (audiobook.cover_path && fs.existsSync(audiobook.cover_path)) {
                   finalCoverImage = audiobook.cover_path;
-                  console.log(`Preserving user cover for ${audiobook.title}: ${audiobook.cover_path}`);
+                  logger.info(`Preserving user cover for ${audiobook.title}: ${audiobook.cover_path}`);
                 } else if (metadata.cover_image) {
-                  console.log(`Using extracted cover for ${audiobook.title}: ${metadata.cover_image}`);
+                  logger.info(`Using extracted cover for ${audiobook.title}: ${metadata.cover_image}`);
                 }
 
                 await dbRun(
@@ -210,24 +215,24 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
                 invalidateThumbnails(audiobook.id);
                 updated++;
                 if (updated % 10 === 0) {
-                  console.log(`Metadata refresh progress: ${updated}/${audiobooks.length}`);
+                  logger.info(`Metadata refresh progress: ${updated}/${audiobooks.length}`);
                 }
               } catch (error) {
-                console.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
+                logger.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
                 errors++;
               }
             }
 
             const scanStats = await scanLibrary();
 
-            console.log(`Metadata refresh complete: ${updated} updated, ${errors} errors`);
-            console.log(`New files scan: ${scanStats.imported} imported, ${scanStats.skipped} skipped`);
+            logger.info(`Metadata refresh complete: ${updated} updated, ${errors} errors`);
+            logger.info(`New files scan: ${scanStats.imported} imported, ${scanStats.skipped} skipped`);
           } catch (error) {
-            console.error('Error in background metadata refresh:', error);
+            logger.error('Error in background metadata refresh:', error);
           }
         });
       } else {
-        console.log('Manual library scan triggered');
+        logger.info('Manual library scan triggered');
         const stats = await scanLibrary();
         res.json({
           success: true,
@@ -236,7 +241,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
         });
       }
     } catch (error) {
-      console.error('Error scanning library:', error);
+      logger.error('Error scanning library:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -268,10 +273,10 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
     setImmediate(async () => {
       try {
         clearAllThumbnails();
-        console.log('Force rescan: marking all audiobooks as unavailable (preserving IDs)...');
+        logger.info('Force rescan: marking all audiobooks as unavailable (preserving IDs)...');
 
         const countRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks');
-        console.log(`Found ${countRow.count} audiobooks to process`);
+        logger.info(`Found ${countRow.count} audiobooks to process`);
 
         // Mark all audiobooks as unavailable and delete chapters atomically
         await dbTransaction(async ({ dbRun: txRun }) => {
@@ -279,8 +284,8 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
           await txRun('DELETE FROM audiobook_chapters');
         });
 
-        console.log('All audiobooks marked as unavailable, chapters cleared (transaction committed)');
-        console.log('Chapters cleared, rescanning library...');
+        logger.info('All audiobooks marked as unavailable, chapters cleared (transaction committed)');
+        logger.info('Chapters cleared, rescanning library...');
 
         const stats = await scanLibrary();
 
@@ -288,7 +293,7 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
         const unavailableRow = await dbGet('SELECT COUNT(*) as count FROM audiobooks WHERE is_available = 0');
 
         // Refresh metadata for all restored books
-        console.log('Refreshing metadata for all restored audiobooks...');
+        logger.info('Refreshing metadata for all restored audiobooks...');
         const audiobooks = await dbAll('SELECT id, file_path, title, cover_path FROM audiobooks WHERE is_available = 1');
 
         let metadataUpdated = 0;
@@ -328,22 +333,22 @@ function register(router, { db, authenticateToken, requireAdmin, extractFileMeta
 
             metadataUpdated++;
             if (metadataUpdated % 25 === 0) {
-              console.log(`Metadata refresh progress: ${metadataUpdated}/${audiobooks.length}`);
+              logger.info(`Metadata refresh progress: ${metadataUpdated}/${audiobooks.length}`);
             }
           } catch (error) {
-            console.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
+            logger.error(`Error refreshing metadata for ${audiobook.file_path}:`, error.message);
             metadataErrors++;
           }
         }
 
-        console.log('Force rescan complete (ID-preserving mode):');
-        console.log(`   - ${restoredRow.count} audiobooks restored/added (IDs preserved)`);
-        console.log(`   - ${unavailableRow.count} audiobooks still unavailable (files missing)`);
-        console.log(`   - ${stats.imported} newly imported, ${stats.skipped} skipped, ${stats.errors} errors`);
-        console.log(`   - ${metadataUpdated} metadata refreshed, ${metadataErrors} errors`);
-        console.log('   - User progress, favorites, ratings, and covers preserved automatically');
+        logger.info('Force rescan complete (ID-preserving mode):');
+        logger.info(`   - ${restoredRow.count} audiobooks restored/added (IDs preserved)`);
+        logger.info(`   - ${unavailableRow.count} audiobooks still unavailable (files missing)`);
+        logger.info(`   - ${stats.imported} newly imported, ${stats.skipped} skipped, ${stats.errors} errors`);
+        logger.info(`   - ${metadataUpdated} metadata refreshed, ${metadataErrors} errors`);
+        logger.info('   - User progress, favorites, ratings, and covers preserved automatically');
       } catch (error) {
-        console.error('Error in force rescan:', error);
+        logger.error('Error in force rescan:', error);
       } finally {
         setForceRescanInProgress(false);
         unlockScanning();

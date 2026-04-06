@@ -2,6 +2,7 @@
  * Audiobook progress route handlers
  * Handles playback progress: get, update, clear, and previous book status
  */
+const logger = require('../../utils/logger');
 const { getOrCreateSessionId, clearSessionId, getClientIP, activeSessionIds } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
@@ -52,10 +53,10 @@ function register(router, { db, authenticateToken }) {
            updated_at = CURRENT_TIMESTAMP`,
         [userId, nextBook.id]
       );
-      console.log(`Queued next book in series: "${nextBook.title}" for user ${userId}`);
+      logger.info(`Queued next book in series: "${nextBook.title}" for user ${userId}`);
     } catch (err) {
       // Fire-and-forget: log but don't propagate
-      console.error('Error queuing next book in series:', err);
+      logger.error('Error queuing next book in series:', err);
     }
   }
 
@@ -123,8 +124,8 @@ function register(router, { db, authenticateToken }) {
           );
         }
       } catch (_sessionErr) {
-        // Don't fail progress updates if session tracking errors
-        // Table may not exist if migration hasn't run yet
+        // Session tracking is best-effort — don't fail the progress update
+        // if a transient DB error occurs while writing to listening_sessions.
       }
 
       // Update session tracking
@@ -271,7 +272,7 @@ function register(router, { db, authenticateToken }) {
       });
 
     } catch (error) {
-      console.error('Error checking previous book status:', error);
+      logger.error('Error checking previous book status:', error);
       res.status(500).json({ error: 'Failed to check previous book status' });
     }
   });

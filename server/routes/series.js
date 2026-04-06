@@ -3,6 +3,7 @@
  *
  * API endpoints for series recaps using AI
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const crypto = require('crypto');
@@ -154,7 +155,7 @@ Provide a thorough recap including major plot points, twists, and revelations fr
       });
 
     } catch (error) {
-      console.error('Error generating series recap:', error);
+      logger.error('Error generating series recap:', error);
       res.status(500).json({
         error: 'Failed to generate recap',
         message: 'An internal error occurred'
@@ -178,7 +179,7 @@ Provide a thorough recap including major plot points, twists, and revelations fr
 
       res.json({ message: 'Recap cache cleared' });
     } catch (error) {
-      console.error('Error clearing recap cache:', error);
+      logger.error('Error clearing recap cache:', error);
       res.status(500).json({ error: 'Failed to clear cache' });
     }
   });

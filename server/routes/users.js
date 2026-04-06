@@ -3,6 +3,7 @@
  *
  * API endpoints for user management (admin only)
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -64,6 +65,26 @@ function createUsersRouter(deps = {}) {
     standardHeaders: true,
     legacyHeaders: false,
   });
+
+  // Response shape convention for /api/users (v1):
+  //   GET /        → bare array (list)
+  //   GET /:id     → bare object (single resource)
+  //   POST /       → { success, message, user }
+  //   PUT /:id     → { success, message, user }   (user is the post-update row)
+  //   DELETE /:id  → { success, message }
+  //   GET /:id/details → { user, loginAttempts, listeningStats, ... } (composite)
+  //
+  // The action endpoints (POST/PUT/DELETE) all carry `{ success, message }`
+  // for status, and singular resource endpoints add the resource under its
+  // type name. Tests assert against this shape.
+
+  // Internal helper that fetches the current user row, used by both POST and
+  // PUT so the response always reflects the persisted state of the row.
+  const fetchUserRow = (id) => dbGet(
+    `SELECT id, username, email, is_admin, account_disabled, disabled_at,
+            disabled_reason, auth_method, created_at FROM users WHERE id = ?`,
+    [id]
+  );
 
   /**
    * GET /api/users
@@ -177,7 +198,7 @@ function createUsersRouter(deps = {}) {
         apiKeysCount: apiKeysRow?.count || 0
       });
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      logger.error('Error fetching user details:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -206,9 +227,11 @@ function createUsersRouter(deps = {}) {
         'INSERT INTO users (username, password_hash, email, is_admin) VALUES (?, ?, ?, ?)',
         [username, passwordHash, email || null, is_admin ? 1 : 0]
       );
+      const user = await fetchUserRow(lastID);
       res.status(201).json({
+        success: true,
         message: 'User created successfully',
-        user: { id: lastID, username, email, is_admin: is_admin ? 1 : 0 }
+        user,
       });
     } catch (err) {
       if (err.message.includes('UNIQUE')) {
@@ -233,6 +256,14 @@ function createUsersRouter(deps = {}) {
     }
 
     if (password !== undefined && password !== '') {
+      // SECURITY: Enforce password complexity even on admin updates. The
+      // previous version would happily set a weak password if an admin
+      // supplied one, bypassing the validation applied on self-service
+      // password changes in the profile route.
+      const passwordErrors = validatePassword(password);
+      if (passwordErrors.length > 0) {
+        return res.status(400).json({ error: passwordErrors.join('. ') });
+      }
       updates.push('password_hash = ?');
       params.push(bcrypt.hashSync(password, 12));
     }
@@ -261,7 +292,12 @@ function createUsersRouter(deps = {}) {
       if (changes === 0) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json({ message: 'User updated successfully' });
+      const user = await fetchUserRow(req.params.id);
+      res.json({
+        success: true,
+        message: 'User updated successfully',
+        user,
+      });
     } catch (err) {
       if (err.message.includes('UNIQUE')) {
         return res.status(400).json({ error: 'Username already exists' });
@@ -303,7 +339,7 @@ function createUsersRouter(deps = {}) {
       if (changes === 0) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json({ message: 'User deleted successfully' });
+      res.json({ success: true, message: 'User deleted successfully' });
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -333,7 +369,7 @@ function createUsersRouter(deps = {}) {
 
       // Clear the in-memory lockout
       clearFailedAttempts(user.username);
-      console.log(`Admin ${req.user.username} unlocked account: ${user.username}`);
+      logger.info(`Admin ${req.user.username} unlocked account: ${user.username}`);
 
       res.json({ message: `Account ${user.username} unlocked successfully` });
     } catch (_err) {
@@ -360,7 +396,7 @@ function createUsersRouter(deps = {}) {
       // Get username for logging (fire-and-forget)
       const user = await dbGet('SELECT username FROM users WHERE id = ?', [userId]);
       if (user) {
-        console.log(`Admin ${req.user.username} disabled account: ${user.username}${reason ? ` (reason: ${reason})` : ''}`);
+        logger.info(`Admin ${req.user.username} disabled account: ${user.username}${reason ? ` (reason: ${reason})` : ''}`);
       }
 
       res.json({ message: 'Account disabled successfully' });
@@ -382,7 +418,7 @@ function createUsersRouter(deps = {}) {
       // Get username for logging
       const user = await dbGet('SELECT username FROM users WHERE id = ?', [userId]);
       if (user) {
-        console.log(`Admin ${req.user.username} enabled account: ${user.username}`);
+        logger.info(`Admin ${req.user.username} enabled account: ${user.username}`);
       }
 
       res.json({ message: 'Account enabled successfully' });

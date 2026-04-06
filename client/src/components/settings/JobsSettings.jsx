@@ -13,9 +13,13 @@ import {
   getOrphanDirectories,
   deleteOrphanDirectories
 } from '../../api';
+import { useToast } from '../../contexts/ToastContext';
+import { useConfirm } from '../../contexts/ConfirmContext';
 import './JobsSettings.css';
 
 export default function JobsSettings() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('jobs');
   const [jobs, setJobs] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,30 +75,41 @@ export default function JobsSettings() {
       if (action === 'scan') {
         const result = await scanLibrary(true);
         if (result.data.stats?.scanning) {
-          alert('Scan started in background');
+          toast.info('Scan started in background');
         } else {
-          alert(`Done! Imported: ${result.data.stats.imported}`);
+          toast.success(`Done! Imported: ${result.data.stats.imported}`);
           if (result.data.stats.imported > 0) window.location.reload();
         }
       } else if (action === 'refresh') {
-        if (!confirm('Clear library and reimport? Progress will be preserved.')) return;
-        const result = await forceRescan();
-        alert('Library refresh complete');
+        const ok = await confirm({
+          title: 'Refresh library?',
+          message: 'Clear library and reimport? Progress will be preserved.',
+          confirmLabel: 'Refresh',
+          confirmVariant: 'danger',
+        });
+        if (!ok) return;
+        await forceRescan();
+        toast.success('Library refresh complete');
         window.location.reload();
       } else if (action === 'organize') {
         const preview = await getOrganizationPreview();
         if (!preview.data.books?.length) {
-          alert('Nothing to reorganize');
+          toast.info('Nothing to reorganize');
           return;
         }
-        if (confirm(`Move ${preview.data.books.length} books to Author/Book folders?`)) {
+        const ok = await confirm({
+          title: 'Reorganize library?',
+          message: `Move ${preview.data.books.length} books to Author/Book folders?`,
+          confirmLabel: 'Move',
+        });
+        if (ok) {
           await apiOrganizeLibrary();
-          alert('Done');
+          toast.success('Done');
           window.location.reload();
         }
       }
     } catch (error) {
-      alert(error.response?.data?.error || 'Action failed');
+      toast.error(error.response?.data?.error || 'Action failed');
     } finally {
       setActionLoading(null);
     }
@@ -109,8 +124,8 @@ export default function JobsSettings() {
       const initial = {};
       response.data.duplicateGroups.forEach(g => initial[g.id] = g.suggestedKeep);
       setSelectedKeep(initial);
-    } catch (error) {
-      alert('Failed to scan');
+    } catch {
+      toast.error('Failed to scan');
     } finally {
       setActionLoading(null);
     }
@@ -119,14 +134,20 @@ export default function JobsSettings() {
   const handleMerge = async (group) => {
     const keepId = selectedKeep[group.id];
     const deleteIds = group.books.filter(b => b.id !== keepId).map(b => b.id);
-    if (!confirm(`Merge and remove ${deleteIds.length} copies?`)) return;
+    const ok = await confirm({
+      title: 'Merge duplicates?',
+      message: `Merge and remove ${deleteIds.length} copies?`,
+      confirmLabel: 'Merge',
+      confirmVariant: 'danger',
+    });
+    if (!ok) return;
 
     setActionLoading(`merge-${group.id}`);
     try {
       await mergeDuplicates(keepId, deleteIds, deleteFiles);
       setDuplicateGroups(prev => prev.filter(g => g.id !== group.id));
-    } catch (error) {
-      alert('Merge failed');
+    } catch {
+      toast.error('Merge failed');
     } finally {
       setActionLoading(null);
     }
@@ -137,8 +158,8 @@ export default function JobsSettings() {
     try {
       await dismissDuplicate(flagId);
       setFlaggedGroups(prev => prev.filter(g => g.flagId !== flagId));
-    } catch (error) {
-      alert('Dismiss failed');
+    } catch {
+      toast.error('Dismiss failed');
     } finally {
       setActionLoading(null);
     }
@@ -147,14 +168,20 @@ export default function JobsSettings() {
   const handleFlaggedMerge = async (group) => {
     const keepId = group.suggestedKeep;
     const deleteIds = group.books.filter(b => b.id !== keepId).map(b => b.id);
-    if (!confirm(`Merge and remove ${deleteIds.length} copies?`)) return;
+    const ok = await confirm({
+      title: 'Merge duplicates?',
+      message: `Merge and remove ${deleteIds.length} copies?`,
+      confirmLabel: 'Merge',
+      confirmVariant: 'danger',
+    });
+    if (!ok) return;
 
     setActionLoading(`fmerge-${group.flagId}`);
     try {
       await mergeDuplicates(keepId, deleteIds, deleteFiles);
       setFlaggedGroups(prev => prev.filter(g => g.flagId !== group.flagId));
-    } catch (error) {
-      alert('Merge failed');
+    } catch {
+      toast.error('Merge failed');
     } finally {
       setActionLoading(null);
     }
@@ -167,8 +194,8 @@ export default function JobsSettings() {
       setOrphanDirs(response.data.orphanDirectories || []);
       setOrphansScanned(true);
       setSelectedDirs(new Set());
-    } catch (error) {
-      alert('Failed to scan');
+    } catch {
+      toast.error('Failed to scan');
     } finally {
       setActionLoading(null);
     }
@@ -176,15 +203,21 @@ export default function JobsSettings() {
 
   const handleDeleteOrphans = async () => {
     if (selectedDirs.size === 0) return;
-    if (!confirm(`Delete ${selectedDirs.size} directories permanently?`)) return;
+    const ok = await confirm({
+      title: 'Delete directories?',
+      message: `Delete ${selectedDirs.size} directories permanently?`,
+      confirmLabel: 'Delete',
+      confirmVariant: 'danger',
+    });
+    if (!ok) return;
 
     setActionLoading('delete-orphans');
     try {
       await deleteOrphanDirectories(Array.from(selectedDirs));
       setOrphanDirs(prev => prev.filter(d => !selectedDirs.has(d.path)));
       setSelectedDirs(new Set());
-    } catch (error) {
-      alert('Delete failed');
+    } catch {
+      toast.error('Delete failed');
     } finally {
       setActionLoading(null);
     }

@@ -2,6 +2,7 @@
  * Unit tests for Path Cache Service
  * Tests ISBN/ASIN lookup functions with cache and DB fallback
  */
+const logger = require('../../server/utils/logger');
 
 describe('Path Cache - ISBN/ASIN lookups', () => {
   let pathCache;
@@ -21,7 +22,7 @@ describe('Path Cache - ISBN/ASIN lookups', () => {
     };
 
     jest.doMock('../../server/database', () => mockDb);
-    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(logger, 'info').mockImplementation(() => {});
 
     pathCache = require('../../server/services/pathCache');
   });

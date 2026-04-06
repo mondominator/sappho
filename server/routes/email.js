@@ -3,6 +3,7 @@
  *
  * API endpoints for email settings and notifications
  */
+const logger = require('../utils/logger');
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -90,7 +91,7 @@ function createEmailRouter(deps = {}) {
         password: settings.password ? '********' : ''
       });
     } catch (error) {
-      console.error('Error getting email settings:', error);
+      logger.error('Error getting email settings:', error);
       res.status(500).json({ error: 'Failed to get email settings' });
     }
   });
@@ -120,7 +121,7 @@ function createEmailRouter(deps = {}) {
 
       res.json({ success: true, message: 'Email settings saved' });
     } catch (error) {
-      console.error('Error saving email settings:', error);
+      logger.error('Error saving email settings:', error);
       res.status(500).json({ error: 'Failed to save email settings' });
     }
   });
@@ -154,7 +155,7 @@ function createEmailRouter(deps = {}) {
         res.status(400).json(result);
       }
     } catch (error) {
-      console.error('Error testing connection:', error);
+      logger.error('Error testing connection:', error);
       res.status(500).json({ error: 'Failed to test connection' });
     }
   });
@@ -179,7 +180,7 @@ function createEmailRouter(deps = {}) {
         res.status(400).json(result);
       }
     } catch (error) {
-      console.error('Error sending test email:', error);
+      logger.error('Error sending test email:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -202,7 +203,7 @@ function createEmailRouter(deps = {}) {
         email_enabled: !!prefs.email_enabled
       });
     } catch (error) {
-      console.error('Error getting notification preferences:', error);
+      logger.error('Error getting notification preferences:', error);
       res.status(500).json({ error: 'Failed to get notification preferences' });
     }
   });
@@ -224,7 +225,7 @@ function createEmailRouter(deps = {}) {
 
       res.json({ success: true, message: 'Notification preferences saved' });
     } catch (error) {
-      console.error('Error saving notification preferences:', error);
+      logger.error('Error saving notification preferences:', error);
       res.status(500).json({ error: 'Failed to save notification preferences' });
     }
   });
@@ -241,7 +242,7 @@ function createEmailRouter(deps = {}) {
         enabled: !!(settings?.enabled)
       });
     } catch (error) {
-      console.error('Error getting email status:', error);
+      logger.error('Error getting email status:', error);
       res.status(500).json({ error: 'Failed to get email status' });
     }
   });

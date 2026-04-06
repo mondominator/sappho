@@ -72,7 +72,7 @@ function getNotificationTarget(notification) {
       return `/audiobook/${metadata.audiobook_id}`;
     }
     if (metadata?.collection_id) {
-      return `/collection/${metadata.collection_id}`;
+      return `/collections/${metadata.collection_id}`;
     }
   } catch {
     // metadata parsing failed

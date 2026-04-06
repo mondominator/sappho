@@ -230,7 +230,7 @@ describe('authenticateToken', () => {
     await authenticateToken(mockReq, mockRes, mockNext);
 
     // Wait for async operations
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid or expired token' });
@@ -246,7 +246,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
   });
@@ -266,7 +266,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
@@ -286,7 +286,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'User not found' });
@@ -305,7 +305,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(500);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Database error' });
@@ -331,7 +331,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockReq.user).toEqual({ id: 1, username: 'apiuser', is_admin: 0 });
@@ -347,7 +347,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid API key' });
@@ -362,7 +362,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'API key has expired' });
@@ -377,7 +377,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(500);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Database error' });
@@ -402,7 +402,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid API key user' });
@@ -422,7 +422,7 @@ describe('authenticateToken', () => {
     });
 
     await authenticateToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Token has been revoked' });
@@ -463,7 +463,7 @@ describe('authenticateMediaToken', () => {
     });
 
     await authenticateMediaToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockReq.user).toEqual({ id: 1, username: 'testuser', is_admin: 0, must_change_password: false, auth_method: 'local' });
@@ -487,7 +487,7 @@ describe('authenticateMediaToken', () => {
     });
 
     await authenticateMediaToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockReq.user.username).toBe('headeruser');
@@ -510,7 +510,7 @@ describe('authenticateMediaToken', () => {
     });
 
     await authenticateMediaToken(mockReq, mockRes, mockNext);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockReq.user).toEqual({ id: 1, username: 'apiuser', is_admin: 0 });
@@ -780,7 +780,7 @@ describe('token invalidation', () => {
     });
 
     await authenticateToken(mockReq, mockRes, jest.fn());
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(process.nextTick);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ error: 'Token has been invalidated. Please log in again.' });

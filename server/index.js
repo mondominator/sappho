@@ -13,7 +13,7 @@ const helmet = require('helmet');
 const path = require('path');
 const logger = require('./utils/logger');
 const db = require('./database');
-const { createDefaultAdmin, requirePasswordChanged } = require('./auth');
+const { createDefaultAdmin } = require('./auth');
 const { startPeriodicScan, stopPeriodicScan } = require('./services/libraryScanner');
 const { startScheduledBackups } = require('./services/backupService');
 const conversionService = require('./services/conversionService');
@@ -112,17 +112,9 @@ app.use('/api/', globalApiLimiter);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/auth/oidc', require('./routes/oidcAuth'));
 
-// SECURITY: Enforce password change before accessing any other API endpoint
-// Exempt: auth routes (above), profile GET (to know who you are), password change, and logout
-app.use('/api/', (req, res, next) => {
-  // Skip non-authenticated routes and exempt paths
-  if (req.path === '/health') return next();
-  if (req.method === 'POST' && req.path === '/auth/logout') return next();
-  if (req.method === 'PUT' && req.path === '/profile/password') return next();
-  if (req.method === 'GET' && req.path === '/profile') return next();
-  if (req.method === 'GET' && req.path === '/profile/') return next();
-  requirePasswordChanged(req, res, next);
-});
+// NOTE: must_change_password enforcement lives inside authenticateToken
+// (server/auth.js). The previous middleware here ran before any auth
+// middleware, so req.user was always undefined and the check was a no-op.
 
 app.use('/api/audiobooks', require('./routes/audiobooks'));
 app.use('/api/upload', require('./routes/upload'));

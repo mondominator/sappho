@@ -31,7 +31,7 @@ describe('Docker Configuration', () => {
     });
 
     test('installs only production dependencies', () => {
-      expect(dockerfileContent).toContain('npm install --only=production');
+      expect(dockerfileContent).toContain('npm ci --omit=dev');
     });
 
     test('exposes application port', () => {

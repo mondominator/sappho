@@ -64,7 +64,10 @@ const updateEnvFile = (updates) => {
   const updateEnv = (content, key, value) => {
     const regex = new RegExp(`^${key}=.*$`, 'm');
     if (regex.test(content)) {
-      return content.replace(regex, `${key}=${value}`);
+      // Use a replacer function so `value` is treated as a literal string.
+      // String-form replacements interpret `$$`, `$&`, `$1` etc. as special
+      // patterns, which would mangle any setting value containing `$`.
+      return content.replace(regex, () => `${key}=${value}`);
     } else {
       return content + (content.endsWith('\n') ? '' : '\n') + `${key}=${value}`;
     }
