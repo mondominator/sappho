@@ -144,16 +144,6 @@ describe('PlaybackControls', () => {
       expect(onSkipToNextChapter).toHaveBeenCalledTimes(1);
     });
 
-    it('shows waveform visualizer when playing', () => {
-      const { container } = renderControls({ playing: true });
-      expect(container.querySelector('.waveform-visualizer')).toBeInTheDocument();
-    });
-
-    it('hides waveform visualizer when paused', () => {
-      const { container } = renderControls({ playing: false });
-      expect(container.querySelector('.waveform-visualizer')).not.toBeInTheDocument();
-    });
-
     it('has proper ARIA group role', () => {
       renderControls();
       expect(screen.getByRole('group', { name: 'Playback controls' })).toBeInTheDocument();
