@@ -179,8 +179,10 @@ function register(router, { db, authenticateToken, authenticateMediaToken, requi
     }
   });
 
-  // Download audiobook
-  router.get('/:id/download', authenticateToken, async (req, res) => {
+  // Download audiobook — uses authenticateMediaToken (query string) because
+  // the browser triggers downloads via <a href="...?token=..."> which can't
+  // set Authorization headers.
+  router.get('/:id/download', authenticateMediaToken, async (req, res) => {
     try {
       const audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
