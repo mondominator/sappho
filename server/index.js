@@ -201,6 +201,27 @@ async function initialize() {
     // Create default admin user if needed
     await createDefaultAdmin();
 
+    // Clean up orphaned temp files from failed/cancelled uploads.
+    // Anything older than 24h in the uploads dir is almost certainly
+    // from a connection that died mid-transfer. Without this, partial
+    // uploads accumulate indefinitely (we found a 5-month-old orphan).
+    const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../data/uploads');
+    try {
+      if (fs.existsSync(uploadDir)) {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        for (const file of fs.readdirSync(uploadDir)) {
+          const filePath = path.join(uploadDir, file);
+          const stat = fs.statSync(filePath);
+          if (stat.isFile() && stat.mtimeMs < cutoff) {
+            fs.unlinkSync(filePath);
+            logger.info({ file }, 'Cleaned up orphaned upload temp file');
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Upload temp cleanup failed (non-fatal)');
+    }
+
     // Start server immediately (don't wait for library scan)
     const server = app.listen(PORT, () => {
       logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Sappho server started');
