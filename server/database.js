@@ -139,6 +139,7 @@ function initializeDatabase() {
         genre TEXT,
         tags TEXT,
         rating TEXT,
+        rating_count INTEGER,
         abridged INTEGER DEFAULT 0,
         series TEXT,
         series_position REAL,
@@ -165,6 +166,7 @@ function initializeDatabase() {
     addColumnIfMissing('audiobooks', 'is_multi_file', 'INTEGER DEFAULT 0');
     addColumnIfMissing('audiobooks', 'copyright_year', 'INTEGER');
     addColumnIfMissing('audiobooks', 'rating', 'TEXT');
+    addColumnIfMissing('audiobooks', 'rating_count', 'INTEGER');
     addColumnIfMissing('audiobooks', 'abridged', 'INTEGER DEFAULT 0');
     addColumnIfMissing('audiobooks', 'tags', 'TEXT');
     addColumnIfMissing('audiobooks', 'content_hash', 'VARCHAR(16)');
