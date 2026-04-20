@@ -208,13 +208,18 @@ router.post('/multifile', uploadLimiter, authenticateToken, upload.array('audiob
     let series = firstFileMetadata.series || null;
     let seriesPosition = firstFileMetadata.series_position || null;
 
-    // If title looks like a chapter/part name, try to get a better title
-    if (isChapterStyleTitle(title)) {
-      // Try to extract from the first file's original path
+    // If title is missing or looks like a chapter/part name, try to derive one
+    if (!title || isChapterStyleTitle(title)) {
       const originalPath = sanitizeFilename(sortedFiles[0].originalname);
       const pathParts = originalPath.split('/');
       if (pathParts.length > 1) {
-        title = pathParts[0]; // Use folder name
+        // Prefer the top-level folder name from the original upload
+        title = pathParts[0];
+      } else if (!title) {
+        // Last resort — derive from the first file's base name so the
+        // book shows up with a reasonable title instead of NULL/empty.
+        // Admin can clean up the metadata afterwards.
+        title = path.basename(originalPath, path.extname(originalPath));
       }
     }
 

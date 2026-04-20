@@ -275,19 +275,30 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
   // Delete audiobook (admin only)
   router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
+    let audiobook;
     try {
-      const audiobook = await getAudiobookById(req.params.id);
+      audiobook = await getAudiobookById(req.params.id);
       if (!audiobook) {
         return res.status(404).json({ error: 'Audiobook not found' });
       }
 
-      // Delete related data first (explicit cleanup ensures no orphans)
+      // Delete related data first (explicit cleanup ensures no orphans).
+      // FK cascades handle the rest (user_ratings, audiobook_tags, etc.).
       await dbRun('DELETE FROM playback_progress WHERE audiobook_id = ?', [req.params.id]);
       await dbRun('DELETE FROM collection_items WHERE audiobook_id = ?', [req.params.id]);
       await dbRun('DELETE FROM audiobooks WHERE id = ?', [req.params.id]);
+    } catch (err) {
+      logger.error({ err, audiobookId: req.params.id }, 'Failed to delete audiobook from database');
+      return res.status(500).json({ error: 'Internal server error' });
+    }
 
-      // Delete audiobook files only if no other entries reference the same directory
-      if (audiobook.file_path) {
+    // DB delete succeeded. File cleanup is best-effort — if it fails (file
+    // locked by an active stream, FUSE/mergerfs quirks, permissions), the
+    // book is already gone from the user's library so we still report
+    // success and just log the filesystem issue for later cleanup.
+    let fileCleanupWarning = null;
+    if (audiobook.file_path) {
+      try {
         const audioDir = path.dirname(audiobook.file_path);
         const othersInSameDir = await dbAll(
           'SELECT id FROM audiobooks WHERE file_path LIKE ? AND id != ?',
@@ -312,12 +323,17 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
             // Parent not empty or can't remove - that's fine
           }
         }
+      } catch (fsErr) {
+        fileCleanupWarning = fsErr.message;
+        logger.warn({ err: fsErr, audiobookId: req.params.id, filePath: audiobook.file_path },
+          'Audiobook deleted from DB but file cleanup failed');
       }
-
-      res.json({ message: 'Audiobook deleted successfully' });
-    } catch (_err) {
-      res.status(500).json({ error: 'Internal server error' });
     }
+
+    res.json({
+      message: 'Audiobook deleted successfully',
+      ...(fileCleanupWarning ? { fileCleanupWarning } : {}),
+    });
   });
 }
 

@@ -116,11 +116,15 @@ export default function UploadModal({ isOpen, onClose }) {
 
     try {
       if (uploadMode === 'folder') {
-        // Folder upload - all files become one multi-file audiobook
-        const folderName = files[0]?.webkitRelativePath?.split('/')[0] || 'Uploaded Book';
+        // Folder upload - all files become one multi-file audiobook.
+        // Only use the folder name as the book title when it actually
+        // exists (webkitRelativePath is set). Otherwise leave it null and
+        // let the server derive the title from the file's ID3/Vorbis tags.
+        const folderName = files[0]?.webkitRelativePath?.split('/')[0] || null;
+        const progressKey = folderName || files[0]?.name || 'Audiobook';
 
         setUploadProgress({
-          [folderName]: { status: 'uploading', current: 0, total: files.length }
+          [progressKey]: { status: 'uploading', current: 0, total: files.length }
         });
 
         try {
@@ -131,7 +135,7 @@ export default function UploadModal({ isOpen, onClose }) {
           const audiobookId = response.data?.audiobook?.id;
 
           setUploadProgress({
-            [folderName]: { status: 'success', current: files.length, total: files.length }
+            [progressKey]: { status: 'success', current: files.length, total: files.length }
           });
 
           setFiles([]);
@@ -146,12 +150,12 @@ export default function UploadModal({ isOpen, onClose }) {
         } catch (err) {
           if (err.name === 'CanceledError' || err.name === 'AbortError') {
             setUploadProgress({
-              [folderName]: { status: 'cancelled' }
+              [progressKey]: { status: 'cancelled' }
             });
             setError('Upload cancelled');
           } else {
             setUploadProgress({
-              [folderName]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
+              [progressKey]: { status: 'error', error: err.response?.data?.error || 'Upload failed' }
             });
             setError(err.response?.data?.error || 'Upload failed');
           }
