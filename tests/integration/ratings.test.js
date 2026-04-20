@@ -195,6 +195,64 @@ describe('Ratings Routes', () => {
         const decimalPlaces = (res.body.average.toString().split('.')[1] || '').length;
         expect(decimalPlaces).toBeLessThanOrEqual(1);
       });
+
+      describe('blends in external (Audible/Google) rating', () => {
+        const runSql = (sql, params = []) => new Promise((resolve, reject) => {
+          db.run(sql, params, function (err) { return err ? reject(err) : resolve(this); });
+        });
+
+        it('returns external rating alone when no user ratings exist', async () => {
+          const book = await createTestAudiobook(db, { title: 'External Only' });
+          await runSql('UPDATE audiobooks SET rating = ?, rating_count = ? WHERE id = ?', [4.6, 500, book.id]);
+
+          const res = await request(app)
+            .get(`/api/ratings/audiobook/${book.id}/average`)
+            .set('Authorization', `Bearer ${user1Token}`)
+            .expect(200);
+
+          expect(res.body.average).toBeCloseTo(4.6, 1);
+          expect(res.body.user_count).toBe(0);
+          expect(res.body.external_count).toBe(500);
+        });
+
+        it('weights external rating by its ratings_count', async () => {
+          const book = await createTestAudiobook(db, { title: 'Weighted Blend' });
+          // External: 4.5 stars from 100 ratings, one local 1-star → heavily pulled toward 4.5
+          await runSql('UPDATE audiobooks SET rating = ?, rating_count = ? WHERE id = ?', [4.5, 100, book.id]);
+          await request(app)
+            .post(`/api/ratings/audiobook/${book.id}`)
+            .set('Authorization', `Bearer ${user1Token}`)
+            .send({ rating: 1 });
+
+          const res = await request(app)
+            .get(`/api/ratings/audiobook/${book.id}/average`)
+            .set('Authorization', `Bearer ${user1Token}`)
+            .expect(200);
+
+          // (1 + 4.5*100) / 101 ≈ 4.47 → rounds to 4.5
+          expect(res.body.average).toBeCloseTo(4.5, 1);
+          expect(res.body.user_count).toBe(1);
+          expect(res.body.external_count).toBe(100);
+        });
+
+        it('falls back to prior weight of 10 when source did not supply a count', async () => {
+          const book = await createTestAudiobook(db, { title: 'No Count' });
+          await runSql('UPDATE audiobooks SET rating = ?, rating_count = NULL WHERE id = ?', [5, book.id]);
+          await request(app)
+            .post(`/api/ratings/audiobook/${book.id}`)
+            .set('Authorization', `Bearer ${user1Token}`)
+            .send({ rating: 1 });
+
+          const res = await request(app)
+            .get(`/api/ratings/audiobook/${book.id}/average`)
+            .set('Authorization', `Bearer ${user1Token}`)
+            .expect(200);
+
+          // (1 + 5*10) / 11 ≈ 4.6
+          expect(res.body.average).toBeCloseTo(4.6, 1);
+          expect(res.body.external_count).toBe(10);
+        });
+      });
     });
   });
 

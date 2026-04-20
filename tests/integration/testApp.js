@@ -111,6 +111,7 @@ function createTestDatabase() {
             publisher TEXT,
             copyright_year INTEGER,
             rating REAL,
+            rating_count INTEGER,
             abridged INTEGER DEFAULT 0,
             subtitle TEXT,
             added_by INTEGER,

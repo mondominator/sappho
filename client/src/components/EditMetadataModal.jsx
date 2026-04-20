@@ -25,6 +25,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
     asin: '',
     language: '',
     rating: '',
+    rating_count: '',
     abridged: false,
     cover_url: '',  // URL to download new cover from
   });
@@ -65,6 +66,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         asin: audiobook.asin || '',
         language: audiobook.language || '',
         rating: audiobook.rating || '',
+        rating_count: audiobook.rating_count ?? '',
         abridged: !!audiobook.abridged,  // Convert 0/1 to boolean properly
         cover_url: '',  // Reset cover URL when audiobook changes
       });
@@ -220,6 +222,8 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
       asin: selectedFields.asin ? (pendingResult.asin ?? prev.asin) : prev.asin,
       language: selectedFields.language ? (pendingResult.language ?? prev.language) : prev.language,
       rating: selectedFields.rating ? (pendingResult.rating ?? prev.rating) : prev.rating,
+      // rating_count travels with rating — can't be selected independently
+      rating_count: selectedFields.rating ? (pendingResult.rating_count ?? prev.rating_count) : prev.rating_count,
       abridged: selectedFields.abridged ? (pendingResult.abridged !== undefined ? !!pendingResult.abridged : prev.abridged) : prev.abridged,
       cover_url: selectedFields.cover ? (pendingResult.image || prev.cover_url) : prev.cover_url,
     }));
@@ -280,6 +284,9 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         series_position: formData.series_position ? parseFloat(formData.series_position) : null,
         published_year: formData.published_year ? parseInt(formData.published_year) : null,
         copyright_year: formData.copyright_year ? parseInt(formData.copyright_year) : null,
+        rating_count: formData.rating_count === '' || formData.rating_count == null
+          ? null
+          : parseInt(formData.rating_count),
         abridged: formData.abridged ? 1 : 0,
       });
 
@@ -321,6 +328,9 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
         series_position: formData.series_position ? parseFloat(formData.series_position) : null,
         published_year: formData.published_year ? parseInt(formData.published_year) : null,
         copyright_year: formData.copyright_year ? parseInt(formData.copyright_year) : null,
+        rating_count: formData.rating_count === '' || formData.rating_count == null
+          ? null
+          : parseInt(formData.rating_count),
         abridged: formData.abridged ? 1 : 0,
       });
 

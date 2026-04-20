@@ -627,7 +627,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     const {
       title, subtitle, author: rawAuthor, narrator, description, genre, tags,
       series: rawSeries, series_position, published_year, copyright_year,
-      publisher, isbn, asin, language, rating, abridged, cover_url
+      publisher, isbn, asin, language, rating, rating_count, abridged, cover_url
     } = req.body;
     const author = normalizeAuthor(rawAuthor);
 
@@ -674,14 +674,16 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
         `UPDATE audiobooks
          SET title = ?, subtitle = ?, author = ?, narrator = ?, description = ?, genre = ?, tags = ?,
              series = ?, series_position = ?, published_year = ?, copyright_year = ?,
-             publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, abridged = ?,
+             publisher = ?, isbn = ?, asin = ?, language = ?, rating = ?, rating_count = ?, abridged = ?,
              cover_path = ?, cover_image = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
           title, subtitle, author, narrator, sanitizeHtml(description), genre, tags,
           series, series_position, published_year, copyright_year,
-          publisher, isbn, asin, language, rating, abridged ? 1 : 0,
+          publisher, isbn, asin, language, rating,
+          Number.isFinite(rating_count) ? rating_count : null,
+          abridged ? 1 : 0,
           newCoverPath, newCoverImage,
           id
         ]

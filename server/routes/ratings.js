@@ -87,21 +87,51 @@ function createRatingsRouter(deps = {}) {
 
   /**
    * GET /api/ratings/audiobook/:audiobookId/average
-   * Get average rating for an audiobook
+   * Get community average rating for an audiobook, blended with the
+   * external source rating (Audible/Google) weighted by its ratings count.
+   * When the external source didn't provide a count, we use a modest
+   * prior (EXTERNAL_PRIOR_WEIGHT) so one aggregated rating doesn't wash
+   * out a handful of local user ratings.
    */
   router.get('/audiobook/:audiobookId/average', ratingLimiter, authenticateToken, async (req, res) => {
+    const EXTERNAL_PRIOR_WEIGHT = 10;
     try {
-      const result = await dbGet(
-        `SELECT
-           AVG(rating) as average_rating,
-           COUNT(*) as rating_count
-         FROM user_ratings
-         WHERE audiobook_id = ? AND rating IS NOT NULL`,
-        [req.params.audiobookId]
-      );
+      const [userResult, bookResult] = await Promise.all([
+        dbGet(
+          `SELECT COALESCE(SUM(rating), 0) as rating_sum,
+                  COUNT(*) as rating_count
+           FROM user_ratings
+           WHERE audiobook_id = ? AND rating IS NOT NULL`,
+          [req.params.audiobookId]
+        ),
+        dbGet(
+          'SELECT rating, rating_count FROM audiobooks WHERE id = ?',
+          [req.params.audiobookId]
+        ),
+      ]);
+
+      const userSum = Number(userResult?.rating_sum) || 0;
+      const userCount = Number(userResult?.rating_count) || 0;
+
+      const extRating = bookResult?.rating !== null && bookResult?.rating !== undefined
+        ? parseFloat(bookResult.rating)
+        : NaN;
+      const extCountRaw = Number(bookResult?.rating_count);
+      const hasExternal = Number.isFinite(extRating) && extRating > 0;
+      const extWeight = hasExternal
+        ? (Number.isFinite(extCountRaw) && extCountRaw > 0 ? extCountRaw : EXTERNAL_PRIOR_WEIGHT)
+        : 0;
+
+      const totalWeight = userCount + extWeight;
+      const blended = totalWeight > 0
+        ? (userSum + (hasExternal ? extRating * extWeight : 0)) / totalWeight
+        : null;
+
       res.json({
-        average: result.average_rating ? Math.round(result.average_rating * 10) / 10 : null,
-        count: result.rating_count || 0
+        average: blended !== null ? Math.round(blended * 10) / 10 : null,
+        count: userCount + (hasExternal ? extWeight : 0),
+        user_count: userCount,
+        external_count: hasExternal ? extWeight : 0,
       });
     } catch (_err) {
       res.status(500).json({ error: 'Internal server error' });
