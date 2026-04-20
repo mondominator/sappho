@@ -87,6 +87,7 @@ async function searchAudible(title, author, asin, normalizeGenres) {
             genre: normalizeGenres(genres.join(', ')) || null,
             tags: tags.join(', ') || null,
             rating: book.rating || null,
+            rating_count: Number.isFinite(book.ratingCount) ? book.ratingCount : null,
             image: book.image || null,
             hasChapters: true,
           });
@@ -162,6 +163,7 @@ async function searchGoogleBooks(title, author, normalizeGenres) {
             language: vol.language || null,
             genre: normalizeGenres(vol.categories?.join(', ')) || null,
             rating: vol.averageRating?.toString() || null,
+            rating_count: Number.isFinite(vol.ratingsCount) ? vol.ratingsCount : null,
             image: vol.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
             hasChapters: false,
           });

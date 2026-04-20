@@ -70,6 +70,8 @@ function createTestDatabase() {
             isbn TEXT,
             asin TEXT,
             year INTEGER,
+            rating REAL,
+            rating_count INTEGER,
             content_hash TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
