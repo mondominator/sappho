@@ -101,16 +101,23 @@ function createApiKeysRouter(deps = {}) {
     const { key, prefix, hash } = generateApiKey();
     const permissionsStr = permissions || 'read';
 
-    // SECURITY: Default and maximum expiration for API keys
+    // Expiration policy:
+    //   - undefined  -> default 90 days (safe default for callers that omit the field)
+    //   - null or 0  -> never expires (explicit opt-in for long-lived integration keys)
+    //   - positive N -> N days, capped at 365
     const DEFAULT_EXPIRY_DAYS = 90;
     const MAX_EXPIRY_DAYS = 365;
 
-    let expiryDays = expires_in_days || DEFAULT_EXPIRY_DAYS;
-    expiryDays = Math.min(Math.max(1, expiryDays), MAX_EXPIRY_DAYS);
-
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + expiryDays);
-    const expiresAt = expiry.toISOString();
+    let expiresAt = null;
+    if (expires_in_days === null || expires_in_days === 0) {
+      expiresAt = null;
+    } else {
+      const requested = expires_in_days === undefined ? DEFAULT_EXPIRY_DAYS : expires_in_days;
+      const expiryDays = Math.min(Math.max(1, requested), MAX_EXPIRY_DAYS);
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + expiryDays);
+      expiresAt = expiry.toISOString();
+    }
 
     try {
       const { lastID } = await dbRun(

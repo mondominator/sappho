@@ -227,20 +227,24 @@ describe('API Keys Routes', () => {
         expect(Math.abs(expiresAt.getTime() - maxDaysFromNow.getTime())).toBeLessThan(60000);
       });
 
-      it('uses default expiration when 0 is passed (0 is falsy)', async () => {
-        // When expires_in_days is 0, it's treated as falsy and uses the default (90 days)
+      it('treats expires_in_days=0 as never expires', async () => {
         const res = await request(app)
           .post('/api/api-keys')
           .set('Authorization', `Bearer ${user1Token}`)
           .send({ name: 'Zero Expiry Key', expires_in_days: 0 })
           .expect(200);
 
-        const expiresAt = new Date(res.body.expires_at);
-        const ninetyDaysFromNow = new Date();
-        ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+        expect(res.body.expires_at).toBeNull();
+      });
 
-        // Should be approximately 90 days from now (the default)
-        expect(Math.abs(expiresAt.getTime() - ninetyDaysFromNow.getTime())).toBeLessThan(60000);
+      it('treats expires_in_days=null as never expires', async () => {
+        const res = await request(app)
+          .post('/api/api-keys')
+          .set('Authorization', `Bearer ${user1Token}`)
+          .send({ name: 'Null Expiry Key', expires_in_days: null })
+          .expect(200);
+
+        expect(res.body.expires_at).toBeNull();
       });
     });
   });
