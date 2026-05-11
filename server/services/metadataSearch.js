@@ -270,9 +270,182 @@ function formatOpenLibraryResult(book, normalizeGenres) {
   };
 }
 
+/**
+ * Search Hardcover.app via GraphQL API
+ *
+ * Hardcover uses GraphQL with Books-focused metadata including:
+ * - Genres, moods, content warnings
+ * - Series information with positions
+ * - Audiobook availability indicators (has_audiobook, audio_seconds)
+ * - Community data (user counts, ratings)
+ *
+ * Requires HARDCOVER_API_KEY environment variable.
+ * API is in beta and subject to change.
+ */
+async function searchHardcover(title, author, normalizeGenres, apiToken) {
+  const results = [];
+
+  if (!apiToken) {
+    logger.info('[Hardcover] No API token configured, skipping search');
+    return results;
+  }
+
+  try {
+    // Build search query - combine title and author if both provided
+    const queryParts = [];
+    if (title) queryParts.push(title);
+    if (author) queryParts.push(author);
+    const searchQuery = queryParts.join(' ').trim();
+
+    if (!searchQuery) {
+      return results;
+    }
+
+    logger.info(`[Hardcover] Searching for: "${searchQuery}"`);
+
+    // GraphQL query for Hardcover
+    // Note: results is a JSON scalar type, not a GraphQL object type
+    // We query it without subselection and parse the nested structure
+    const graphqlQuery = {
+      query: `
+        query SearchBooks($query: String!, $perPage: Int!) {
+          search(
+            query: $query
+            query_type: "Book"
+            per_page: $perPage
+          ) {
+            results
+          }
+        }
+      `,
+      variables: {
+        query: searchQuery,
+        perPage: 10
+      }
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout per Hardcover docs
+
+    let response;
+    try {
+      response = await fetch('https://api.hardcover.app/v1/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiToken}`,
+          'User-Agent': 'Sappho Audiobook Server'
+        },
+        body: JSON.stringify(graphqlQuery),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        logger.warn('[Hardcover] Invalid or expired API token');
+      } else if (response.status === 429) {
+        logger.warn('[Hardcover] Rate limited - too many requests');
+      } else {
+        logger.warn(`[Hardcover] API returned status ${response.status}`);
+      }
+      return results;
+    }
+
+    const data = await response.json();
+
+    // Handle GraphQL errors
+    if (data.errors) {
+      logger.warn('[Hardcover] GraphQL errors:', JSON.stringify(data.errors));
+      return results;
+    }
+
+    // Hardcover returns results as a JSON object with nested structure:
+    // results: { found: number, hits: [ { document: {...}, highlight: {...} } ] }
+    const searchResults = data?.data?.search?.results;
+    if (!searchResults || !searchResults.hits) {
+      logger.info('[Hardcover] No hits in search results');
+      return results;
+    }
+
+    const books = searchResults.hits.map(hit => hit.document);
+
+    for (const book of books) {
+      // Skip books without a title (shouldn't happen but defensive)
+      if (!book.title) continue;
+
+      // Extract series info - Hardcover has both series_names array and featured_series object
+      let series = null;
+      let seriesPosition = null;
+
+      if (book.featured_series) {
+        // featured_series might be an object with a name property, or just a string
+        series = typeof book.featured_series === 'object' ? book.featured_series.name || book.featured_series.title : book.featured_series;
+        seriesPosition = book.featured_series_position;
+      } else if (book.series_names && book.series_names.length > 0) {
+        // series_names might contain objects or strings
+        const firstSeries = book.series_names[0];
+        series = typeof firstSeries === 'object' ? firstSeries.name || firstSeries.title : firstSeries;
+      }
+
+      // Combine genres and moods for a richer genre field
+      const allGenres = [];
+      if (book.genres) allGenres.push(...book.genres);
+      if (book.moods) allGenres.push(...book.moods);
+
+      // Get ISBN-13 preferentially, or ISBN-10, or any ISBN
+      let isbn = null;
+      if (book.isbns && book.isbns.length > 0) {
+        // Hardcover returns an array of ISBN strings, prefer 13-digit
+        isbn = book.isbns.find(isbnStr => isbnStr.length === 13) || book.isbns[0];
+      }
+
+      // Cover image - Hardcover uses slug-based cover URLs
+      const image = book.slug ? `https://hardcover.app/books/${book.slug}/image.jpg` : null;
+
+      results.push({
+        source: 'hardcover',
+        title: book.title,
+        subtitle: book.subtitle || null,
+        author: book.author_names?.map(a => typeof a === 'object' ? a.name || a.title || a : a).join(', ') || null,
+        narrator: null, // Hardcover doesn't track narrator info
+        series: series,
+        series_position: seriesPosition,
+        description: book.description || null,
+        genre: normalizeGenres(allGenres.map(g => typeof g === 'object' ? g.name || g.title || g : g).join(', ')) || null,
+        published_year: book.release_year || null,
+        isbn: isbn,
+        rating: book.rating?.toString() || null,
+        rating_count: Number.isFinite(book.ratings_count) ? book.ratings_count : null,
+        image: image,
+        hasChapters: false,
+        // Hardcover-specific fields - don't include objects in the result
+        has_audiobook: book.has_audiobook || false,
+        audio_seconds: book.audio_seconds || null,
+        moods: book.moods?.map(m => typeof m === 'object' ? m.name || m.title || m : m).join(', ') || null,
+        tags: book.tags?.map(t => typeof t === 'object' ? t.name || t.title || t : t).join(', ') || null,
+        users_count: book.users_count || null,
+      });
+    }
+
+    logger.info(`[Hardcover] Found ${results.length} results for "${searchQuery}"`);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      logger.warn('[Hardcover] Request timeout (>30s)');
+    } else {
+      logger.info('[Hardcover] Search error:', err.message);
+    }
+  }
+
+  return results;
+}
+
 module.exports = {
   searchAudible,
   searchGoogleBooks,
   searchOpenLibrary,
+  searchHardcover,
   formatOpenLibraryResult
 };

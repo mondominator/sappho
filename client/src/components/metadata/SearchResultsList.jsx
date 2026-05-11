@@ -1,5 +1,5 @@
 /**
- * Search results list for metadata search (Audible, Google Books, Open Library)
+ * Search results list for metadata search (Audible, Hardcover, Google Books, Open Library)
  */
 export default function SearchResultsList({ results, onSelect, onBack }) {
   return (
@@ -32,7 +32,9 @@ export default function SearchResultsList({ results, onSelect, onBack }) {
               <div className="result-title">
                 {result.title}
                 <span className={`result-source source-${result.source || 'audible'}`}>
-                  {result.source === 'google' ? 'Google' : result.source === 'openlibrary' ? 'OpenLibrary' : 'Audible'}
+                  {result.source === 'google' ? 'Google' :
+                   result.source === 'openlibrary' ? 'OpenLibrary' :
+                   result.source === 'hardcover' ? 'Hardcover' : 'Audible'}
                 </span>
               </div>
               {result.author && <div className="result-author">by {result.author}</div>}

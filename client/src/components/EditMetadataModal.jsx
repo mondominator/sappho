@@ -434,7 +434,7 @@ export default function EditMetadataModal({ isOpen, onClose, audiobook, onSave }
               >
                 {searching ? 'Searching...' : 'Search for Metadata'}
               </button>
-              <p className="search-hint">Searches Audible, Google Books, and Open Library</p>
+              <p className="search-hint">Searches Audible, Hardcover, Google Books, and Open Library</p>
             </div>
 
             <div className="form-row">
