@@ -15,6 +15,7 @@ services:
       - AUDIOBOOKS_DIR=/app/data/audiobooks
       - UPLOAD_DIR=/app/data/uploads
       - LIBRARY_SCAN_INTERVAL=5
+      - HARDCOVER_API_KEY=${HARDCOVER_API_KEY}
       # CORS_ORIGINS can be overridden via env. Defaults to localhost variants
       # only — set CORS_ORIGINS in your .env to add production hostnames.
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003}

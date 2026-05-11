@@ -27,7 +27,7 @@ Also available as an [Unraid Community App](unraid-template.xml).
 ## Key Features
 
 - **Library scanning** — background scan auto-imports books, extracts metadata from ID3/Vorbis/iTunes tags, pulls covers
-- **External metadata** — searches Audible, Google Books, and Open Library; reads sidecar files (desc.txt, reader.txt, .opf)
+- **External metadata** — searches Audible, Google Books, Open Library, and Hardcover; reads sidecar files (desc.txt, reader.txt, .opf)
 - **Series recaps** — AI-powered "Catch Me Up" summaries via OpenAI or Gemini
 - **Multi-user** — separate accounts with individual progress, JWT auth, API keys for integrations
 - **PWA** — installable on iOS/Android, offline-capable with service worker caching and IndexedDB progress queue
@@ -44,6 +44,7 @@ Also available as an [Unraid Community App](unraid-template.xml).
 | `AI_PROVIDER` | `openai` | `openai` or `gemini` for series recaps |
 | `OPENAI_API_KEY` | — | OpenAI key (for recaps) |
 | `GEMINI_API_KEY` | — | Gemini key (free tier available) |
+| `HARDCOVER_API_KEY` | — | Hardcover.app key (for book metadata search) |
 
 ## Tech Stack
 
