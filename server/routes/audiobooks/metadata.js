@@ -193,7 +193,11 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
       logger.info(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}, Hardcover=${hardcoverResults.length}`);
 
-      // Combine results - Audible first (best for audiobooks), then Hardcover (has audiobook indicators), then others
+      // Combine results with priority ordering:
+      // 1. Audible - Best for audiobooks (primary use case), has narrators, duration, release dates
+      // 2. Hardcover - Has audiobook availability flags (has_audiobook, audio_seconds), series positions
+      // 3. Google Books - Good metadata coverage but no audiobook-specific data
+      // 4. Open Library - Community-driven, good for older/obscure books
       const results = [
         ...audibleResults,
         ...hardcoverResults,
