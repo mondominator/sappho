@@ -187,6 +187,9 @@ export const getUpNext = (limit = 10) =>
 export const getFinished = (limit = 10) =>
   api.get('/audiobooks/meta/finished', { params: { limit } });
 
+export const getSimilarBooks = (id, limit = 6) =>
+  api.get(`/audiobooks/${id}/similar`, { params: { limit } });
+
 // API Keys
 export const getApiKeys = () =>
   api.get('/api-keys');
