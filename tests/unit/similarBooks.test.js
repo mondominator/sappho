@@ -592,6 +592,23 @@ describe('Similar Books Utilities', () => {
 
       expect(result).toEqual(books);
     });
+
+    it('handles edge case with invalid books data that could trigger error handling', () => {
+      // Test with books array that contains potentially problematic data
+      const problematicBooks = [
+        { id: 1, title: 'Book 1' },
+        { id: 2, title: 'Book 2' },
+        { id: 3, title: 'Book 3' }
+      ];
+
+      // Use a completedIds that could potentially cause issues
+      const completedIds = [1, 2, 3, 4, 5]; // Some IDs not in books
+
+      const result = filterCompletedBooks(problematicBooks, completedIds, true);
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(0);
+    });
   });
 
   describe('deduplicateCategories', () => {
