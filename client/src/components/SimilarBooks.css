@@ -1,0 +1,186 @@
+/* Similar Books Component Styles */
+
+.similar-books-container {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-primary);
+}
+
+.similar-books-loading,
+.similar-books-error,
+.similar-books-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-radius: 10px;
+}
+
+.similar-books-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1.5rem 0;
+}
+
+/* Section Styles */
+.similar-section {
+  margin-bottom: 2rem;
+}
+
+.similar-section:last-child {
+  margin-bottom: 0;
+}
+
+.similar-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.similar-section-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.similar-section-icon {
+  font-size: 1.2rem;
+}
+
+.similar-section-count {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* Books Grid - Responsive */
+.similar-books-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .similar-books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .similar-books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Book Card Styles */
+.similar-book-card {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.similar-book-card:hover {
+  transform: translateY(-4px);
+}
+
+.similar-book-cover {
+  position: relative;
+  width: 100%;
+  padding-bottom: 150%; /* 2:3 aspect ratio for audiobook covers */
+  background: var(--bg-hover);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.similar-book-cover img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.similar-book-info {
+  padding: 0.5rem 0;
+}
+
+.similar-book-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem 0;
+  line-height: 1.3;
+
+  /* Truncate to 2 lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.similar-book-author {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.25rem 0;
+
+  /* Truncate to 1 line */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.similar-book-duration {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Responsive adjustments for AudiobookDetail page */
+@media (max-width: 768px) {
+  .similar-books-container {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+  }
+
+  .similar-books-heading {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+
+  .similar-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .similar-section-title {
+    font-size: 0.95rem;
+  }
+
+  .similar-book-title {
+    font-size: 0.85rem;
+  }
+
+  .similar-book-author {
+    font-size: 0.75rem;
+  }
+}
+
+/* Empty state styling */
+.text-small {
+  font-size: 0.85rem;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}

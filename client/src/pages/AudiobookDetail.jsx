@@ -8,6 +8,7 @@ import AddToCollectionModal from '../components/AddToCollectionModal';
 import RatingSection from '../components/RatingSection';
 import { useRecap, RecapTrigger, RecapContent } from '../components/RecapSection';
 import { AudiobookDetailSkeleton } from '../components/Skeleton';
+import SimilarBooks from '../components/SimilarBooks';
 import { formatDuration, formatFileSize, cleanDescription } from '../utils/formatting';
 import { useWebSocketEvent } from '../contexts/WebSocketContext';
 import './AudiobookDetail.css';
@@ -829,6 +830,9 @@ export default function AudiobookDetail({ onPlay }) {
 
         </div>
       </div>
+
+      {/* Similar Books Suggestions */}
+      <SimilarBooks audiobookId={audiobook.id} />
 
       {/* Chapters modal - rendered outside detail-content to avoid stacking context issues with sticky sidebar */}
       {chapters.length > 0 && showChapters && (

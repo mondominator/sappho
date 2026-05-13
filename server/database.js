@@ -519,6 +519,19 @@ function initializeDatabase() {
     `);
 
     // -------------------------------------------------------------------
+    // User recommendation preferences
+    // -------------------------------------------------------------------
+    db.run(`
+      CREATE TABLE IF NOT EXISTS user_recommendation_prefs (
+        user_id INTEGER PRIMARY KEY,
+        exclude_completed_in_similar INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // -------------------------------------------------------------------
     // Indexes
     // -------------------------------------------------------------------
     db.run('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
@@ -555,6 +568,7 @@ function initializeDatabase() {
     db.run('CREATE INDEX IF NOT EXISTS idx_hardcover_sync_log_user ON hardcover_sync_log(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_hardcover_sync_log_audiobook ON hardcover_sync_log(audiobook_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_hardcover_sync_log_created_at ON hardcover_sync_log(created_at DESC)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_user_recommendation_prefs_user ON user_recommendation_prefs(user_id)');
 
     // -------------------------------------------------------------------
     // Full-text search (FTS5 virtual table + triggers)
