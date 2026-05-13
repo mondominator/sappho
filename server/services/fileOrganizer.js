@@ -265,8 +265,9 @@ async function organizeAudiobook(audiobook) {
       // those in the chapters table (which may have been overwritten by
       // Audnexus chapter fetch). This ensures all MP3s move together.
       const audioExtensions = ['.mp3', '.m4a', '.m4b', '.mp4', '.ogg', '.flac', '.opus', '.aac', '.wav', '.wma'];
+      let dirFiles = [];
       try {
-        const dirFiles = fs.readdirSync(currentDir)
+        dirFiles = fs.readdirSync(currentDir)
           .filter(f => audioExtensions.includes(path.extname(f).toLowerCase()));
         for (const fileName of dirFiles) {
           const srcPath = path.join(currentDir, fileName);
@@ -279,7 +280,9 @@ async function organizeAudiobook(audiobook) {
 
       // Also move the main file_path reference if it wasn't in the directory scan
       newFilePath = path.join(targetDir, originalFilename);
-      if (fs.existsSync(audiobook.file_path)) {
+      // Check if main file wasn't already moved in the directory scan above
+      const mainFileWasMoved = dirFiles.some(f => f === originalFilename);
+      if (!mainFileWasMoved && fs.existsSync(audiobook.file_path)) {
         moveFile(audiobook.file_path, newFilePath);
       }
 
