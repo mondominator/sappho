@@ -568,6 +568,102 @@
   height: 2rem;
 }
 
+/* Hardcover Minimal Section */
+.hardcover-minimal {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-primary);
+}
+
+.hardcover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.hardcover-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hardcover-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.hardcover-input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hardcover-input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.hardcover-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.hardcover-input::placeholder {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.8rem;
+}
+
+.hardcover-save-btn {
+  padding: 0.6rem 1rem;
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.hardcover-save-btn:hover {
+  background: var(--accent-hover);
+}
+
+.hardcover-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hardcover-disconnect-btn {
+  padding: 0.6rem 1rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hardcover-disconnect-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-danger);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 /* Mobile Adjustments */
 @media (max-width: 400px) {
   .profile-stats {
@@ -580,5 +676,13 @@
 
   .recent-books {
     gap: 0.5rem;
+  }
+
+  .hardcover-input-group {
+    flex-direction: column;
+  }
+
+  .hardcover-save-btn {
+    width: 100%;
   }
 }
