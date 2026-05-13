@@ -198,7 +198,7 @@ router.post('/api-key', authenticateToken, (req, res) => {
   const encryptedData = JSON.stringify({ encrypted, iv, authTag });
 
   db.run(
-    `UPDATE users SET hardcover_api_key = ?, hardcover_user_id = NULL WHERE id = ?`,
+    'UPDATE users SET hardcover_api_key = ?, hardcover_user_id = NULL WHERE id = ?',
     [encryptedData, req.user.id],
     function(err) {
       if (err) {
@@ -267,7 +267,7 @@ router.post('/sync-enabled', authenticateToken, (req, res) => {
   const db = require('../database');
 
   db.run(
-    `UPDATE users SET hardcover_sync_enabled = ? WHERE id = ?`,
+    'UPDATE users SET hardcover_sync_enabled = ? WHERE id = ?',
     [enabled ? 1 : 0, req.user.id],
     function(err) {
       if (err) {
@@ -296,7 +296,7 @@ router.post('/test-connection', authenticateToken, async (req, res) => {
 
   // Get user's encrypted API key
   db.get(
-    `SELECT hardcover_api_key, hardcover_oauth_token FROM users WHERE id = ?`,
+    'SELECT hardcover_api_key, hardcover_oauth_token FROM users WHERE id = ?',
     [req.user.id],
     async (err, row) => {
       if (err) {
@@ -349,7 +349,7 @@ router.post('/test-connection', authenticateToken, async (req, res) => {
 
         // Update hardcover_user_id with the ID from the API response
         db.run(
-          `UPDATE users SET hardcover_user_id = ? WHERE id = ?`,
+          'UPDATE users SET hardcover_user_id = ? WHERE id = ?',
           [data.currentUser.id, req.user.id],
           (updateErr) => {
             if (updateErr) {
