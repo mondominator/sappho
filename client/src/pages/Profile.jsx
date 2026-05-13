@@ -55,10 +55,16 @@ export default function Profile() {
   const [mfaLoading, setMfaLoading] = useState(false);
   const [mfaBackupCodes, setMfaBackupCodes] = useState(null);
 
+  // Hardcover state
+  const [hardcoverApiKey, setHardcoverApiKey] = useState('');
+  const [hardcoverConnected, setHardcoverConnected] = useState(false);
+  const [hardcoverSaving, setHardcoverSaving] = useState(false);
+
   useEffect(() => {
     loadProfile();
     loadStats();
     loadMFAStatus();
+    loadHardcoverConfig();
   }, []);
 
   const loadProfile = async () => {
@@ -255,6 +261,54 @@ export default function Profile() {
       setMessage({ type: 'error', text: 'Invalid code' });
     } finally {
       setMfaLoading(false);
+    }
+  };
+
+  const loadHardcoverConfig = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/hardcover/config', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setHardcoverConnected(response.data.userConnection !== 'none');
+    } catch (error) {
+      console.error('Error loading Hardcover config:', error);
+    }
+  };
+
+  const handleSaveHardcoverApiKey = async () => {
+    if (!hardcoverApiKey || hardcoverApiKey.length !== 40) {
+      setMessage({ type: 'error', text: 'Invalid API key format' });
+      return;
+    }
+
+    setHardcoverSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/hardcover/api-key',
+        { apiKey: hardcoverApiKey },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMessage({ type: 'success', text: 'Hardcover API key saved' });
+      setHardcoverConnected(true);
+      setHardcoverApiKey('');
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to save API key' });
+    } finally {
+      setHardcoverSaving(false);
+    }
+  };
+
+  const handleRemoveHardcoverApiKey = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete('/api/hardcover/api-key', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMessage({ type: 'success', text: 'Hardcover API key removed' });
+      setHardcoverConnected(false);
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to remove API key' });
     }
   };
 
@@ -513,6 +567,37 @@ export default function Profile() {
             }}
           />
         </label>
+      </div>
+
+      {/* Hardcover API - Minimal */}
+      <div className="profile-section hardcover-minimal">
+        <div className="hardcover-header">
+          <span className="hardcover-title">Hardcover</span>
+          {hardcoverConnected && <span className="hardcover-badge">Connected</span>}
+        </div>
+        {!hardcoverConnected ? (
+          <div className="hardcover-input-group">
+            <input
+              type="password"
+              className="hardcover-input"
+              placeholder="API key from hardcover.app/account/api"
+              value={hardcoverApiKey}
+              onChange={(e) => setHardcoverApiKey(e.target.value)}
+              maxLength={40}
+            />
+            <button
+              className="hardcover-save-btn"
+              onClick={handleSaveHardcoverApiKey}
+              disabled={hardcoverSaving || !hardcoverApiKey}
+            >
+              {hardcoverSaving ? 'Saving...' : 'Connect'}
+            </button>
+          </div>
+        ) : (
+          <button className="hardcover-disconnect-btn" onClick={handleRemoveHardcoverApiKey}>
+            Disconnect
+          </button>
+        )}
       </div>
 
       {/* Spacer for bottom nav */}

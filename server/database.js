@@ -114,6 +114,12 @@ function initializeDatabase() {
     addColumnIfMissing('users', 'disabled_at', 'TIMESTAMP');
     addColumnIfMissing('users', 'disabled_reason', 'TEXT');
     addColumnIfMissing('users', 'auth_method', "TEXT DEFAULT 'local'");
+    addColumnIfMissing('users', 'hardcover_oauth_token', 'TEXT');
+    addColumnIfMissing('users', 'hardcover_refresh_token', 'TEXT');
+    addColumnIfMissing('users', 'hardcover_user_id', 'TEXT');
+    addColumnIfMissing('users', 'hardcover_token_expires_at', 'TIMESTAMP');
+    addColumnIfMissing('users', 'hardcover_sync_enabled', 'INTEGER DEFAULT 0');
+    addColumnIfMissing('users', 'hardcover_api_key', 'TEXT');
 
     // -------------------------------------------------------------------
     // Audiobooks
@@ -173,6 +179,9 @@ function initializeDatabase() {
     addColumnIfMissing('audiobooks', 'is_available', 'INTEGER DEFAULT 1');
     addColumnIfMissing('audiobooks', 'last_seen_at', 'DATETIME');
     addColumnIfMissing('audiobooks', 'original_path', 'TEXT');
+    addColumnIfMissing('audiobooks', 'hardcover_edition_id', 'TEXT');
+    addColumnIfMissing('audiobooks', 'hardcover_synced_at', 'TIMESTAMP');
+    addColumnIfMissing('audiobooks', 'hardcover_sync_status', "TEXT DEFAULT 'none'");
 
     // -------------------------------------------------------------------
     // Playback progress
@@ -493,6 +502,23 @@ function initializeDatabase() {
     `);
 
     // -------------------------------------------------------------------
+    // Hardcover sync log
+    // -------------------------------------------------------------------
+    db.run(`
+      CREATE TABLE IF NOT EXISTS hardcover_sync_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        audiobook_id INTEGER,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        details TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (audiobook_id) REFERENCES audiobooks(id) ON DELETE SET NULL
+      )
+    `);
+
+    // -------------------------------------------------------------------
     // Indexes
     // -------------------------------------------------------------------
     db.run('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
@@ -526,6 +552,9 @@ function initializeDatabase() {
     db.run('CREATE INDEX IF NOT EXISTS idx_listening_sessions_started ON listening_sessions(started_at)');
     db.run('CREATE INDEX IF NOT EXISTS idx_duplicate_flags_status ON duplicate_flags(status)');
     db.run('CREATE INDEX IF NOT EXISTS idx_duplicate_flags_audiobook ON duplicate_flags(audiobook_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_hardcover_sync_log_user ON hardcover_sync_log(user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_hardcover_sync_log_audiobook ON hardcover_sync_log(audiobook_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_hardcover_sync_log_created_at ON hardcover_sync_log(created_at DESC)');
 
     // -------------------------------------------------------------------
     // Full-text search (FTS5 virtual table + triggers)
