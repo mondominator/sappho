@@ -174,7 +174,7 @@ function register(router, deps) {
                   return (a.title || '').localeCompare(b.title || '');
                 });
 
-              const similarAudiobooks = scoredBooks.map(({ scoreData, ...book }) => book);
+              const similarAudiobooks = scoredBooks.map(({ scoreData: _scoreData, ...book }) => book);
 
               // Deduplicate across categories (priority: author > narrator > similar)
               const categories = {
