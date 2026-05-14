@@ -356,11 +356,13 @@ Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
 |----------|---------|-------------|
 | `PORT` | 3001 | Server port |
 | `JWT_SECRET` | (required) | Secret for signing JWTs |
+| `ENCRYPTION_KEY` | (required) | Encryption key for sensitive data (API keys, etc.) |
 | `DATABASE_PATH` | `/app/data/sappho.db` | SQLite database location |
 | `AUDIOBOOKS_DIR` | `/app/data/audiobooks` | Audiobook library path |
 | `UPLOAD_DIR` | `/app/data/uploads` | Temporary upload directory |
 | `LIBRARY_SCAN_INTERVAL` | 5 | Minutes between library scans |
 | `CORS_ORIGINS` | `http://localhost:3000,...` | Comma-separated allowed origins |
+| `HARDCOVER_API_KEY` | — | Hardcover.app API key for metadata search |
 
 **CORS Configuration**: When deploying behind a reverse proxy with a custom domain, set `CORS_ORIGINS` to your domain (e.g., `https://audiobooks.example.com`).
 
@@ -368,8 +370,9 @@ Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
 
 1. **Container cache issues**: Always rebuild with `--no-cache` after code changes
 2. **Missing JWT_SECRET**: Server won't start without this env var - generate with `openssl rand -base64 32`
-3. **File permissions**: Ensure audiobooks directory is readable by container user (UID 1000 default)
-4. **PWA not installing**: Requires HTTPS (except localhost) - check service worker registration in browser console
+3. **Missing ENCRYPTION_KEY**: Server won't start without this env var - generate with `openssl rand -base64 48`
+4. **File permissions**: Ensure audiobooks directory is readable by container user (UID 1000 default)
+5. **PWA not installing**: Requires HTTPS (except localhost) - check service worker registration in browser console
 5. **OpsDec not receiving sessions**:
    - Verify WebSocket connection to `/ws` endpoint
    - Check API key is valid and not expired
