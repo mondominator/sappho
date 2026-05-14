@@ -86,7 +86,7 @@ describe('Metadata Search Service - Hardcover', () => {
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.hardcover.app/v1/graphql',
+        'https://hardcover.app/api/graphql',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({

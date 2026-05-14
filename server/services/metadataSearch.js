@@ -2,7 +2,7 @@
  * Metadata Search Utilities
  *
  * External API search functions for audiobook metadata:
- * Audible (via Audnexus), Google Books, and Open Library.
+ * Audible (via Audnexus), Google Books, Open Library, and Hardcover.
  */
 const logger = require('../utils/logger');
 
@@ -375,11 +375,11 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout per Hardcover docs
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout to match other sources
 
     let response;
     try {
-      response = await fetch('https://api.hardcover.app/v1/graphql', {
+      response = await fetch('https://hardcover.app/api/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -456,8 +456,14 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
                book.isbns[0]; // Fallback to first ISBN even if invalid (better than nothing)
       }
 
-      // Cover image - Hardcover uses slug-based cover URLs
-      const image = book.slug ? `https://hardcover.app/books/${book.slug}/image.jpg` : null;
+      // Cover image - Try API-provided image fields first, fall back to slug-based URL
+      let image = null;
+      if (book.image || book.cover_url || book.cached_image) {
+        image = book.image || book.cover_url || book.cached_image;
+      } else if (book.slug) {
+        // Fallback: Construct URL from slug (may not work for all books)
+        image = `https://hardcover.app/books/${book.slug}/image.jpg`;
+      }
 
       results.push({
         source: 'hardcover',
@@ -487,7 +493,7 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
     logger.info(`[Hardcover] Found ${results.length} results for "${searchQuery}"`);
   } catch (err) {
     if (err.name === 'AbortError') {
-      logger.warn('[Hardcover] Request timeout (>30s)');
+      logger.warn('[Hardcover] Request timeout (>10s)');
     } else {
       logger.info('[Hardcover] Search error:', err.message);
     }
