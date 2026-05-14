@@ -59,7 +59,7 @@ function createSettingsRouter(deps = {}) {
     logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
 
     // Hardcover settings
-    hardcoverApiKey: process.env.HARDCOVER_API_KEY || '',
+    hardcoverApiKey: process.env.HARDCOVER_API_KEY ? '••••••••' : '',
   };
 
   // Map env var names to setting keys

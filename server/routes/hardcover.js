@@ -7,6 +7,10 @@
  * - DELETE /api/hardcover/api-key - Remove user's personal API key
  * - POST /api/hardcover/sync-enabled - Toggle sync enabled/disabled
  * - POST /api/hardcover/test-connection - Test API key connectivity
+ *
+ * Note: OAuth is not currently implemented. Per-user API keys are stored and
+ * can be tested, but metadata search currently uses the server-wide
+ * HARDCOVER_API_KEY environment variable exclusively.
  */
 
 const express = require('express');
@@ -17,18 +21,23 @@ const { authenticateToken } = require('../auth');
 const db = require('../database');
 
 // Encryption key from environment (must be 32 bytes for AES-256)
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
-  ? crypto.scryptSync(process.env.ENCRYPTION_KEY, 'salt', 32)
-  : crypto.randomBytes(32);
+// ENCRYPTION_KEY is now required via validateEnv - using a fixed salt for key derivation
+const ENCRYPTION_KEY = crypto.scryptSync(process.env.ENCRYPTION_KEY, 'sappho-hardcover-key', 32);
 
 /**
  * Encrypt an API key using AES-256-GCM
  * @param {string} plaintext - The API key to encrypt
- * @returns {object} Object with encrypted, iv, and authTag
+ * @returns {object} Object with encrypted, salt, iv, and authTag
  */
 function encryptHardcoverKey(plaintext) {
+  // Generate a unique salt for this encryption operation
+  const salt = crypto.randomBytes(32);
+
+  // Derive a unique key from the master key + per-record salt
+  const key = crypto.scryptSync(ENCRYPTION_KEY.toString('hex'), salt.toString('hex'), 32);
+
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -37,6 +46,7 @@ function encryptHardcoverKey(plaintext) {
 
   return {
     encrypted,
+    salt: salt.toString('hex'),
     iv: iv.toString('hex'),
     authTag: authTag.toString('hex')
   };
@@ -45,15 +55,19 @@ function encryptHardcoverKey(plaintext) {
 /**
  * Decrypt an encrypted API key
  * @param {string} encrypted - The encrypted data
+ * @param {string} salt - The salt used for key derivation
  * @param {string} iv - The initialization vector
  * @param {string} authTag - The authentication tag
  * @returns {string} The decrypted API key
  */
-function decryptHardcoverKey(encrypted, iv, authTag) {
+function decryptHardcoverKey(encrypted, salt, iv, authTag) {
   try {
+    // Derive the same unique key from the master key + stored salt
+    const key = crypto.scryptSync(ENCRYPTION_KEY.toString('hex'), salt, 32);
+
     const decipher = crypto.createDecipheriv(
       'aes-256-gcm',
-      ENCRYPTION_KEY,
+      key,
       Buffer.from(iv, 'hex')
     );
 
@@ -108,19 +122,18 @@ async function hardcoverGraphQLRequest(query, variables = {}, apiKey) {
  *
  * Returns configuration status for the current user:
  * - serverHasKey: Whether a server-wide API key is configured
- * - userConnection: 'none' | 'api-key' | 'oauth'
+ * - userHasKey: Whether this user has a personal API key stored
  * - syncEnabled: Whether sync is enabled for this user
  * - hardcoverUserId: The user's Hardcover ID (if connected)
- * - tokenExpired: Whether the OAuth token is expired (if applicable)
- * - features: Object showing which features are available
+ *
+ * Note: OAuth is not currently implemented. Per-user API keys are stored but not
+ * currently used for metadata search (which uses the server-wide HARDCOVER_API_KEY).
  */
 router.get('/config', authenticateToken, (req, res) => {
   db.get(
     `SELECT
       hardcover_api_key,
-      hardcover_oauth_token,
       hardcover_user_id,
-      hardcover_token_expires_at,
       hardcover_sync_enabled
      FROM users WHERE id = ?`,
     [req.user.id],
@@ -134,37 +147,22 @@ router.get('/config', authenticateToken, (req, res) => {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Determine user connection type
-      let userConnection = 'none';
-      if (row.hardcover_oauth_token) {
-        userConnection = 'oauth';
-      } else if (row.hardcover_api_key) {
-        userConnection = 'api-key';
-      }
-
-      // Check if OAuth token is expired
-      let tokenExpired = false;
-      if (row.hardcover_token_expires_at) {
-        tokenExpired = new Date(row.hardcover_token_expires_at) < new Date();
-      }
-
       // Determine available features
       const serverHasKey = !!process.env.HARDCOVER_API_KEY;
-      const hasUserConnection = userConnection !== 'none';
+      const userHasKey = !!row.hardcover_api_key;
 
       const features = {
-        metadataSearch: serverHasKey || hasUserConnection,
-        progressSync: hasUserConnection,
-        wantToReadImport: hasUserConnection,
-        editionLinking: hasUserConnection
+        metadataSearch: serverHasKey, // Currently uses server-wide key only
+        progressSync: false, // Not yet implemented
+        wantToReadImport: false, // Not yet implemented
+        editionLinking: false // Not yet implemented
       };
 
       res.json({
         serverHasKey,
-        userConnection,
+        userHasKey,
         syncEnabled: !!row.hardcover_sync_enabled,
         hardcoverUserId: row.hardcover_user_id,
-        tokenExpired,
         features
       });
     }
@@ -190,12 +188,10 @@ router.post('/api-key', authenticateToken, (req, res) => {
   }
 
   // Encrypt the API key
-  const { encrypted, iv, authTag } = encryptHardcoverKey(apiKey);
-
-  const db = require('../database');
+  const { encrypted, salt, iv, authTag } = encryptHardcoverKey(apiKey);
 
   // Store encrypted key as JSON string
-  const encryptedData = JSON.stringify({ encrypted, iv, authTag });
+  const encryptedData = JSON.stringify({ encrypted, salt, iv, authTag });
 
   db.run(
     'UPDATE users SET hardcover_api_key = ?, hardcover_user_id = NULL WHERE id = ?',
@@ -222,15 +218,10 @@ router.post('/api-key', authenticateToken, (req, res) => {
  * Remove the user's personal API key and disconnect their account.
  */
 router.delete('/api-key', authenticateToken, (req, res) => {
-  const db = require('../database');
-
   db.run(
     `UPDATE users SET
       hardcover_api_key = NULL,
-      hardcover_oauth_token = NULL,
-      hardcover_refresh_token = NULL,
       hardcover_user_id = NULL,
-      hardcover_token_expires_at = NULL,
       hardcover_sync_enabled = 0
      WHERE id = ?`,
     [req.user.id],
@@ -264,8 +255,6 @@ router.post('/sync-enabled', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'enabled must be a boolean' });
   }
 
-  const db = require('../database');
-
   db.run(
     'UPDATE users SET hardcover_sync_enabled = ? WHERE id = ?',
     [enabled ? 1 : 0, req.user.id],
@@ -290,13 +279,14 @@ router.post('/sync-enabled', authenticateToken, (req, res) => {
  *
  * Test the user's Hardcover API key connectivity.
  * Attempts to fetch the user's profile from Hardcover.
+ *
+ * Note: This tests per-user API keys. Metadata search currently uses the
+ * server-wide HARDCOVER_API_KEY environment variable instead.
  */
 router.post('/test-connection', authenticateToken, async (req, res) => {
-  const db = require('../database');
-
   // Get user's encrypted API key
   db.get(
-    'SELECT hardcover_api_key, hardcover_oauth_token FROM users WHERE id = ?',
+    'SELECT hardcover_api_key FROM users WHERE id = ?',
     [req.user.id],
     async (err, row) => {
       if (err) {
@@ -304,27 +294,25 @@ router.post('/test-connection', authenticateToken, async (req, res) => {
         return res.status(500).json({ error: 'Failed to test connection' });
       }
 
-      if (!row || (!row.hardcover_api_key && !row.hardcover_oauth_token)) {
+      if (!row || !row.hardcover_api_key) {
         return res.status(400).json({
-          error: 'No API key or OAuth token found. Please connect your account first.'
+          error: 'No API key found. Please enter your Hardcover API key first.'
         });
       }
 
       let apiKey;
 
-      // Decrypt API key if present
-      if (row.hardcover_api_key) {
-        try {
-          const { encrypted, iv, authTag } = JSON.parse(row.hardcover_api_key);
-          apiKey = decryptHardcoverKey(encrypted, iv, authTag);
+      // Decrypt API key
+      try {
+        const { encrypted, salt, iv, authTag } = JSON.parse(row.hardcover_api_key);
+        apiKey = decryptHardcoverKey(encrypted, salt, iv, authTag);
 
-          if (!apiKey) {
-            return res.status(500).json({ error: 'Failed to decrypt API key' });
-          }
-        } catch (parseError) {
-          logger.error({ err: parseError }, 'Failed to parse encrypted API key');
+        if (!apiKey) {
           return res.status(500).json({ error: 'Failed to decrypt API key' });
         }
+      } catch (parseError) {
+        logger.error({ err: parseError }, 'Failed to parse encrypted API key');
+        return res.status(500).json({ error: 'Failed to decrypt API key' });
       }
 
       // Test connection by fetching user profile

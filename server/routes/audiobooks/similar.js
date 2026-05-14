@@ -37,13 +37,13 @@ function register(router, deps) {
    * Requires authentication.
    */
   router.get('/:id/similar', authenticateToken, (req, res) => {
-    const audiobookId = parseInt(req.params.id);
+    const audiobookId = parseInt(req.params.id, 10);
     const userId = req.user.id;
 
     // Validate and parse limit parameter
     let limit = 6; // default
     if (req.query.limit !== undefined) {
-      const parsedLimit = parseInt(req.query.limit);
+      const parsedLimit = parseInt(req.query.limit, 10);
       if (isNaN(parsedLimit) || parsedLimit < 1) {
         return res.status(400).json({ error: 'Limit must be a positive integer' });
       }
@@ -215,9 +215,9 @@ function register(router, deps) {
 
     db.run(
       `INSERT INTO user_recommendation_prefs (user_id, exclude_completed_in_similar, updated_at)
-       VALUES (?, 1, CURRENT_TIMESTAMP)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id) DO UPDATE SET
-         exclude_completed_in_similar = ?,
+         exclude_completed_in_similar = excluded.exclude_completed_in_similar,
          updated_at = CURRENT_TIMESTAMP`,
       [req.user.id, exclude_completed ? 1 : 0],
       (err) => {

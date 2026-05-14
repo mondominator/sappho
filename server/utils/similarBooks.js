@@ -15,6 +15,8 @@ const logger = require('./logger');
  * @param {Object} baseBook - The reference audiobook
  * @param {Object} candidateBook - The audiobook to score against baseBook
  * @returns {number} Similarity score (higher = more similar)
+ *
+ * @deprecated Use scoreBook() instead which returns {score, reasons} object
  */
 function calculateSimilarityScore(baseBook, candidateBook) {
   let score = 0;
@@ -184,7 +186,7 @@ function limitResults(books, limit = 6) {
 }
 
 module.exports = {
-  calculateSimilarityScore,
+  calculateSimilarityScore, // Kept for backward compatibility with tests
   scoreBook,
   filterCompletedBooks,
   deduplicateCategories,
