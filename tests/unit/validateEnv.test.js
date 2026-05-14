@@ -3,6 +3,7 @@ const originalEnv = { ...process.env };
 beforeEach(() => {
   process.env = { ...originalEnv };
   process.env.JWT_SECRET = 'a-valid-secret-that-is-at-least-32-characters-long';
+  process.env.ENCRYPTION_KEY = 'a-valid-encryption-key-that-is-at-least-32-characters-long';
   jest.restoreAllMocks();
 });
 
@@ -139,6 +140,16 @@ describe('validateEnv', () => {
       expect(jwtVar.validate).toBeDefined();
       expect(jwtVar.validate('a'.repeat(32))).toBeNull();
       expect(jwtVar.validate('short')).toEqual(expect.stringContaining('at least 32'));
+    });
+  });
+
+  it('validates ENCRYPTION_KEY validate function', () => {
+    jest.isolateModules(() => {
+      const { REQUIRED_VARS } = require('../../server/utils/validateEnv');
+      const encVar = REQUIRED_VARS.find(v => v.name === 'ENCRYPTION_KEY');
+      expect(encVar.validate).toBeDefined();
+      expect(encVar.validate('a'.repeat(32))).toBeNull();
+      expect(encVar.validate('short')).toEqual(expect.stringContaining('at least 32'));
     });
   });
 });
