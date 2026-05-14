@@ -22,6 +22,16 @@ const REQUIRED_VARS = [
       return null;
     },
   },
+  {
+    name: 'ENCRYPTION_KEY',
+    description: 'Encryption key for sensitive data (Hardcover API keys, etc.). Must be at least 32 characters. Use: openssl rand -base64 48',
+    validate: (value) => {
+      if (value.length < 32) {
+        return 'ENCRYPTION_KEY must be at least 32 characters long';
+      }
+      return null;
+    },
+  },
 ];
 
 /**
@@ -76,6 +86,7 @@ function validateEnv() {
     }
     console.error('');
     console.error('Hint: Set JWT_SECRET with: export JWT_SECRET=$(openssl rand -base64 32)');
+    console.error('Hint: Set ENCRYPTION_KEY with: export ENCRYPTION_KEY=$(openssl rand -base64 48)');
     console.error('='.repeat(60));
     console.error('');
     process.exit(1);

@@ -13,6 +13,7 @@ const { sanitizeHtml } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
 const { searchAudible, searchGoogleBooks, searchOpenLibrary, searchHardcover, formatOpenLibraryResult } = require('../../services/metadataSearch');
+const { resolveUserHardcoverKey } = require('../../utils/hardcoverEncryption');
 const { downloadCover } = require('../../services/coverDownloader');
 const { embedWithTone, embedWithFfmpeg } = require('../../services/metadataEmbedder');
 const { invalidateThumbnails } = require('../../services/thumbnailService');
@@ -183,12 +184,16 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
     }
 
     try {
+      // Use the authenticated user's encrypted Hardcover key when available;
+      // fall back to the server-wide env var if they haven't connected.
+      const hardcoverApiKey = await resolveUserHardcoverKey(req.user.id, db);
+
       // Search all sources in parallel
       const [audibleResults, googleResults, openLibraryResults, hardcoverResults] = await Promise.all([
         searchAudible(title, author, asin, normalizeGenres),
         searchGoogleBooks(title, author, normalizeGenres),
         searchOpenLibrary(title, author, normalizeGenres),
-        searchHardcover(title, author, normalizeGenres, process.env.HARDCOVER_API_KEY),
+        searchHardcover(title, author, normalizeGenres, hardcoverApiKey),
       ]);
 
       logger.info(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}, Hardcover=${hardcoverResults.length}`);

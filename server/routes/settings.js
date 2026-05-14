@@ -57,6 +57,9 @@ function createSettingsRouter(deps = {}) {
 
     // Logging settings
     logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
+
+    // Hardcover settings
+    hardcoverApiKey: process.env.HARDCOVER_API_KEY ? '••••••••' : '',
   };
 
   // Map env var names to setting keys
@@ -71,6 +74,7 @@ function createSettingsRouter(deps = {}) {
     AUTO_BACKUP_INTERVAL: 'autoBackupInterval',
     BACKUP_RETENTION: 'backupRetention',
     LOG_BUFFER_SIZE: 'logBufferSize',
+    HARDCOVER_API_KEY: 'hardcoverApiKey',
   };
 
   // Build locked fields list
@@ -98,6 +102,7 @@ function handleUpdateAllSettings(req, res) {
     audiobooksDir,
     uploadDir,
     libraryScanInterval,
+    hardcoverApiKey,
   } = req.body;
 
   const errors = [];
@@ -113,6 +118,7 @@ function handleUpdateAllSettings(req, res) {
     audiobooksDir: 'AUDIOBOOKS_DIR',
     uploadDir: 'UPLOAD_DIR',
     libraryScanInterval: 'LIBRARY_SCAN_INTERVAL',
+    hardcoverApiKey: 'HARDCOVER_API_KEY',
   };
 
   // Check for attempts to modify locked fields
@@ -200,6 +206,18 @@ function handleUpdateAllSettings(req, res) {
     }
   }
 
+  // Hardcover API key
+  if (hardcoverApiKey !== undefined) {
+    // Skip validation if value contains bullets (masked placeholder)
+    if (!hardcoverApiKey.includes('••••')) {
+      if (hardcoverApiKey !== '' && !/^[a-zA-Z0-9]{40}$/.test(hardcoverApiKey)) {
+        errors.push('Hardcover API key must be 40 characters (alphanumeric) or empty to clear');
+      } else {
+        updates.HARDCOVER_API_KEY = hardcoverApiKey;
+      }
+    }
+  }
+
   // Return errors if any
   if (errors.length > 0) {
     return res.status(400).json({ errors });
@@ -253,7 +271,7 @@ router.put('/library', authenticateToken, requireAdmin, (req, res) => {
   res.json({ message: 'Library settings updated successfully.' });
 });
 
-// Get server settings (redirects to /all for consistency)
+// Get server settings (parallel to /all — same field set, kept for legacy clients)
 router.get('/server', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
     port: process.env.PORT || '3001',
@@ -266,6 +284,9 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
     autoBackupInterval: parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24,
     backupRetention: parseInt(process.env.BACKUP_RETENTION) || 7,
     logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
+    // Mirror the masking from GET /all so the Hardcover key status is visible
+    // to legacy clients without ever putting the plaintext key in a response.
+    hardcoverApiKey: process.env.HARDCOVER_API_KEY ? '••••••••' : '',
   };
 
   // Map env var names to setting keys
@@ -280,6 +301,7 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
     AUTO_BACKUP_INTERVAL: 'autoBackupInterval',
     BACKUP_RETENTION: 'backupRetention',
     LOG_BUFFER_SIZE: 'logBufferSize',
+    HARDCOVER_API_KEY: 'hardcoverApiKey',
   };
 
   // Build locked fields list

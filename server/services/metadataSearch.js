@@ -5,6 +5,7 @@
  * Audible (via Audnexus), Google Books, Open Library, and Hardcover.
  */
 const logger = require('../utils/logger');
+const { HARDCOVER_GRAPHQL_URL } = require('../utils/hardcoverEncryption');
 
 /**
  * Search Audible and get details from Audnexus
@@ -381,7 +382,7 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
 
     let response;
     try {
-      response = await fetch('https://hardcover.app/api/graphql', {
+      response = await fetch(HARDCOVER_GRAPHQL_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
