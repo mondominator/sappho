@@ -469,12 +469,12 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
         source: 'hardcover',
         title: book.title,
         subtitle: book.subtitle || null,
-        author: book.author_names?.map(a => typeof a === 'object' ? a.name || a.title || a : a).join(', ') || null,
+        author: book.author_names?.map(a => typeof a === 'object' ? a.name || a.title || a : a).filter(Boolean).join(', ') || null,
         narrator: null, // Hardcover doesn't track narrator info
         series: series,
         series_position: seriesPosition,
         description: book.description || null,
-        genre: normalizeGenres(allGenres.map(g => typeof g === 'object' ? g.name || g.title || g : g).join(', ')) || null,
+        genre: normalizeGenres(allGenres.map(g => typeof g === 'object' ? g.name || g.title || g : g).filter(Boolean).join(', ')) || null,
         published_year: book.release_year || null,
         isbn: isbn,
         rating: book.rating?.toString() || null,
@@ -484,8 +484,8 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
         // Hardcover-specific fields - don't include objects in the result
         has_audiobook: book.has_audiobook || false,
         audio_seconds: book.audio_seconds || null,
-        moods: book.moods?.map(m => typeof m === 'object' ? m.name || m.title || m : m).join(', ') || null,
-        tags: book.tags?.map(t => typeof t === 'object' ? t.name || t.title || t : t).join(', ') || null,
+        moods: book.moods?.map(m => typeof m === 'object' ? m.name || m.title || m : m).filter(Boolean).join(', ') || null,
+        tags: book.tags?.map(t => typeof t === 'object' ? t.name || t.title || t : t).filter(Boolean).join(', ') || null,
         users_count: book.users_count || null,
       });
     }
