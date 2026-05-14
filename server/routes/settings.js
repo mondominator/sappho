@@ -271,7 +271,7 @@ router.put('/library', authenticateToken, requireAdmin, (req, res) => {
   res.json({ message: 'Library settings updated successfully.' });
 });
 
-// Get server settings (redirects to /all for consistency)
+// Get server settings (parallel to /all — same field set, kept for legacy clients)
 router.get('/server', authenticateToken, requireAdmin, (req, res) => {
   const settings = {
     port: process.env.PORT || '3001',
@@ -284,6 +284,9 @@ router.get('/server', authenticateToken, requireAdmin, (req, res) => {
     autoBackupInterval: parseInt(process.env.AUTO_BACKUP_INTERVAL) || 24,
     backupRetention: parseInt(process.env.BACKUP_RETENTION) || 7,
     logBufferSize: Math.min(parseInt(process.env.LOG_BUFFER_SIZE) || 500, 5000),
+    // Mirror the masking from GET /all so the Hardcover key status is visible
+    // to legacy clients without ever putting the plaintext key in a response.
+    hardcoverApiKey: process.env.HARDCOVER_API_KEY ? '••••••••' : '',
   };
 
   // Map env var names to setting keys
