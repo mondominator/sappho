@@ -217,6 +217,86 @@ describe('Metadata Search Service - Hardcover', () => {
       expect(result[0].isbn).toBe('9780306406157');
     });
 
+    test('selects a valid ISBN-10 when no ISBN-13 is available', async () => {
+      // 0306406152 is a canonical valid ISBN-10. The prior `sum % 11 === checkDigit`
+      // implementation rejected every valid ISBN-10, so this exercises the corrected
+      // `(sum + checkDigit) % 11 === 0` rule.
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            search: {
+              results: {
+                found: 1,
+                hits: [
+                  {
+                    document: {
+                      title: 'ISBN10 Book',
+                      author_names: ['Author'],
+                      isbns: ['0306406152'],
+                      slug: 'isbn10-book',
+                      genres: []
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        })
+      });
+
+      const result = await searchHardcover('ISBN10 Book', 'Author', mockNormalizeGenres, 'test-token');
+
+      expect(result[0].isbn).toBe('0306406152');
+    });
+
+    test('filters out objects with neither name nor title from list-valued fields', async () => {
+      // Defends against `[object Object]` leaking into author/genre/moods/tags
+      // when Hardcover returns array elements that are objects without recognized
+      // string keys. The fallback maps unknown shapes to null so .filter(Boolean)
+      // can drop them.
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            search: {
+              results: {
+                found: 1,
+                hits: [
+                  {
+                    document: {
+                      title: 'Edge Case Book',
+                      author_names: ['Real Author', { id: 1 }, { name: 'Named' }],
+                      genres: ['Sci-Fi', { id: 99 }],
+                      moods: [{ name: 'tense' }, { unrelated: true }],
+                      tags: [{ title: 'space' }, {}],
+                      slug: 'edge-case',
+                      isbns: []
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        })
+      });
+
+      const result = await searchHardcover('Edge Case Book', 'Real Author', mockNormalizeGenres, 'test-token');
+
+      // No `[object Object]` should appear in any joined string field.
+      expect(result[0].author).not.toContain('[object Object]');
+      expect(result[0].genre).not.toContain('[object Object]');
+      expect(result[0].moods).not.toContain('[object Object]');
+      expect(result[0].tags).not.toContain('[object Object]');
+      // And the recognizable entries should survive.
+      expect(result[0].author).toContain('Real Author');
+      expect(result[0].author).toContain('Named');
+      expect(result[0].moods).toContain('tense');
+      expect(result[0].tags).toContain('space');
+    });
+
     test('constructs cover image URL from slug', async () => {
       global.fetch.mockResolvedValueOnce({
         ok: true,
