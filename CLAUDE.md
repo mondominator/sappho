@@ -361,6 +361,8 @@ Custom OWASP API2:2023 scanner (`.github/scripts/owasp-api2-scanner.js`):
 | `UPLOAD_DIR` | `/app/data/uploads` | Temporary upload directory |
 | `LIBRARY_SCAN_INTERVAL` | 5 | Minutes between library scans |
 | `CORS_ORIGINS` | `http://localhost:3000,...` | Comma-separated allowed origins |
+| `ENCRYPTION_KEY` | (required) | Master key for per-user secrets (Hardcover API keys). Must be ≥32 chars. Generate with `openssl rand -base64 48`. Server refuses to start without it. |
+| `HARDCOVER_API_KEY` | (optional) | Server-wide fallback key for Hardcover.app metadata search. Users may also store their own via `POST /api/hardcover/api-key`; per-user key takes precedence when set. |
 
 **CORS Configuration**: When deploying behind a reverse proxy with a custom domain, set `CORS_ORIGINS` to your domain (e.g., `https://audiobooks.example.com`).
 

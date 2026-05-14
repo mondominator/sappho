@@ -35,6 +35,7 @@ paths = [
   '''client/package-lock\.json''',
   '''OWASP-.*\.md''',
   '''\.security-reports/.*''',
+  '''tests/.*''',
 ]
 
 # Allow example/documentation patterns
