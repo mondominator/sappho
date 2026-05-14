@@ -297,7 +297,7 @@ describe('Metadata Search Service - Hardcover', () => {
       expect(result[0].tags).toContain('space');
     });
 
-    test('constructs cover image URL from slug', async () => {
+    test('leaves image null when API returns no image field (slug is not enough to fabricate a URL)', async () => {
       global.fetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -324,7 +324,7 @@ describe('Metadata Search Service - Hardcover', () => {
 
       const result = await searchHardcover('Test Book', 'Test Author', mockNormalizeGenres, 'test-token');
 
-      expect(result[0].image).toBe('https://hardcover.app/books/test-book/image.jpg');
+      expect(result[0].image).toBeNull();
     });
 
     test('handles 401 unauthorized response (invalid token)', async () => {
