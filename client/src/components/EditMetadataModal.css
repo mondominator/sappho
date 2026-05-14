@@ -321,6 +321,11 @@
   color: white;
 }
 
+.source-hardcover {
+  background: #8b5cf6;
+  color: white;
+}
+
 /* Has chapters indicator */
 .result-chapters {
   font-size: 0.75rem;
