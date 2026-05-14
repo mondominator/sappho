@@ -53,7 +53,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.media-amazon.com', 'https://*.ssl-images-amazon.com', 'https://covers.openlibrary.org', 'https://*.archive.org', 'https://books.google.com', 'https://books.googleusercontent.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.media-amazon.com', 'https://*.ssl-images-amazon.com', 'https://covers.openlibrary.org', 'https://*.archive.org', 'https://books.google.com', 'https://books.googleusercontent.com', 'https://hardcover.app'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'", 'ws:', 'wss:', 'https://www.googleapis.com', 'https://openlibrary.org', 'https://api.audible.com', 'https://api.audnex.us'],
       fontSrc: ["'self'"],
@@ -123,6 +123,7 @@ app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/hardcover', require('./routes/hardcover'));
 app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/series', require('./routes/series'));
 app.use('/api/backup', require('./routes/backup'));

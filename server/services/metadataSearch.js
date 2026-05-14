@@ -2,7 +2,7 @@
  * Metadata Search Utilities
  *
  * External API search functions for audiobook metadata:
- * Audible (via Audnexus), Google Books, and Open Library.
+ * Audible (via Audnexus), Google Books, Open Library, and Hardcover.
  */
 const logger = require('../utils/logger');
 
@@ -271,6 +271,49 @@ function formatOpenLibraryResult(book, normalizeGenres) {
 }
 
 /**
+ * Validate ISBN-10 or ISBN-13 checksum
+ * Returns true if the ISBN is valid, false otherwise
+ *
+ * ISBN-10: Uses modulo 11 checksum (10 represented as 'X')
+ * ISBN-13: Uses modulo 10 checksum with weights 1 and 3 alternating
+ */
+function isValidISBN(isbn) {
+  if (!isbn || typeof isbn !== 'string') return false;
+
+  // Remove hyphens and spaces, convert to uppercase
+  const cleaned = isbn.replace(/[-\s]/g, '').toUpperCase();
+
+  // ISBN-10 validation (10 characters, last can be X)
+  if (cleaned.length === 10) {
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      const digit = parseInt(cleaned[i], 10);
+      if (isNaN(digit)) return false;
+      sum += digit * (10 - i);
+    }
+    // Check digit (can be X representing 10)
+    const last = cleaned[9];
+    const checkDigit = last === 'X' ? 10 : parseInt(last, 10);
+    if (isNaN(checkDigit)) return false;
+
+    return sum % 11 === checkDigit;
+  }
+
+  // ISBN-13 validation (13 digits)
+  if (cleaned.length === 13) {
+    let sum = 0;
+    for (let i = 0; i < 13; i++) {
+      const digit = parseInt(cleaned[i], 10);
+      if (isNaN(digit)) return false;
+      sum += digit * (i % 2 === 0 ? 1 : 3);
+    }
+    return sum % 10 === 0;
+  }
+
+  return false;
+}
+
+/**
  * Search Hardcover.app via GraphQL API
  *
  * Hardcover uses GraphQL with Books-focused metadata including:
@@ -285,10 +328,17 @@ function formatOpenLibraryResult(book, normalizeGenres) {
 async function searchHardcover(title, author, normalizeGenres, apiToken) {
   const results = [];
 
-  if (!apiToken) {
-    logger.info('[Hardcover] No API token configured, skipping search');
+  // Validate API token - must be non-empty string (not null, undefined, empty, or whitespace-only)
+  if (!apiToken || typeof apiToken !== 'string' || apiToken.trim().length === 0) {
+    logger.info('[Hardcover] No valid API token configured, skipping search');
     return results;
   }
+
+  // Parse and validate HARDCOVER_RESULTS_LIMIT (default: 10, range: 1-50)
+  const resultsLimit = Math.min(
+    Math.max(parseInt(process.env.HARDCOVER_RESULTS_LIMIT || '10', 10) || 10, 1),
+    50
+  );
 
   try {
     // Build search query - combine title and author if both provided
@@ -320,16 +370,16 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
       `,
       variables: {
         query: searchQuery,
-        perPage: 10
+        perPage: resultsLimit
       }
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout per Hardcover docs
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout to match other sources
 
     let response;
     try {
-      response = await fetch('https://api.hardcover.app/v1/graphql', {
+      response = await fetch('https://hardcover.app/api/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -395,15 +445,25 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
       if (book.genres) allGenres.push(...book.genres);
       if (book.moods) allGenres.push(...book.moods);
 
-      // Get ISBN-13 preferentially, or ISBN-10, or any ISBN
+      // Get ISBN-13 preferentially, or ISBN-10, or any valid ISBN
+      // Validates ISBN checksum to ensure it's a real ISBN
       let isbn = null;
       if (book.isbns && book.isbns.length > 0) {
-        // Hardcover returns an array of ISBN strings, prefer 13-digit
-        isbn = book.isbns.find(isbnStr => isbnStr.length === 13) || book.isbns[0];
+        // Prefer ISBN-13, then ISBN-10, but validate all with checksum
+        isbn = book.isbns.find(isbnStr => isbnStr.length === 13 && isValidISBN(isbnStr)) ||
+               book.isbns.find(isbnStr => isbnStr.length === 10 && isValidISBN(isbnStr)) ||
+               book.isbns.find(isbnStr => isValidISBN(isbnStr)) ||
+               book.isbns[0]; // Fallback to first ISBN even if invalid (better than nothing)
       }
 
-      // Cover image - Hardcover uses slug-based cover URLs
-      const image = book.slug ? `https://hardcover.app/books/${book.slug}/image.jpg` : null;
+      // Cover image - Try API-provided image fields first, fall back to slug-based URL
+      let image = null;
+      if (book.image || book.cover_url || book.cached_image) {
+        image = book.image || book.cover_url || book.cached_image;
+      } else if (book.slug) {
+        // Fallback: Construct URL from slug (may not work for all books)
+        image = `https://hardcover.app/books/${book.slug}/image.jpg`;
+      }
 
       results.push({
         source: 'hardcover',
@@ -433,7 +493,7 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
     logger.info(`[Hardcover] Found ${results.length} results for "${searchQuery}"`);
   } catch (err) {
     if (err.name === 'AbortError') {
-      logger.warn('[Hardcover] Request timeout (>30s)');
+      logger.warn('[Hardcover] Request timeout (>10s)');
     } else {
       logger.info('[Hardcover] Search error:', err.message);
     }
