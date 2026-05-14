@@ -12,7 +12,7 @@ const rateLimit = require('express-rate-limit');
 const { sanitizeHtml } = require('./helpers');
 const { createDbHelpers } = require('../../utils/db');
 const { createQueryHelpers } = require('../../utils/queryHelpers');
-const { searchAudible, searchGoogleBooks, searchOpenLibrary, formatOpenLibraryResult } = require('../../services/metadataSearch');
+const { searchAudible, searchGoogleBooks, searchOpenLibrary, searchHardcover, formatOpenLibraryResult } = require('../../services/metadataSearch');
 const { downloadCover } = require('../../services/coverDownloader');
 const { embedWithTone, embedWithFfmpeg } = require('../../services/metadataEmbedder');
 const { invalidateThumbnails } = require('../../services/thumbnailService');
@@ -184,17 +184,23 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
 
     try {
       // Search all sources in parallel
-      const [audibleResults, googleResults, openLibraryResults] = await Promise.all([
+      const [audibleResults, googleResults, openLibraryResults, hardcoverResults] = await Promise.all([
         searchAudible(title, author, asin, normalizeGenres),
         searchGoogleBooks(title, author, normalizeGenres),
         searchOpenLibrary(title, author, normalizeGenres),
+        searchHardcover(title, author, normalizeGenres, process.env.HARDCOVER_API_KEY),
       ]);
 
-      logger.info(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}`);
+      logger.info(`[Search] Found: Audible=${audibleResults.length}, Google=${googleResults.length}, OpenLibrary=${openLibraryResults.length}, Hardcover=${hardcoverResults.length}`);
 
-      // Combine results - Audible first (best for audiobooks), then others
+      // Combine results with priority ordering:
+      // 1. Audible - Best for audiobooks (primary use case), has narrators, duration, release dates
+      // 2. Hardcover - Has audiobook availability flags (has_audiobook, audio_seconds), series positions
+      // 3. Google Books - Good metadata coverage but no audiobook-specific data
+      // 4. Open Library - Community-driven, good for older/obscure books
       const results = [
         ...audibleResults,
+        ...hardcoverResults,
         ...googleResults,
         ...openLibraryResults,
       ];
@@ -212,6 +218,7 @@ function register(router, { db, authenticateToken, requireAdmin, normalizeGenres
           audible: audibleResults.length,
           google: googleResults.length,
           openlibrary: openLibraryResults.length,
+          hardcover: hardcoverResults.length,
         }
       });
     } catch (error) {
