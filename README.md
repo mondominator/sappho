@@ -28,6 +28,7 @@ Also available as an [Unraid Community App](unraid-template.xml).
 
 - **Library scanning** — background scan auto-imports books, extracts metadata from ID3/Vorbis/iTunes tags, pulls covers
 - **External metadata** — searches Audible, Google Books, Open Library, and Hardcover; reads sidecar files (desc.txt, reader.txt, .opf)
+- **Similar Books** — multi-factor recommendations (author, narrator, series, genre, publisher, duration)
 - **Series recaps** — AI-powered "Catch Me Up" summaries via OpenAI or Gemini
 - **Multi-user** — separate accounts with individual progress, JWT auth, API keys for integrations
 - **PWA** — installable on iOS/Android, offline-capable with service worker caching and IndexedDB progress queue
@@ -38,6 +39,7 @@ Also available as an [Unraid Community App](unraid-template.xml).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET` | *required* | Auth signing key |
+| `ENCRYPTION_KEY` | *required* | Encryption key for sensitive data (API keys, etc.) |
 | `PORT` | `3002` | Server port |
 | `AUDIOBOOKS_DIR` | `/app/data/audiobooks` | Library path |
 | `LIBRARY_SCAN_INTERVAL` | `5` | Minutes between scans |
