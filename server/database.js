@@ -410,6 +410,23 @@ function initializeDatabase() {
     `);
 
     // -------------------------------------------------------------------
+    // User recommendation preferences
+    // -------------------------------------------------------------------
+    db.run(`
+      CREATE TABLE IF NOT EXISTS user_recommendation_prefs (
+        user_id INTEGER PRIMARY KEY,
+        exclude_completed INTEGER DEFAULT 1,
+        exclude_in_progress INTEGER DEFAULT 0,
+        prefer_same_narrator INTEGER DEFAULT 1,
+        prefer_same_series INTEGER DEFAULT 1,
+        prefer_same_genre INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // -------------------------------------------------------------------
     // Authentication tokens
     // -------------------------------------------------------------------
     db.run(`
