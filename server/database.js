@@ -114,6 +114,9 @@ function initializeDatabase() {
     addColumnIfMissing('users', 'disabled_at', 'TIMESTAMP');
     addColumnIfMissing('users', 'disabled_reason', 'TEXT');
     addColumnIfMissing('users', 'auth_method', "TEXT DEFAULT 'local'");
+    addColumnIfMissing('users', 'hardcover_api_key', 'TEXT');
+    addColumnIfMissing('users', 'hardcover_user_id', 'TEXT');
+    addColumnIfMissing('users', 'hardcover_sync_enabled', 'INTEGER DEFAULT 0');
 
     // -------------------------------------------------------------------
     // Audiobooks

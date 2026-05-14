@@ -208,10 +208,13 @@ function handleUpdateAllSettings(req, res) {
 
   // Hardcover API key
   if (hardcoverApiKey !== undefined) {
-    if (hardcoverApiKey !== '' && !/^[a-zA-Z0-9]{40}$/.test(hardcoverApiKey)) {
-      errors.push('Hardcover API key must be 40 characters (alphanumeric) or empty to clear');
-    } else {
-      updates.HARDCOVER_API_KEY = hardcoverApiKey;
+    // Skip validation if value contains bullets (masked placeholder)
+    if (!hardcoverApiKey.includes('••••')) {
+      if (hardcoverApiKey !== '' && !/^[a-zA-Z0-9]{40}$/.test(hardcoverApiKey)) {
+        errors.push('Hardcover API key must be 40 characters (alphanumeric) or empty to clear');
+      } else {
+        updates.HARDCOVER_API_KEY = hardcoverApiKey;
+      }
     }
   }
 
