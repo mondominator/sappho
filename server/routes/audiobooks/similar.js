@@ -82,10 +82,13 @@ function register(router, deps) {
 
         // Fetch user's recommendation preferences
         db.get(
-          'SELECT exclude_completed_in_similar FROM user_recommendation_prefs WHERE user_id = ?',
+          'SELECT exclude_completed FROM user_recommendation_prefs WHERE user_id = ?',
           [userId],
           (prefErr, userPrefs) => {
-            const excludeCompleted = userPrefs?.exclude_completed_in_similar === 1;
+            if (prefErr) {
+              logger.error({ err: prefErr, userId }, 'Failed to fetch recommendation preferences; defaulting to include completed');
+            }
+            const excludeCompleted = userPrefs?.exclude_completed === 1;
 
             // Fetch completed books for this user (if needed)
             if (excludeCompleted) {
@@ -214,10 +217,10 @@ function register(router, deps) {
     }
 
     db.run(
-      `INSERT INTO user_recommendation_prefs (user_id, exclude_completed_in_similar, updated_at)
+      `INSERT INTO user_recommendation_prefs (user_id, exclude_completed, updated_at)
        VALUES (?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id) DO UPDATE SET
-         exclude_completed_in_similar = excluded.exclude_completed_in_similar,
+         exclude_completed = excluded.exclude_completed,
          updated_at = CURRENT_TIMESTAMP`,
       [req.user.id, exclude_completed ? 1 : 0],
       (err) => {
@@ -228,7 +231,7 @@ function register(router, deps) {
 
         res.json({
           success: true,
-          exclude_completed_in_similar: exclude_completed
+          exclude_completed: exclude_completed
         });
       }
     );
@@ -241,7 +244,7 @@ function register(router, deps) {
    */
   router.get('/similar/preferences', authenticateToken, (req, res) => {
     db.get(
-      'SELECT exclude_completed_in_similar FROM user_recommendation_prefs WHERE user_id = ?',
+      'SELECT exclude_completed FROM user_recommendation_prefs WHERE user_id = ?',
       [req.user.id],
       (err, row) => {
         if (err) {
@@ -250,7 +253,7 @@ function register(router, deps) {
         }
 
         res.json({
-          exclude_completed_in_similar: row?.exclude_completed_in_similar === 1 || false
+          exclude_completed: row?.exclude_completed === 1 || false
         });
       }
     );

@@ -11,50 +11,6 @@
 const logger = require('./logger');
 
 /**
- * Calculate similarity score between two audiobooks
- * @param {Object} baseBook - The reference audiobook
- * @param {Object} candidateBook - The audiobook to score against baseBook
- * @returns {number} Similarity score (higher = more similar)
- *
- * @deprecated Use scoreBook() instead which returns {score, reasons} object
- */
-function calculateSimilarityScore(baseBook, candidateBook) {
-  let score = 0;
-
-  // Same series (strongest signal) - 3 points
-  if (baseBook.series && candidateBook.series &&
-      baseBook.series.toLowerCase() === candidateBook.series.toLowerCase()) {
-    // Avoid the exact same book in the same position
-    if (baseBook.id !== candidateBook.id) {
-      score += 3;
-    }
-  }
-
-  // Same genre - 2 points
-  if (baseBook.genre && candidateBook.genre &&
-      baseBook.genre.toLowerCase() === candidateBook.genre.toLowerCase()) {
-    score += 2;
-  }
-
-  // Same publisher - 1 point
-  if (baseBook.publisher && candidateBook.publisher &&
-      baseBook.publisher.toLowerCase() === candidateBook.publisher.toLowerCase()) {
-    score += 1;
-  }
-
-  // Similar duration (±20%) - 1 point
-  if (baseBook.duration && candidateBook.duration) {
-    const durationDiff = Math.abs(baseBook.duration - candidateBook.duration);
-    const durationThreshold = baseBook.duration * 0.2; // 20% threshold
-    if (durationDiff <= durationThreshold) {
-      score += 1;
-    }
-  }
-
-  return score;
-}
-
-/**
  * Calculate similarity scores for a candidate book against a base book,
  * excluding books that match the current book exactly (same author + title)
  * @param {Object} baseBook - The reference audiobook
@@ -186,7 +142,6 @@ function limitResults(books, limit = 6) {
 }
 
 module.exports = {
-  calculateSimilarityScore, // Kept for backward compatibility with tests
   scoreBook,
   filterCompletedBooks,
   deduplicateCategories,

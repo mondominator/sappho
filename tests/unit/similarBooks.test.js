@@ -2,8 +2,7 @@ const {
   scoreBook,
   filterCompletedBooks,
   deduplicateCategories,
-  limitResults,
-  calculateSimilarityScore
+  limitResults
 } = require('../../server/utils/similarBooks');
 
 describe('similarBooks', () => {
@@ -192,54 +191,18 @@ describe('similarBooks', () => {
       expect(result.score).toBe(0);
       expect(result.reasons).toEqual([]);
     });
-  });
 
-  describe('calculateSimilarityScore', () => {
-    const baseBook = {
-      id: 1,
-      title: 'Test Book',
-      author: 'Test Author',
-      series: 'Test Series',
-      genre: 'Fantasy',
-      publisher: 'Test Publisher',
-      duration: 3600
-    };
-
-    it('calculates score for same series', () => {
-      const candidateBook = {
-        id: 2,
-        series: 'Test Series',
-        genre: 'Science Fiction',
-        publisher: 'Different Publisher',
-        duration: 1800
+    it('returns zero score and empty reasons when accessing a property throws', () => {
+      // Throw on `series` (not `id`, which the logger.error in the catch also reads).
+      const throwingBook = {
+        id: 99,
+        author: 'Different Author',
+        title: 'Different Title',
+        get series() { throw new Error('property access boom'); }
       };
-
-      const score = calculateSimilarityScore(baseBook, candidateBook);
-      expect(score).toBe(3);
-    });
-
-    it('calculates score for multiple factors', () => {
-      const candidateBook = {
-        id: 2,
-        series: 'Test Series',
-        genre: 'Fantasy',
-        publisher: 'Test Publisher',
-        duration: 3800
-      };
-
-      const score = calculateSimilarityScore(baseBook, candidateBook);
-      expect(score).toBe(7); // 3 + 2 + 1 + 1
-    });
-
-    it('returns high score for same book (does not exclude itself)', () => {
-      const score = calculateSimilarityScore(baseBook, baseBook);
-      expect(score).toBe(4); // Same genre + publisher + duration (series excluded by ID check)
-    });
-
-    it('handles missing fields', () => {
-      const minimalBook = { id: 2 };
-      const score = calculateSimilarityScore(baseBook, minimalBook);
-      expect(score).toBe(0);
+      const result = scoreBook(baseBook, throwingBook);
+      expect(result.score).toBe(0);
+      expect(result.reasons).toEqual([]);
     });
   });
 
@@ -254,6 +217,11 @@ describe('similarBooks', () => {
     it('returns all books when excludeCompleted is false', () => {
       const completedBooks = [1, 2];
       const result = filterCompletedBooks(books, completedBooks, false);
+      expect(result).toEqual(books);
+    });
+
+    it('uses defaults when only books is provided', () => {
+      const result = filterCompletedBooks(books);
       expect(result).toEqual(books);
     });
 
@@ -283,6 +251,15 @@ describe('similarBooks', () => {
     it('handles non-array books input', () => {
       const result = filterCompletedBooks('not an array', [1, 2], true);
       expect(result).toEqual([]);
+    });
+
+    it('returns original books when filtering throws', () => {
+      const throwingBooks = [
+        { id: 1, title: 'Book 1' },
+        { get id() { throw new Error('property access boom'); } }
+      ];
+      const result = filterCompletedBooks(throwingBooks, [1], true);
+      expect(result).toEqual(throwingBooks);
     });
 
     it('handles books without id field', () => {

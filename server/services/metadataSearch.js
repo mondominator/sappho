@@ -459,14 +459,10 @@ async function searchHardcover(title, author, normalizeGenres, apiToken) {
                book.isbns[0]; // Fallback to first ISBN even if invalid (better than nothing)
       }
 
-      // Cover image - Try API-provided image fields first, fall back to slug-based URL
-      let image = null;
-      if (book.image || book.cover_url || book.cached_image) {
-        image = book.image || book.cover_url || book.cached_image;
-      } else if (book.slug) {
-        // Fallback: Construct URL from slug (may not work for all books)
-        image = `https://hardcover.app/books/${book.slug}/image.jpg`;
-      }
+      // Cover image - only use what the API actually returns. A slug-derived
+      // URL has no guarantee of pointing at a real asset and produces broken
+      // <img> tags more often than not.
+      const image = book.image || book.cover_url || book.cached_image || null;
 
       results.push({
         source: 'hardcover',
