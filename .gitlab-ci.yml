@@ -1,0 +1,234 @@
+# Sappho CI/CD
+#
+# Stages:
+#   test    — lint, unit/integration/docker tests, coverage (MRs + main)
+#   audit   — npm audit (server + client), lockfile-lint, gitleaks
+#   owasp   — OWASP API2:2023 broken-authentication scanner
+#   build   — Docker build, push to registry.gitlab.com/bitworx/sappho
+#   scan    — Trivy scans the freshly built image
+#
+# Deploy stage will be added once an SSH key is provisioned on the Unraid
+# host and registered as a CI/CD file variable (mirrors opsdec's pattern).
+
+stages:
+  - test
+  - audit
+  - owasp
+  - build
+  - scan
+
+variables:
+  IMAGE: $CI_REGISTRY_IMAGE
+  NODE_IMAGE: node:20-bookworm-slim
+  TRIVY_IMAGE: aquasec/trivy:0.61.1
+
+default:
+  tags:
+    - bitworx
+
+# ---------------------------------------------------------------------------
+# Shared template for Node-based jobs
+# ---------------------------------------------------------------------------
+.node:
+  image: $NODE_IMAGE
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+  before_script:
+    - npm ci
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# ---------------------------------------------------------------------------
+# Test stage — runs in parallel
+# ---------------------------------------------------------------------------
+lint:
+  extends: .node
+  stage: test
+  script:
+    - npm run lint
+
+unit-tests:
+  extends: .node
+  stage: test
+  script:
+    - npm run test:unit
+
+integration-tests:
+  extends: .node
+  stage: test
+  variables:
+    JWT_SECRET: test-secret-for-ci-only-not-used-anywhere-else-32chars
+    ENCRYPTION_KEY: test-encryption-key-for-ci-only-32-characters-minimum
+  script:
+    - npm run test:integration
+
+docker-validation:
+  extends: .node
+  stage: test
+  script:
+    - npm run test:docker
+
+coverage:
+  extends: .node
+  stage: test
+  variables:
+    JWT_SECRET: test-secret-for-ci-only-not-used-anywhere-else-32chars
+    ENCRYPTION_KEY: test-encryption-key-for-ci-only-32-characters-minimum
+  script:
+    - npm run test:all
+  artifacts:
+    when: always
+    paths:
+      - coverage/
+    expire_in: 7 days
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+
+# ---------------------------------------------------------------------------
+# Audit stage — supply-chain and secret scanning
+# ---------------------------------------------------------------------------
+audit-server:
+  extends: .node
+  stage: audit
+  allow_failure: true
+  script:
+    - npm audit --audit-level=high
+
+audit-client:
+  image: $NODE_IMAGE
+  stage: audit
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  cache:
+    key:
+      files:
+        - client/package-lock.json
+    paths:
+      - client/node_modules/
+  before_script:
+    - cd client && npm ci
+  script:
+    - npm audit --audit-level=high
+
+# Lockfile integrity — no http URLs, only npm registry, all packages have
+# integrity hashes. Catches typosquatting and lockfile-poisoning attempts.
+lockfile-lint:
+  image: $NODE_IMAGE
+  stage: audit
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - npx --yes lockfile-lint@4
+        --path package-lock.json
+        --type npm
+        --validate-package-names
+        --allowed-hosts npm
+        --allowed-schemes "https:"
+        --empty-hostname false
+
+gitleaks:
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [""]
+  stage: audit
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - gitleaks detect --source . --redact --verbose --config=.gitleaks.toml
+
+# ---------------------------------------------------------------------------
+# OWASP API2:2023 — broken-authentication scanner
+# ---------------------------------------------------------------------------
+owasp-api2:
+  extends: .node
+  stage: owasp
+  script:
+    - node .github/scripts/owasp-api2-scanner.js
+  artifacts:
+    when: always
+    paths:
+      - .security-reports/
+    expire_in: 30 days
+
+# ---------------------------------------------------------------------------
+# Build stage — Docker image
+# ---------------------------------------------------------------------------
+build:
+  stage: build
+  image: docker:cli
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - |
+      # Always include :sha-<short> so the scan stage has a stable reference,
+      # then add release / branch / MR tags on top.
+      SHA_TAG="$IMAGE:sha-$CI_COMMIT_SHORT_SHA"
+      TAGS=""
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        VER=${CI_COMMIT_TAG#v}
+        MAJOR=${VER%%.*}
+        MAJORMINOR=${VER%.*}
+        TAGS="-t $IMAGE:$VER -t $IMAGE:$MAJORMINOR -t $IMAGE:$MAJOR -t $IMAGE:latest -t $SHA_TAG"
+        APP_VERSION="$VER"
+      elif [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        DATE=$(date -u +%Y%m%d)
+        TAGS="-t $IMAGE:latest -t $IMAGE:main -t $SHA_TAG -t $IMAGE:$DATE"
+        APP_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "dev")
+      else
+        TAGS="-t $IMAGE:mr-$CI_MERGE_REQUEST_IID -t $SHA_TAG"
+        APP_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "dev")
+      fi
+
+      docker build --build-arg APP_VERSION="$APP_VERSION" $TAGS .
+
+      # MRs verify the Dockerfile but don't publish.
+      if [ "$CI_PIPELINE_SOURCE" != "merge_request_event" ]; then
+        echo "$TAGS" | tr ' ' '\n' | grep '^' | grep -v '^-t$' | grep -v '^$' | while read -r t; do
+          docker push "$t"
+        done
+      fi
+
+# ---------------------------------------------------------------------------
+# Scan stage — Trivy on the freshly built image
+# ---------------------------------------------------------------------------
+trivy:
+  stage: scan
+  image:
+    name: $TRIVY_IMAGE
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: ".trivycache/"
+  script:
+    - trivy --version
+    - trivy image
+        --severity HIGH,CRITICAL
+        --exit-code 0
+        --ignore-unfixed
+        "$IMAGE:sha-$CI_COMMIT_SHORT_SHA"
+  cache:
+    paths:
+      - .trivycache/
+  allow_failure: true
