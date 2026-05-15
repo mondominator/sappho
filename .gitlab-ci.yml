@@ -38,7 +38,11 @@ default:
     paths:
       - node_modules/
   before_script:
-    - npm ci
+    # sqlite3 prebuilt binaries target a glibc newer than bookworm-slim ships
+    # (GLIBC_2.38 vs 2.36), so build from source. Needs build-essential
+    # + python for node-gyp.
+    - apt-get update && apt-get install -y --no-install-recommends python3 make g++ ca-certificates
+    - npm ci --build-from-source=sqlite3
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
