@@ -142,6 +142,10 @@ lockfile-lint:
         --path package-lock.json
         --type npm
         --validate-package-names
+        --allowed-package-name-aliases
+            "string-width-cjs:string-width"
+            "strip-ansi-cjs:strip-ansi"
+            "wrap-ansi-cjs:wrap-ansi"
         --allowed-hosts npm
         --allowed-schemes "https:"
         --empty-hostname false
