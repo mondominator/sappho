@@ -6,9 +6,9 @@
 #   owasp   — OWASP API2:2023 broken-authentication scanner
 #   build   — Docker build, push to registry.gitlab.com/bitworx/sappho
 #   scan    — Trivy scans the freshly built image
-#
-# Deploy stage will be added once an SSH key is provisioned on the Unraid
-# host and registered as a CI/CD file variable (mirrors opsdec's pattern).
+#   deploy  — SSH to Unraid and run update_container:
+#               • Sappho-Dev      ← every push to main (pulls :latest)
+#               • Sappho (prod)   ← v*.*.* tags only (pulls :X.Y.Z)
 
 stages:
   - test
@@ -16,10 +16,12 @@ stages:
   - owasp
   - build
   - scan
+  - deploy
 
 variables:
   IMAGE: $CI_REGISTRY_IMAGE
   NODE_IMAGE: node:20-bookworm-slim
+  ALPINE_IMAGE: alpine:3.20.3
   TRIVY_IMAGE: aquasec/trivy:0.61.1
 
 default:
@@ -242,3 +244,53 @@ trivy:
     paths:
       - .trivycache/
   allow_failure: true
+
+# ---------------------------------------------------------------------------
+# Deploy stage — SSH to Unraid and trigger update_container
+# ---------------------------------------------------------------------------
+# Required CI/CD variables (inherited from bitworx group):
+#   DEPLOY_SSH_PRIVATE_KEY  type=File, masked, scope=protected
+#   UNRAID_HOST             type=Variable, e.g. 192.168.86.151
+#   UNRAID_USER             type=Variable, e.g. root
+
+.deploy:
+  stage: deploy
+  image: $ALPINE_IMAGE
+  before_script:
+    - apk add --no-cache openssh-client
+    # GitLab strips the trailing newline from file-type variables, which OpenSSH
+    # (libcrypto) refuses to parse. Copy to a working path and re-append \n.
+    - cp "$DEPLOY_SSH_PRIVATE_KEY" /tmp/deploy_key
+    - printf '\n' >> /tmp/deploy_key
+    - chmod 600 /tmp/deploy_key
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -t ed25519 -H "$UNRAID_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+  script:
+    # ca_docker_run_override forces docker run -d even when the container
+    # isn't currently running (cold-start case).
+    - ssh -i /tmp/deploy_key "${UNRAID_USER}@${UNRAID_HOST}" "/usr/local/emhttp/plugins/dynamix.docker.manager/scripts/update_container ${CONTAINER} ca_docker_run_override"
+    # update_container exits 0 even when nothing actually started. Verify the
+    # container is up and running the GitLab image.
+    - |
+      ssh -i /tmp/deploy_key "${UNRAID_USER}@${UNRAID_HOST}" \
+        "docker ps --filter name=^${CONTAINER}\$ --filter status=running --format '{{.Image}}'" \
+        | tee /tmp/deployed_image
+      grep -q "registry.gitlab.com/bitworx/sappho" /tmp/deployed_image
+
+deploy-dev:
+  extends: .deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    CONTAINER: Sappho-Dev
+  environment:
+    name: dev
+
+deploy-prod:
+  extends: .deploy
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  variables:
+    CONTAINER: Sappho
+  environment:
+    name: production
