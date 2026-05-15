@@ -188,18 +188,18 @@ describe('readTextFile', () => {
     expect(readTextFile(path.join(tmpDir, 'whitespace.txt'))).toBeNull();
   });
 
-  // chmod-based unreadable checks don't apply to root (CI containers run as
-  // root by default), so skip when EUID===0.
-  const skipIfRoot = process.getuid && process.getuid() === 0 ? test.skip : test;
-
-  skipIfRoot('returns null when fs.readFileSync throws (e.g., permission error)', () => {
+  test('returns null when fs.readFileSync throws', () => {
     tmpDir = createTempDir({ 'noperm.txt': 'content' });
     const filePath = path.join(tmpDir, 'noperm.txt');
-    // Make the file unreadable
-    fs.chmodSync(filePath, 0o000);
-    expect(readTextFile(filePath)).toBeNull();
-    // Restore permissions for cleanup
-    fs.chmodSync(filePath, 0o644);
+    // Mock instead of chmod so the test works regardless of EUID (CI runs as root).
+    const spy = jest.spyOn(fs, 'readFileSync').mockImplementation(() => {
+      throw new Error('EACCES: permission denied');
+    });
+    try {
+      expect(readTextFile(filePath)).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
@@ -239,20 +239,18 @@ describe('findOpfFile', () => {
     expect(findOpfFile('/nonexistent/directory')).toBeNull();
   });
 
-  const skipIfRoot = process.getuid && process.getuid() === 0 ? test.skip : test;
-
-  skipIfRoot('returns null when directory is not readable', () => {
+  test('returns null when fs.readdirSync throws', () => {
     tmpDir = createTempDir({ 'book.opf': '<package/>' });
-    // Make directory unreadable (but we need it to exist and not have metadata.opf)
-    // Rename the opf file to something else first, then make unreadable
-    const noMetaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sappho-noperm-'));
-    fs.writeFileSync(path.join(noMetaDir, 'book.opf'), '<package/>');
-    fs.chmodSync(noMetaDir, 0o000);
-    expect(findOpfFile(noMetaDir)).toBeNull();
-    // Restore permissions for cleanup
-    fs.chmodSync(noMetaDir, 0o755);
-    fs.unlinkSync(path.join(noMetaDir, 'book.opf'));
-    fs.rmdirSync(noMetaDir);
+    // Mock instead of chmod — chmod doesn't restrict root, so CI containers
+    // (run as root) would still successfully read the dir.
+    const spy = jest.spyOn(fs, 'readdirSync').mockImplementation(() => {
+      throw new Error('EACCES: permission denied');
+    });
+    try {
+      expect(findOpfFile(tmpDir)).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
